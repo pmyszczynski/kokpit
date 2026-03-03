@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "Docker (kokpit-dev)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "kokpit-dev"],
+      "port": 3000
+    }
+  ]
+}

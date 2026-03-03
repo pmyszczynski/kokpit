@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from "node:fs";
+import { watch, type FSWatcher } from "fs";
 import { getConfigPath, invalidateCache } from "./loader";
 
 let watcher: FSWatcher | null = null;

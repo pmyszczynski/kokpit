@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { readFileSync, writeFileSync } from "fs";
+import path from "path";
 import { parseDocument } from "yaml";
 import { KokpitConfigSchema, type KokpitConfig } from "./schema";
 
