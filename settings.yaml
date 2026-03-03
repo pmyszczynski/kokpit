@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════════
+# Kokpit — settings.yaml
+#
+# This file is the source of truth for your dashboard configuration.
+# The in-app UI reads from and writes back to this file.
+# Changes here take effect without restarting the server (dev mode).
+#
+# Schema version: 1 (Phase 1 will finalize the full schema + validator)
+# ═══════════════════════════════════════════════════════════════
+
+schema_version: 1
+
+
+# ─── Auth ────────────────────────────────────────────────────
+# Phase 1 — Authentication system will expand this section.
+# When auth.enabled is true, all routes require a valid session.
+# ─────────────────────────────────────────────────────────────
+auth:
+  enabled: false          # Set true once Phase 1 auth is implemented
+  session_ttl_hours: 24
+  # users: []             # Populated by first-run setup wizard
+
+
+# ─── Appearance ───────────────────────────────────────────────
+# Phase 1 (Base UI shell) and Phase 3 (Theme engine) will expand this.
+# ─────────────────────────────────────────────────────────────
+appearance:
+  theme: dark             # Options: dark | light | oled | high-contrast
+  # custom_css: |
+  #   /* Your custom CSS here. This is injected last and always wins. */
+  #   :root { --color-accent: #f97316; }
+
+
+# ─── Layout ───────────────────────────────────────────────────
+# Phase 3 (Drag-and-drop layout editor) will populate this.
+# ─────────────────────────────────────────────────────────────
+layout:
+  columns: 4
+  row_height: 120         # pixels
+
+
+# ─── Services (app tiles) ─────────────────────────────────────
+# Phase 1 (Service tiles task) will implement tile rendering.
+# Add your self-hosted services here.
+# ─────────────────────────────────────────────────────────────
+services: []
+# Example service entry (uncomment in Phase 1):
+# services:
+#   - name: Jellyfin
+#     url: http://192.168.1.10:8096
+#     icon: jellyfin
+#     description: Media server
+#     group: Media
+
+
+# ─── Widgets ──────────────────────────────────────────────────
+# Phase 2 (Widget system architecture) will implement widgets.
+# ─────────────────────────────────────────────────────────────
+widgets: []
+# Example widget (uncomment in Phase 2):
+# widgets:
+#   - type: system-stats
+#     position: { col: 1, row: 1, width: 2, height: 1 }
+#   - type: weather
+#     config:
+#       location: Warsaw
+#       provider: open-meteo   # No API key required
+#     position: { col: 3, row: 1, width: 1, height: 1 }
