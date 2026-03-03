@@ -1,10 +1,3 @@
-export async function register() {
-  // Validate config on startup — crashes loudly if settings.yaml is malformed.
-  const { loadConfig } = await import("./config");
-  loadConfig();
-
-  if (process.env.NODE_ENV === "development") {
-    const { startConfigWatcher } = await import("./config/watcher");
-    startConfigWatcher();
-  }
-}
+// Node.js-only instrumentation (config loading, file watching) lives in
+// instrumentation.node.ts which Next.js only bundles for the Node.js runtime.
+export async function register() {}
