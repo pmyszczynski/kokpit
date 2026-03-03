@@ -1,0 +1,49 @@
+# Kokpit — Docker Compose
+#
+# Usage:
+#   Dev (hot reload):  docker compose up kokpit-dev
+#   Prod:              docker compose up kokpit --build
+
+services:
+
+  # ─── Development (hot reload) ─────────────────────────────
+  kokpit-dev:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      # WATCHPACK_POLLING: "true"  # Uncomment on Windows/WSL2 if hot reload
+                                   # doesn't trigger on file save.
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    restart: unless-stopped
+
+  # ─── Production ───────────────────────────────────────────
+  kokpit:
+    build:
+      context: .
+      target: runner
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    # Uncomment in Phase 1 when settings.yaml parsing and SQLite are added:
+    # volumes:
+    #   - ./settings.yaml:/app/settings.yaml:ro
+    #   - kokpit-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# volumes:
+#   kokpit-data:   # Uncomment in Phase 1 when SQLite DB is introduced
