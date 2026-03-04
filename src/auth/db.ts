@@ -1,4 +1,6 @@
 import Database from "better-sqlite3";
+import { mkdirSync } from "fs";
+import { dirname } from "path";
 
 let db: Database.Database | null = null;
 
@@ -6,6 +8,7 @@ export function getDb(): Database.Database {
   if (db) return db;
 
   const path = process.env.KOKPIT_DB_PATH ?? "data/users.db";
+  mkdirSync(dirname(path), { recursive: true });
   db = new Database(path);
   db.pragma("journal_mode = WAL");
 
