@@ -9,8 +9,10 @@ export default async function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const config = getConfig();
+  const authEnabled =
+    config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
 
-  if (config.auth.enabled) {
+  if (authEnabled) {
     if (countUsers() === 0) {
       redirect("/setup");
     }

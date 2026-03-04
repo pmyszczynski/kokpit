@@ -16,7 +16,7 @@ schema_version: 1
 # When auth.enabled is true, all routes require a valid session.
 # ─────────────────────────────────────────────────────────────
 auth:
-  enabled: false          # Set true once Phase 1 auth is implemented
+  enabled: true           # Set false to disable auth (or use KOKPIT_AUTH_DISABLED=true env var)
   session_ttl_hours: 24
   # users: []             # Populated by first-run setup wizard
 

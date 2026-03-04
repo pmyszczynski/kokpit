@@ -46,7 +46,7 @@ describe("loadConfig", () => {
   it("applies defaults when optional sections are missing", () => {
     vi.mocked(readFileSync).mockReturnValue("schema_version: 1");
     const config = loadConfig();
-    expect(config.auth.enabled).toBe(false);
+    expect(config.auth.enabled).toBe(true);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
     expect(config.layout.columns).toBe(4);
