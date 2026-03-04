@@ -6,7 +6,7 @@ process.env.KOKPIT_SESSION_SECRET = "test-secret-32-chars-minimum-length-xx";
 
 // Mock getConfig so no real settings.yaml is needed
 vi.mock("@/config", () => ({
-  getConfig: vi.fn().mockResolvedValue({
+  getConfig: vi.fn().mockReturnValue({
     auth: { enabled: true, session_ttl_hours: 24 },
   }),
 }));

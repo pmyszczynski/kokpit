@@ -8,7 +8,7 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const config = await getConfig();
+  const config = getConfig();
 
   if (config.auth.enabled) {
     if (countUsers() === 0) {
