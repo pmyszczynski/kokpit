@@ -12,6 +12,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@testing-library/dom": "^10.4.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
     "jose": "^6.1.3",
