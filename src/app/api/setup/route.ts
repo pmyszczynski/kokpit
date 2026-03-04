@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { countUsers, createUser, hashPassword } from "@/auth";
 
-export async function GET() {
+export async function GET(_req: Request) {
   return NextResponse.json({ setupRequired: countUsers() === 0 });
 }
 
