@@ -28,7 +28,7 @@ export const KokpitConfigSchema = z.object({
       enabled: z.boolean().default(false),
       session_ttl_hours: z.number().int().positive().default(24),
     })
-    .default({ enabled: false, session_ttl_hours: 24 }),
+    .default({ enabled: true, session_ttl_hours: 24 }),
   appearance: z
     .object({
       theme: z

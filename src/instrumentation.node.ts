@@ -1,10 +1,9 @@
-export async function register() {
-  // Validate config on startup — crashes loudly if settings.yaml is malformed.
-  const { loadConfig } = await import("./config");
-  loadConfig();
+import { loadConfig } from "./config";
+import { startConfigWatcher } from "./config/watcher";
 
-  if (process.env.NODE_ENV === "development") {
-    const { startConfigWatcher } = await import("./config/watcher");
-    startConfigWatcher();
-  }
+// Validate config on startup — crashes loudly if settings.yaml is malformed.
+loadConfig();
+
+if (process.env.NODE_ENV === "development") {
+  startConfigWatcher();
 }

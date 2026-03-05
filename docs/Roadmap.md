@@ -15,19 +15,19 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 > Goal: A working, deployable skeleton with auth, YAML config, and a basic UI. Nothing else is built on top until this is solid.
 
-- [ ] `P0` **Project scaffold & tech stack**
+- [X] `P0` **Project scaffold & tech stack**
   - Pick framework (Next.js / SvelteKit), set up monorepo structure
   - Docker & Docker Compose config (dev + prod targets)
   - CI skeleton (lint, type-check, basic test runner)
   - Establish folder structure per `CLAUDE.md`
 
-- [ ] `P0` **YAML config engine**
+- [X] `P0` **YAML config engine**
   - Define `settings.yaml` schema: services, widgets, layout, auth, appearance
   - Parser that reads and writes YAML without destroying comments or formatting
   - Schema validator with clear error messages on startup
   - Config watcher — hot-reload on file change in dev
 
-- [ ] `P0` **Authentication system**
+- [X] `P0` **Authentication system**
   - Username/password auth with bcrypt hashing
   - Session tokens (httpOnly cookie, configurable expiry)
   - All routes protected when `auth.enabled: true` in config
