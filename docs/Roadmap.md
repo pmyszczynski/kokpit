@@ -27,7 +27,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Schema validator with clear error messages on startup
   - Config watcher — hot-reload on file change in dev
 
-- [ ] `P0` **Authentication system**
+- [X] `P0` **Authentication system**
   - Username/password auth with bcrypt hashing
   - Session tokens (httpOnly cookie, configurable expiry)
   - All routes protected when `auth.enabled: true` in config
