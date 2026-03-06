@@ -1,3 +1,4 @@
+import Link from "next/link";
 import LogoutButton from "./LogoutButton";
 
 interface NavbarProps {
@@ -7,7 +8,7 @@ interface NavbarProps {
 export default async function Navbar({ showLogout }: NavbarProps) {
   return (
     <nav className="navbar">
-      <a href="/" className="navbar-brand">kokpit</a>
+      <Link href="/" className="navbar-brand">kokpit</Link>
       <div className="navbar-actions">
         {showLogout && <LogoutButton />}
       </div>
