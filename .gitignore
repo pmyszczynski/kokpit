@@ -37,3 +37,6 @@ next-env.d.ts
 
 # local data (SQLite DB, persisted by Docker volume)
 data/
+
+# git worktrees
+.worktrees/
