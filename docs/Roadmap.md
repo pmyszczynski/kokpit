@@ -34,7 +34,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Optional TOTP 2FA
   - First-run setup wizard if no users exist
 
-- [ ] `P0` **Base UI shell**
+- [X] `P0` **Base UI shell**
   - App layout: top navbar, optional sidebar, main grid canvas
   - CSS variable system for full theme overridability
   - Default modern dark theme (ship at least 1 light + 1 dark built-in)

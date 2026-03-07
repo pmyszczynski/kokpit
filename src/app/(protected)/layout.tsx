@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfig } from "@/config";
+import Navbar from "@/components/Navbar";
 
 export default async function ProtectedLayout({
   children,
@@ -11,6 +12,8 @@ export default async function ProtectedLayout({
   const config = getConfig();
   const authEnabled =
     config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
+
+  let showLogout = false;
 
   if (authEnabled) {
     if (countUsers() === 0) {
@@ -24,7 +27,14 @@ export default async function ProtectedLayout({
     if (!user) {
       redirect("/login");
     }
+
+    showLogout = true;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="shell">
+      <Navbar showLogout={showLogout} />
+      <main className="shell-main">{children}</main>
+    </div>
+  );
 }

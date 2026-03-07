@@ -21,14 +21,13 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 ## Tech Stack
 
-> Update this section once decisions are locked in.
-
-- **Framework:** TBD (Next.js / SvelteKit preferred candidates)
-- **Styling:** CSS variables + optional Tailwind utility layer
+- **Framework:** Next.js 15.x (App Router)
+- **Styling:** CSS custom properties (`[data-theme]` attribute) + Tailwind utility layer
 - **Config:** YAML (`settings.yaml` at project root / config dir)
-- **Auth:** Built-in credential auth (bcrypt), session tokens, optional 2FA
+- **Auth:** Built-in credential auth (bcrypt), JWT session tokens, optional TOTP 2FA
 - **Deployment:** Docker + Docker Compose (primary), build-from-source as fallback
-- **Database:** TBD — likely SQLite for user/session state; YAML remains source of truth for layout/config
+- **Database:** SQLite (better-sqlite3) for user/session state; YAML remains source of truth for layout/config
+- **Testing:** Vitest + Testing Library (jsdom)
 
 ---
 
@@ -46,28 +45,29 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 > Manually update this as you move through phases.
 
-**Active phase:** Phase 1 — Foundation  
-**Current task:** Project scaffold & tech stack
+**Active phase:** Phase 1 — Foundation
+**Current task:** Service tiles (app links)
 
 ---
 
-## Project Structure (target)
+## Project Structure
 
 ```
 /
-├── CLAUDE.md               ← you are here
+├── Claude.md               ← you are here
 ├── settings.yaml           ← user config (layout, services, widgets, auth)
 ├── docker-compose.yml
 ├── docs/
-│   ├── ROADMAP.md          ← full prioritized task list
-│   ├── ARCHITECTURE.md     ← tech decisions, folder structure, ADRs
-│   └── INTEGRATIONS.md     ← widget/integration specs
+│   ├── Roadmap.md          ← full prioritized task list
+│   └── plans/              ← implementation plans
 ├── src/
-│   ├── app/                ← UI (pages, components)
-│   ├── config/             ← YAML parser, schema, validator
-│   ├── auth/               ← auth system
-│   ├── widgets/            ← widget plugin system
-│   └── integrations/       ← per-service integration modules
+│   ├── app/                ← Next.js App Router (pages, API routes)
+│   ├── auth/               ← auth system (users, JWT, sessions, bcrypt)
+│   ├── components/         ← shared React components (Navbar, etc.)
+│   ├── config/             ← YAML parser, schema, validator, theme helper
+│   ├── integrations/       ← per-service integration modules (stub)
+│   ├── test/               ← Vitest setup
+│   └── widgets/            ← widget plugin system (stub)
 └── public/
     └── icons/              ← bundled icon sets
 ```
@@ -76,8 +76,8 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 ## Key References
 
-- **Full roadmap & task list:** [`docs/ROADMAP.md`](docs/ROADMAP.md)
-- **Architecture decisions:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) *(create as decisions are made)*
+- **Full roadmap & task list:** [`docs/Roadmap.md`](docs/Roadmap.md)
+- **Architecture decisions:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) *(not yet created)*
 - **Widget/integration specs:** [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) *(create in Phase 2)*
 
 ---
