@@ -9,7 +9,8 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 **Phase 1 — Foundation**
 - [x] Project scaffold & tech stack (Next.js, Docker, CI)
 - [x] YAML config engine with hot-reload
-- [x] Authentication (username/password, session cookies, optional 2FA)
+- [x] Authentication (username/password, session cookies)
+- [ ] Optional TOTP 2FA
 - [x] Base UI shell (navbar, grid canvas, dark/light/OLED/high-contrast themes)
 - [ ] Service tiles with favicon fallback and status ping indicator
 - [ ] In-app settings panel
