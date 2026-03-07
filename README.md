@@ -12,7 +12,7 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 - [x] Authentication (username/password, session cookies)
 - [ ] Optional TOTP 2FA
 - [x] Base UI shell (navbar, grid canvas, dark/light/OLED/high-contrast themes)
-- [x] Service tiles with favicon fallback and status ping indicator
+- [ ] Service tiles with favicon fallback and status ping indicator
 - [ ] In-app settings panel
 
 **Phase 2 — Integrations & Widgets**
