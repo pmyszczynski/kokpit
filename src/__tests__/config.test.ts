@@ -21,7 +21,6 @@ layout:
   columns: 4
   row_height: 120
 services: []
-widgets: []
 `.trim();
 
 describe("loadConfig", () => {
@@ -40,7 +39,6 @@ describe("loadConfig", () => {
     expect(config.layout.columns).toBe(4);
     expect(config.layout.row_height).toBe(120);
     expect(config.services).toEqual([]);
-    expect(config.widgets).toEqual([]);
   });
 
   it("applies defaults when optional sections are missing", () => {
@@ -52,7 +50,6 @@ describe("loadConfig", () => {
     expect(config.layout.columns).toBe(4);
     expect(config.layout.row_height).toBe(120);
     expect(config.services).toEqual([]);
-    expect(config.widgets).toEqual([]);
   });
 
   it("throws a formatted error with field path for an invalid theme value", () => {

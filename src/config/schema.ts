@@ -1,24 +1,28 @@
 import { z } from "zod";
 
-const ServiceSchema = z.object({
-  name: z.string(),
-  url: z.string().url(),
-  icon: z.string().optional(),
-  description: z.string().optional(),
-  group: z.string().optional(),
-});
-
-const WidgetPositionSchema = z.object({
+export const WidgetPositionSchema = z.object({
   col: z.number().int().positive(),
   row: z.number().int().positive(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 });
 
-const WidgetSchema = z.object({
+// Inline widget attached to a service tile (type + API credentials + optional field filter).
+// Position lives on the parent ServiceSchema, not here.
+const ServiceWidgetSchema = z.object({
   type: z.string(),
   config: z.record(z.string(), z.unknown()).optional(),
+  fields: z.array(z.string()).optional(),
+});
+
+const ServiceSchema = z.object({
+  name: z.string(),
+  url: z.string().url().optional(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
+  group: z.string().optional(),
   position: WidgetPositionSchema.optional(),
+  widget: ServiceWidgetSchema.optional(),
 });
 
 export const KokpitConfigSchema = z.object({
@@ -44,9 +48,9 @@ export const KokpitConfigSchema = z.object({
     })
     .default({ columns: 4, row_height: 120 }),
   services: z.array(ServiceSchema).default([]),
-  widgets: z.array(WidgetSchema).default([]),
 });
 
 export type KokpitConfig = z.infer<typeof KokpitConfigSchema>;
 export type Service = z.infer<typeof ServiceSchema>;
-export type Widget = z.infer<typeof WidgetSchema>;
+export type ServiceWidget = z.infer<typeof ServiceWidgetSchema>;
+export type WidgetPosition = z.infer<typeof WidgetPositionSchema>;

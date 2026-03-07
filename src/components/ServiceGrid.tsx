@@ -27,6 +27,10 @@ function groupServices(services: Service[]): {
   return { ungrouped, groups: sorted };
 }
 
+function tileKey(service: Service): string {
+  return service.url ? `${service.name}:${service.url}` : service.name;
+}
+
 export default function ServiceGrid() {
   const { services } = getConfig();
 
@@ -40,11 +44,13 @@ export default function ServiceGrid() {
     <>
       {ungrouped.map((service) => (
         <ServiceTile
-          key={service.url}
+          key={tileKey(service)}
           name={service.name}
           url={service.url}
           icon={service.icon}
           description={service.description}
+          widget={service.widget}
+          position={service.position}
         />
       ))}
       {[...groups.entries()].map(([groupName, groupServices]) => (
@@ -52,11 +58,13 @@ export default function ServiceGrid() {
           <h2 className="service-group__header">{groupName}</h2>
           {groupServices.map((service) => (
             <ServiceTile
-              key={service.url}
+              key={tileKey(service)}
               name={service.name}
               url={service.url}
               icon={service.icon}
               description={service.description}
+              widget={service.widget}
+              position={service.position}
             />
           ))}
         </div>
