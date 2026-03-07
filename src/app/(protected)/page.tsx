@@ -1,4 +1,5 @@
 import { getConfig } from "@/config";
+import ServiceGrid from "@/components/ServiceGrid";
 
 export default async function Home() {
   const { layout } = getConfig();
@@ -9,7 +10,7 @@ export default async function Home() {
       className="dashboard-grid"
       style={{ "--layout-columns": columns } as React.CSSProperties}
     >
-      {/* Service tiles and widgets — added in next Phase 1 task */}
+      <ServiceGrid />
     </div>
   );
 }
