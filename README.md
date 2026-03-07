@@ -6,13 +6,38 @@ A self-hosted homelab dashboard built with Next.js. Kokpit gives you a single pl
 
 Kokpit is a personal dashboard for homelab and self-hosted setups. You define your services, widgets, and layout in a single `settings.yaml` file, and Kokpit renders a clean, themeable dashboard accessible from any browser.
 
-**Current capabilities (Phase 1):**
-- Secure username/password authentication with bcrypt and session cookies
-- YAML-driven configuration with hot-reload in dev mode
-- Themeable UI (dark/light/OLED/high-contrast) with custom CSS injection
-- Grid-based layout canvas, configurable columns and row height
+**Phase 1 — Foundation**
+- [x] Project scaffold & tech stack (Next.js, Docker, CI)
+- [x] YAML config engine with hot-reload
+- [x] Authentication (username/password, session cookies, optional 2FA)
+- [x] Base UI shell (navbar, grid canvas, dark/light/OLED/high-contrast themes)
+- [ ] Service tiles with favicon fallback and status ping indicator
+- [ ] In-app settings panel
 
-**Coming soon:** clickable service tiles with status pings, live widgets (system stats, weather, RSS), drag-and-drop layout editor, Docker auto-discovery, and more — see [`docs/Roadmap.md`](docs/Roadmap.md).
+**Phase 2 — Integrations & Widgets**
+- [ ] Widget system architecture
+- [ ] Tier-1 self-hosted integrations (Jellyfin, *arr stack, Pi-hole, Portainer, Proxmox, …)
+- [ ] System stats widget (CPU, RAM, disk, Docker)
+- [ ] Useful API widgets (weather, RSS, calendar, search bar)
+- [ ] Docker auto-discovery via socket + container labels
+
+**Phase 3 — Personalization**
+- [ ] Theme engine with community theme support
+- [ ] Drag-and-drop layout editor
+- [ ] Icon library (7000+ homelab icons) & custom icon upload
+- [ ] Background customization (image, gradient, blur)
+- [ ] Multiple dashboard pages / tabs
+- [ ] Mobile-responsive layout & PWA
+
+**Phase 4 — Polish & Growth**
+- [ ] Config import / export / backup
+- [ ] Multi-user & roles (admin, viewer)
+- [ ] SSO / OAuth (Keycloak, Authelia, Authentik, generic OIDC)
+- [ ] Extended integrations (Home Assistant, Nextcloud, Immich, Vaultwarden, Grafana, …)
+- [ ] Keyboard shortcuts & ⌘K global search
+- [ ] Plugin / community widget API
+
+See [`docs/Roadmap.md`](docs/Roadmap.md) for full details and priority levels.
 
 ## Installation
 
