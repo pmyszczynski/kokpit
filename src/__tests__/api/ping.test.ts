@@ -10,7 +10,7 @@ describe("GET /api/ping", () => {
   it("returns 400 when url param is missing", async () => {
     const { GET } = await import("../../app/api/ping/route");
     const req = new Request("http://localhost/api/ping");
-    const res = await GET(req as any);
+    const res = await GET(req);
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/missing/i);
@@ -19,7 +19,7 @@ describe("GET /api/ping", () => {
   it("returns 400 when url param is not a valid URL", async () => {
     const { GET } = await import("../../app/api/ping/route");
     const req = new Request("http://localhost/api/ping?url=not-a-url");
-    const res = await GET(req as any);
+    const res = await GET(req);
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/invalid/i);
@@ -34,7 +34,7 @@ describe("GET /api/ping", () => {
     const req = new Request(
       "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
     );
-    const res = await GET(req as any);
+    const res = await GET(req);
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
@@ -50,7 +50,7 @@ describe("GET /api/ping", () => {
     const req = new Request(
       "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
     );
-    const res = await GET(req as any);
+    const res = await GET(req);
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.status).toBe(404);
@@ -66,7 +66,7 @@ describe("GET /api/ping", () => {
     const req = new Request(
       "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
     );
-    const res = await GET(req as any);
+    const res = await GET(req);
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -83,7 +83,7 @@ describe("GET /api/ping", () => {
     const req = new Request(
       "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
     );
-    const res = await GET(req as any);
+    const res = await GET(req);
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(false);
@@ -96,7 +96,7 @@ describe("GET /api/ping", () => {
     const req = new Request(
       "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
     );
-    const res = await GET(req as any);
+    const res = await GET(req);
     const json = await res.json();
     expect(json.ok).toBe(false);
   });

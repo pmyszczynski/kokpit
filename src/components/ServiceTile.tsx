@@ -59,6 +59,7 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
 
   if (icon && !iconError) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={icon}
         alt=""
@@ -70,6 +71,7 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
 
   if (faviconUrl && !faviconError) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={faviconUrl}
         alt=""
