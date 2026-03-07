@@ -43,7 +43,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Default modern dark theme (ship at least 1 light + 1 dark built-in)
   - Custom CSS injection slot (`appearance.customCss` in YAML)
 
-- [ ] `P1` **Service tiles (app links)**
+- [x] `P1` **Service tiles (app links)**
   - Clickable tiles: icon, label, URL, optional description
   - Auto-fetch favicon fallback
   - Per-tile status ping indicator (green/red dot)
