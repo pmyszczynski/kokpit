@@ -9,7 +9,7 @@ export function resolveAppearance(config: KokpitConfig): AppearanceProps {
   const theme = config.appearance.theme;
   const rawCss = config.appearance.custom_css;
   const customCss = rawCss
-    ? rawCss.replace(/<\/style>/gi, "")
+    ? rawCss.replace(/<[^>]*>/g, "")
     : undefined;
   return { theme, customCss };
 }
