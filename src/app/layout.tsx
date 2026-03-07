@@ -18,12 +18,16 @@ export default function RootLayout({
 
   return (
     <html lang="en" data-theme={theme}>
-      <head>
+      <body>
         {customCss && (
-          <style>{`@layer user-custom { ${customCss} }`}</style>
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `@layer user-custom { ${customCss} }`,
+            }}
+          />
         )}
-      </head>
-      <body>{children}</body>
+        {children}
+      </body>
     </html>
   );
 }

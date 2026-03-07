@@ -30,11 +30,19 @@ describe("resolveAppearance", () => {
     expect(r.customCss).toBe(":root { --color-accent: red; }");
   });
 
-  it("strips </style> tags from customCss to prevent injection", () => {
+  it("strips all HTML tags from customCss to prevent injection", () => {
     const r = resolveAppearance({
       ...base,
       appearance: { theme: "dark", custom_css: "body {} </style><script>bad</script>" },
     });
-    expect(r.customCss).not.toContain("</style>");
+    expect(r.customCss).toBe("body {} bad");
+  });
+
+  it("strips arbitrary HTML tags from customCss", () => {
+    const r = resolveAppearance({
+      ...base,
+      appearance: { theme: "dark", custom_css: ":root { --x: 1; } <img src=x onerror=alert(1)>" },
+    });
+    expect(r.customCss).toBe(":root { --x: 1; } ");
   });
 });

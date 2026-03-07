@@ -5,7 +5,7 @@ interface NavbarProps {
   showLogout: boolean;
 }
 
-export default async function Navbar({ showLogout }: NavbarProps) {
+export default function Navbar({ showLogout }: NavbarProps) {
   return (
     <nav className="navbar">
       <Link href="/" className="navbar-brand">kokpit</Link>
