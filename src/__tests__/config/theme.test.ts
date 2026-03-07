@@ -8,7 +8,6 @@ const base: KokpitConfig = {
   appearance: { theme: "dark" },
   layout: { columns: 4, row_height: 120 },
   services: [],
-  widgets: [],
 };
 
 describe("resolveAppearance", () => {
