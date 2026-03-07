@@ -42,17 +42,6 @@ export default function ServiceGrid() {
 
   return (
     <>
-      {ungrouped.map((service) => (
-        <ServiceTile
-          key={tileKey(service)}
-          name={service.name}
-          url={service.url}
-          icon={service.icon}
-          description={service.description}
-          widget={service.widget}
-          position={service.position}
-        />
-      ))}
       {[...groups.entries()].map(([groupName, groupServices]) => (
         <div key={groupName} className="service-group">
           <h2 className="service-group__header">{groupName}</h2>
@@ -68,6 +57,17 @@ export default function ServiceGrid() {
             />
           ))}
         </div>
+      ))}
+      {ungrouped.map((service) => (
+        <ServiceTile
+          key={tileKey(service)}
+          name={service.name}
+          url={service.url}
+          icon={service.icon}
+          description={service.description}
+          widget={service.widget}
+          position={service.position}
+        />
       ))}
     </>
   );
