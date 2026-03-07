@@ -31,8 +31,11 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Username/password auth with bcrypt hashing
   - Session tokens (httpOnly cookie, configurable expiry)
   - All routes protected when `auth.enabled: true` in config
-  - Optional TOTP 2FA
   - First-run setup wizard if no users exist
+
+- [ ] `P1` **Optional TOTP 2FA**
+  - TOTP secret generation and QR code enrollment
+  - Verify code on login when 2FA is enabled per user
 
 - [X] `P0` **Base UI shell**
   - App layout: top navbar, optional sidebar, main grid canvas
