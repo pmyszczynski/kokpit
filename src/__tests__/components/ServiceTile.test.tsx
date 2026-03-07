@@ -132,6 +132,14 @@ describe("ServiceTile", () => {
     expect(screen.getByTitle("Offline")).toHaveClass("status-dot--error");
   });
 
+  it("renders as a div (not a link) when url is omitted", async () => {
+    await act(async () => {
+      render(<ServiceTile name="System Stats" />);
+    });
+    expect(screen.getByText("System Stats")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("polls ping again after 30 seconds", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),

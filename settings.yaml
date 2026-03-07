@@ -32,37 +32,47 @@ appearance:
 
 
 # ─── Layout ───────────────────────────────────────────────────
-# Phase 3 (Drag-and-drop layout editor) will populate this.
+# Phase 3 (Drag-and-drop layout editor) will populate positions.
 # ─────────────────────────────────────────────────────────────
 layout:
   columns: 4
   row_height: 120         # pixels
 
 
-# ─── Services (app tiles) ─────────────────────────────────────
-# Phase 1 (Service tiles task) will implement tile rendering.
-# Add your self-hosted services here.
+# ─── Services (app tiles + optional inline widgets) ───────────
+# Each service is a dashboard tile. Attach a widget: block to
+# display live data from that service inside the same tile.
+# Use position: to pin a tile in the grid (Phase 3 drag-and-drop
+# will write this field automatically).
+#
+# A tile without url: is a "pure widget" tile (e.g. system stats).
 # ─────────────────────────────────────────────────────────────
 services: []
-# Example service entry (uncomment in Phase 1):
+# Example entries (uncomment to use):
 # services:
 #   - name: Jellyfin
 #     url: http://192.168.1.10:8096
 #     icon: jellyfin
 #     description: Media server
 #     group: Media
-
-
-# ─── Widgets ──────────────────────────────────────────────────
-# Phase 2 (Widget system architecture) will implement widgets.
-# ─────────────────────────────────────────────────────────────
-widgets: []
-# Example widget (uncomment in Phase 2):
-# widgets:
-#   - type: system-stats
+#     widget:
+#       type: jellyfin
+#       config:
+#         key: your_api_key_here
+#       fields: [streams, movies, episodes]
+#
+#   - name: Pi-hole
+#     url: http://192.168.1.1/admin
+#     icon: pi-hole
+#     description: DNS ad blocker
+#     group: Network
+#     widget:
+#       type: pihole
+#       config:
+#         key: your_api_key_here
+#
+#   - name: System Stats
+#     description: CPU, RAM, disk usage
 #     position: { col: 1, row: 1, width: 2, height: 1 }
-#   - type: weather
-#     config:
-#       location: Warsaw
-#       provider: open-meteo   # No API key required
-#     position: { col: 3, row: 1, width: 1, height: 1 }
+#     widget:
+#       type: system-stats

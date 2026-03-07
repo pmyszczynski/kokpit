@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ServiceWidget, WidgetPosition } from "@/config/schema";
 
 interface ServiceTileProps {
   name: string;
-  url: string;
+  url?: string;
   icon?: string;
   description?: string;
+  widget?: ServiceWidget;
+  position?: WidgetPosition;
 }
 
 type PingStatus = "pending" | "ok" | "error";
@@ -41,11 +44,12 @@ function StatusDot({ url }: { url: string }) {
   );
 }
 
-function ServiceIcon({ icon, url, name }: { icon?: string; url: string; name: string }) {
+function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: string }) {
   const [iconError, setIconError] = useState(false);
   const [faviconError, setFaviconError] = useState(false);
 
   const faviconUrl = (() => {
+    if (!url) return null;
     try {
       return new URL("/favicon.ico", url).href;
     } catch {
@@ -82,20 +86,50 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url: string; name: st
   );
 }
 
-export default function ServiceTile({ name, url, icon, description }: ServiceTileProps) {
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="service-tile"
-    >
-      <StatusDot url={url} />
+function positionStyle(position?: WidgetPosition): React.CSSProperties {
+  if (!position) return {};
+  return {
+    gridColumn: `${position.col} / span ${position.width}`,
+    gridRow: `${position.row} / span ${position.height}`,
+  };
+}
+
+export default function ServiceTile({ name, url, icon, description, widget, position }: ServiceTileProps) {
+  const style = positionStyle(position);
+
+  const inner = (
+    <>
+      {url && <StatusDot url={url} />}
       <ServiceIcon icon={icon} url={url} name={name} />
       <span className="service-tile__name">{name}</span>
       {description && (
         <span className="service-tile__description">{description}</span>
       )}
-    </a>
+      {widget && (
+        <div className="service-tile__widget" data-widget-type={widget.type}>
+          {/* Widget rendering — Phase 2 */}
+        </div>
+      )}
+    </>
+  );
+
+  if (url) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="service-tile"
+        style={style}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <div className="service-tile" style={style}>
+      {inner}
+    </div>
   );
 }

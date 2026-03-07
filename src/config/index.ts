@@ -6,4 +6,4 @@ export {
   invalidateCache,
 } from "./loader";
 export { KokpitConfigSchema } from "./schema";
-export type { KokpitConfig, Service, Widget } from "./schema";
+export type { KokpitConfig, Service, ServiceWidget, WidgetPosition } from "./schema";
