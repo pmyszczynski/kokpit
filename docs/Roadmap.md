@@ -48,7 +48,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Auto-fetch favicon fallback
   - Per-tile status ping indicator (green/red dot)
 
-- [ ] `P1` **In-app settings panel**
+- [x] `P1` **In-app settings panel**
   - Visual UI that reads from and writes back to `settings.yaml`
   - Changes reflect instantly (no restart required)
   - Cover: services, appearance, layout, auth settings
