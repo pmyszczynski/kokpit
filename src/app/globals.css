@@ -579,6 +579,58 @@ body {
   font-size: 0.8rem;
 }
 
+/* === GROUP COMBOBOX === */
+.group-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.group-combobox input {
+  width: 100%;
+}
+
+.group-combobox__dropdown {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  left: 0;
+  list-style: none;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+}
+
+.group-combobox__option {
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  transition: background 100ms ease;
+}
+
+.group-combobox__option:hover,
+.group-combobox__option--selected {
+  background: var(--color-surface-2);
+}
+
+.group-combobox__option--selected {
+  color: var(--color-accent);
+}
+
+.group-combobox__option--new {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-accent);
+  font-style: italic;
+}
+
+.group-combobox__option--new:hover {
+  background: var(--color-surface-2);
+}
+
 .service-form__actions {
   display: flex;
   justify-content: flex-end;
