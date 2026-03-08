@@ -10,6 +10,9 @@ export default function Navbar({ showLogout }: NavbarProps) {
     <nav className="navbar">
       <Link href="/" className="navbar-brand">kokpit</Link>
       <div className="navbar-actions">
+        <Link href="/settings" className="settings-link" aria-label="Settings">
+          ⚙
+        </Link>
         {showLogout && <LogoutButton />}
       </div>
     </nav>

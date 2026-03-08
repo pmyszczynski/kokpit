@@ -13,7 +13,7 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 - [ ] Optional TOTP 2FA
 - [x] Base UI shell (navbar, grid canvas, dark/light/OLED/high-contrast themes)
 - [x] Service tiles with favicon fallback and status ping indicator
-- [ ] In-app settings panel
+- [x] In-app settings panel (appearance, layout, auth, services CRUD)
 
 **Phase 2 — Integrations & Widgets**
 - [ ] Widget system architecture
@@ -80,7 +80,7 @@ docker compose up kokpit-dev
 
 ## Usage
 
-All configuration lives in `settings.yaml` at the project root. The in-app UI reads from and writes back to this file.
+All configuration lives in `settings.yaml` at the project root. The in-app settings panel (accessible via the ⚙ icon in the navbar) reads from and writes back to this file — changes take effect immediately without a restart. You can also edit the YAML directly.
 
 **Add a service tile:**
 
