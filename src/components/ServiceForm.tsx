@@ -5,12 +5,83 @@ import { Service } from "@/config/schema";
 
 interface ServiceFormProps {
   service: Service | null;
+  existingGroups: string[];
   onSave: (service: Service) => void;
   onClose: () => void;
 }
 
+function GroupCombobox({
+  value,
+  onChange,
+  groups,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  groups: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = value.trim()
+    ? groups.filter((g) => g.toLowerCase().includes(value.toLowerCase().trim()))
+    : groups;
+
+  const isNew = value.trim() !== "" && !groups.some((g) => g.toLowerCase() === value.toLowerCase().trim());
+
+  function select(g: string) {
+    onChange(g);
+    setOpen(false);
+  }
+
+  function handleBlur(e: React.FocusEvent) {
+    // Only close if focus moves outside the container
+    if (!containerRef.current?.contains(e.relatedTarget as Node)) {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="group-combobox" onBlur={handleBlur}>
+      <input
+        id="sf-group"
+        type="text"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder="Media"
+        autoComplete="off"
+      />
+      {open && (suggestions.length > 0 || isNew) && (
+        <ul className="group-combobox__dropdown" role="listbox">
+          {suggestions.map((g) => (
+            <li
+              key={g}
+              role="option"
+              aria-selected={g === value}
+              className={`group-combobox__option${g === value ? " group-combobox__option--selected" : ""}`}
+              onMouseDown={(e) => { e.preventDefault(); select(g); }}
+            >
+              {g}
+            </li>
+          ))}
+          {isNew && (
+            <li
+              role="option"
+              className="group-combobox__option group-combobox__option--new"
+              onMouseDown={(e) => { e.preventDefault(); select(value.trim()); setOpen(false); }}
+            >
+              Create &ldquo;{value.trim()}&rdquo;
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function ServiceForm({
   service,
+  existingGroups,
   onSave,
   onClose,
 }: ServiceFormProps) {
@@ -98,12 +169,10 @@ export default function ServiceForm({
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-group">Group</label>
-          <input
-            id="sf-group"
-            type="text"
+          <GroupCombobox
             value={group}
-            onChange={(e) => setGroup(e.target.value)}
-            placeholder="Media"
+            onChange={setGroup}
+            groups={existingGroups}
           />
         </div>
         <div className="service-form__actions">
