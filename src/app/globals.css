@@ -526,6 +526,7 @@ body {
   border: 1px solid var(--color-border);
   border-radius: calc(var(--radius) * 1.5);
   color: var(--color-text);
+  margin: auto;
   max-width: 480px;
   padding: 1.5rem;
   width: 100%;
@@ -577,6 +578,10 @@ body {
 .service-form .settings-form-row label {
   width: auto;
   font-size: 0.8rem;
+}
+
+.service-form .settings-form-row input {
+  width: 100%;
 }
 
 /* === GROUP COMBOBOX === */
