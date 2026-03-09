@@ -22,6 +22,11 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   // Layout
   const [columns, setColumns] = useState(config.layout.columns);
   const [rowHeight, setRowHeight] = useState(config.layout.row_height);
+  const [tabletColumns, setTabletColumns] = useState(config.layout.tablet?.columns?.toString() ?? "");
+  const [tabletRowHeight, setTabletRowHeight] = useState(config.layout.tablet?.row_height?.toString() ?? "");
+  const [mobileColumns, setMobileColumns] = useState(config.layout.mobile?.columns?.toString() ?? "");
+  const [mobileRowHeight, setMobileRowHeight] = useState(config.layout.mobile?.row_height?.toString() ?? "");
+  const [layoutViewport, setLayoutViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   // Auth
   const [sessionTtl, setSessionTtl] = useState(config.auth.session_ttl_hours);
@@ -66,7 +71,20 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   function handleSaveLayout() {
-    save("layout", { columns, row_height: rowHeight });
+    function parseViewport(cols: string, rh: string) {
+      const c = parseInt(cols);
+      const r = parseInt(rh);
+      const obj: Record<string, number> = {};
+      if (!isNaN(c) && c > 0) obj.columns = c;
+      if (!isNaN(r) && r > 0) obj.row_height = r;
+      return Object.keys(obj).length > 0 ? obj : undefined;
+    }
+    save("layout", {
+      columns,
+      row_height: rowHeight,
+      tablet: parseViewport(tabletColumns, tabletRowHeight),
+      mobile: parseViewport(mobileColumns, mobileRowHeight),
+    });
   }
 
   function handleSaveAuth() {
@@ -186,31 +204,111 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
           <section className="settings-section">
             <h2 className="settings-section__title">Layout</h2>
 
-            <div className="settings-form-row">
-              <label htmlFor="columns">Columns</label>
-              <input
-                id="columns"
-                type="number"
-                min={1}
-                max={12}
-                value={columns}
-                onChange={(e) => setColumns(Math.max(1, Math.min(12, Number(e.target.value))))}
-                className="settings-input settings-input--narrow"
-              />
+            <div className="layout-viewport-tabs">
+              {(["desktop", "tablet", "mobile"] as const).map((vp) => (
+                <button
+                  key={vp}
+                  type="button"
+                  className={`layout-viewport-tab${layoutViewport === vp ? " layout-viewport-tab--active" : ""}`}
+                  onClick={() => setLayoutViewport(vp)}
+                >
+                  {vp.charAt(0).toUpperCase() + vp.slice(1)}
+                </button>
+              ))}
             </div>
 
-            <div className="settings-form-row">
-              <label htmlFor="row-height">Row height (px)</label>
-              <input
-                id="row-height"
-                type="number"
-                min={60}
-                max={400}
-                value={rowHeight}
-                onChange={(e) => setRowHeight(Math.max(60, Number(e.target.value)))}
-                className="settings-input settings-input--narrow"
-              />
-            </div>
+            {layoutViewport === "desktop" && (
+              <>
+                <div className="settings-form-row">
+                  <label htmlFor="columns">Columns</label>
+                  <input
+                    id="columns"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={columns}
+                    onChange={(e) => setColumns(Math.max(1, Math.min(12, Number(e.target.value))))}
+                    className="settings-input settings-input--narrow"
+                  />
+                </div>
+                <div className="settings-form-row">
+                  <label htmlFor="row-height">Row height (px)</label>
+                  <input
+                    id="row-height"
+                    type="number"
+                    min={60}
+                    max={400}
+                    value={rowHeight}
+                    onChange={(e) => setRowHeight(Math.max(60, Number(e.target.value)))}
+                    className="settings-input settings-input--narrow"
+                  />
+                </div>
+              </>
+            )}
+
+            {layoutViewport === "tablet" && (
+              <>
+                <p className="settings-hint">Leave blank to use the Desktop value.</p>
+                <div className="settings-form-row">
+                  <label htmlFor="tablet-columns">Columns</label>
+                  <input
+                    id="tablet-columns"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={tabletColumns}
+                    onChange={(e) => setTabletColumns(e.target.value)}
+                    placeholder={String(columns)}
+                    className="settings-input settings-input--narrow"
+                  />
+                </div>
+                <div className="settings-form-row">
+                  <label htmlFor="tablet-row-height">Row height (px)</label>
+                  <input
+                    id="tablet-row-height"
+                    type="number"
+                    min={60}
+                    max={400}
+                    value={tabletRowHeight}
+                    onChange={(e) => setTabletRowHeight(e.target.value)}
+                    placeholder={String(rowHeight)}
+                    className="settings-input settings-input--narrow"
+                  />
+                </div>
+              </>
+            )}
+
+            {layoutViewport === "mobile" && (
+              <>
+                <p className="settings-hint">Leave blank to use the Desktop value.</p>
+                <div className="settings-form-row">
+                  <label htmlFor="mobile-columns">Columns</label>
+                  <input
+                    id="mobile-columns"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={mobileColumns}
+                    onChange={(e) => setMobileColumns(e.target.value)}
+                    placeholder={String(columns)}
+                    className="settings-input settings-input--narrow"
+                  />
+                </div>
+                <div className="settings-form-row">
+                  <label htmlFor="mobile-row-height">Row height (px)</label>
+                  <input
+                    id="mobile-row-height"
+                    type="number"
+                    min={60}
+                    max={400}
+                    value={mobileRowHeight}
+                    onChange={(e) => setMobileRowHeight(e.target.value)}
+                    placeholder={String(rowHeight)}
+                    className="settings-input settings-input--narrow"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="settings-actions">
               <SaveButton section="layout" />
