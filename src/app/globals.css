@@ -690,6 +690,63 @@ body {
   margin-top: 0.5rem;
 }
 
+/* === CONFIG ERROR PAGE === */
+.config-error {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--gap);
+}
+
+.config-error__box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  max-width: 640px;
+  padding: 2rem;
+  width: 100%;
+}
+
+.config-error__icon {
+  color: #ef4444;
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.config-error__title {
+  color: var(--color-text);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.config-error__subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.config-error__subtitle code {
+  background: var(--color-surface-2);
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  padding: 0.1em 0.3em;
+}
+
+.config-error__details {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: #ef4444;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  padding: 1rem;
+  white-space: pre-wrap;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;
