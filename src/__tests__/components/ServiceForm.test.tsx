@@ -3,9 +3,14 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
 
 beforeEach(() => {
-  // jsdom does not implement dialog methods
+  // jsdom does not implement dialog methods; close() must dispatch the
+  // native "close" event so that <dialog onClose={...}> fires correctly.
   HTMLDialogElement.prototype.showModal = vi.fn();
-  HTMLDialogElement.prototype.close = vi.fn();
+  HTMLDialogElement.prototype.close = vi.fn().mockImplementation(function (
+    this: HTMLDialogElement
+  ) {
+    this.dispatchEvent(new Event("close"));
+  });
 });
 
 const noop = vi.fn();

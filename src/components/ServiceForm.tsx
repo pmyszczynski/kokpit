@@ -68,7 +68,7 @@ function GroupCombobox({
             <li
               role="option"
               className="group-combobox__option group-combobox__option--new"
-              onMouseDown={(e) => { e.preventDefault(); select(value.trim()); setOpen(false); }}
+              onMouseDown={(e) => { e.preventDefault(); select(value.trim()); }}
             >
               Create &ldquo;{value.trim()}&rdquo;
             </li>
@@ -109,7 +109,7 @@ export default function ServiceForm({
 
   function handleClose() {
     dialogRef.current?.close();
-    onClose();
+    // onClose is called via the dialog's native close event
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KokpitConfig, Service } from "@/config/schema";
 import ServiceForm from "./ServiceForm";
@@ -9,6 +9,18 @@ type Tab = "appearance" | "layout" | "auth" | "services";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
+
+function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
+  return (
+    <button
+      className="settings-save-btn"
+      onClick={onSave}
+      disabled={status === "saving"}
+    >
+      {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Error — Retry" : "Save"}
+    </button>
+  );
+}
 
 export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const router = useRouter();
@@ -29,6 +41,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [layoutViewport, setLayoutViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   // Auth
+  const [authEnabled, setAuthEnabled] = useState(config.auth.enabled);
   const [sessionTtl, setSessionTtl] = useState(config.auth.session_ttl_hours);
 
   // Services
@@ -44,6 +57,9 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     services: "idle",
   });
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
+
   async function save(section: Tab, data: unknown) {
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
     try {
@@ -55,7 +71,8 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       if (!res.ok) throw new Error("Save failed");
       setSaveStatus((s) => ({ ...s, [section]: "saved" }));
       startTransition(() => router.refresh());
-      setTimeout(() => setSaveStatus((s) => ({ ...s, [section]: "idle" })), 2000);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => setSaveStatus((s) => ({ ...s, [section]: "idle" })), 2000);
     } catch {
       setSaveStatus((s) => ({ ...s, [section]: "error" }));
     }
@@ -88,7 +105,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   function handleSaveAuth() {
-    save("auth", { enabled: config.auth.enabled, session_ttl_hours: sessionTtl });
+    save("auth", { enabled: authEnabled, session_ttl_hours: sessionTtl });
   }
 
   function handleServiceSave(service: Service) {
@@ -123,23 +140,6 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   function closeServiceForm() {
     setShowServiceForm(false);
     setEditingIndex(null);
-  }
-
-  function SaveButton({ section }: { section: Tab }) {
-    const status = saveStatus[section];
-    return (
-      <button
-        className="settings-save-btn"
-        onClick={() => {
-          if (section === "appearance") handleSaveAppearance();
-          else if (section === "layout") handleSaveLayout();
-          else if (section === "auth") handleSaveAuth();
-        }}
-        disabled={status === "saving"}
-      >
-        {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Error — Retry" : "Save"}
-      </button>
-    );
   }
 
   return (
@@ -194,7 +194,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             </div>
 
             <div className="settings-actions">
-              <SaveButton section="appearance" />
+              <SaveButton status={saveStatus.appearance} onSave={handleSaveAppearance} />
             </div>
           </section>
         )}
@@ -311,7 +311,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             )}
 
             <div className="settings-actions">
-              <SaveButton section="layout" />
+              <SaveButton status={saveStatus.layout} onSave={handleSaveLayout} />
             </div>
           </section>
         )}
@@ -338,7 +338,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             </div>
 
             <div className="settings-actions">
-              <SaveButton section="auth" />
+              <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} />
             </div>
           </section>
         )}
@@ -362,7 +362,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                 </thead>
                 <tbody>
                   {services.map((svc, i) => (
-                    <tr key={i}>
+                    <tr key={svc.name}>
                       <td>{svc.name}</td>
                       <td className="service-table__url">{svc.url ?? "—"}</td>
                       <td>{svc.group ?? "—"}</td>
