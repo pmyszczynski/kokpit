@@ -27,6 +27,18 @@ const PatchBodySchema = z.object({
     .object({
       columns: z.number().int().positive(),
       row_height: z.number().int().positive(),
+      tablet: z
+        .object({
+          columns: z.number().int().positive().optional(),
+          row_height: z.number().int().positive().optional(),
+        })
+        .optional(),
+      mobile: z
+        .object({
+          columns: z.number().int().positive().optional(),
+          row_height: z.number().int().positive().optional(),
+        })
+        .optional(),
     })
     .optional(),
   auth: z

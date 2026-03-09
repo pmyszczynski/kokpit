@@ -45,6 +45,18 @@ export const KokpitConfigSchema = z.object({
     .object({
       columns: z.number().int().positive().default(4),
       row_height: z.number().int().positive().default(120),
+      tablet: z
+        .object({
+          columns: z.number().int().positive().optional(),
+          row_height: z.number().int().positive().optional(),
+        })
+        .optional(),
+      mobile: z
+        .object({
+          columns: z.number().int().positive().optional(),
+          row_height: z.number().int().positive().optional(),
+        })
+        .optional(),
     })
     .default({ columns: 4, row_height: 120 }),
   services: z.array(ServiceSchema).default([]),
