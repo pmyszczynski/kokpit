@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 vi.mock("node:fs");
 vi.mock("next/headers", () => ({
@@ -42,7 +43,7 @@ services: []
 `.trim();
 
 function patch(body: unknown) {
-  return new Request("http://localhost/api/settings", {
+  return new NextRequest("http://localhost/api/settings", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -59,7 +60,7 @@ describe("PATCH /api/settings – validation", () => {
 
   it("returns 400 for malformed JSON", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
-    const req = new Request("http://localhost/api/settings", {
+    const req = new NextRequest("http://localhost/api/settings", {
       method: "PATCH",
       body: "not json",
     });
