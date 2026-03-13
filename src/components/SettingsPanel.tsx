@@ -10,7 +10,7 @@ type Tab = "appearance" | "layout" | "auth" | "services";
 type TotpState =
   | { status: "loading" }
   | { status: "enabled" }
-  | { status: "setup"; secret: string; uri: string; qrCode: string }
+  | { status: "setup"; secret: string; qrCode: string }
   | { status: "error" };
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -52,6 +52,8 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [totp, setTotp] = useState<TotpState>({ status: "loading" });
   const [totpCode, setTotpCode] = useState("");
   const [totpMessage, setTotpMessage] = useState<string | null>(null);
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+  const [totpDisableCode, setTotpDisableCode] = useState("");
 
   // Services
   const [services, setServices] = useState<Service[]>(config.services);
@@ -79,16 +81,19 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       if (json.enabled) {
         setTotp({ status: "enabled" });
       } else {
-        setTotp({ status: "setup", secret: json.secret, uri: json.uri, qrCode: json.qrCode });
+        setTotp({ status: "setup", secret: json.secret, qrCode: json.qrCode });
       }
     } catch {
       setTotp({ status: "error" });
     }
   }
 
+  const totpFetchedRef = useRef(false);
   useEffect(() => {
-    if (activeTab === "auth") fetchTotpStatus();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (activeTab === "auth" && !totpFetchedRef.current) {
+      totpFetchedRef.current = true;
+      fetchTotpStatus();
+    }
   }, [activeTab]);
 
   async function handleTotpEnable() {
@@ -111,12 +116,19 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
 
   async function handleTotpDisable() {
     setTotpMessage(null);
-    const res = await fetch("/api/auth/totp/setup", { method: "DELETE" });
+    const res = await fetch("/api/auth/totp/setup", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: totpDisableCode }),
+    });
     if (res.ok) {
+      setTotpDisableCode("");
+      setShowDisableConfirm(false);
       setTotpMessage("2FA disabled.");
       await fetchTotpStatus();
     } else {
-      setTotpMessage("Failed to disable 2FA");
+      const json = await res.json();
+      setTotpMessage(json.error ?? "Failed to disable 2FA");
     }
   }
 
@@ -414,9 +426,48 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             {totp.status === "enabled" && (
               <div className="settings-form-row settings-form-row--column">
                 <p style={{ margin: 0 }}>2FA is <strong>enabled</strong> on your account.</p>
-                <button className="settings-btn settings-btn--danger" onClick={handleTotpDisable}>
-                  Disable 2FA
-                </button>
+                {!showDisableConfirm ? (
+                  <button
+                    className="settings-btn settings-btn--danger"
+                    onClick={() => { setShowDisableConfirm(true); setTotpMessage(null); }}
+                  >
+                    Disable 2FA
+                  </button>
+                ) : (
+                  <div className="settings-form-row settings-form-row--column">
+                    <p className="settings-hint">Enter your authenticator code to confirm:</p>
+                    <div className="settings-form-row">
+                      <label htmlFor="totp-disable-code">Authenticator code</label>
+                      <input
+                        id="totp-disable-code"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        placeholder="000000"
+                        value={totpDisableCode}
+                        onChange={(e) => setTotpDisableCode(e.target.value)}
+                        className="settings-input settings-input--narrow"
+                        autoComplete="one-time-code"
+                      />
+                    </div>
+                    <div className="settings-form-row">
+                      <button
+                        className="settings-btn settings-btn--danger"
+                        onClick={handleTotpDisable}
+                        disabled={totpDisableCode.length !== 6}
+                      >
+                        Confirm Disable
+                      </button>
+                      <button
+                        className="settings-btn"
+                        onClick={() => { setShowDisableConfirm(false); setTotpDisableCode(""); setTotpMessage(null); }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

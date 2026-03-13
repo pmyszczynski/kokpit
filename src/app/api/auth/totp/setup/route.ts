@@ -31,7 +31,7 @@ export async function GET() {
   const uri = getTotpUri(secret, user.username);
   const qrCode = await getTotpQrCode(uri);
 
-  return NextResponse.json({ enabled: false, secret, uri, qrCode });
+  return NextResponse.json({ enabled: false, secret, qrCode });
 }
 
 export async function POST(req: Request) {
@@ -63,10 +63,25 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: { code?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const { code } = body;
+  if (typeof code !== "string" || !code) {
+    return NextResponse.json({ error: "code is required" }, { status: 400 });
+  }
+  if (!user.totpSecret || !verifyTotpCode(code, user.totpSecret)) {
+    return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
   clearTotpSecret(user.id);

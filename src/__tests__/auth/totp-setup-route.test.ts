@@ -126,20 +126,61 @@ describe("DELETE /api/auth/totp/setup", () => {
   it("returns 401 when not authenticated", async () => {
     mockCookieGet.mockReturnValue(undefined);
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
-    const res = await DELETE();
+    const res = await DELETE(new Request("http://localhost", {
+      method: "DELETE",
+      body: JSON.stringify({ code: "123456" }),
+    }));
     expect(res.status).toBe(401);
   });
 
-  it("clears TOTP secret and returns ok", async () => {
+  it("returns 400 when code is missing", async () => {
     const { createUser, hashPassword, generateTotpSecret, setTotpSecret } = await import("@/auth");
     const hash = await hashPassword("pass");
-    const user = await createUser("eve", hash);
+    const user = await createUser("frank", hash);
     setTotpSecret(user.id, generateTotpSecret());
     const token = await makeSessionCookie(user.id);
     mockCookieGet.mockReturnValue({ value: token });
 
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
-    const res = await DELETE();
+    const res = await DELETE(new Request("http://localhost", {
+      method: "DELETE",
+      body: JSON.stringify({}),
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when code is invalid", async () => {
+    const { createUser, hashPassword, generateTotpSecret, setTotpSecret } = await import("@/auth");
+    const hash = await hashPassword("pass");
+    const user = await createUser("grace", hash);
+    setTotpSecret(user.id, generateTotpSecret());
+    const token = await makeSessionCookie(user.id);
+    mockCookieGet.mockReturnValue({ value: token });
+
+    const { DELETE } = await import("../../app/api/auth/totp/setup/route");
+    const res = await DELETE(new Request("http://localhost", {
+      method: "DELETE",
+      body: JSON.stringify({ code: "000000" }),
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it("clears TOTP secret and returns ok with valid code", async () => {
+    const { createUser, hashPassword, generateTotpSecret, setTotpSecret } = await import("@/auth");
+    const hash = await hashPassword("pass");
+    const user = await createUser("eve", hash);
+    const secret = generateTotpSecret();
+    setTotpSecret(user.id, secret);
+    const token = await makeSessionCookie(user.id);
+    mockCookieGet.mockReturnValue({ value: token });
+
+    const code = generateSync({ secret });
+
+    const { DELETE } = await import("../../app/api/auth/totp/setup/route");
+    const res = await DELETE(new Request("http://localhost", {
+      method: "DELETE",
+      body: JSON.stringify({ code }),
+    }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
