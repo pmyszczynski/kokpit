@@ -76,4 +76,28 @@ describe("POST /api/auth/login", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("returns requiresTotp and challengeToken when user has TOTP enabled", async () => {
+    const { createUser, hashPassword, generateTotpSecret, setTotpSecret } = await import("@/auth");
+    const hash = await hashPassword("mypassword");
+    const user = await createUser("totp_user", hash);
+    setTotpSecret(user.id, generateTotpSecret());
+
+    const mockSet = vi.fn();
+    const { cookies } = await import("next/headers");
+    (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({ set: mockSet, delete: vi.fn(), get: vi.fn() });
+
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: "totp_user", password: "mypassword" }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.requiresTotp).toBe(true);
+    expect(typeof json.challengeToken).toBe("string");
+    expect(mockSet).not.toHaveBeenCalled();
+  });
 });

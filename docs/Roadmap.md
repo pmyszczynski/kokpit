@@ -33,7 +33,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - All routes protected when `auth.enabled: true` in config
   - First-run setup wizard if no users exist
 
-- [ ] `P1` **Optional TOTP 2FA**
+- [x] `P1` **Optional TOTP 2FA**
   - TOTP secret generation and QR code enrollment
   - Verify code on login when 2FA is enabled per user
 
