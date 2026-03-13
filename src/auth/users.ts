@@ -65,3 +65,15 @@ export function countUsers(): number {
     .get() as { count: number };
   return result.count;
 }
+
+export function setTotpSecret(userId: string, secret: string): void {
+  getDb()
+    .prepare("UPDATE users SET totp_secret = ? WHERE id = ?")
+    .run(secret, userId);
+}
+
+export function clearTotpSecret(userId: string): void {
+  getDb()
+    .prepare("UPDATE users SET totp_secret = NULL WHERE id = ?")
+    .run(userId);
+}

@@ -4,6 +4,7 @@ import {
   getUserByUsername,
   verifyPassword,
   signJWT,
+  signTotpChallenge,
   SESSION_COOKIE_NAME,
 } from "@/auth";
 import { getConfig } from "@/config";
@@ -39,6 +40,11 @@ export async function POST(req: Request) {
   const passwordOk = await verifyPassword(password, candidateHash);
   if (!user || !passwordOk) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+
+  if (user.totpSecret) {
+    const challengeToken = await signTotpChallenge(user.id);
+    return NextResponse.json({ requiresTotp: true, challengeToken });
   }
 
   const config = getConfig();

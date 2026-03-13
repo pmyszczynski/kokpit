@@ -6,6 +6,12 @@ import { KokpitConfig, Service } from "@/config/schema";
 import ServiceForm from "./ServiceForm";
 
 type Tab = "appearance" | "layout" | "auth" | "services";
+
+type TotpState =
+  | { status: "loading" }
+  | { status: "enabled" }
+  | { status: "setup"; secret: string; uri: string; qrCode: string }
+  | { status: "error" };
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
@@ -43,6 +49,9 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   // Auth
   const [authEnabled, setAuthEnabled] = useState(config.auth.enabled);
   const [sessionTtl, setSessionTtl] = useState(config.auth.session_ttl_hours);
+  const [totp, setTotp] = useState<TotpState>({ status: "loading" });
+  const [totpCode, setTotpCode] = useState("");
+  const [totpMessage, setTotpMessage] = useState<string | null>(null);
 
   // Services
   const [services, setServices] = useState<Service[]>(config.services);
@@ -59,6 +68,57 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
+
+  async function fetchTotpStatus() {
+    setTotp({ status: "loading" });
+    setTotpMessage(null);
+    try {
+      const res = await fetch("/api/auth/totp/setup");
+      if (!res.ok) { setTotp({ status: "error" }); return; }
+      const json = await res.json();
+      if (json.enabled) {
+        setTotp({ status: "enabled" });
+      } else {
+        setTotp({ status: "setup", secret: json.secret, uri: json.uri, qrCode: json.qrCode });
+      }
+    } catch {
+      setTotp({ status: "error" });
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "auth") fetchTotpStatus();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  async function handleTotpEnable() {
+    if (totp.status !== "setup") return;
+    setTotpMessage(null);
+    const res = await fetch("/api/auth/totp/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: totp.secret, code: totpCode }),
+    });
+    if (res.ok) {
+      setTotpCode("");
+      setTotpMessage("2FA enabled successfully.");
+      await fetchTotpStatus();
+    } else {
+      const json = await res.json();
+      setTotpMessage(json.error ?? "Failed to enable 2FA");
+    }
+  }
+
+  async function handleTotpDisable() {
+    setTotpMessage(null);
+    const res = await fetch("/api/auth/totp/setup", { method: "DELETE" });
+    if (res.ok) {
+      setTotpMessage("2FA disabled.");
+      await fetchTotpStatus();
+    } else {
+      setTotpMessage("Failed to disable 2FA");
+    }
+  }
 
   async function save(section: Tab, data: unknown) {
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
@@ -340,6 +400,60 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             <div className="settings-actions">
               <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} />
             </div>
+
+            <h3 className="settings-section__subtitle">Two-Factor Authentication</h3>
+
+            {totp.status === "loading" && (
+              <p className="settings-hint">Loading…</p>
+            )}
+
+            {totp.status === "error" && (
+              <p className="settings-hint">Failed to load 2FA status.</p>
+            )}
+
+            {totp.status === "enabled" && (
+              <div className="settings-form-row settings-form-row--column">
+                <p style={{ margin: 0 }}>2FA is <strong>enabled</strong> on your account.</p>
+                <button className="settings-btn settings-btn--danger" onClick={handleTotpDisable}>
+                  Disable 2FA
+                </button>
+              </div>
+            )}
+
+            {totp.status === "setup" && (
+              <div className="settings-form-row settings-form-row--column">
+                <p className="settings-hint">
+                  Scan this QR code with your authenticator app, then enter the 6-digit code to activate.
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={totp.qrCode} alt="TOTP QR code" style={{ width: 180, height: 180, imageRendering: "pixelated" }} />
+                <p className="settings-hint">
+                  Manual key: <code style={{ userSelect: "all" }}>{totp.secret}</code>
+                </p>
+                <div className="settings-form-row">
+                  <label htmlFor="totp-code">Verification code</label>
+                  <input
+                    id="totp-code"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    className="settings-input settings-input--narrow"
+                    autoComplete="one-time-code"
+                  />
+                </div>
+                <button className="settings-save-btn" onClick={handleTotpEnable} disabled={totpCode.length !== 6}>
+                  Enable 2FA
+                </button>
+              </div>
+            )}
+
+            {totpMessage && (
+              <p className="settings-hint">{totpMessage}</p>
+            )}
           </section>
         )}
 
