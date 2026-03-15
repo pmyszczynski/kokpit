@@ -28,6 +28,10 @@ export default function LoginForm() {
       if (res.ok) {
         const json = await res.json();
         if (json.requiresTotp) {
+          if (!json.challengeToken) {
+            setError("Login failed: missing challenge token");
+            return;
+          }
           setChallengeToken(json.challengeToken);
           setStep("totp");
         } else {
@@ -47,6 +51,10 @@ export default function LoginForm() {
 
   async function handleTotpSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!challengeToken) {
+      setError("Session error, please log in again");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {

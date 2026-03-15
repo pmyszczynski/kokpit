@@ -75,7 +75,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     setTotpMessage(null);
     try {
       const res = await fetch("/api/auth/totp/setup");
-      if (!res.ok) { setTotp({ status: "error" }); return; }
+      if (!res.ok) { totpFetchedRef.current = false; setTotp({ status: "error" }); return; }
       const json = await res.json();
       if (json.enabled) {
         setTotp({ status: "enabled" });
@@ -84,6 +84,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       }
       totpFetchedRef.current = true;
     } catch {
+      totpFetchedRef.current = false;
       setTotp({ status: "error" });
     }
   }
@@ -98,36 +99,44 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   async function handleTotpEnable() {
     if (totp.status !== "setup") return;
     setTotpMessage(null);
-    const res = await fetch("/api/auth/totp/setup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secret: totp.secret, code: totpCode }),
-    });
-    if (res.ok) {
-      setTotpCode("");
-      setTotpMessage("2FA enabled successfully.");
-      await fetchTotpStatus();
-    } else {
-      const json = await res.json();
-      setTotpMessage(json.error ?? "Failed to enable 2FA");
+    try {
+      const res = await fetch("/api/auth/totp/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: totp.secret, code: totpCode }),
+      });
+      if (res.ok) {
+        setTotpCode("");
+        setTotpMessage("2FA enabled successfully.");
+        await fetchTotpStatus();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setTotpMessage((json as { error?: string }).error ?? "Failed to enable 2FA");
+      }
+    } catch {
+      setTotpMessage("Failed to enable 2FA");
     }
   }
 
   async function handleTotpDisable() {
     setTotpMessage(null);
-    const res = await fetch("/api/auth/totp/setup", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: totpDisableCode }),
-    });
-    if (res.ok) {
-      setTotpDisableCode("");
-      setShowDisableConfirm(false);
-      setTotpMessage("2FA disabled.");
-      await fetchTotpStatus();
-    } else {
-      const json = await res.json();
-      setTotpMessage(json.error ?? "Failed to disable 2FA");
+    try {
+      const res = await fetch("/api/auth/totp/setup", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: totpDisableCode }),
+      });
+      if (res.ok) {
+        setTotpDisableCode("");
+        setShowDisableConfirm(false);
+        setTotpMessage("2FA disabled.");
+        await fetchTotpStatus();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setTotpMessage((json as { error?: string }).error ?? "Failed to disable 2FA");
+      }
+    } catch {
+      setTotpMessage("Failed to disable 2FA");
     }
   }
 
