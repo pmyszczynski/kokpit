@@ -92,6 +92,8 @@ describe("POST /api/auth/totp/setup", () => {
     mockCookieGet.mockReturnValue({ value: token });
 
     const secret = generateTotpSecret();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     const code = generateSync({ secret });
 
     const { POST } = await import("../../app/api/auth/totp/setup/route");
@@ -99,6 +101,7 @@ describe("POST /api/auth/totp/setup", () => {
       method: "POST",
       body: JSON.stringify({ secret, code }),
     }));
+    vi.useRealTimers();
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
@@ -174,6 +177,8 @@ describe("DELETE /api/auth/totp/setup", () => {
     const token = await makeSessionCookie(user.id);
     mockCookieGet.mockReturnValue({ value: token });
 
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     const code = generateSync({ secret });
 
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
@@ -181,6 +186,7 @@ describe("DELETE /api/auth/totp/setup", () => {
       method: "DELETE",
       body: JSON.stringify({ code }),
     }));
+    vi.useRealTimers();
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
