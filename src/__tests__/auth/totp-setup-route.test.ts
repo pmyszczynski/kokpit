@@ -107,6 +107,24 @@ describe("POST /api/auth/totp/setup", () => {
     expect(json.ok).toBe(true);
   });
 
+  it("returns 409 when TOTP is already enabled", async () => {
+    const { createUser, hashPassword, generateTotpSecret, setTotpSecret } = await import("@/auth");
+    const hash = await hashPassword("pass");
+    const user = await createUser("ivan", hash);
+    setTotpSecret(user.id, generateTotpSecret());
+    const token = await makeSessionCookie(user.id);
+    mockCookieGet.mockReturnValue({ value: token });
+
+    const { POST } = await import("../../app/api/auth/totp/setup/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ secret: generateTotpSecret(), code: "123456" }),
+    }));
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.error).toMatch(/already enabled/i);
+  });
+
   it("returns 400 on invalid code", async () => {
     const { createUser, hashPassword, generateTotpSecret } = await import("@/auth");
     const hash = await hashPassword("pass");

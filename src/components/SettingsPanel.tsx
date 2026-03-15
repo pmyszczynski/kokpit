@@ -82,6 +82,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       } else {
         setTotp({ status: "setup", secret: json.secret, qrCode: json.qrCode });
       }
+      totpFetchedRef.current = true;
     } catch {
       setTotp({ status: "error" });
     }
@@ -90,7 +91,6 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const totpFetchedRef = useRef(false);
   useEffect(() => {
     if (activeTab === "auth" && !totpFetchedRef.current) {
-      totpFetchedRef.current = true;
       fetchTotpStatus();
     }
   }, [activeTab]);

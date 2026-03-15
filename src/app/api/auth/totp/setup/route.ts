@@ -40,6 +40,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (user.totpSecret !== null) {
+    return NextResponse.json({ error: "2FA is already enabled" }, { status: 409 });
+  }
+
   let body: { secret?: unknown; code?: unknown };
   try {
     body = await req.json();

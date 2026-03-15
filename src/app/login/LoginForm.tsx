@@ -14,31 +14,34 @@ export default function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    try {
+      const data = new FormData(e.currentTarget);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: data.get("username"),
+          password: data.get("password"),
+        }),
+      });
 
-    const data = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: data.get("username"),
-        password: data.get("password"),
-      }),
-    });
-
-    setLoading(false);
-
-    if (res.ok) {
-      const json = await res.json();
-      if (json.requiresTotp) {
-        setChallengeToken(json.challengeToken);
-        setStep("totp");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.requiresTotp) {
+          setChallengeToken(json.challengeToken);
+          setStep("totp");
+        } else {
+          router.push("/");
+          router.refresh();
+        }
       } else {
-        router.push("/");
-        router.refresh();
+        const json = await res.json().catch(() => ({}));
+        setError((json as { error?: string }).error ?? "Login failed");
       }
-    } else {
-      const json = await res.json();
-      setError(json.error ?? "Login failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -46,25 +49,28 @@ export default function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    try {
+      const data = new FormData(e.currentTarget);
+      const res = await fetch("/api/auth/totp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengeToken,
+          code: data.get("code"),
+        }),
+      });
 
-    const data = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/totp/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        challengeToken,
-        code: data.get("code"),
-      }),
-    });
-
-    setLoading(false);
-
-    if (res.ok) {
-      router.push("/");
-      router.refresh();
-    } else {
-      const json = await res.json();
-      setError(json.error ?? "Invalid code");
+      if (res.ok) {
+        router.push("/");
+        router.refresh();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setError((json as { error?: string }).error ?? "Invalid code");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -77,7 +83,9 @@ export default function LoginForm() {
         <h1>Two-Factor Authentication</h1>
         <p style={{ margin: 0, opacity: 0.7 }}>Enter the 6-digit code from your authenticator app.</p>
         {error && <p style={{ color: "red" }}>{error}</p>}
+        <label htmlFor="totp-code" style={{ fontWeight: 500 }}>Authenticator code</label>
         <input
+          id="totp-code"
           name="code"
           type="text"
           inputMode="numeric"

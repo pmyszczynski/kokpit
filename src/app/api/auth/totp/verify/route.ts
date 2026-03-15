@@ -1,13 +1,16 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   verifyTotpChallenge,
   getUserById,
   verifyTotpCode,
-  signJWT,
-  SESSION_COOKIE_NAME,
 } from "@/auth";
-import { getConfig } from "@/config";
+import { createSessionCookie } from "../../_session";
+
+const MAX_TOTP_ATTEMPTS = 5;
+// In-memory attempt tracking keyed by challenge token.
+// Each entry is invalidated after MAX_TOTP_ATTEMPTS failures or on success.
+const failedAttempts = new Map<string, number>();
+const invalidatedTokens = new Set<string>();
 
 export async function POST(req: Request) {
   let body: { challengeToken?: unknown; code?: unknown };
@@ -25,6 +28,10 @@ export async function POST(req: Request) {
     );
   }
 
+  if (invalidatedTokens.has(challengeToken)) {
+    return NextResponse.json({ error: "Challenge token has been invalidated" }, { status: 401 });
+  }
+
   const challenge = await verifyTotpChallenge(challengeToken);
   if (!challenge) {
     return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
@@ -36,21 +43,20 @@ export async function POST(req: Request) {
   }
 
   if (!verifyTotpCode(code, user.totpSecret)) {
+    const attempts = (failedAttempts.get(challengeToken) ?? 0) + 1;
+    if (attempts >= MAX_TOTP_ATTEMPTS) {
+      failedAttempts.delete(challengeToken);
+      invalidatedTokens.add(challengeToken);
+      return NextResponse.json({ error: "Too many failed attempts" }, { status: 429 });
+    }
+    failedAttempts.set(challengeToken, attempts);
     return NextResponse.json({ error: "Invalid code" }, { status: 401 });
   }
 
-  const config = getConfig();
-  const ttl = config.auth.session_ttl_hours;
-  const token = await signJWT(user.id, ttl);
+  // Success: clear attempt state and prevent token replay.
+  failedAttempts.delete(challengeToken);
+  invalidatedTokens.add(challengeToken);
 
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: ttl * 60 * 60,
-  });
-
+  await createSessionCookie(user.id);
   return NextResponse.json({ id: user.id, username: user.username });
 }

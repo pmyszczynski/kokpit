@@ -22,7 +22,10 @@ vi.mock("@/config", () => ({
 }));
 
 describe("POST /api/auth/totp/verify", () => {
-  beforeEach(() => vi.resetModules());
+  beforeEach(() => {
+    vi.resetModules();
+    mockCookieSet.mockClear();
+  });
 
   it("returns 400 on missing fields", async () => {
     const { POST } = await import("../../app/api/auth/totp/verify/route");
@@ -90,5 +93,32 @@ describe("POST /api/auth/totp/verify", () => {
       body: JSON.stringify({ challengeToken, code: "123456" }),
     }));
     expect(res.status).toBe(401);
+  });
+
+  it("returns 429 and invalidates token after 5 failed attempts", async () => {
+    const { createUser, hashPassword, generateTotpSecret, setTotpSecret, signTotpChallenge } = await import("@/auth");
+    const hash = await hashPassword("pass");
+    const user = await createUser("ivan", hash);
+    const secret = generateTotpSecret();
+    setTotpSecret(user.id, secret);
+    const challengeToken = await signTotpChallenge(user.id);
+
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const makeRequest = () => POST(new Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ challengeToken, code: "000000" }),
+    }));
+
+    for (let i = 0; i < 4; i++) {
+      const res = await makeRequest();
+      expect(res.status).toBe(401);
+    }
+    // 5th attempt triggers lockout
+    const res = await makeRequest();
+    expect(res.status).toBe(429);
+
+    // Subsequent attempt with the same token is rejected immediately
+    const resAfter = await makeRequest();
+    expect(resAfter.status).toBe(401);
   });
 });

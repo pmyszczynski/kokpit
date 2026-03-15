@@ -32,6 +32,7 @@ export async function verifyJWT(
   try {
     const { payload } = await jwtVerify(token, getSecret());
     if (typeof payload.userId !== "string") return null;
+    if (payload.type === "totp_challenge") return null;
     return { userId: payload.userId };
   } catch {
     return null;

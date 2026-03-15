@@ -34,4 +34,11 @@ describe("verifyJWT()", () => {
     const { verifyJWT } = await import("../../auth/jwt");
     expect(await verifyJWT("not.a.token")).toBeNull();
   });
+
+  it("returns null for a totp_challenge token (must not be accepted as a session)", async () => {
+    const { signTotpChallenge, verifyJWT, verifyTotpChallenge } = await import("../../auth/jwt");
+    const token = await signTotpChallenge("user-123");
+    expect(await verifyJWT(token)).toBeNull();
+    expect((await verifyTotpChallenge(token))?.userId).toBe("user-123");
+  });
 });
