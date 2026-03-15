@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("node:fs");
+vi.mock("fs", () => {
+  const readFileSync = vi.fn();
+  const writeFileSync = vi.fn();
+  return { default: { readFileSync, writeFileSync }, readFileSync, writeFileSync };
+});
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "fs";
 import {
   loadConfig,
   getConfig,
