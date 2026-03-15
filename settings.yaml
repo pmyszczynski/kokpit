@@ -10,34 +10,24 @@
 
 schema_version: 1
 
-
 # ─── Auth ────────────────────────────────────────────────────
 # Phase 1 — Authentication system will expand this section.
 # When auth.enabled is true, all routes require a valid session.
 # ─────────────────────────────────────────────────────────────
 auth:
-  enabled: true           # Set false to disable auth (or use KOKPIT_AUTH_DISABLED=true env var)
+  enabled: true # Set false to disable auth (or use KOKPIT_AUTH_DISABLED=true env var)
   session_ttl_hours: 24
   # users: []             # Populated by first-run setup wizard
 
 
-# ─── Appearance ───────────────────────────────────────────────
-# Phase 1 (Base UI shell) and Phase 3 (Theme engine) will expand this.
-# ─────────────────────────────────────────────────────────────
+  # ─── Appearance ───────────────────────────────────────────────
+  # Phase 1 (Base UI shell) and Phase 3 (Theme engine) will expand this.
+  # ─────────────────────────────────────────────────────────────
 appearance:
-  theme: dark             # Options: dark | light | oled | high-contrast
-  # custom_css: |
-  #   /* Your custom CSS here. This is injected last and always wins. */
-  #   :root { --color-accent: #f97316; }
-
-
-# ─── Layout ───────────────────────────────────────────────────
-# Phase 3 (Drag-and-drop layout editor) will populate positions.
-# ─────────────────────────────────────────────────────────────
+  theme: light
 layout:
   columns: 4
-  row_height: 120         # pixels
-
+  row_height: 120 # pixels
 
 # ─── Services (app tiles + optional inline widgets) ───────────
 # Each service is a dashboard tile. Attach a widget: block to
@@ -48,6 +38,7 @@ layout:
 # A tile without url: is a "pure widget" tile (e.g. system stats).
 # ─────────────────────────────────────────────────────────────
 services: []
+
 # Example entries (uncomment to use):
 # services:
 #   - name: Jellyfin
