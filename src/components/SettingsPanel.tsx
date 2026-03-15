@@ -47,7 +47,6 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [layoutViewport, setLayoutViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   // Auth
-  const [authEnabled, setAuthEnabled] = useState(config.auth.enabled);
   const [sessionTtl, setSessionTtl] = useState(config.auth.session_ttl_hours);
   const [totp, setTotp] = useState<TotpState>({ status: "loading" });
   const [totpCode, setTotpCode] = useState("");
@@ -177,7 +176,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   function handleSaveAuth() {
-    save("auth", { enabled: authEnabled, session_ttl_hours: sessionTtl });
+    save("auth", { enabled: config.auth.enabled, session_ttl_hours: sessionTtl });
   }
 
   function handleServiceSave(service: Service) {
