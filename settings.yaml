@@ -20,9 +20,10 @@ auth:
   # users: []             # Populated by first-run setup wizard
 
 
-  # ─── Appearance ───────────────────────────────────────────────
-  # Phase 1 (Base UI shell) and Phase 3 (Theme engine) will expand this.
-  # ─────────────────────────────────────────────────────────────
+
+# ─── Appearance ───────────────────────────────────────────────
+# Phase 1 (Base UI shell) and Phase 3 (Theme engine) will expand this.
+# ─────────────────────────────────────────────────────────────
 appearance:
   theme: light
 layout:
