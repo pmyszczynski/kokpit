@@ -1,12 +1,10 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   getUserByUsername,
   verifyPassword,
-  signJWT,
-  SESSION_COOKIE_NAME,
+  signTotpChallenge,
 } from "@/auth";
-import { getConfig } from "@/config";
+import { createSessionCookie } from "../_session";
 
 // Use a pre-computed dummy hash so bcrypt always runs its full work factor,
 // preventing username enumeration via response-time timing attacks.
@@ -41,18 +39,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const config = getConfig();
-  const ttl = config.auth.session_ttl_hours;
-  const token = await signJWT(user.id, ttl);
+  if (user.totpSecret) {
+    const challengeToken = await signTotpChallenge(user.id);
+    return NextResponse.json({ requiresTotp: true, challengeToken });
+  }
 
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: ttl * 60 * 60,
-  });
-
+  await createSessionCookie(user.id);
   return NextResponse.json({ id: user.id, username: user.username });
 }

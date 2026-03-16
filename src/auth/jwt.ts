@@ -32,6 +32,28 @@ export async function verifyJWT(
   try {
     const { payload } = await jwtVerify(token, getSecret());
     if (typeof payload.userId !== "string") return null;
+    if (payload.type === "totp_challenge") return null;
+    return { userId: payload.userId };
+  } catch {
+    return null;
+  }
+}
+
+export async function signTotpChallenge(userId: string): Promise<string> {
+  return new SignJWT({ userId, type: "totp_challenge" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("5m")
+    .setIssuedAt()
+    .sign(getSecret());
+}
+
+export async function verifyTotpChallenge(
+  token: string
+): Promise<{ userId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    if (typeof payload.userId !== "string") return null;
+    if (payload.type !== "totp_challenge") return null;
     return { userId: payload.userId };
   } catch {
     return null;
