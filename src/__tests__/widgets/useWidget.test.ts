@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useWidget } from "@/widgets/useWidget";
 
 describe("useWidget", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("starts in loading state", () => {
@@ -82,8 +84,6 @@ describe("useWidget", () => {
       await Promise.resolve();
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    vi.useRealTimers();
   });
 
   it("aborts in-flight fetch on unmount", () => {

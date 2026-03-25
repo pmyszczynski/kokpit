@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import { z } from "zod";
-import { registerWidget, widgetRegistry } from "@/widgets";
+import { registerWidget, clearRegistry } from "@/widgets";
 import { WidgetRenderer } from "@/components/WidgetRenderer";
 import type { WidgetProps } from "@/widgets";
 
@@ -14,11 +14,12 @@ function MockWidgetComponent({ data, loading, error }: WidgetProps) {
 
 describe("WidgetRenderer", () => {
   beforeEach(() => {
-    widgetRegistry.clear();
+    clearRegistry();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("shows error for unknown widget type", async () => {

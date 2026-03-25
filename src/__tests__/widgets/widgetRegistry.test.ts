@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { z } from "zod";
-import { registerWidget, getWidget, getAllWidgets, widgetRegistry } from "@/widgets";
+import { registerWidget, getWidget, getAllWidgets, clearRegistry } from "@/widgets";
 import type { WidgetDefinition } from "@/widgets";
 
 function makeWidget(id: string): WidgetDefinition {
@@ -15,7 +15,7 @@ function makeWidget(id: string): WidgetDefinition {
 
 describe("widgetRegistry", () => {
   beforeEach(() => {
-    widgetRegistry.clear();
+    clearRegistry();
   });
 
   it("registers and retrieves a widget by id", () => {

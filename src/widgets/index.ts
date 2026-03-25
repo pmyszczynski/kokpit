@@ -24,19 +24,26 @@ type AnyWidgetDefinition = WidgetDefinition<any, any>;
 
 const widgetRegistry = new Map<string, AnyWidgetDefinition>();
 
-export function registerWidget(def: WidgetDefinition): void {
+export function registerWidget<TConfig = Record<string, unknown>, TData = unknown>(
+  def: WidgetDefinition<TConfig, TData>
+): void {
   if (widgetRegistry.has(def.id)) {
     throw new Error(`Widget "${def.id}" is already registered`);
   }
-  widgetRegistry.set(def.id, def);
+  widgetRegistry.set(def.id, def as AnyWidgetDefinition);
 }
 
-export function getWidget(id: string): WidgetDefinition | undefined {
-  return widgetRegistry.get(id);
+export function getWidget<TConfig = Record<string, unknown>, TData = unknown>(
+  id: string
+): WidgetDefinition<TConfig, TData> | undefined {
+  return widgetRegistry.get(id) as WidgetDefinition<TConfig, TData> | undefined;
 }
 
-export function getAllWidgets(): WidgetDefinition[] {
-  return Array.from(widgetRegistry.values());
+export function getAllWidgets<TConfig = Record<string, unknown>, TData = unknown>(): WidgetDefinition<TConfig, TData>[] {
+  return Array.from(widgetRegistry.values()) as WidgetDefinition<TConfig, TData>[];
 }
 
-export { widgetRegistry };
+/** Removes all registered widgets. Intended for use in tests only. */
+export function clearRegistry(): void {
+  widgetRegistry.clear();
+}
