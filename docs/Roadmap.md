@@ -66,10 +66,12 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Error states, loading states, and refresh intervals per widget
 
 - [ ] `P0` **Tier-1 self-hosted integrations**
-  - Media: Jellyfin, Plex, Emby
-  - *arr stack: Sonarr, Radarr, Lidarr, Prowlarr, Readarr
-  - Network/infra: Pi-hole, AdGuard Home, Uptime Kuma
-  - Container/VM: Portainer, Proxmox
+  - Media: Plex
+  - *arr stack: Sonarr, Radarr, Prowlarr
+  - Downloads: qBittorrent, SABnzbd
+  - Media requests: Seerr (Overseerr / Jellyseerr)
+  - Photos: Immich
+  - Infra: Unraid, Netdata
   - Each shows relevant live stats on its tile (not just a link)
 
 - [ ] `P0` **System stats widget**
@@ -155,9 +157,8 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 - [ ] `P1` **Extended integrations (Tier 2)**
   - Home automation: Home Assistant
-  - Files / cloud: Nextcloud, Immich
+  - Files / cloud: Nextcloud
   - Security: Vaultwarden, CrowdSec
-  - Media requests: Overseerr, Jellyseerr
   - Analytics: Tautulli, Grafana embed widget
   - Finance: Actual Budget, Firefly III
 
