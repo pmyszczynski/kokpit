@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ServiceWidget, WidgetPosition } from "@/config/schema";
+import { WidgetRenderer } from "./WidgetRenderer";
 
 interface ServiceTileProps {
   name: string;
@@ -109,7 +110,11 @@ export default function ServiceTile({ name, url, icon, description, widget, posi
       )}
       {widget && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
-          {/* Widget rendering — Phase 2 */}
+          <WidgetRenderer
+            type={widget.type}
+            config={widget.config ?? {}}
+            refreshInterval={widget.refresh_interval_ms}
+          />
         </div>
       )}
     </>
