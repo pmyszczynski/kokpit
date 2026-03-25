@@ -13,7 +13,7 @@ const ServiceWidgetSchema = z.object({
   type: z.string(),
   config: z.record(z.string(), z.unknown()).optional(),
   fields: z.array(z.string()).optional(),
-  refresh_interval_ms: z.number().int().positive().optional(),
+  refresh_interval_ms: z.number().int().min(5000).optional(),
 });
 
 const ServiceSchema = z.object({

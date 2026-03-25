@@ -24,7 +24,13 @@ export async function GET(request: Request) {
 
   // Look up config server-side from settings.yaml — credentials never travel through the client.
   const serviceEntry = getConfig().services.find((s) => s.name === service);
-  const rawConfig: unknown = serviceEntry?.widget?.config ?? {};
+  if (!serviceEntry) {
+    return NextResponse.json(
+      { ok: false, error: `Service not found: "${service}"` },
+      { status: 404 }
+    );
+  }
+  const rawConfig: unknown = serviceEntry.widget?.config ?? {};
 
   const parsed = widget.configSchema.safeParse(rawConfig);
   if (!parsed.success) {

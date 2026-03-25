@@ -60,7 +60,10 @@ export function useWidget<TData = unknown>(
 
   useEffect(() => {
     void fetchData();
-    const interval = setInterval(() => void fetchData(), refreshInterval);
+    const interval =
+      refreshInterval > 0
+        ? setInterval(() => void fetchData(), refreshInterval)
+        : undefined;
     return () => {
       clearInterval(interval);
       abortRef.current?.abort();
