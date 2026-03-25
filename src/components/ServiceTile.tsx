@@ -112,7 +112,7 @@ export default function ServiceTile({ name, url, icon, description, widget, posi
         <div className="service-tile__widget" data-widget-type={widget.type}>
           <WidgetRenderer
             type={widget.type}
-            config={widget.config ?? {}}
+            serviceName={name}
             refreshInterval={widget.refresh_interval_ms}
           />
         </div>

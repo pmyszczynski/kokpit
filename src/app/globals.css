@@ -11,6 +11,7 @@
   --color-accent: #6366f1;
   --color-accent-hover: #4f52d6;
   --color-border: #2e2e2e;
+  --color-error: #ef4444;
   --radius: 8px;
   --gap: 16px;
 }
@@ -24,6 +25,7 @@
   --color-accent: #6366f1;
   --color-accent-hover: #4f52d6;
   --color-border: #2e2e2e;
+  --color-error: #ef4444;
 }
 
 [data-theme="light"] {
@@ -35,6 +37,7 @@
   --color-accent: #6366f1;
   --color-accent-hover: #4f52d6;
   --color-border: #dddddd;
+  --color-error: #dc2626;
 }
 
 [data-theme="oled"] {
@@ -46,6 +49,7 @@
   --color-accent: #6366f1;
   --color-accent-hover: #4f52d6;
   --color-border: #1f1f1f;
+  --color-error: #ef4444;
 }
 
 [data-theme="high-contrast"] {
@@ -57,6 +61,7 @@
   --color-accent: #0000ff;
   --color-accent-hover: #0000cc;
   --color-border: #000000;
+  --color-error: #cc0000;
 }
 
 *,
