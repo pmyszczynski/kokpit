@@ -13,15 +13,13 @@ interface UseWidgetResult<TData> {
 
 export function useWidget<TData = unknown>(
   widgetType: string,
-  config: Record<string, unknown>,
+  serviceName: string,
   refreshInterval: number = DEFAULT_REFRESH_INTERVAL
 ): UseWidgetResult<TData> {
   const [data, setData] = useState<TData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  // Serialize config to avoid stale closure / infinite-loop on object identity change
-  const configKey = JSON.stringify(config);
 
   const fetchData = useCallback(async () => {
     abortRef.current?.abort();
@@ -34,7 +32,7 @@ export function useWidget<TData = unknown>(
     try {
       const params = new URLSearchParams({
         type: widgetType,
-        config: btoa(configKey),
+        service: serviceName,
       });
       const res = await fetch(`/api/widget?${params}`, {
         signal: controller.signal,
@@ -58,7 +56,7 @@ export function useWidget<TData = unknown>(
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetType, configKey]);
+  }, [widgetType, serviceName]);
 
   useEffect(() => {
     void fetchData();
