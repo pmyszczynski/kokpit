@@ -39,8 +39,8 @@ export function getWidget<TConfig = Record<string, unknown>, TData = unknown>(
   return widgetRegistry.get(id) as WidgetDefinition<TConfig, TData> | undefined;
 }
 
-export function getAllWidgets<TConfig = Record<string, unknown>, TData = unknown>(): WidgetDefinition<TConfig, TData>[] {
-  return Array.from(widgetRegistry.values()) as WidgetDefinition<TConfig, TData>[];
+export function getAllWidgets(): AnyWidgetDefinition[] {
+  return Array.from(widgetRegistry.values());
 }
 
 /** Removes all registered widgets. Intended for use in tests only. */
