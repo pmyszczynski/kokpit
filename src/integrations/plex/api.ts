@@ -36,13 +36,6 @@ interface PlexSectionEntry {
   type: string;
 }
 
-interface PlexSectionDetail {
-  MediaContainer: {
-    size?: number;
-    leafCount?: number;
-  };
-}
-
 const SESSION_FIELDS: PlexField[] = [
   "streams",
   "transcodes",
@@ -143,36 +136,51 @@ export async function fetchPlexLibraries(
 
   await Promise.all(
     sections.map(async (section) => {
-      const detailUrl = new URL(
-        `/library/sections/${section.key}`,
-        config.url
-      );
-      detailUrl.searchParams.set("X-Plex-Token", config.token);
-
-      const detailRes = await fetch(detailUrl.toString(), {
-        signal,
-        headers: { Accept: "application/json" },
-      });
-      if (!detailRes.ok) return;
-
-      const detail = (await detailRes.json()) as PlexSectionDetail;
-      const count = detail.MediaContainer.size ?? 0;
-      const leafCount = detail.MediaContainer.leafCount ?? 0;
+      // /library/sections/{key} returns filters/config, not items.
+      // /library/sections/{key}/all with X-Plex-Container-Size=0 returns only
+      // MediaContainer.totalSize — the full count without transferring items.
+      const queries: Array<{
+        field: PlexField;
+        extraParams?: Record<string, string>;
+      }> = [];
 
       if (section.type === "movie" && requested.has("library_movies")) {
-        result.library_movies = (result.library_movies ?? 0) + count;
+        queries.push({ field: "library_movies" });
       }
       if (section.type === "show") {
-        if (requested.has("library_shows")) {
-          result.library_shows = (result.library_shows ?? 0) + count;
-        }
+        if (requested.has("library_shows")) queries.push({ field: "library_shows" });
+        // type=4 filters to episodes so totalSize is the episode count
         if (requested.has("library_episodes")) {
-          result.library_episodes = (result.library_episodes ?? 0) + leafCount;
+          queries.push({ field: "library_episodes", extraParams: { type: "4" } });
         }
       }
       if (section.type === "artist" && requested.has("library_music")) {
-        result.library_music = (result.library_music ?? 0) + count;
+        // type=9 filters to albums
+        queries.push({ field: "library_music", extraParams: { type: "9" } });
       }
+
+      await Promise.all(
+        queries.map(async ({ field, extraParams }) => {
+          const url = new URL(`/library/sections/${section.key}/all`, config.url);
+          url.searchParams.set("X-Plex-Token", config.token);
+          url.searchParams.set("X-Plex-Container-Size", "0");
+          url.searchParams.set("X-Plex-Container-Start", "0");
+          if (extraParams) {
+            for (const [k, v] of Object.entries(extraParams)) {
+              url.searchParams.set(k, v);
+            }
+          }
+
+          const res = await fetch(url.toString(), {
+            signal,
+            headers: { Accept: "application/json" },
+          });
+          if (!res.ok) return;
+
+          const data = (await res.json()) as { MediaContainer: { totalSize?: number } };
+          result[field] = (result[field] ?? 0) + (data.MediaContainer.totalSize ?? 0);
+        })
+      );
     })
   );
 

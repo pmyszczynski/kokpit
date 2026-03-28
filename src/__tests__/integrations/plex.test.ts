@@ -137,29 +137,50 @@ describe("fetchPlexLibraries", () => {
     fields: ["library_movies", "library_shows", "library_episodes", "library_music"] as const,
   };
 
-  it("returns correct counts across sections", async () => {
-    const mockFetch = vi.fn()
-      // First call: /library/sections
-      .mockResolvedValueOnce({
+  /** URL-based mock: avoids order-dependence from nested Promise.all */
+  function makeSectionsMock(
+    sections: Array<{ key: string; type: string }>,
+    counts: Record<string, number>
+  ) {
+    return vi.fn().mockImplementation((url: string) => {
+      // /library/sections (no /all) — return the section list
+      if (!url.includes("/all")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ MediaContainer: { Directory: sections } }),
+        });
+      }
+      // /library/sections/{key}/all — return totalSize from the counts map
+      // Key in counts map: "{sectionKey}" or "{sectionKey}:type={n}"
+      const keyMatch = url.match(/\/sections\/(\w+)\/all/);
+      const sectionKey = keyMatch?.[1] ?? "";
+      const typeMatch = url.match(/[?&]type=(\d+)/);
+      const mapKey = typeMatch ? `${sectionKey}:type=${typeMatch[1]}` : sectionKey;
+      const totalSize = counts[mapKey] ?? 0;
+      return Promise.resolve({
         ok: true,
-        json: async () => ({
-          MediaContainer: {
-            Directory: [
-              { key: "1", type: "movie" },
-              { key: "2", type: "show" },
-              { key: "3", type: "artist" },
-            ],
-          },
-        }),
-      })
-      // Detail: section 1 (movies)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ MediaContainer: { size: 150, leafCount: 0 } }) })
-      // Detail: section 2 (shows)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ MediaContainer: { size: 40, leafCount: 820 } }) })
-      // Detail: section 3 (music)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ MediaContainer: { size: 200, leafCount: 0 } }) });
+        json: async () => ({ MediaContainer: { totalSize } }),
+      });
+    });
+  }
 
-    vi.stubGlobal("fetch", mockFetch);
+  it("returns correct counts across sections", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeSectionsMock(
+        [
+          { key: "1", type: "movie" },
+          { key: "2", type: "show" },
+          { key: "3", type: "artist" },
+        ],
+        {
+          "1": 150,           // movies
+          "2": 40,            // shows (no type param)
+          "2:type=4": 820,    // episodes
+          "3:type=9": 200,    // albums
+        }
+      )
+    );
 
     const result = await fetchPlexLibraries({ ...baseConfig, fields: [...baseConfig.fields] });
     expect(result.library_movies).toBe(150);
@@ -169,32 +190,55 @@ describe("fetchPlexLibraries", () => {
   });
 
   it("sums counts across multiple sections of the same type", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          MediaContainer: {
-            Directory: [
-              { key: "1", type: "movie" },
-              { key: "2", type: "movie" },
-            ],
-          },
-        }),
-      })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ MediaContainer: { size: 100 } }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ MediaContainer: { size: 50 } }) });
-
-    vi.stubGlobal("fetch", mockFetch);
+    vi.stubGlobal(
+      "fetch",
+      makeSectionsMock(
+        [
+          { key: "1", type: "movie" },
+          { key: "2", type: "movie" },
+        ],
+        { "1": 100, "2": 50 }
+      )
+    );
 
     const result = await fetchPlexLibraries({ ...baseConfig, fields: ["library_movies"] });
     expect(result.library_movies).toBe(150);
   });
 
-  it("returns 0 when sections list is empty", async () => {
-    vi.stubGlobal(
-      "fetch",
-      makeFetch({ MediaContainer: { Directory: [] } })
+  it("uses /all endpoint with X-Plex-Container-Size=0 and totalSize", async () => {
+    const mockFetch = makeSectionsMock([{ key: "1", type: "movie" }], { "1": 42 });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await fetchPlexLibraries({ ...baseConfig, fields: ["library_movies"] });
+    expect(result.library_movies).toBe(42);
+
+    const calls: string[] = mockFetch.mock.calls.map((c: [string]) => c[0]);
+    const allCall = calls.find((u) => u.includes("/all"));
+    expect(allCall).toContain("/sections/1/all");
+    expect(allCall).toContain("X-Plex-Container-Size=0");
+  });
+
+  it("uses type=4 for episode count and type=9 for music albums", async () => {
+    const mockFetch = makeSectionsMock(
+      [{ key: "5", type: "show" }, { key: "6", type: "artist" }],
+      { "5": 10, "5:type=4": 200, "6:type=9": 80 }
     );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await fetchPlexLibraries({
+      ...baseConfig,
+      fields: ["library_episodes", "library_music"],
+    });
+    expect(result.library_episodes).toBe(200);
+    expect(result.library_music).toBe(80);
+
+    const calls: string[] = mockFetch.mock.calls.map((c: [string]) => c[0]);
+    expect(calls.some((u) => u.includes("type=4"))).toBe(true);
+    expect(calls.some((u) => u.includes("type=9"))).toBe(true);
+  });
+
+  it("returns 0 when sections list is empty", async () => {
+    vi.stubGlobal("fetch", makeFetch({ MediaContainer: { Directory: [] } }));
 
     const result = await fetchPlexLibraries({ ...baseConfig, fields: [...baseConfig.fields] });
     expect(result.library_movies).toBe(0);
@@ -211,23 +255,27 @@ describe("fetchPlexLibraries", () => {
     ).rejects.toThrow("403");
   });
 
-  it("skips a section if its detail request fails", async () => {
-    const mockFetch = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          MediaContainer: {
-            Directory: [
-              { key: "1", type: "movie" },
-              { key: "2", type: "movie" },
-            ],
-          },
-        }),
-      })
-      // First section: ok
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ MediaContainer: { size: 80 } }) })
-      // Second section: fails
-      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
+  it("skips a section if its /all request fails", async () => {
+    const mockFetch = vi.fn().mockImplementation((url: string) => {
+      if (!url.includes("/all")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            MediaContainer: {
+              Directory: [
+                { key: "1", type: "movie" },
+                { key: "2", type: "movie" },
+              ],
+            },
+          }),
+        });
+      }
+      if (url.includes("/sections/1/all")) {
+        return Promise.resolve({ ok: true, json: async () => ({ MediaContainer: { totalSize: 80 } }) });
+      }
+      // section 2: fails
+      return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+    });
 
     vi.stubGlobal("fetch", mockFetch);
 
