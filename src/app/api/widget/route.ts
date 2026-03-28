@@ -1,3 +1,4 @@
+import "@/integrations";
 import { NextResponse } from "next/server";
 import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";

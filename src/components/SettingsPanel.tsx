@@ -1,5 +1,7 @@
 "use client";
 
+// Register all integration widgets into the client-side registry.
+import "@/integrations";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KokpitConfig, Service } from "@/config/schema";
