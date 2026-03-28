@@ -65,14 +65,16 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Widgets declared in `settings.yaml` under `widgets:`
   - Error states, loading states, and refresh intervals per widget
 
-- [ ] `P0` **Tier-1 self-hosted integrations**
-  - Media: Plex
-  - *arr stack: Sonarr, Radarr, Prowlarr
-  - Downloads: qBittorrent, SABnzbd
-  - Media requests: Seerr (Overseerr / Jellyseerr)
-  - Photos: Immich
-  - Infra: Unraid, Netdata
-  - Each shows relevant live stats on its tile (not just a link)
+- [ ] `P0` **Plex integration** — live stats on tile (active streams, transcodes)
+- [ ] `P0` **Sonarr integration** — upcoming episodes, queue status
+- [ ] `P0` **Radarr integration** — missing movies, queue status
+- [ ] `P0` **Prowlarr integration** — indexer health, grab stats
+- [ ] `P0` **qBittorrent integration** — active torrents, speed, ratio
+- [ ] `P0` **SABnzbd integration** — queue, speed, disk usage
+- [ ] `P0` **Overseerr / Jellyseerr integration** — pending requests count
+- [ ] `P0` **Immich integration** — photo/video count, storage usage
+- [ ] `P0` **Unraid integration** — array status, disk health, parity
+- [ ] `P0` **Netdata integration** — live system metrics via Netdata API
 
 - [ ] `P0` **System stats widget**
   - CPU, RAM, disk usage, network I/O
