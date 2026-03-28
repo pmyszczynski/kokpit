@@ -60,7 +60,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 > Goal: Make the dashboard actually useful day-to-day by showing live data from self-hosted services.
 
-- [ ] `P0` **Widget system architecture**
+- [x] `P0` **Widget system architecture**
   - Plugin-like widget API: each widget has a config schema, async data fetcher, and render component
   - Widgets declared in `settings.yaml` under `widgets:`
   - Error states, loading states, and refresh intervals per widget
