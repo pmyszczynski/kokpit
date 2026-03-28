@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { clearRegistry, getWidget } from "@/widgets";
+import { clearRegistry } from "@/widgets";
 import { fetchPlexSessions, fetchPlexLibraries } from "@/integrations/plex/api";
 
 // ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ describe("fetchPlexLibraries", () => {
     const result = await fetchPlexLibraries({ ...baseConfig, fields: ["library_movies"] });
     expect(result.library_movies).toBe(42);
 
-    const calls: string[] = mockFetch.mock.calls.map((c: [string]) => c[0]);
+    const calls = mockFetch.mock.calls.map((c: unknown[]) => c[0] as string);
     const allCall = calls.find((u) => u.includes("/all"));
     expect(allCall).toContain("/sections/1/all");
     expect(allCall).toContain("X-Plex-Container-Size=0");
@@ -232,7 +232,7 @@ describe("fetchPlexLibraries", () => {
     expect(result.library_episodes).toBe(200);
     expect(result.library_music).toBe(80);
 
-    const calls: string[] = mockFetch.mock.calls.map((c: [string]) => c[0]);
+    const calls = mockFetch.mock.calls.map((c: unknown[]) => c[0] as string);
     expect(calls.some((u) => u.includes("type=4"))).toBe(true);
     expect(calls.some((u) => u.includes("type=9"))).toBe(true);
   });
