@@ -16,8 +16,13 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 - [x] In-app settings panel (appearance, layout, auth, services CRUD)
 
 **Phase 2 — Integrations & Widgets**
-- [ ] Widget system architecture
-- [ ] Tier-1 self-hosted integrations (Jellyfin, *arr stack, Pi-hole, Portainer, Proxmox, …)
+- [x] Widget system architecture
+- [x] Plex integration
+- [ ] Sonarr, Radarr, Prowlarr integrations
+- [ ] qBittorrent, SABnzbd integrations
+- [ ] Overseerr / Jellyseerr integration
+- [ ] Immich integration
+- [ ] Unraid, Netdata integrations
 - [ ] System stats widget (CPU, RAM, disk, Docker)
 - [ ] Useful API widgets (weather, RSS, calendar, search bar)
 - [ ] Docker auto-discovery via socket + container labels
@@ -116,6 +121,84 @@ auth:
 ```
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
+
+## Widgets
+
+Widgets display live data from your self-hosted services directly on a service tile. Each widget polls its service on a configurable interval and renders the data you choose.
+
+**Two ways to configure a widget:**
+
+- **In-app:** open Settings → Services → edit a service → expand the Widget section, pick a type, fill in the fields, and save.
+- **YAML:** add a `widget` block to the service entry in `settings.yaml`.
+
+The general YAML shape is:
+
+```yaml
+services:
+  - name: My Service
+    url: http://192.168.1.10:PORT
+    widget:
+      type: <widget-id>
+      config:
+        # widget-specific fields (see each widget below)
+      refresh_interval_ms: 30000  # optional, minimum 5000
+```
+
+Credentials in `widget.config` are read server-side only and are never sent to the browser.
+
+---
+
+### Plex
+
+Displays live playback and library statistics from a Plex Media Server.
+
+**Prerequisites:** You need your Plex authentication token (`X-Plex-Token`). Find it by signing in to Plex Web, opening any media item's "Get Info" page, clicking "View XML", and copying the `X-Plex-Token` value from the URL.
+
+**YAML example:**
+
+```yaml
+services:
+  - name: Plex
+    url: http://192.168.1.10:32400
+    icon: plex
+    widget:
+      type: plex
+      config:
+        url: http://192.168.1.10:32400
+        token: YOUR_PLEX_TOKEN
+        fields:
+          - streams
+          - transcodes
+          - library_movies
+          - library_shows
+```
+
+**Config fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Plex Media Server |
+| `token` | Yes | `X-Plex-Token` for authentication |
+| `fields` | No | List of stats to display (default: `[streams, transcodes]`) |
+
+**Available display fields:**
+
+| Value | Label | Description |
+|-------|-------|-------------|
+| `streams` | Streaming | Total active sessions |
+| `transcodes` | Transcoding | Sessions currently being transcoded |
+| `lan_streams` | LAN | Active sessions on the local network |
+| `remote_streams` | Remote | Active sessions over the internet |
+| `users` | Users | Number of distinct users currently watching |
+| `bandwidth` | Bandwidth | Total streaming bandwidth (shown in Mbps) |
+| `library_movies` | Movies | Total movies across all movie libraries |
+| `library_shows` | Shows | Total shows across all TV libraries |
+| `library_episodes` | Episodes | Total episodes across all TV libraries |
+| `library_music` | Music | Total albums across all music libraries |
+
+The widget only contacts `/status/sessions` or `/library/sections` depending on which fields you configure, so it never makes unnecessary requests.
+
+---
 
 ## Contributing
 
