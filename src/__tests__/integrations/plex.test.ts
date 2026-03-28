@@ -20,7 +20,7 @@ function makeFetch(body: unknown, ok = true, status = 200) {
 // ---------------------------------------------------------------------------
 
 describe("fetchPlexSessions", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
   const baseConfig = {
     url: "http://plex.local:32400",
@@ -129,7 +129,7 @@ describe("fetchPlexSessions", () => {
 // ---------------------------------------------------------------------------
 
 describe("fetchPlexLibraries", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
   const baseConfig = {
     url: "http://plex.local:32400",
