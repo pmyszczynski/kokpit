@@ -1,5 +1,8 @@
 "use client";
 
+// Register all integration widgets into the client-side registry so that
+// getWidget() resolves on any page that renders a WidgetRenderer.
+import "@/integrations";
 import { getWidget } from "@/widgets";
 import type { WidgetDefinition } from "@/widgets";
 import { useWidget } from "@/widgets/useWidget";
