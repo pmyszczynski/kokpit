@@ -3,7 +3,6 @@ import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 import type { MockPlexState } from "../helpers/mock-plex-server";
 
 const MOCK = "http://localhost:32400";
-const APP = "http://localhost:3000";
 
 /** Services list that matches the fixture settings.yaml. */
 const FIXTURE_SERVICES = [
@@ -27,8 +26,8 @@ const FIXTURE_SERVICES = [
  * cheap requests so tests don't time out waiting for the first compilation.
  */
 test.beforeAll(async ({ request }) => {
-  await request.get(`${APP}/`).catch(() => null);
-  await request.get(`${APP}/api/widget?type=plex&service=Plex`).catch(() => null);
+  await request.get("/").catch(() => null);
+  await request.get("/api/widget?type=plex&service=Plex").catch(() => null);
 });
 
 /**
@@ -38,7 +37,7 @@ test.beforeAll(async ({ request }) => {
  */
 test.beforeEach(async ({ request }) => {
   await request.post(`${MOCK}/__control`, { data: DEFAULT_MOCK_STATE });
-  await request.patch(`${APP}/api/settings`, {
+  await request.patch("/api/settings", {
     data: { services: FIXTURE_SERVICES },
   });
 });
