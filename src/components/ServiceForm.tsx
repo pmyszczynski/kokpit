@@ -69,6 +69,7 @@ function GroupCombobox({
           {isNew && (
             <li
               role="option"
+              aria-selected={false}
               className="group-combobox__option group-combobox__option--new"
               onMouseDown={(e) => { e.preventDefault(); select(value.trim()); }}
             >
