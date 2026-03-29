@@ -40,3 +40,4 @@ data/
 
 # git worktrees
 .worktrees/
+test-results/

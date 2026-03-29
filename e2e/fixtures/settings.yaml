@@ -1,0 +1,21 @@
+schema_version: 1
+auth:
+  enabled: false
+  session_ttl_hours: 24
+appearance:
+  theme: dark
+layout:
+  columns: 4
+  row_height: 120
+services:
+  - name: Plex
+    url: http://localhost:32400
+    widget:
+      type: plex
+      config:
+        url: http://localhost:32400
+        token: test-token
+        fields:
+          - streams
+          - transcodes
+          - library_movies

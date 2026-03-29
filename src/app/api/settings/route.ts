@@ -55,6 +55,14 @@ const PatchBodySchema = z.object({
         icon: z.string().optional(),
         description: z.string().optional(),
         group: z.string().optional(),
+        widget: z
+          .object({
+            type: z.string(),
+            config: z.record(z.string(), z.unknown()).optional(),
+            fields: z.array(z.string()).optional(),
+            refresh_interval_ms: z.number().int().min(5000).optional(),
+          })
+          .optional(),
       })
     )
     .optional(),

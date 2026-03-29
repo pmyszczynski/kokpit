@@ -1,3 +1,4 @@
+import "@/integrations";
 import { NextResponse } from "next/server";
 import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
@@ -50,6 +51,9 @@ export async function GET(request: Request) {
     const data = await widget.fetchData(parsed.data, ac.signal);
     return NextResponse.json({ ok: true, data });
   } catch (err) {
+    if (ac.signal.aborted) {
+      return NextResponse.json({ ok: false, error: "Widget fetch timed out" }, { status: 504 });
+    }
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Widget fetch failed" },
       { status: 500 }

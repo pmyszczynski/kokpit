@@ -8,6 +8,19 @@ export interface WidgetProps<TData = unknown> {
   refresh: () => void;
 }
 
+export type WidgetConfigFieldType = "text" | "url" | "password" | "number" | "multiselect";
+
+export interface WidgetConfigField {
+  key: string;
+  label: string;
+  type: WidgetConfigFieldType;
+  placeholder?: string;
+  description?: string;
+  required?: boolean;
+  /** Options for multiselect fields. */
+  options?: Array<{ value: string; label: string }>;
+}
+
 export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unknown> {
   id: string;
   name: string;
@@ -17,6 +30,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   /** Refresh interval in milliseconds. Defaults to 30_000. */
   refreshInterval?: number;
   component: React.ComponentType<WidgetProps<TData>>;
+  /** Describes the config fields for in-app UI rendering. */
+  configFields?: WidgetConfigField[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
