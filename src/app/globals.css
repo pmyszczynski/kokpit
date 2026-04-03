@@ -791,6 +791,112 @@ body {
   white-space: pre-wrap;
 }
 
+/* ── Plex widget ─────────────────────────────────────────────────────────── */
+
+.plex-widget {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  width: 100%;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.plex-widget__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 6px 4px;
+  min-width: 0;
+}
+
+.plex-widget__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.plex-widget__label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.plex-widget__stale-error {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.plex-widget--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.plex-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.plex-widget__hint--error {
+  color: #f87171;
+}
+
+/* Make the widget area fill the remaining tile height so scroll works */
+.service-tile__widget {
+  flex: 1 1 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Widget settings multiselect ─────────────────────────────────────────── */
+
+.widget-multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.widget-multiselect__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  user-select: none;
+}
+
+.widget-multiselect__option input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+  margin: 0;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;
