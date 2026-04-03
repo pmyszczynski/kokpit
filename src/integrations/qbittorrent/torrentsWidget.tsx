@@ -50,25 +50,35 @@ export function QbittorrentTorrentsWidget({
         <span>↑ Speed</span>
       </div>
       <div className="qbt-torrents-widget__list">
-        {data.map((torrent) => (
-          <div key={torrent.hash} className="qbt-torrents-widget__row">
-            <span
-              className="qbt-torrents-widget__name"
-              title={torrent.name}
-            >
-              {torrent.name}
-            </span>
-            <span className="qbt-torrents-widget__progress">
-              {Math.round(torrent.progress * 100)}%
-            </span>
-            <span className="qbt-torrents-widget__dlspeed">
-              {formatSpeed(torrent.dlspeed)}
-            </span>
-            <span className="qbt-torrents-widget__upspeed">
-              {formatSpeed(torrent.upspeed)}
-            </span>
-          </div>
-        ))}
+        {data.map((torrent) => {
+          const pct = Math.round(torrent.progress * 100);
+          return (
+            <div key={torrent.hash} className="qbt-torrents-widget__row">
+              <span className="qbt-torrents-widget__name" title={torrent.name}>
+                {torrent.name}
+              </span>
+              <div className="qbt-torrents-widget__progress-cell">
+                <div className="qbt-torrents-widget__progress-bar">
+                  <div
+                    className="qbt-torrents-widget__progress-fill"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="qbt-torrents-widget__progress-text">{pct}%</span>
+              </div>
+              <span
+                className={`qbt-torrents-widget__speed${torrent.dlspeed > 0 ? " qbt-torrents-widget__speed--active" : ""}`}
+              >
+                {formatSpeed(torrent.dlspeed)}
+              </span>
+              <span
+                className={`qbt-torrents-widget__speed${torrent.upspeed > 0 ? " qbt-torrents-widget__speed--active" : ""}`}
+              >
+                {formatSpeed(torrent.upspeed)}
+              </span>
+            </div>
+          );
+        })}
       </div>
       {error && (
         <span className="qbt-torrents-widget__stale-error" role="alert">
@@ -84,7 +94,7 @@ registerWidget<QbittorrentConfig, Torrent[]>({
   name: "qBittorrent Torrents",
   configSchema: QbittorrentConfigSchema,
   fetchData: fetchTorrents,
-  refreshInterval: 30_000,
+  refreshInterval: 15_000,
   component: QbittorrentTorrentsWidget,
   configFields: [
     {
