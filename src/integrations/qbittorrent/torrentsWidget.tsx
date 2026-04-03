@@ -1,1 +1,111 @@
-// stub — will be implemented in Task 3
+import { z } from "zod";
+import { registerWidget } from "@/widgets";
+import type { WidgetProps } from "@/widgets";
+import { fetchTorrents } from "./api";
+import type { QbittorrentConfig, Torrent } from "./api";
+
+const QbittorrentConfigSchema = z.object({
+  url: z.string().url(),
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export function formatSpeed(bytesPerSec: number): string {
+  if (bytesPerSec >= 1_000_000) {
+    return `${(bytesPerSec / 1_000_000).toFixed(1)} MB/s`;
+  }
+  return `${(bytesPerSec / 1_000).toFixed(1)} KB/s`;
+}
+
+export function QbittorrentTorrentsWidget({
+  data,
+  loading,
+  error,
+  refresh: _refresh,
+}: WidgetProps<Torrent[]>) {
+  if (!data) {
+    return (
+      <div className="qbt-torrents-widget qbt-torrents-widget--empty">
+        {loading && (
+          <span className="qbt-torrents-widget__hint">Loading&hellip;</span>
+        )}
+        {error && (
+          <span className="qbt-torrents-widget__hint qbt-torrents-widget__hint--error">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="qbt-torrents-widget qbt-torrents-widget--empty">
+        <span className="qbt-torrents-widget__hint">No torrents</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="qbt-torrents-widget" aria-label="qBittorrent torrents">
+      <div className="qbt-torrents-widget__header">
+        <span>Name</span>
+        <span>Progress</span>
+        <span>↓ Speed</span>
+        <span>↑ Speed</span>
+      </div>
+      <div className="qbt-torrents-widget__list">
+        {data.map((torrent) => (
+          <div key={torrent.name} className="qbt-torrents-widget__row">
+            <span
+              className="qbt-torrents-widget__name"
+              title={torrent.name}
+            >
+              {torrent.name}
+            </span>
+            <span className="qbt-torrents-widget__progress">
+              {Math.round(torrent.progress * 100)}%
+            </span>
+            <span className="qbt-torrents-widget__dlspeed">
+              {formatSpeed(torrent.dlspeed)}
+            </span>
+            <span className="qbt-torrents-widget__upspeed">
+              {formatSpeed(torrent.upspeed)}
+            </span>
+          </div>
+        ))}
+      </div>
+      {error && (
+        <span className="qbt-torrents-widget__stale-error" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+registerWidget<QbittorrentConfig, Torrent[]>({
+  id: "qbittorrent-torrents",
+  name: "qBittorrent Torrents",
+  configSchema: QbittorrentConfigSchema,
+  fetchData: fetchTorrents,
+  refreshInterval: 30_000,
+  component: QbittorrentTorrentsWidget,
+  configFields: [
+    {
+      key: "url",
+      label: "URL",
+      type: "url",
+      required: true,
+      placeholder: "http://192.168.1.x:8080",
+    },
+    {
+      key: "username",
+      label: "Username",
+      type: "text",
+      required: true,
+      placeholder: "admin",
+    },
+    { key: "password", label: "Password", type: "password", required: true },
+  ],
+});
