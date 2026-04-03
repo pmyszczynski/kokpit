@@ -17,8 +17,8 @@ const MOCK_TRANSFER_INFO = {
 };
 
 const MOCK_TORRENTS = [
-  { name: "Ubuntu 24.04", progress: 0.74, dlspeed: 12_000_000, upspeed: 0 },
-  { name: "Fedora 40", progress: 1.0, dlspeed: 0, upspeed: 1_000_000 },
+  { hash: "abc123", name: "Ubuntu 24.04", progress: 0.74, dlspeed: 12_000_000, upspeed: 0 },
+  { hash: "def456", name: "Fedora 40", progress: 1.0, dlspeed: 0, upspeed: 1_000_000 },
 ];
 
 function makeLoginResponse(sid: string) {
@@ -72,13 +72,13 @@ describe("fetchTransferInfo", () => {
 
     await fetchTransferInfo(BASE_CONFIG);
 
-    const loginCall = mockFetch.mock.calls.find(([url]: [string]) =>
-      url.includes("/auth/login")
+    const loginCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/auth/login")
     );
     expect(loginCall).toBeDefined();
-    expect(loginCall[1].method).toBe("POST");
-    expect(loginCall[1].body).toContain("username=admin");
-    expect(loginCall[1].body).toContain("password=adminadmin");
+    expect(loginCall![1].method).toBe("POST");
+    expect(loginCall![1].body).toContain("username=admin");
+    expect(loginCall![1].body).toContain("password=adminadmin");
   });
 
   it("attaches SID cookie to the data request", async () => {
@@ -89,8 +89,8 @@ describe("fetchTransferInfo", () => {
 
     await fetchTransferInfo(BASE_CONFIG);
 
-    const dataCall = mockFetch.mock.calls.find(([url]: [string]) =>
-      url.includes("/transfer/info")
+    const dataCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/transfer/info")
     );
     expect(dataCall![1].headers.Cookie).toBe("SID=mySession");
   });
@@ -104,8 +104,8 @@ describe("fetchTransferInfo", () => {
     await fetchTransferInfo(BASE_CONFIG);
     await fetchTransferInfo(BASE_CONFIG);
 
-    const loginCalls = mockFetch.mock.calls.filter(([url]: [string]) =>
-      url.includes("/auth/login")
+    const loginCalls = mockFetch.mock.calls.filter(([url]) =>
+      (url as string).includes("/auth/login")
     );
     expect(loginCalls).toHaveLength(1);
   });
@@ -121,8 +121,8 @@ describe("fetchTransferInfo", () => {
     const result = await fetchTransferInfo(BASE_CONFIG);
     expect(result).toEqual(MOCK_TRANSFER_INFO);
 
-    const loginCalls = mockFetch.mock.calls.filter(([url]: [string]) =>
-      url.includes("/auth/login")
+    const loginCalls = mockFetch.mock.calls.filter(([url]) =>
+      (url as string).includes("/auth/login")
     );
     expect(loginCalls).toHaveLength(2);
   });
@@ -144,8 +144,8 @@ describe("fetchTransferInfo", () => {
     const controller = new AbortController();
     await fetchTransferInfo(BASE_CONFIG, controller.signal);
 
-    const dataCall = mockFetch.mock.calls.find(([url]: [string]) =>
-      url.includes("/transfer/info")
+    const dataCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/transfer/info")
     );
     expect(dataCall![1]).toMatchObject({ signal: controller.signal });
   });
@@ -178,8 +178,8 @@ describe("fetchTorrents", () => {
 
     await fetchTorrents(BASE_CONFIG);
 
-    const dataCall = mockFetch.mock.calls.find(([url]: [string]) =>
-      url.includes("/torrents/info")
+    const dataCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/torrents/info")
     );
     expect(dataCall![1].headers.Cookie).toBe("SID=mySid");
   });

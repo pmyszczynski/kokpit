@@ -20,6 +20,7 @@ export interface TransferInfo {
 }
 
 export interface Torrent {
+  hash: string;
   name: string;
   progress: number;
   dlspeed: number;

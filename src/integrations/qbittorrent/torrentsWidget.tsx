@@ -3,13 +3,9 @@ import type { WidgetProps } from "@/widgets";
 import { fetchTorrents } from "./api";
 import { QbittorrentConfigSchema } from "./api";
 import type { QbittorrentConfig, Torrent } from "./api";
+import { formatSpeed } from "./formatters";
 
-export function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec >= 1_000_000) {
-    return `${(bytesPerSec / 1_000_000).toFixed(1)} MB/s`;
-  }
-  return `${(bytesPerSec / 1_000).toFixed(1)} KB/s`;
-}
+export { formatSpeed } from "./formatters";
 
 export function QbittorrentTorrentsWidget({
   data,
@@ -49,8 +45,8 @@ export function QbittorrentTorrentsWidget({
         <span>↑ Speed</span>
       </div>
       <div className="qbt-torrents-widget__list">
-        {data.map((torrent, i) => (
-          <div key={i} className="qbt-torrents-widget__row">
+        {data.map((torrent) => (
+          <div key={torrent.hash} className="qbt-torrents-widget__row">
             <span
               className="qbt-torrents-widget__name"
               title={torrent.name}

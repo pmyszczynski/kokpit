@@ -6,8 +6,8 @@ import { formatSpeed } from "@/integrations/qbittorrent/torrentsWidget";
 const noop = () => {};
 
 const SAMPLE_TORRENTS = [
-  { name: "Ubuntu 24.04", progress: 0.74, dlspeed: 12_000_000, upspeed: 0 },
-  { name: "Fedora 40", progress: 1.0, dlspeed: 0, upspeed: 1_000_000 },
+  { hash: "abc123", name: "Ubuntu 24.04", progress: 0.74, dlspeed: 12_000_000, upspeed: 0 },
+  { hash: "def456", name: "Fedora 40", progress: 1.0, dlspeed: 0, upspeed: 1_000_000 },
 ];
 
 describe("formatSpeed", () => {
