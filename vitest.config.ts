@@ -1,4 +1,4 @@
-import { defineConfig, Plugin } from "vitest/config";
+import { defineConfig, configDefaults, Plugin } from "vitest/config";
 import { transformSync } from "esbuild";
 import path from "path";
 
@@ -34,5 +34,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    exclude: [...configDefaults.exclude, "**/e2e/**"],
   },
 });
