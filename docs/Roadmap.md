@@ -69,7 +69,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 - [ ] `P0` **Sonarr integration** — upcoming episodes, queue status
 - [ ] `P0` **Radarr integration** — missing movies, queue status
 - [ ] `P0` **Prowlarr integration** — indexer health, grab stats
-- [ ] `P0` **qBittorrent integration** — active torrents, speed, ratio
+- [x] `P0` **qBittorrent integration** — active torrents, speed, ratio
 - [ ] `P0` **SABnzbd integration** — queue, speed, disk usage
 - [ ] `P0` **Overseerr / Jellyseerr integration** — pending requests count
 - [ ] `P0` **Immich integration** — photo/video count, storage usage
