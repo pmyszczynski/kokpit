@@ -10,14 +10,14 @@ const QbittorrentConfigSchema = z.object({
   password: z.string().min(1),
 });
 
-function formatSpeed(bytesPerSec: number): string {
+export function formatSpeed(bytesPerSec: number): string {
   if (bytesPerSec >= 1_000_000) {
     return `${(bytesPerSec / 1_000_000).toFixed(1)} MB/s`;
   }
   return `${(bytesPerSec / 1_000).toFixed(1)} KB/s`;
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes >= 1_000_000_000) {
     return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
   }
@@ -28,6 +28,7 @@ export function QbittorrentStatsWidget({
   data,
   loading,
   error,
+  refresh: _refresh,
 }: WidgetProps<TransferInfo>) {
   if (!data) {
     return (

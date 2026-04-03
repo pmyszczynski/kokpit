@@ -1,6 +1,42 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { QbittorrentStatsWidget } from "@/integrations/qbittorrent/statsWidget";
+import { QbittorrentStatsWidget, formatSpeed, formatBytes } from "@/integrations/qbittorrent/statsWidget";
+
+describe("formatSpeed", () => {
+  it("formats values below 1 MB/s as KB/s", () => {
+    expect(formatSpeed(500_000)).toBe("500.0 KB/s");
+  });
+
+  it("formats values at exactly 1 MB/s as MB/s", () => {
+    expect(formatSpeed(1_000_000)).toBe("1.0 MB/s");
+  });
+
+  it("formats values above 1 MB/s as MB/s", () => {
+    expect(formatSpeed(5_500_000)).toBe("5.5 MB/s");
+  });
+
+  it("formats zero as KB/s", () => {
+    expect(formatSpeed(0)).toBe("0.0 KB/s");
+  });
+});
+
+describe("formatBytes", () => {
+  it("formats values below 1 GB as MB", () => {
+    expect(formatBytes(345_000_000)).toBe("345.0 MB");
+  });
+
+  it("formats values at exactly 1 GB as GB", () => {
+    expect(formatBytes(1_000_000_000)).toBe("1.0 GB");
+  });
+
+  it("formats values above 1 GB as GB", () => {
+    expect(formatBytes(1_200_000_000)).toBe("1.2 GB");
+  });
+
+  it("formats zero as MB", () => {
+    expect(formatBytes(0)).toBe("0.0 MB");
+  });
+});
 
 const noop = () => {};
 
