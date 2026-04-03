@@ -200,7 +200,7 @@ describe("fetchTorrents", () => {
 // ---------------------------------------------------------------------------
 
 // Enabled in Task 2 when statsWidget.tsx is implemented
-describe.skip("qbittorrent-stats widget registration", () => {
+describe("qbittorrent-stats widget registration", () => {
   beforeEach(() => {
     clearRegistry();
     vi.resetModules();
