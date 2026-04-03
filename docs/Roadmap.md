@@ -65,7 +65,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Widgets declared in `settings.yaml` under `widgets:`
   - Error states, loading states, and refresh intervals per widget
 
-- [ ] `P0` **Plex integration** — live stats on tile (active streams, transcodes)
+- [x] `P0` **Plex integration** — live stats on tile (active streams, transcodes)
 - [ ] `P0` **Sonarr integration** — upcoming episodes, queue status
 - [ ] `P0` **Radarr integration** — missing movies, queue status
 - [ ] `P0` **Prowlarr integration** — indexer health, grab stats
