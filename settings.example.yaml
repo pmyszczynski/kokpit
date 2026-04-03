@@ -1,9 +1,11 @@
 # ═══════════════════════════════════════════════════════════════
-# Kokpit — settings.yaml
+# Kokpit — settings.example.yaml
 #
-# This file is the source of truth for your dashboard configuration.
-# The in-app UI reads from and writes back to this file.
-# Changes here take effect without restarting the server (dev mode).
+# Copy this file to settings.yaml and fill in your values.
+# settings.yaml is gitignored — your credentials stay local.
+#
+# The in-app UI reads from and writes back to settings.yaml.
+# Changes take effect without restarting the server (dev mode).
 #
 # Schema version: 1 (Phase 1 will finalize the full schema + validator)
 # ═══════════════════════════════════════════════════════════════
@@ -11,7 +13,6 @@
 schema_version: 1
 
 # ─── Auth ────────────────────────────────────────────────────
-# Phase 1 — Authentication system will expand this section.
 # When auth.enabled is true, all routes require a valid session.
 # ─────────────────────────────────────────────────────────────
 auth:
@@ -19,13 +20,9 @@ auth:
   session_ttl_hours: 24
   # users: []             # Populated by first-run setup wizard
 
-
-
 # ─── Appearance ───────────────────────────────────────────────
-# Phase 1 (Base UI shell) and Phase 3 (Theme engine) will expand this.
-# ─────────────────────────────────────────────────────────────
 appearance:
-  theme: light
+  theme: dark
 layout:
   columns: 4
   row_height: 120 # pixels
@@ -33,35 +30,55 @@ layout:
 # ─── Services (app tiles + optional inline widgets) ───────────
 # Each service is a dashboard tile. Attach a widget: block to
 # display live data from that service inside the same tile.
-# Use position: to pin a tile in the grid (Phase 3 drag-and-drop
-# will write this field automatically).
 #
 # A tile without url: is a "pure widget" tile (e.g. system stats).
 # ─────────────────────────────────────────────────────────────
 services: []
 
-# Example entries (uncomment to use):
+# Example entries (uncomment and fill in your values):
 # services:
+#   - name: Plex
+#     url: http://192.168.1.x:32400
+#     widget:
+#       type: plex
+#       config:
+#         url: http://192.168.1.x:32400
+#         token: <your-plex-token>
+#         fields:
+#           - streams
+#           - transcodes
+#
+#   - name: qBittorrent Stats
+#     url: http://192.168.1.x:8080
+#     widget:
+#       type: qbittorrent-stats
+#       config:
+#         url: http://192.168.1.x:8080
+#         username: <your-username>
+#         password: <your-password>
+#
+#   - name: qBittorrent Torrents
+#     url: http://192.168.1.x:8080
+#     widget:
+#       type: qbittorrent-torrents
+#       config:
+#         url: http://192.168.1.x:8080
+#         username: <your-username>
+#         password: <your-password>
+#
 #   - name: Jellyfin
-#     url: http://192.168.1.10:8096
-#     icon: jellyfin
-#     description: Media server
-#     group: Media
+#     url: http://192.168.1.x:8096
 #     widget:
 #       type: jellyfin
 #       config:
-#         key: your_api_key_here
-#       fields: [streams, movies, episodes]
+#         key: <your-api-key>
 #
 #   - name: Pi-hole
-#     url: http://192.168.1.1/admin
-#     icon: pi-hole
-#     description: DNS ad blocker
-#     group: Network
+#     url: http://192.168.1.x/admin
 #     widget:
 #       type: pihole
 #       config:
-#         key: your_api_key_here
+#         key: <your-api-key>
 #
 #   - name: System Stats
 #     description: CPU, RAM, disk usage

@@ -897,6 +897,196 @@ body {
   margin: 0;
 }
 
+/* ── qBittorrent stats widget ────────────────────────────────────────────── */
+
+.qbt-stats-widget {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.qbt-stats-widget__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 6px 4px;
+  min-width: 0;
+}
+
+.qbt-stats-widget__value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.qbt-stats-widget__label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.qbt-stats-widget__stale-error {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.qbt-stats-widget--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.qbt-stats-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.qbt-stats-widget__hint--error {
+  color: #f87171;
+}
+
+/* ── qBittorrent torrents widget ─────────────────────────────────────────── */
+
+.qbt-torrents-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.qbt-torrents-widget__header {
+  display: grid;
+  grid-template-columns: 1fr 80px 64px 64px;
+  gap: 6px;
+  padding: 0 4px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.qbt-torrents-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.qbt-torrents-widget__row {
+  display: grid;
+  grid-template-columns: 1fr 80px 64px 64px;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.qbt-torrents-widget__row:last-child {
+  border-bottom: none;
+}
+
+.qbt-torrents-widget__name {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.qbt-torrents-widget__progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qbt-torrents-widget__progress-bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.qbt-torrents-widget__progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.qbt-torrents-widget__progress-text {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  line-height: 1;
+}
+
+.qbt-torrents-widget__speed {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.qbt-torrents-widget__speed--active {
+  color: var(--color-text);
+}
+
+.qbt-torrents-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.qbt-torrents-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.qbt-torrents-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.qbt-torrents-widget__hint--error {
+  color: #f87171;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;
