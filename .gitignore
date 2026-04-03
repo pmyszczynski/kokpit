@@ -38,6 +38,9 @@ next-env.d.ts
 # local data (SQLite DB, persisted by Docker volume)
 data/
 
+# user config — contains credentials; copy settings.example.yaml to get started
+settings.yaml
+
 # git worktrees
 .worktrees/
 test-results/
