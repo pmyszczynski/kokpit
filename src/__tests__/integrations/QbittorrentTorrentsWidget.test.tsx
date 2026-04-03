@@ -50,6 +50,14 @@ describe("QbittorrentTorrentsWidget", () => {
     expect(screen.getByText("No torrents")).toBeInTheDocument();
   });
 
+  it("shows stale error alongside 'No torrents' when data is empty and error is set", () => {
+    render(
+      <QbittorrentTorrentsWidget data={[]} loading={false} error="refresh failed" refresh={noop} />
+    );
+    expect(screen.getByText("No torrents")).toBeInTheDocument();
+    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+  });
+
   it("renders torrent names", () => {
     render(
       <QbittorrentTorrentsWidget data={SAMPLE_TORRENTS} loading={false} error={null} refresh={noop} />

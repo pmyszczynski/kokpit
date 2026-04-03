@@ -27,46 +27,65 @@ export interface Torrent {
   upspeed: number;
 }
 
-let sidCache: { url: string; username: string; sid: string } | null = null;
+const sidCache = new Map<string, string>();
+const loginInFlight = new Map<string, Promise<string>>();
+
+function cacheKey(config: QbittorrentConfig): string {
+  return `${config.url}::${config.username}`;
+}
 
 export function clearSidCache(): void {
-  sidCache = null;
+  sidCache.clear();
+  loginInFlight.clear();
 }
 
 async function getSession(
   config: QbittorrentConfig,
   signal?: AbortSignal
 ): Promise<string> {
-  if (sidCache && sidCache.url === config.url && sidCache.username === config.username) {
-    return sidCache.sid;
-  }
+  const key = cacheKey(config);
 
-  const loginUrl = new URL("/api/v2/auth/login", config.url).toString();
-  const body = new URLSearchParams({
-    username: config.username,
-    password: config.password,
-  }).toString();
+  const cached = sidCache.get(key);
+  if (cached) return cached;
 
-  const response = await fetch(loginUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    signal,
-  });
+  const inFlight = loginInFlight.get(key);
+  if (inFlight) return inFlight;
 
-  if (!response.ok) {
-    throw new Error(`qBittorrent login failed with ${response.status}`);
-  }
+  const loginPromise = (async () => {
+    try {
+      const loginUrl = new URL("/api/v2/auth/login", config.url).toString();
+      const body = new URLSearchParams({
+        username: config.username,
+        password: config.password,
+      }).toString();
 
-  const setCookie = response.headers.get("set-cookie") ?? "";
-  const sidMatch = setCookie.match(/SID=([^;]+)/);
-  if (!sidMatch) {
-    throw new Error("qBittorrent login did not return a SID cookie");
-  }
+      const response = await fetch(loginUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+        signal,
+      });
 
-  const sid = sidMatch[1];
-  sidCache = { url: config.url, username: config.username, sid };
-  return sid;
+      if (!response.ok) {
+        throw new Error(`qBittorrent login failed with ${response.status}`);
+      }
+
+      const setCookie = response.headers.get("set-cookie") ?? "";
+      const sidMatch = setCookie.match(/SID=([^;]+)/);
+      if (!sidMatch) {
+        throw new Error("qBittorrent login did not return a SID cookie");
+      }
+
+      const sid = sidMatch[1];
+      sidCache.set(key, sid);
+      return sid;
+    } finally {
+      loginInFlight.delete(key);
+    }
+  })();
+
+  loginInFlight.set(key, loginPromise);
+  return loginPromise;
 }
 
 async function fetchWithAuth(
@@ -83,7 +102,7 @@ async function fetchWithAuth(
   });
 
   if (response.status === 403) {
-    sidCache = null;
+    sidCache.delete(cacheKey(config));
     const newSid = await getSession(config, signal);
     response = await fetch(url, {
       headers: { Cookie: `SID=${newSid}` },

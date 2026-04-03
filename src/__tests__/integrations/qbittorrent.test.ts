@@ -95,6 +95,25 @@ describe("fetchTransferInfo", () => {
     expect(dataCall![1].headers.Cookie).toBe("SID=mySession");
   });
 
+  it("deduplicates concurrent cold-start login requests", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sharedSid"))
+      .mockResolvedValue(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const [result1, result2] = await Promise.all([
+      fetchTransferInfo(BASE_CONFIG),
+      fetchTransferInfo(BASE_CONFIG),
+    ]);
+
+    expect(result1).toEqual(MOCK_TRANSFER_INFO);
+    expect(result2).toEqual(MOCK_TRANSFER_INFO);
+    const loginCalls = mockFetch.mock.calls.filter(([url]) =>
+      (url as string).includes("/auth/login")
+    );
+    expect(loginCalls).toHaveLength(1);
+  });
+
   it("caches SID and does not re-login on second call", async () => {
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(makeLoginResponse("cachedSid"))

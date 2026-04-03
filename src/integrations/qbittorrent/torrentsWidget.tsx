@@ -32,6 +32,11 @@ export function QbittorrentTorrentsWidget({
     return (
       <div className="qbt-torrents-widget qbt-torrents-widget--empty">
         <span className="qbt-torrents-widget__hint">No torrents</span>
+        {error && (
+          <span className="qbt-torrents-widget__stale-error" role="alert">
+            {error}
+          </span>
+        )}
       </div>
     );
   }

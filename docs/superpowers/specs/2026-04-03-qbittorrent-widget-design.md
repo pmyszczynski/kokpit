@@ -45,14 +45,16 @@ src/__tests__/integrations/QbittorrentTorrentsWidget.test.tsx
 ### Auth / SID Cache
 
 ```ts
-let sidCache: { url: string; sid: string } | null = null;
+const sidCache = new Map<string, string>(); // key: `${url}::${username}`
+const loginInFlight = new Map<string, Promise<string>>();
 
 async function getSession(config: QbittorrentConfig, signal?: AbortSignal): Promise<string>
 ```
 
-- If `sidCache` exists and matches `config.url`, return cached SID.
+- If `sidCache` has an entry for `url+username`, return the cached SID.
+- If a login is already in-flight for that key, return the existing promise (deduplicates concurrent cold-start requests).
 - Otherwise POST `/api/v2/auth/login` with `username`/`password` form-encoded, extract `SID` from `Set-Cookie`, store in `sidCache`, return SID.
-- Callers detect a 403, clear `sidCache`, and call `getSession` once more before retrying the original request.
+- On 403, `sidCache.delete(key)` and call `getSession` once more before retrying the original request.
 
 ### Fetch Helpers
 
@@ -82,6 +84,7 @@ interface TransferInfo {
 }
 
 interface Torrent {
+  hash: string;            // stable unique key (used as React list key in torrentsWidget)
   name: string;
   progress: number;        // 0.0–1.0
   dlspeed: number;         // bytes/s
