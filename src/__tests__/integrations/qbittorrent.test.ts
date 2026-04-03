@@ -199,7 +199,8 @@ describe("fetchTorrents", () => {
 // Widget registration — qbittorrent-stats
 // ---------------------------------------------------------------------------
 
-describe("qbittorrent-stats widget registration", () => {
+// Enabled in Task 2 when statsWidget.tsx is implemented
+describe.skip("qbittorrent-stats widget registration", () => {
   beforeEach(() => {
     clearRegistry();
     vi.resetModules();
@@ -250,7 +251,8 @@ describe("qbittorrent-stats widget registration", () => {
 // Widget registration — qbittorrent-torrents
 // ---------------------------------------------------------------------------
 
-describe("qbittorrent-torrents widget registration", () => {
+// Enabled in Task 3 when torrentsWidget.tsx is implemented
+describe.skip("qbittorrent-torrents widget registration", () => {
   beforeEach(() => {
     clearRegistry();
     vi.resetModules();

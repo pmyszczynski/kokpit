@@ -18,7 +18,7 @@ export interface Torrent {
   upspeed: number;
 }
 
-let sidCache: { url: string; sid: string } | null = null;
+let sidCache: { url: string; username: string; sid: string } | null = null;
 
 export function clearSidCache(): void {
   sidCache = null;
@@ -28,7 +28,7 @@ async function getSession(
   config: QbittorrentConfig,
   signal?: AbortSignal
 ): Promise<string> {
-  if (sidCache && sidCache.url === config.url) {
+  if (sidCache && sidCache.url === config.url && sidCache.username === config.username) {
     return sidCache.sid;
   }
 
@@ -56,7 +56,7 @@ async function getSession(
   }
 
   const sid = sidMatch[1];
-  sidCache = { url: config.url, sid };
+  sidCache = { url: config.url, username: config.username, sid };
   return sid;
 }
 
