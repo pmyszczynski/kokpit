@@ -12,20 +12,24 @@ export const QbittorrentConfigSchema = z.object({
   password: z.string().min(1),
 });
 
-export interface TransferInfo {
-  dl_info_speed: number;
-  up_info_speed: number;
-  dl_info_data: number;
-  up_info_data: number;
-}
+const TransferInfoSchema = z.object({
+  dl_info_speed: z.number(),
+  up_info_speed: z.number(),
+  dl_info_data: z.number(),
+  up_info_data: z.number(),
+});
 
-export interface Torrent {
-  hash: string;
-  name: string;
-  progress: number;
-  dlspeed: number;
-  upspeed: number;
-}
+export type TransferInfo = z.infer<typeof TransferInfoSchema>;
+
+const TorrentSchema = z.object({
+  hash: z.string(),
+  name: z.string(),
+  progress: z.number(),
+  dlspeed: z.number(),
+  upspeed: z.number(),
+});
+
+export type Torrent = z.infer<typeof TorrentSchema>;
 
 const sidCache = new Map<string, string>();
 const loginInFlight = new Map<string, Promise<string>>();
@@ -122,7 +126,8 @@ export async function fetchTransferInfo(
   signal?: AbortSignal
 ): Promise<TransferInfo> {
   const response = await fetchWithAuth(config, "/api/v2/transfer/info", signal);
-  return response.json() as Promise<TransferInfo>;
+  const data = await response.json();
+  return TransferInfoSchema.parse(data);
 }
 
 export async function fetchTorrents(
@@ -130,5 +135,6 @@ export async function fetchTorrents(
   signal?: AbortSignal
 ): Promise<Torrent[]> {
   const response = await fetchWithAuth(config, "/api/v2/torrents/info", signal);
-  return response.json() as Promise<Torrent[]>;
+  const data = await response.json();
+  return z.array(TorrentSchema).parse(data);
 }

@@ -160,8 +160,8 @@ Renders a scrollable table of all torrents with fixed-height container:
 ```ts
 const QbittorrentConfigSchema = z.object({
   url: z.string().url(),
-  username: z.string(),
-  password: z.string(),
+  username: z.string().min(1),
+  password: z.string().min(1),
 });
 ```
 
