@@ -1,14 +1,8 @@
-import { z } from "zod";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { fetchTransferInfo } from "./api";
+import { QbittorrentConfigSchema } from "./api";
 import type { QbittorrentConfig, TransferInfo } from "./api";
-
-const QbittorrentConfigSchema = z.object({
-  url: z.string().url(),
-  username: z.string().min(1),
-  password: z.string().min(1),
-});
 
 export function formatSpeed(bytesPerSec: number): string {
   if (bytesPerSec >= 1_000_000) {

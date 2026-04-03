@@ -1,8 +1,16 @@
+import { z } from "zod";
+
 export interface QbittorrentConfig {
   url: string;
   username: string;
   password: string;
 }
+
+export const QbittorrentConfigSchema = z.object({
+  url: z.string().url(),
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
 
 export interface TransferInfo {
   dl_info_speed: number;

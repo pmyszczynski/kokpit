@@ -1,14 +1,8 @@
-import { z } from "zod";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { fetchTorrents } from "./api";
+import { QbittorrentConfigSchema } from "./api";
 import type { QbittorrentConfig, Torrent } from "./api";
-
-const QbittorrentConfigSchema = z.object({
-  url: z.string().url(),
-  username: z.string().min(1),
-  password: z.string().min(1),
-});
 
 export function formatSpeed(bytesPerSec: number): string {
   if (bytesPerSec >= 1_000_000) {
@@ -55,8 +49,8 @@ export function QbittorrentTorrentsWidget({
         <span>↑ Speed</span>
       </div>
       <div className="qbt-torrents-widget__list">
-        {data.map((torrent) => (
-          <div key={torrent.name} className="qbt-torrents-widget__row">
+        {data.map((torrent, i) => (
+          <div key={i} className="qbt-torrents-widget__row">
             <span
               className="qbt-torrents-widget__name"
               title={torrent.name}
