@@ -9,11 +9,13 @@ const BASE_CONFIG = {
   days: 7,
 };
 
+// Mock data matches the actual Sonarr EpisodeResource shape:
+// series is a nested object with title, not a flat seriesTitle field.
 const MOCK_EPISODES = [
   {
     id: 1,
     title: "Pilot",
-    seriesTitle: "Breaking Bad",
+    series: { title: "Breaking Bad" },
     airDateUtc: "2026-04-05T02:00:00Z",
     seasonNumber: 1,
     episodeNumber: 1,
@@ -23,7 +25,7 @@ const MOCK_EPISODES = [
   {
     id: 2,
     title: "Cat's in the Bag",
-    seriesTitle: "Breaking Bad",
+    series: { title: "Breaking Bad" },
     airDateUtc: "2026-04-06T02:00:00Z",
     seasonNumber: 1,
     episodeNumber: 2,
@@ -32,12 +34,13 @@ const MOCK_EPISODES = [
   },
 ];
 
+// Mock data matches the actual Sonarr QueueResource shape.
 const MOCK_QUEUE_RESPONSE = {
   records: [
     {
       id: 101,
       title: "Breaking.Bad.S01E01",
-      seriesTitle: "Breaking Bad",
+      series: { title: "Breaking Bad" },
       status: "downloading",
       timeleft: "00:12:34",
       size: 1_000_000_000,
@@ -47,7 +50,7 @@ const MOCK_QUEUE_RESPONSE = {
     {
       id: 102,
       title: "Breaking.Bad.S01E02",
-      seriesTitle: "Breaking Bad",
+      series: { title: "Breaking Bad" },
       status: "queued",
       size: 900_000_000,
       sizeleft: 900_000_000,
@@ -163,6 +166,25 @@ describe("fetchCalendar", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeJsonResponse(withExtra)));
     const result = await fetchCalendar(BASE_CONFIG);
     expect(result[0]).not.toHaveProperty("unknownField");
+  });
+
+  it("maps series.title to flat seriesTitle on parsed output", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeJsonResponse(MOCK_EPISODES)));
+    const result = await fetchCalendar(BASE_CONFIG);
+    expect(result[0].seriesTitle).toBe("Breaking Bad");
+    expect(result[0]).not.toHaveProperty("series");
+  });
+
+  it("preserves base path in config.url when resolving API path", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse(MOCK_EPISODES));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const configWithBasePath = { ...BASE_CONFIG, url: "http://sonarr.local:8989/sonarr/" };
+    await fetchCalendar(configWithBasePath);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("/sonarr/api/v3/calendar");
+    expect(url).not.toMatch(/^http:\/\/sonarr\.local:8989\/api\//);
   });
 });
 

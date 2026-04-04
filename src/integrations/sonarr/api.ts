@@ -12,10 +12,11 @@ export const SonarrConfigSchema = z.object({
   days: z.coerce.number().int().min(1).max(30).default(7),
 });
 
-const SonarrEpisodeSchema = z.object({
+// Internal schema matching the actual Sonarr EpisodeResource API shape.
+const EpisodeResourceSchema = z.object({
   id: z.number(),
   title: z.string(),
-  seriesTitle: z.string(),
+  series: z.object({ title: z.string() }),
   airDateUtc: z.string(),
   seasonNumber: z.number(),
   episodeNumber: z.number(),
@@ -23,12 +24,25 @@ const SonarrEpisodeSchema = z.object({
   monitored: z.boolean(),
 });
 
-export type SonarrEpisode = z.infer<typeof SonarrEpisodeSchema>;
+// Widget-facing shape with flat seriesTitle extracted from series.title.
+const SonarrEpisodeSchema = EpisodeResourceSchema.transform((r) => ({
+  id: r.id,
+  title: r.title,
+  seriesTitle: r.series.title,
+  airDateUtc: r.airDateUtc,
+  seasonNumber: r.seasonNumber,
+  episodeNumber: r.episodeNumber,
+  hasFile: r.hasFile,
+  monitored: r.monitored,
+}));
 
-const SonarrQueueItemSchema = z.object({
+export type SonarrEpisode = z.output<typeof SonarrEpisodeSchema>;
+
+// Internal schema matching the actual Sonarr QueueResource API shape.
+const QueueResourceSchema = z.object({
   id: z.number(),
   title: z.string(),
-  seriesTitle: z.string(),
+  series: z.object({ title: z.string() }),
   status: z.string(),
   timeleft: z.string().optional(),
   size: z.number(),
@@ -36,7 +50,19 @@ const SonarrQueueItemSchema = z.object({
   trackedDownloadStatus: z.string(),
 });
 
-export type SonarrQueueItem = z.infer<typeof SonarrQueueItemSchema>;
+// Widget-facing shape with flat seriesTitle extracted from series.title.
+const SonarrQueueItemSchema = QueueResourceSchema.transform((r) => ({
+  id: r.id,
+  title: r.title,
+  seriesTitle: r.series.title,
+  status: r.status,
+  timeleft: r.timeleft,
+  size: r.size,
+  sizeleft: r.sizeleft,
+  trackedDownloadStatus: r.trackedDownloadStatus,
+}));
+
+export type SonarrQueueItem = z.output<typeof SonarrQueueItemSchema>;
 
 const SonarrQueueResponseSchema = z.object({
   records: z.array(SonarrQueueItemSchema),
@@ -47,7 +73,11 @@ async function fetchWithAuth(
   path: string,
   signal?: AbortSignal
 ): Promise<Response> {
-  const url = new URL(path, config.url).toString();
+  // Strip leading slashes from relative paths so new URL resolves relative to
+  // the full config.url (including any base path) rather than the origin.
+  // Absolute URLs (http/https) are passed through unchanged.
+  const relativePath = /^https?:\/\//i.test(path) ? path : path.replace(/^\/+/, "");
+  const url = new URL(relativePath, config.url).toString();
   const response = await fetch(url, {
     headers: { "X-Api-Key": config.api_key },
     signal,
