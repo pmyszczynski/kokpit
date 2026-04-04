@@ -57,7 +57,8 @@ async function getSession(
 
   const loginPromise = (async () => {
     try {
-      const loginUrl = new URL("/api/v2/auth/login", config.url).toString();
+      const base = config.url.endsWith("/") ? config.url : `${config.url}/`;
+      const loginUrl = new URL("api/v2/auth/login", base).toString();
       const body = new URLSearchParams({
         username: config.username,
         password: config.password,
@@ -98,7 +99,8 @@ async function fetchWithAuth(
   signal?: AbortSignal
 ): Promise<Response> {
   const sid = await getSession(config, signal);
-  const url = new URL(path, config.url).toString();
+  const base = config.url.endsWith("/") ? config.url : `${config.url}/`;
+  const url = new URL(path, base).toString();
 
   let response = await fetch(url, {
     headers: { Cookie: `SID=${sid}` },
@@ -125,7 +127,7 @@ export async function fetchTransferInfo(
   config: QbittorrentConfig,
   signal?: AbortSignal
 ): Promise<TransferInfo> {
-  const response = await fetchWithAuth(config, "/api/v2/transfer/info", signal);
+  const response = await fetchWithAuth(config, "api/v2/transfer/info", signal);
   const data = await response.json();
   return TransferInfoSchema.parse(data);
 }
@@ -134,7 +136,7 @@ export async function fetchTorrents(
   config: QbittorrentConfig,
   signal?: AbortSignal
 ): Promise<Torrent[]> {
-  const response = await fetchWithAuth(config, "/api/v2/torrents/info", signal);
+  const response = await fetchWithAuth(config, "api/v2/torrents/info", signal);
   const data = await response.json();
   return z.array(TorrentSchema).parse(data);
 }

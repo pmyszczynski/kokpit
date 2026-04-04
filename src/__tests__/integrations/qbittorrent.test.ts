@@ -289,10 +289,10 @@ describe("qbittorrent-torrents widget registration", () => {
     expect(getWidget("qbittorrent-torrents")?.name).toBe("qBittorrent Torrents");
   });
 
-  it("refreshInterval is 30000", async () => {
+  it("refreshInterval is 15000", async () => {
     await import("@/integrations/qbittorrent/torrentsWidget");
     const { getWidget } = await import("@/widgets");
-    expect(getWidget("qbittorrent-torrents")?.refreshInterval).toBe(30_000);
+    expect(getWidget("qbittorrent-torrents")?.refreshInterval).toBe(15_000);
   });
 
   it("configSchema accepts valid config", async () => {
