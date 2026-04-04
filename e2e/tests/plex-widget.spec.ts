@@ -137,7 +137,7 @@ test("settings form saves Plex widget config and renders the tile", async ({
   await page.fill("#sf-name", "My Plex");
 
   // Select the Plex widget type
-  await page.selectOption("#sf-widget-type", "plex");
+  await page.selectOption("#sf-tile-type", "plex");
 
   // Fill widget config fields (rendered dynamically after type selection)
   await page.fill("#sf-widget-url", "http://localhost:32400");
