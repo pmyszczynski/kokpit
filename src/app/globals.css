@@ -1395,6 +1395,8 @@ body {
 
 .sonarr-queue-widget__hint--error {
   color: #f87171;
+}
+
 /* ── SABnzbd widget ───────────────────────────────────────────────────────── */
 
 .sabnzbd-widget__stat--wide {
