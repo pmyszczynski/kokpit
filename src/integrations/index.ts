@@ -3,5 +3,6 @@
 import "./plex/widget";
 import "./qbittorrent/statsWidget";
 import "./qbittorrent/torrentsWidget";
+import "./sabnzbd/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";
