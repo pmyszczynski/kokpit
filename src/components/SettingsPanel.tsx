@@ -537,7 +537,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                 </thead>
                 <tbody>
                   {services.map((svc, i) => (
-                    <tr key={i}>
+                    <tr key={svc.name}>
                       <td>{svc.name}</td>
                       <td className="service-table__url">{svc.url ?? "—"}</td>
                       <td>{svc.group ?? "—"}</td>

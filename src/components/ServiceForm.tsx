@@ -279,10 +279,14 @@ export default function ServiceForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    const nameKey = serviceNameUniquenessKey(name);
-    if (
-      takenNames.some((n) => serviceNameUniquenessKey(n) === nameKey)
-    ) {
+    const trimmedName = name.trim();
+    if (trimmedName === "") {
+      setNameError("Name is required.");
+      return;
+    }
+
+    const nameKey = serviceNameUniquenessKey(trimmedName);
+    if (takenNames.some((n) => serviceNameUniquenessKey(n) === nameKey)) {
       setNameError("A service with this name already exists.");
       return;
     }
@@ -309,7 +313,7 @@ export default function ServiceForm({
     }
 
     onSave({
-      name,
+      name: trimmedName,
       url: url.trim() || undefined,
       icon: icon.trim() || undefined,
       description: description.trim() || undefined,

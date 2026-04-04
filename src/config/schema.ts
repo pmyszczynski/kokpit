@@ -73,6 +73,14 @@ export const KokpitConfigSchema = z
     for (let i = 0; i < data.services.length; i++) {
       const svc = data.services[i];
       const key = serviceNameUniquenessKey(svc.name);
+      if (key === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Service name cannot be empty or whitespace only",
+          path: ["services", i, "name"],
+        });
+        continue;
+      }
       if (seen.has(key)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

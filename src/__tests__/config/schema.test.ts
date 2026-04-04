@@ -22,7 +22,11 @@ describe("KokpitConfigSchema", () => {
     });
     expect(r.success).toBe(false);
     if (!r.success) {
-      expect(r.error.issues.some((i) => i.path.includes("name"))).toBe(true);
+      expect(r.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["services", 1, "name"] }),
+        ])
+      );
     }
   });
 
@@ -32,5 +36,27 @@ describe("KokpitConfigSchema", () => {
       services: [{ name: "Plex " }, { name: " Plex" }],
     });
     expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["services", 1, "name"] }),
+        ])
+      );
+    }
+  });
+
+  it("rejects whitespace-only service name", () => {
+    const r = KokpitConfigSchema.safeParse({
+      ...minimalValid,
+      services: [{ name: "   " }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["services", 0, "name"] }),
+        ])
+      );
+    }
   });
 });
