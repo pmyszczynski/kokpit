@@ -133,11 +133,12 @@ test("settings form saves Plex widget config and renders the tile", async ({
   // Open the Add Service dialog
   await page.click("button:has-text('+ Add Service')");
 
-  // Fill in service name
-  await page.fill("#sf-name", "My Plex");
-
-  // Select the Plex widget type
+  // Select the Plex widget type (pre-fills name with "Plex" from preset)
   await page.selectOption("#sf-tile-type", "plex");
+
+  // Override the preset name to something unique so it doesn't clash with
+  // the fixture "Plex" service that already exists in settings.yaml
+  await page.fill("#sf-name", "My Plex");
 
   // Fill widget config fields (rendered dynamically after type selection)
   await page.fill("#sf-widget-url", "http://localhost:32400");
