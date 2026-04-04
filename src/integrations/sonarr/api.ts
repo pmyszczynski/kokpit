@@ -56,7 +56,7 @@ const SonarrQueueItemSchema = QueueResourceSchema.transform((r) => ({
   title: r.title,
   seriesTitle: r.series.title,
   status: r.status,
-  timeleft: r.timeleft,
+  ...(r.timeleft !== undefined && { timeleft: r.timeleft }),
   size: r.size,
   sizeleft: r.sizeleft,
   trackedDownloadStatus: r.trackedDownloadStatus,
