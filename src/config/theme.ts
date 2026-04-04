@@ -5,20 +5,13 @@ export interface AppearanceProps {
   customCss: string | undefined;
 }
 
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function stripHtmlTags(input: string): string {
+  return input.replace(/<[^>]*>/g, "");
 }
 
 export function resolveAppearance(config: KokpitConfig): AppearanceProps {
   const theme = config.appearance.theme;
   const rawCss = config.appearance.custom_css;
-  const customCss = rawCss
-    ? escapeHtml(rawCss)
-    : undefined;
+  const customCss = rawCss ? stripHtmlTags(rawCss) : undefined;
   return { theme, customCss };
 }

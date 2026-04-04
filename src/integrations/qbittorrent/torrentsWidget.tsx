@@ -98,7 +98,7 @@ registerWidget<QbittorrentConfig, Torrent[]>({
   },
   configSchema: QbittorrentConfigSchema,
   fetchData: fetchTorrents,
-  refreshInterval: 15_000,
+  refreshInterval: 30_000,
   component: QbittorrentTorrentsWidget,
   configFields: [
     {
