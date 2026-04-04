@@ -66,16 +66,16 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Error states, loading states, and refresh intervals per widget
 
 - [x] `P0` **Plex integration** — live stats on tile (active streams, transcodes)
-- [ ] `P0` **Sonarr integration** — upcoming episodes, queue status
-- [ ] `P0` **Radarr integration** — missing movies, queue status
-- [ ] `P0` **Prowlarr integration** — indexer health, grab stats
-- [x] `P0` **qBittorrent integration** — active torrents, speed, ratio
-- [ ] `P0` **SABnzbd integration** — queue, speed, disk usage
-- [ ] `P0` **Overseerr / Jellyseerr integration** — pending requests count
-- [ ] `P0` **Immich integration** — photo/video count, storage usage
-- [ ] `P0` **Unraid integration** — array status, disk health, parity
+- [x] `P0` **Sonarr integration** — two widgets: calendar (upcoming episodes), queue (queue status)
+- [ ] `P0` **Radarr integration** — two widgets: stats (missing, upcoming, wanted, queued, all available), queue (queue status)
+- [ ] `P0` **Prowlarr integration** — stats widget (indexer health, grab stats)
+- [x] `P0` **qBittorrent integration** — two widgets: stats (active torrents, speed, ratio), torrents (torrent list)
+- [x] `P0` **SABnzbd integration** — stats widget (queue, speed, disk usage)
+- [ ] `P0` **Overseerr / Jellyseerr integration** — two widgets: stats (pending requests count), requests history
+- [ ] `P0` **Immich integration** — stats widget (photo/video count, storage usage)
+- [ ] `P0` **Unraid integration** — stats widget (array status, disk health, parity)
 - [ ] `P0` **Netdata integration** — live system metrics via Netdata API
-- [ ] `P0` **Tdarr integration** — queue, speed, disk usage
+- [ ] `P0` **Tdarr integration** — stats widget (queue, speed, disk usage)
 - [x] `P0` **Tile type picker in service editor (UI only)**
   - When adding/editing a tile, user selects a known service type (e.g. Plex, qBittorrent, Radarr) instead of configuring widget type separately
   - Selecting a tile type pre-fills the default icon URL and name — both remain editable
