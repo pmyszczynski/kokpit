@@ -8,10 +8,11 @@ const BASE_CONFIG = {
   apikey: "abc123def456",
 };
 
+// SABnzbd returns kbpersec and mb as numeric strings; noofslots is an integer.
 const MOCK_QUEUE_RESPONSE = {
   queue: {
-    kbpersec: 5120.0,
-    mb: 4096.5,
+    kbpersec: "5120.00",
+    mb: "4096.50",
     noofslots: 3,
   },
 };

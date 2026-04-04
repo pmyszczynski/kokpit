@@ -12,8 +12,8 @@ export const SabnzbdConfigSchema = z.object({
 
 const QueueResponseSchema = z.object({
   queue: z.object({
-    kbpersec: z.number(),
-    mb: z.number(),
+    kbpersec: z.coerce.number(),
+    mb: z.coerce.number(),
     noofslots: z.number(),
   }),
 });
@@ -28,7 +28,8 @@ export async function fetchQueueData(
   config: SabnzbdConfig,
   signal?: AbortSignal
 ): Promise<SabnzbdQueueData> {
-  const url = new URL("/api", config.url);
+  const base = config.url.endsWith("/") ? config.url : `${config.url}/`;
+  const url = new URL("api", base);
   url.searchParams.set("output", "json");
   url.searchParams.set("apikey", config.apikey);
   url.searchParams.set("mode", "queue");

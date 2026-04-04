@@ -5,18 +5,15 @@ export interface AppearanceProps {
   customCss: string | undefined;
 }
 
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function sanitizeCss(input: string): string {
+  // Only neutralise sequences that would close the surrounding <style> tag.
+  // All other CSS (child combinators, quoted values, etc.) must pass through unchanged.
+  return input.replace(/<\/style/gi, (match) => `<\\/${match.slice(2)}`);
 }
 
 export function resolveAppearance(config: KokpitConfig): AppearanceProps {
   const theme = config.appearance.theme;
   const rawCss = config.appearance.custom_css;
-  const customCss = rawCss ? escapeHtml(rawCss) : undefined;
+  const customCss = rawCss ? sanitizeCss(rawCss) : undefined;
   return { theme, customCss };
 }

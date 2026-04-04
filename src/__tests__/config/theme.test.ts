@@ -29,19 +29,36 @@ describe("resolveAppearance", () => {
     expect(r.customCss).toBe(":root { --color-accent: red; }");
   });
 
-  it("HTML-escapes customCss to prevent injection", () => {
+  it("neutralises </style to prevent closing the style tag", () => {
     const r = resolveAppearance({
       ...base,
       appearance: { theme: "dark", custom_css: "body {} </style><script>bad</script>" },
     });
-    expect(r.customCss).toBe("body {} &lt;/style&gt;&lt;script&gt;bad&lt;/script&gt;");
+    expect(r.customCss).toBe("body {} <\\/style><script>bad</script>");
   });
 
-  it("HTML-escapes angle brackets in customCss", () => {
+  it("is case-insensitive when neutralising </style", () => {
+    const r = resolveAppearance({
+      ...base,
+      appearance: { theme: "dark", custom_css: "a { } </STYLE><b>" },
+    });
+    expect(r.customCss).toBe("a { } <\\/STYLE><b>");
+  });
+
+  it("passes valid CSS through unchanged (child combinator, adjacent sibling)", () => {
+    const css = "div > p { color: red; } h1 + h2 { margin: 0; }";
+    const r = resolveAppearance({
+      ...base,
+      appearance: { theme: "dark", custom_css: css },
+    });
+    expect(r.customCss).toBe(css);
+  });
+
+  it("leaves other angle brackets intact", () => {
     const r = resolveAppearance({
       ...base,
       appearance: { theme: "dark", custom_css: ":root { --x: 1; } <img src=x onerror=alert(1)>" },
     });
-    expect(r.customCss).toBe(":root { --x: 1; } &lt;img src=x onerror=alert(1)&gt;");
+    expect(r.customCss).toBe(":root { --x: 1; } <img src=x onerror=alert(1)>");
   });
 });

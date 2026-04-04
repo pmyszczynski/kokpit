@@ -952,9 +952,10 @@ body {
   margin: 0;
 }
 
-/* ── qBittorrent stats widget ────────────────────────────────────────────── */
+/* ── Shared stat widget base (qBittorrent stats, SABnzbd, …) ────────────── */
 
-.qbt-stats-widget {
+.qbt-stats-widget,
+.sabnzbd-widget {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -963,7 +964,8 @@ body {
   min-height: 0;
 }
 
-.qbt-stats-widget__stat {
+.qbt-stats-widget__stat,
+.sabnzbd-widget__stat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -976,7 +978,8 @@ body {
   min-width: 0;
 }
 
-.qbt-stats-widget__value {
+.qbt-stats-widget__value,
+.sabnzbd-widget__value {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text);
@@ -987,7 +990,8 @@ body {
   max-width: 100%;
 }
 
-.qbt-stats-widget__label {
+.qbt-stats-widget__label,
+.sabnzbd-widget__label {
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--color-text-muted);
@@ -996,7 +1000,8 @@ body {
   white-space: nowrap;
 }
 
-.qbt-stats-widget__stale-error {
+.qbt-stats-widget__stale-error,
+.sabnzbd-widget__stale-error {
   grid-column: 1 / -1;
   font-size: 0.7rem;
   color: #f87171;
@@ -1004,21 +1009,27 @@ body {
   padding: 2px 0;
 }
 
-.qbt-stats-widget--empty {
+.qbt-stats-widget--empty,
+.sabnzbd-widget--empty {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 2rem;
 }
 
-.qbt-stats-widget__hint {
+.qbt-stats-widget__hint,
+.sabnzbd-widget__hint {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
 
-.qbt-stats-widget__hint--error {
+.qbt-stats-widget__hint--error,
+.sabnzbd-widget__hint--error {
   color: #f87171;
 }
+
+/* ── qBittorrent stats widget ────────────────────────────────────────────── */
+/* (no overrides — all rules covered by shared base above) */
 
 /* ── qBittorrent torrents widget ─────────────────────────────────────────── */
 
@@ -1144,74 +1155,8 @@ body {
 
 /* ── SABnzbd widget ───────────────────────────────────────────────────────── */
 
-.sabnzbd-widget {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  flex: 1 1 0;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.sabnzbd-widget__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 6px 4px;
-  min-width: 0;
-}
-
 .sabnzbd-widget__stat--wide {
   grid-column: 1 / -1;
-}
-
-.sabnzbd-widget__value {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text);
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.sabnzbd-widget__label {
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.sabnzbd-widget__stale-error {
-  grid-column: 1 / -1;
-  font-size: 0.7rem;
-  color: #f87171;
-  text-align: center;
-  padding: 2px 0;
-}
-
-.sabnzbd-widget--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-}
-
-.sabnzbd-widget__hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.sabnzbd-widget__hint--error {
-  color: #f87171;
 }
 
 /* User-injected custom CSS from appearance.customCss in settings.yaml */

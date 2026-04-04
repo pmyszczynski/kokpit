@@ -52,11 +52,15 @@ const LIBRARY_FIELDS: PlexField[] = [
   "library_music",
 ];
 
+function plexBase(url: string): string {
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
 export async function fetchPlexSessions(
   config: PlexConfig,
   signal?: AbortSignal
 ): Promise<PlexData> {
-  const url = new URL("/status/sessions", config.url);
+  const url = new URL("status/sessions", plexBase(config.url));
   url.searchParams.set("X-Plex-Token", config.token);
 
   const response = await fetch(url.toString(), {
@@ -108,7 +112,7 @@ export async function fetchPlexLibraries(
   config: PlexConfig,
   signal?: AbortSignal
 ): Promise<PlexData> {
-  const sectionsUrl = new URL("/library/sections", config.url);
+  const sectionsUrl = new URL("library/sections", plexBase(config.url));
   sectionsUrl.searchParams.set("X-Plex-Token", config.token);
 
   const response = await fetch(sectionsUrl.toString(), {
@@ -161,7 +165,7 @@ export async function fetchPlexLibraries(
 
       await Promise.all(
         queries.map(async ({ field, extraParams }) => {
-          const url = new URL(`/library/sections/${section.key}/all`, config.url);
+          const url = new URL(`library/sections/${section.key}/all`, plexBase(config.url));
           url.searchParams.set("X-Plex-Token", config.token);
           url.searchParams.set("X-Plex-Container-Size", "0");
           url.searchParams.set("X-Plex-Container-Start", "0");
