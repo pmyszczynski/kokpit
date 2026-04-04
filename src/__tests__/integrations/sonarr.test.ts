@@ -215,6 +215,7 @@ describe("fetchQueue", () => {
     expect(url).toContain("/api/v3/queue");
     expect(url).toContain("pageSize=25");
     expect(url).toContain("includeUnknownSeriesItems=false");
+    expect(url).toContain("includeSeries=true");
   });
 
   it("sends X-Api-Key header", async () => {

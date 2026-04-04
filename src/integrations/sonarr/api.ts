@@ -97,7 +97,7 @@ export async function fetchCalendar(
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + config.days);
 
-  const path = `/api/v3/calendar?start=${start.toISOString()}&end=${end.toISOString()}`;
+  const path = `/api/v3/calendar?start=${start.toISOString()}&end=${end.toISOString()}&includeSeries=true`;
   const response = await fetchWithAuth(config, path, signal);
   const data = await response.json();
   return z.array(SonarrEpisodeSchema).parse(data);
@@ -109,7 +109,7 @@ export async function fetchQueue(
 ): Promise<SonarrQueueItem[]> {
   const response = await fetchWithAuth(
     config,
-    "/api/v3/queue?pageSize=25&includeUnknownSeriesItems=false",
+    "/api/v3/queue?pageSize=25&includeSeries=true&includeUnknownSeriesItems=false",
     signal
   );
   const data = await response.json();
