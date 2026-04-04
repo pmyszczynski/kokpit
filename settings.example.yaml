@@ -66,6 +66,14 @@ services: []
 #         username: <your-username>
 #         password: <your-password>
 #
+#   - name: SABnzbd
+#     url: http://192.168.1.x:8080
+#     widget:
+#       type: sabnzbd
+#       config:
+#         url: http://192.168.1.x:8080
+#         apikey: <your-api-key>
+#
 #   - name: Jellyfin
 #     url: http://192.168.1.x:8096
 #     widget:
