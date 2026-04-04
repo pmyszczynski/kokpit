@@ -41,9 +41,26 @@ export default function ServiceGrid() {
       {[...groups.entries()].map(([groupName, groupServices]) => (
         <div key={groupName} className="service-group">
           <h2 className="service-group__header">{groupName}</h2>
-          {groupServices.map((service, idx) => (
+          <div className="dashboard-tile-grid">
+            {groupServices.map((service, idx) => (
+              <ServiceTile
+                key={`${groupName}__${idx}`}
+                name={service.name}
+                url={service.url}
+                icon={service.icon}
+                description={service.description}
+                widget={service.widget}
+                position={service.position}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+      {ungrouped.length > 0 && (
+        <div className="dashboard-tile-grid">
+          {ungrouped.map((service, idx) => (
             <ServiceTile
-              key={`${groupName}__${idx}`}
+              key={`ungrouped__${idx}`}
               name={service.name}
               url={service.url}
               icon={service.icon}
@@ -53,18 +70,7 @@ export default function ServiceGrid() {
             />
           ))}
         </div>
-      ))}
-      {ungrouped.map((service, idx) => (
-        <ServiceTile
-          key={`ungrouped__${idx}`}
-          name={service.name}
-          url={service.url}
-          icon={service.icon}
-          description={service.description}
-          widget={service.widget}
-          position={service.position}
-        />
-      ))}
+      )}
     </>
   );
 }
