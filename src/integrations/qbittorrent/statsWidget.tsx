@@ -31,16 +31,20 @@ export function QbittorrentStatsWidget({
   return (
     <div className="qbt-stats-widget" aria-label="qBittorrent stats">
       <div className="qbt-stats-widget__stat">
-        <span className="qbt-stats-widget__value">↓ {formatSpeed(data.dl_info_speed)}</span>
+        <span className="qbt-stats-widget__value">{formatSpeed(data.dl_info_speed)}</span>
+        <span className="qbt-stats-widget__label">↓ Speed</span>
       </div>
       <div className="qbt-stats-widget__stat">
-        <span className="qbt-stats-widget__value">↑ {formatSpeed(data.up_info_speed)}</span>
+        <span className="qbt-stats-widget__value">{formatSpeed(data.up_info_speed)}</span>
+        <span className="qbt-stats-widget__label">↑ Speed</span>
       </div>
       <div className="qbt-stats-widget__stat">
-        <span className="qbt-stats-widget__value">↓ total {formatBytes(data.dl_info_data)}</span>
+        <span className="qbt-stats-widget__value">{formatBytes(data.dl_info_data)}</span>
+        <span className="qbt-stats-widget__label">↓ Total</span>
       </div>
       <div className="qbt-stats-widget__stat">
-        <span className="qbt-stats-widget__value">↑ total {formatBytes(data.up_info_data)}</span>
+        <span className="qbt-stats-widget__value">{formatBytes(data.up_info_data)}</span>
+        <span className="qbt-stats-widget__label">↑ Total</span>
       </div>
       {error && (
         <span className="qbt-stats-widget__stale-error" role="alert">

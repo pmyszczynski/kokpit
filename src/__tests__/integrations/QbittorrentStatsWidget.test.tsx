@@ -66,35 +66,39 @@ describe("QbittorrentStatsWidget", () => {
     render(
       <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
     );
-    expect(screen.getByText("↓ 5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("↓ Speed")).toBeInTheDocument();
   });
 
   it("renders upload speed below 1 MB/s as KB/s", () => {
     render(
       <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
     );
-    expect(screen.getByText("↑ 500.0 KB/s")).toBeInTheDocument();
+    expect(screen.getByText("500.0 KB/s")).toBeInTheDocument();
+    expect(screen.getByText("↑ Speed")).toBeInTheDocument();
   });
 
   it("renders session download total above 1 GB as GB", () => {
     render(
       <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
     );
-    expect(screen.getByText("↓ total 1.2 GB")).toBeInTheDocument();
+    expect(screen.getByText("1.2 GB")).toBeInTheDocument();
+    expect(screen.getByText("↓ Total")).toBeInTheDocument();
   });
 
   it("renders session upload total below 1 GB as MB", () => {
     render(
       <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
     );
-    expect(screen.getByText("↑ total 345.0 MB")).toBeInTheDocument();
+    expect(screen.getByText("345.0 MB")).toBeInTheDocument();
+    expect(screen.getByText("↑ Total")).toBeInTheDocument();
   });
 
   it("shows stale error alongside data when data is non-null and error is set", () => {
     render(
       <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error="refresh failed" refresh={noop} />
     );
-    expect(screen.getByText("↓ 5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
     expect(screen.getByText("refresh failed")).toBeInTheDocument();
   });
 
