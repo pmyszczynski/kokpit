@@ -57,6 +57,25 @@ describe("ServiceForm – rendering", () => {
 });
 
 describe("ServiceForm – submission", () => {
+  it("blocks save when the name matches an existing service (case-insensitive)", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={null}
+        existingGroups={[]}
+        takenNames={["Plex"]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "plex" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(/already exists/i)).toBeInTheDocument();
+  });
+
   it("calls onSave with the entered name", () => {
     const onSave = vi.fn();
     render(
@@ -82,6 +101,7 @@ describe("ServiceForm – submission", () => {
     expect(saved.url).toBeUndefined();
     expect(saved.description).toBeUndefined();
     expect(saved.group).toBeUndefined();
+    expect(saved.widget).toBeUndefined();
   });
 
   it("calls onClose when Cancel is clicked", () => {
@@ -100,6 +120,106 @@ describe("ServiceForm – submission", () => {
     );
     fireEvent.click(screen.getByLabelText("Close"));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("ServiceForm – tile type", () => {
+  it("does not show the Widget section when Generic is selected", () => {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    expect(screen.getByLabelText("Tile type")).toHaveValue("");
+    expect(screen.queryByText("Widget")).not.toBeInTheDocument();
+  });
+
+  it("selecting an integration tile type pre-fills name and icon and saves widget.type", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    expect(screen.getByLabelText("Name *")).toHaveValue("Plex");
+    expect(screen.getByLabelText("Icon URL")).toHaveValue(
+      "https://cdn.simpleicons.org/plex/e5a00d"
+    );
+    expect(screen.getByText("Widget")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Server URL/), {
+      target: { value: "http://192.168.1.10:32400" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Token/), {
+      target: { value: "mytoken" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Plex",
+        icon: "https://cdn.simpleicons.org/plex/e5a00d",
+        widget: expect.objectContaining({
+          type: "plex",
+          config: expect.objectContaining({
+            url: "http://192.168.1.10:32400",
+            token: "mytoken",
+          }),
+        }),
+      })
+    );
+  });
+
+  it("infers tile type from service.widget.type when editing a preset integration", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: {
+            type: "plex",
+            config: {
+              url: "http://plex.local:32400",
+              token: "x",
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+    expect(screen.getByLabelText("Tile type")).toHaveValue("plex");
+    expect(screen.getByLabelText("Name *")).toHaveValue("My Plex");
+    expect(screen.getByLabelText(/Server URL/)).toHaveValue("http://plex.local:32400");
+  });
+
+  it("preserves an unknown widget type from YAML on save", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Legacy",
+          widget: {
+            type: "future-widget",
+            config: { api_key: "secret" },
+            refresh_interval_ms: 12_000,
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+    expect(screen.getByText(/future-widget/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Tile type")).toHaveValue("");
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Legacy",
+        widget: {
+          type: "future-widget",
+          config: { api_key: "secret" },
+          refresh_interval_ms: 12_000,
+        },
+      })
+    );
   });
 });
 

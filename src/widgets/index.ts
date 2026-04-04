@@ -21,6 +21,12 @@ export interface WidgetConfigField {
   options?: Array<{ value: string; label: string }>;
 }
 
+/** Default tile label and icon when picking this widget in the service editor. */
+export interface ServiceEditorPreset {
+  defaultName: string;
+  defaultIconUrl: string;
+}
+
 export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unknown> {
   id: string;
   name: string;
@@ -32,6 +38,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   component: React.ComponentType<WidgetProps<TData>>;
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
+  /** When set, this widget appears as a tile type in the service editor. */
+  serviceEditorPreset?: ServiceEditorPreset;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +64,13 @@ export function getWidget<TConfig = Record<string, unknown>, TData = unknown>(
 
 export function getAllWidgets(): AnyWidgetDefinition[] {
   return Array.from(widgetRegistry.values());
+}
+
+/** Widgets exposed as integration tile types in the service editor (sorted by name). */
+export function getWidgetsWithServiceEditorPreset(): AnyWidgetDefinition[] {
+  return getAllWidgets()
+    .filter((w) => w.serviceEditorPreset != null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Removes all registered widgets. Intended for use in tests only. */

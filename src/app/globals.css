@@ -675,6 +675,17 @@ body {
   width: 100%;
 }
 
+.service-form__field-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-form-hint--error {
+  color: var(--color-error);
+}
+
 /* === GROUP COMBOBOX === */
 .group-combobox {
   position: relative;

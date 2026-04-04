@@ -537,7 +537,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                 </thead>
                 <tbody>
                   {services.map((svc, i) => (
-                    <tr key={svc.name}>
+                    <tr key={i}>
                       <td>{svc.name}</td>
                       <td className="service-table__url">{svc.url ?? "—"}</td>
                       <td>{svc.group ?? "—"}</td>
@@ -582,6 +582,9 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
         <ServiceForm
           service={editingIndex !== null ? services[editingIndex] : null}
           existingGroups={[...new Set(services.map((s) => s.group).filter(Boolean) as string[])]}
+          takenNames={services
+            .filter((_, i) => editingIndex === null || i !== editingIndex)
+            .map((s) => s.name)}
           onSave={handleServiceSave}
           onClose={closeServiceForm}
         />
