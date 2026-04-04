@@ -58,6 +58,10 @@ export function QbittorrentStatsWidget({
 registerWidget<QbittorrentConfig, TransferInfo>({
   id: "qbittorrent-stats",
   name: "qBittorrent Stats",
+  serviceEditorPreset: {
+    defaultName: "qBittorrent",
+    defaultIconUrl: "https://cdn.simpleicons.org/qbittorrent/2f67b2",
+  },
   configSchema: QbittorrentConfigSchema,
   fetchData: fetchTransferInfo,
   refreshInterval: 10_000,

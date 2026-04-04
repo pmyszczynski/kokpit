@@ -5,5 +5,5 @@ export {
   getConfigPath,
   invalidateCache,
 } from "./loader";
-export { KokpitConfigSchema } from "./schema";
+export { KokpitConfigSchema, serviceNameUniquenessKey } from "./schema";
 export type { KokpitConfig, Service, ServiceWidget, WidgetPosition } from "./schema";

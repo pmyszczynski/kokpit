@@ -132,22 +132,43 @@ body {
 }
 
 /* === DASHBOARD GRID === */
+/* Outer grid: stacked full-width sections only (no fixed row height — avoids stretching group headers). */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(var(--layout-columns-desktop, 4), 1fr);
-  grid-auto-rows: var(--layout-row-height-desktop, 120px);
   gap: var(--gap);
 }
 
 @media (max-width: 768px) {
   .dashboard-grid {
     grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), 1fr);
-    grid-auto-rows: var(--layout-row-height-tablet, var(--layout-row-height-desktop, 120px));
   }
 }
 
 @media (max-width: 480px) {
   .dashboard-grid {
+    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), 1fr);
+  }
+}
+
+/* Inner grid: actual service tiles with fixed row height (inherits layout vars from .dashboard-grid). */
+.dashboard-tile-grid {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(var(--layout-columns-desktop, 4), 1fr);
+  grid-auto-rows: var(--layout-row-height-desktop, 120px);
+  gap: var(--gap);
+}
+
+@media (max-width: 768px) {
+  .dashboard-tile-grid {
+    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), 1fr);
+    grid-auto-rows: var(--layout-row-height-tablet, var(--layout-row-height-desktop, 120px));
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-tile-grid {
     grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), 1fr);
     grid-auto-rows: var(--layout-row-height-mobile, var(--layout-row-height-desktop, 120px));
   }
@@ -270,17 +291,21 @@ body {
 
 /* === SERVICE GROUPS === */
 .service-group {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  grid-column: 1 / -1;
 }
 
 .service-group__header {
-  grid-column: 1 / -1;
+  flex-shrink: 0;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-text-muted);
-  margin-top: var(--gap);
+  line-height: 1.2;
+  margin: 0;
 }
 
 /* === SETTINGS LINK (navbar) === */
@@ -673,6 +698,36 @@ body {
 
 .service-form .settings-form-row input {
   width: 100%;
+}
+
+.service-form__field-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.service-form__section-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.service-form__section-divider span {
+  flex-shrink: 0;
+}
+
+.settings-form-hint--error {
+  color: var(--color-error);
 }
 
 /* === GROUP COMBOBOX === */

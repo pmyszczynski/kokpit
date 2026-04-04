@@ -92,6 +92,10 @@ export function QbittorrentTorrentsWidget({
 registerWidget<QbittorrentConfig, Torrent[]>({
   id: "qbittorrent-torrents",
   name: "qBittorrent Torrents",
+  serviceEditorPreset: {
+    defaultName: "qBittorrent",
+    defaultIconUrl: "https://cdn.simpleicons.org/qbittorrent/2f67b2",
+  },
   configSchema: QbittorrentConfigSchema,
   fetchData: fetchTorrents,
   refreshInterval: 15_000,

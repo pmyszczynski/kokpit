@@ -89,6 +89,10 @@ export function PlexWidget({ data, loading, error }: WidgetProps<PlexData>) {
 registerWidget<PlexConfig, PlexData>({
   id: "plex",
   name: "Plex",
+  serviceEditorPreset: {
+    defaultName: "Plex",
+    defaultIconUrl: "https://cdn.simpleicons.org/plex/e5a00d",
+  },
   configSchema: PlexConfigSchema,
   fetchData: async (config, signal) => {
     const requestedFields = new Set(config.fields);

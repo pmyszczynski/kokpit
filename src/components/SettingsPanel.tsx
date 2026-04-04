@@ -582,6 +582,9 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
         <ServiceForm
           service={editingIndex !== null ? services[editingIndex] : null}
           existingGroups={[...new Set(services.map((s) => s.group).filter(Boolean) as string[])]}
+          takenNames={services
+            .filter((_, i) => editingIndex === null || i !== editingIndex)
+            .map((s) => s.name)}
           onSave={handleServiceSave}
           onClose={closeServiceForm}
         />
