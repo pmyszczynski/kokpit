@@ -3,6 +3,8 @@
 import "./plex/widget";
 import "./qbittorrent/statsWidget";
 import "./qbittorrent/torrentsWidget";
+import "./sonarr/calendarWidget";
+import "./sonarr/queueWidget";
 import "./sabnzbd/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

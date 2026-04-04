@@ -1153,6 +1153,250 @@ body {
   color: #f87171;
 }
 
+/* ── Sonarr calendar widget ──────────────────────────────────────────────── */
+
+.sonarr-calendar-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sonarr-calendar-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sonarr-calendar-widget__row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.sonarr-calendar-widget__row:last-child {
+  border-bottom: none;
+}
+
+.sonarr-calendar-widget__airtime {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sonarr-calendar-widget__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sonarr-calendar-widget__title {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sonarr-calendar-widget__ep {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sonarr-calendar-widget__badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sonarr-calendar-widget__badge--downloaded {
+  background: color-mix(in srgb, #22c55e 20%, transparent);
+  color: #22c55e;
+}
+
+.sonarr-calendar-widget__badge--upcoming {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.sonarr-calendar-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.sonarr-calendar-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sonarr-calendar-widget__hint--error {
+  color: #f87171;
+}
+
+.sonarr-calendar-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+/* ── Sonarr queue widget ─────────────────────────────────────────────────── */
+
+.sonarr-queue-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sonarr-queue-widget__header {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 56px;
+  gap: 6px;
+  padding: 0 4px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.sonarr-queue-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sonarr-queue-widget__row {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 56px;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.sonarr-queue-widget__row:last-child {
+  border-bottom: none;
+}
+
+.sonarr-queue-widget__name {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sonarr-queue-widget__progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sonarr-queue-widget__progress-bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sonarr-queue-widget__progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.sonarr-queue-widget__progress-text {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  line-height: 1;
+}
+
+.sonarr-queue-widget__status {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.sonarr-queue-widget__status--warning {
+  color: #fbbf24;
+}
+
+.sonarr-queue-widget__status--error {
+  color: #f87171;
+}
+
+.sonarr-queue-widget__timeleft {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.sonarr-queue-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.sonarr-queue-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.sonarr-queue-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sonarr-queue-widget__hint--error {
+  color: #f87171;
+}
+
 /* ── SABnzbd widget ───────────────────────────────────────────────────────── */
 
 .sabnzbd-widget__stat--wide {
