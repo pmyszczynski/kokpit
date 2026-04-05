@@ -18,8 +18,11 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 **Phase 2 — Integrations & Widgets**
 - [x] Widget system architecture
 - [x] Plex integration
-- [ ] Sonarr, Radarr, Prowlarr integrations
-- [ ] qBittorrent, SABnzbd integrations
+- [x] Sonarr integration
+- [x] Radarr integration
+- [x] qBittorrent integration
+- [x] SABnzbd integration
+- [ ] Prowlarr integration
 - [ ] Overseerr / Jellyseerr integration
 - [ ] Immich integration
 - [ ] Unraid, Netdata integrations
@@ -197,6 +200,119 @@ services:
 | `library_music` | Music | Total albums across all music libraries |
 
 The widget only contacts `/status/sessions` or `/library/sections` depending on which fields you configure, so it never makes unnecessary requests.
+
+---
+
+### Sonarr
+
+Two widgets are available for Sonarr: a calendar showing upcoming episodes and a download queue monitor.
+
+**Prerequisites:** An API key from Sonarr → Settings → General → Security.
+
+#### `sonarr-calendar`
+
+Shows upcoming episode air dates for the configured number of days ahead.
+
+```yaml
+services:
+  - name: Sonarr
+    url: http://192.168.1.10:8989
+    icon: sonarr
+    widget:
+      type: sonarr-calendar
+      config:
+        url: http://192.168.1.10:8989
+        api_key: YOUR_API_KEY
+        days: 7
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Sonarr instance |
+| `api_key` | Yes | API key from Sonarr → Settings → General |
+| `days` | No | Days ahead to show (1–30, default: 7) |
+
+#### `sonarr-queue`
+
+Shows active downloads with progress bars, status, and ETA.
+
+```yaml
+services:
+  - name: Sonarr
+    url: http://192.168.1.10:8989
+    icon: sonarr
+    widget:
+      type: sonarr-queue
+      config:
+        url: http://192.168.1.10:8989
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Sonarr instance |
+| `api_key` | Yes | API key from Sonarr → Settings → General |
+
+---
+
+### Radarr
+
+Two widgets are available for Radarr: a stats overview and a download queue monitor.
+
+**Prerequisites:** An API key from Radarr → Settings → General → Security.
+
+#### `radarr-stats`
+
+Displays a six-stat grid showing the state of your movie library.
+
+```yaml
+services:
+  - name: Radarr
+    url: http://192.168.1.10:7878
+    icon: radarr
+    widget:
+      type: radarr-stats
+      config:
+        url: http://192.168.1.10:7878
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Radarr instance |
+| `api_key` | Yes | API key from Radarr → Settings → General |
+
+**Displayed stats:**
+
+| Stat | Description |
+|------|-------------|
+| Missing | Monitored movies without a file that are already released |
+| Upcoming | Movies in "announced" or "in cinemas" status |
+| Wanted | All monitored movies without a file |
+| Queued | Total items currently in the download queue |
+| Available | Movies with a downloaded file |
+| Total | All movies tracked in Radarr |
+
+#### `radarr-queue`
+
+Shows active movie downloads with progress bars, status, and ETA.
+
+```yaml
+services:
+  - name: Radarr
+    url: http://192.168.1.10:7878
+    icon: radarr
+    widget:
+      type: radarr-queue
+      config:
+        url: http://192.168.1.10:7878
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Radarr instance |
+| `api_key` | Yes | API key from Radarr → Settings → General |
 
 ---
 
