@@ -49,7 +49,32 @@ See [`docs/Roadmap.md`](docs/Roadmap.md) for full details and priority levels.
 
 ### Docker (recommended)
 
-1. Clone the repo and copy the example config:
+#### Quick start with pre-built image
+
+If you just want to run Kokpit, use the pre-built image from GitHub Container Registry (available from v0.2.0 onwards):
+
+```bash
+mkdir kokpit && cd kokpit
+docker run -d \
+  --name kokpit \
+  -p 3000:3000 \
+  -v ./data:/data \
+  -e KOKPIT_SESSION_SECRET=change-this-to-a-random-32-char-secret \
+  ghcr.io/pmyszczynski/kokpit:latest
+```
+
+Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
+
+To use a specific version:
+```bash
+docker run ... ghcr.io/pmyszczynski/kokpit:0.1.0
+```
+
+#### Building from source
+
+If you want to build the image yourself or need the latest unreleased features:
+
+1. Clone the repo:
 
 ```bash
 git clone https://github.com/pmyszczynski/kokpit.git
@@ -63,8 +88,6 @@ cd kokpit
 ```bash
 docker compose up kokpit --build
 ```
-
-Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
 
 ### Local development
 
