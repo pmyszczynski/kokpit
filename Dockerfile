@@ -49,6 +49,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# OCI image metadata
+LABEL org.opencontainers.image.title="Kokpit"
+LABEL org.opencontainers.image.description="A self-hosted homelab dashboard with live status indicators and YAML-driven configuration"
+LABEL org.opencontainers.image.source="https://github.com/pmyszczynski/kokpit"
+LABEL org.opencontainers.image.documentation="https://github.com/pmyszczynski/kokpit"
+LABEL org.opencontainers.image.vendor="pmyszczynski"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
