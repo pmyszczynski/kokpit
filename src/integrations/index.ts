@@ -6,5 +6,7 @@ import "./qbittorrent/torrentsWidget";
 import "./sonarr/calendarWidget";
 import "./sonarr/queueWidget";
 import "./sabnzbd/widget";
+import "./radarr/statsWidget";
+import "./radarr/queueWidget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";
