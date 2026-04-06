@@ -60,6 +60,7 @@ docker run -d \
   -p 3000:3000 \
   -v ./data:/data \
   -e KOKPIT_SESSION_SECRET=change-this-to-a-random-32-char-secret \
+  -e KOKPIT_DB_PATH=/data/users.db \
   ghcr.io/pmyszczynski/kokpit:latest
 ```
 
@@ -67,7 +68,7 @@ Kokpit will be available at `http://localhost:3000`. On first run, a setup wizar
 
 To use a specific version:
 ```bash
-docker run ... ghcr.io/pmyszczynski/kokpit:0.1.0
+docker run ... ghcr.io/pmyszczynski/kokpit:0.2.0
 ```
 
 #### Building from source
