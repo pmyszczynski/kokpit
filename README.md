@@ -90,6 +90,8 @@ cd kokpit
 docker compose up kokpit --build
 ```
 
+**For information about Docker image releases, versioning, and publishing to GHCR, see [`docs/DOCKER_RELEASES.md`](docs/DOCKER_RELEASES.md).**
+
 ### Local development
 
 **Prerequisites:** Node.js 20+
