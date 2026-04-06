@@ -952,10 +952,11 @@ body {
   margin: 0;
 }
 
-/* ── Shared stat widget base (qBittorrent stats, SABnzbd, …) ────────────── */
+/* ── Shared stat widget base (qBittorrent stats, SABnzbd, Prowlarr, …) ───── */
 
 .qbt-stats-widget,
-.sabnzbd-widget {
+.sabnzbd-widget,
+.prowlarr-stats-widget {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -965,7 +966,8 @@ body {
 }
 
 .qbt-stats-widget__stat,
-.sabnzbd-widget__stat {
+.sabnzbd-widget__stat,
+.prowlarr-stats-widget__stat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -979,7 +981,8 @@ body {
 }
 
 .qbt-stats-widget__value,
-.sabnzbd-widget__value {
+.sabnzbd-widget__value,
+.prowlarr-stats-widget__value {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text);
@@ -991,7 +994,8 @@ body {
 }
 
 .qbt-stats-widget__label,
-.sabnzbd-widget__label {
+.sabnzbd-widget__label,
+.prowlarr-stats-widget__label {
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--color-text-muted);
@@ -1001,7 +1005,8 @@ body {
 }
 
 .qbt-stats-widget__stale-error,
-.sabnzbd-widget__stale-error {
+.sabnzbd-widget__stale-error,
+.prowlarr-stats-widget__stale-error {
   grid-column: 1 / -1;
   font-size: 0.7rem;
   color: #f87171;
@@ -1010,7 +1015,8 @@ body {
 }
 
 .qbt-stats-widget--empty,
-.sabnzbd-widget--empty {
+.sabnzbd-widget--empty,
+.prowlarr-stats-widget--empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1018,13 +1024,15 @@ body {
 }
 
 .qbt-stats-widget__hint,
-.sabnzbd-widget__hint {
+.sabnzbd-widget__hint,
+.prowlarr-stats-widget__hint {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
 
 .qbt-stats-widget__hint--error,
-.sabnzbd-widget__hint--error {
+.sabnzbd-widget__hint--error,
+.prowlarr-stats-widget__hint--error {
   color: #f87171;
 }
 
@@ -1405,72 +1413,8 @@ body {
 
 /* ── Prowlarr stats widget ───────────────────────────────────────────────── */
 
-.prowlarr-stats-widget {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  flex: 1 1 0;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.prowlarr-stats-widget__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface-2);
-  border-radius: var(--radius);
-  padding: 6px 4px;
-  min-width: 0;
-}
-
-.prowlarr-stats-widget__value {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text);
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
 .prowlarr-stats-widget__value--alert {
   color: var(--color-error);
-}
-
-.prowlarr-stats-widget__label {
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.prowlarr-stats-widget__stale-error {
-  grid-column: 1 / -1;
-  font-size: 0.7rem;
-  color: #f87171;
-  text-align: center;
-  padding: 2px 0;
-}
-
-.prowlarr-stats-widget--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-}
-
-.prowlarr-stats-widget__hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.prowlarr-stats-widget__hint--error {
-  color: #f87171;
 }
 
 /* User-injected custom CSS from appearance.customCss in settings.yaml */

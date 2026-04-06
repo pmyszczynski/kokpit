@@ -17,9 +17,12 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 
 **Phase 2 — Integrations & Widgets**
 - [x] Widget system architecture
-- [x] Plex integration
-- [ ] Sonarr, Radarr, Prowlarr integrations
-- [ ] qBittorrent, SABnzbd integrations
+- [x] Plex integration (streams, transcodes, library stats)
+- [x] Sonarr integration (calendar, queue)
+- [ ] Radarr integration
+- [x] Prowlarr integration (indexer health, grab stats)
+- [x] qBittorrent integration (stats, torrent list)
+- [x] SABnzbd integration (queue stats)
 - [ ] Overseerr / Jellyseerr integration
 - [ ] Immich integration
 - [ ] Unraid, Netdata integrations
@@ -197,6 +200,150 @@ services:
 | `library_music` | Music | Total albums across all music libraries |
 
 The widget only contacts `/status/sessions` or `/library/sections` depending on which fields you configure, so it never makes unnecessary requests.
+
+---
+
+### Sonarr
+
+Two widgets are available for Sonarr.
+
+#### `sonarr-calendar` — Upcoming episodes
+
+Shows episodes airing in the next N days, with air date, season/episode code, title, and a downloaded/upcoming badge.
+
+```yaml
+services:
+  - name: Sonarr
+    url: http://192.168.1.10:8989
+    icon: sonarr
+    widget:
+      type: sonarr-calendar
+      config:
+        url: http://192.168.1.10:8989
+        api_key: YOUR_API_KEY
+        days: 7
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Sonarr instance |
+| `api_key` | Yes | Sonarr API key (Settings → General → Security) |
+| `days` | No | Number of days ahead to show (1–30, default: 7) |
+
+#### `sonarr-queue` — Download queue
+
+Shows items currently in the Sonarr download queue with their status and progress.
+
+```yaml
+services:
+  - name: Sonarr
+    url: http://192.168.1.10:8989
+    widget:
+      type: sonarr-queue
+      config:
+        url: http://192.168.1.10:8989
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Sonarr instance |
+| `api_key` | Yes | Sonarr API key (Settings → General → Security) |
+
+---
+
+### Prowlarr
+
+Displays indexer health and grab statistics from Prowlarr in a compact 2×2 grid. The **Failing** count turns red when one or more indexers are unhealthy.
+
+**Stats shown:** total indexers, enabled indexers, failing indexers, total grabs.
+
+```yaml
+services:
+  - name: Prowlarr
+    url: http://192.168.1.10:9696
+    icon: prowlarr
+    widget:
+      type: prowlarr-stats
+      config:
+        url: http://192.168.1.10:9696
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Prowlarr instance |
+| `api_key` | Yes | Prowlarr API key (Settings → General → Security) |
+
+---
+
+### qBittorrent
+
+Two widgets are available for qBittorrent.
+
+#### `qbittorrent-stats` — Transfer stats
+
+Shows download/upload speeds, session totals, and active torrent counts.
+
+```yaml
+services:
+  - name: qBittorrent
+    url: http://192.168.1.10:8080
+    icon: qbittorrent
+    widget:
+      type: qbittorrent-stats
+      config:
+        url: http://192.168.1.10:8080
+        username: admin
+        password: YOUR_PASSWORD
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your qBittorrent Web UI |
+| `username` | Yes | qBittorrent Web UI username |
+| `password` | Yes | qBittorrent Web UI password |
+
+#### `qbittorrent-torrents` — Torrent list
+
+Shows a scrollable list of active torrents with name, state, and progress.
+
+```yaml
+services:
+  - name: qBittorrent
+    url: http://192.168.1.10:8080
+    widget:
+      type: qbittorrent-torrents
+      config:
+        url: http://192.168.1.10:8080
+        username: admin
+        password: YOUR_PASSWORD
+```
+
+Config fields are identical to `qbittorrent-stats`.
+
+---
+
+### SABnzbd
+
+Shows queue speed, total queue size, and number of queued items.
+
+```yaml
+services:
+  - name: SABnzbd
+    url: http://192.168.1.10:8080
+    icon: sabnzbd
+    widget:
+      type: sabnzbd
+      config:
+        url: http://192.168.1.10:8080
+        apikey: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your SABnzbd instance |
+| `apikey` | Yes | SABnzbd API key (Config → General → API Key) |
 
 ---
 
