@@ -2,11 +2,7 @@ import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { fetchQueue, SonarrConfigSchema } from "./api";
 import type { SonarrConfig, SonarrQueueItem } from "./api";
-
-function calcProgress(size: number, sizeleft: number): number {
-  if (size === 0) return 0;
-  return Math.min(100, Math.max(0, Math.round((1 - sizeleft / size) * 100)));
-}
+import { calcProgress } from "@/integrations/shared/queue";
 
 export function SonarrQueueWidget({
   data,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fetchWithApiKey } from "@/integrations/shared/http";
 
 export interface RadarrConfig {
   url: string;
@@ -59,39 +60,17 @@ const RadarrQueueResponseSchema = z.object({
   totalRecords: z.number(),
 });
 
-async function fetchWithAuth(
-  config: RadarrConfig,
-  path: string,
-  signal?: AbortSignal
-): Promise<Response> {
-  // Strip leading slashes from relative paths so new URL resolves relative to
-  // the full config.url (including any base path) rather than the origin.
-  // Absolute URLs (http/https) are passed through unchanged.
-  const relativePath = /^https?:\/\//i.test(path) ? path : path.replace(/^\/+/, "");
-  const url = new URL(relativePath, config.url).toString();
-  const response = await fetch(url, {
-    headers: { "X-Api-Key": config.api_key },
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Radarr responded with ${response.status}`);
-  }
-  return response;
-}
-
 export async function fetchStats(
   config: RadarrConfig,
   signal?: AbortSignal
 ): Promise<RadarrStats> {
   const [moviesResponse, queueResponse] = await Promise.all([
-    fetchWithAuth(config, "/api/v3/movie", signal),
-    fetchWithAuth(config, "/api/v3/queue?pageSize=1", signal),
+    fetchWithApiKey(config, "/api/v3/movie", signal, "Radarr"),
+    fetchWithApiKey(config, "/api/v3/queue?pageSize=1", signal, "Radarr"),
   ]);
 
-  const [moviesData, queueData] = await Promise.all([
-    moviesResponse.json(),
-    queueResponse.json(),
-  ]);
+  const moviesData = await moviesResponse.json();
+  const queueData = await queueResponse.json();
 
   const movies = z.array(MovieResourceSchema).parse(moviesData);
   const { totalRecords } = z
@@ -115,10 +94,11 @@ export async function fetchQueue(
   config: RadarrConfig,
   signal?: AbortSignal
 ): Promise<RadarrQueueItem[]> {
-  const response = await fetchWithAuth(
+  const response = await fetchWithApiKey(
     config,
     "/api/v3/queue?pageSize=25&includeMovie=true&includeUnknownMovieItems=false",
-    signal
+    signal,
+    "Radarr"
   );
   const data = await response.json();
   return RadarrQueueResponseSchema.parse(data).records;
