@@ -84,7 +84,7 @@ Only updated for stable releases. Never gets pre-releases. Good for quick testin
 }
 ```
 
-Commit this change to `master` branch.
+Commit this change to `main` branch.
 
 ### Step 2: Create a git tag
 
@@ -124,7 +124,7 @@ After the workflow completes:
 
 **File:** `.github/workflows/publish.yml`
 
-**Trigger:** `release` event (published or edited)
+**Trigger:** `release` event (published)
 
 **Steps:**
 1. Checkout code
