@@ -17,7 +17,9 @@ RUN apk add --no-cache libc6-compat
 
 # ── Stage: deps ───────────────────────────────────────────────
 # Install dependencies once; cache this layer aggressively.
+# better-sqlite3 (and similar) compile on Alpine — need node-gyp toolchain.
 FROM base AS deps
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 RUN npm ci
 
