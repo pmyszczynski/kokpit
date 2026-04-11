@@ -1405,6 +1405,235 @@ body {
   color: #f87171;
 }
 
+/* ── Radarr stats widget ─────────────────────────────────────────────────── */
+
+.radarr-stats-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.radarr-stats-widget__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  flex: 1 1 0;
+  align-content: center;
+  padding: 4px;
+}
+
+.radarr-stats-widget__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  min-width: 0;
+}
+
+.radarr-stats-widget__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.radarr-stats-widget__label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.radarr-stats-widget__stat--missing .radarr-stats-widget__value {
+  color: #f87171;
+}
+
+.radarr-stats-widget__stat--upcoming .radarr-stats-widget__value {
+  color: var(--color-accent);
+}
+
+.radarr-stats-widget__stat--wanted .radarr-stats-widget__value {
+  color: #fbbf24;
+}
+
+.radarr-stats-widget__stat--queued .radarr-stats-widget__value {
+  color: var(--color-text-muted);
+}
+
+.radarr-stats-widget__stat--available .radarr-stats-widget__value {
+  color: #22c55e;
+}
+
+.radarr-stats-widget__stat--total .radarr-stats-widget__value {
+  color: var(--color-text);
+}
+
+.radarr-stats-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.radarr-stats-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.radarr-stats-widget__hint--error {
+  color: #f87171;
+}
+
+.radarr-stats-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+/* ── Radarr queue widget ─────────────────────────────────────────────────── */
+
+.radarr-queue-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.radarr-queue-widget__header {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 56px;
+  gap: 6px;
+  padding: 0 4px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.radarr-queue-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.radarr-queue-widget__row {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 56px;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.radarr-queue-widget__row:last-child {
+  border-bottom: none;
+}
+
+.radarr-queue-widget__name {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.radarr-queue-widget__progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.radarr-queue-widget__progress-bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.radarr-queue-widget__progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.radarr-queue-widget__progress-text {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  line-height: 1;
+}
+
+.radarr-queue-widget__status {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.radarr-queue-widget__status--warning {
+  color: #fbbf24;
+}
+
+.radarr-queue-widget__status--error {
+  color: #f87171;
+}
+
+.radarr-queue-widget__timeleft {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.radarr-queue-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.radarr-queue-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.radarr-queue-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.radarr-queue-widget__hint--error {
+  color: #f87171;
+}
+
 /* ── SABnzbd widget ───────────────────────────────────────────────────────── */
 
 .sabnzbd-widget__stat--wide {

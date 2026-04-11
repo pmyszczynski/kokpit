@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fetchWithApiKey } from "@/integrations/shared/http";
 
 export interface SonarrConfig {
   url: string;
@@ -68,26 +69,6 @@ const SonarrQueueResponseSchema = z.object({
   records: z.array(SonarrQueueItemSchema),
 });
 
-async function fetchWithAuth(
-  config: SonarrConfig,
-  path: string,
-  signal?: AbortSignal
-): Promise<Response> {
-  // Strip leading slashes from relative paths so new URL resolves relative to
-  // the full config.url (including any base path) rather than the origin.
-  // Absolute URLs (http/https) are passed through unchanged.
-  const relativePath = /^https?:\/\//i.test(path) ? path : path.replace(/^\/+/, "");
-  const url = new URL(relativePath, config.url).toString();
-  const response = await fetch(url, {
-    headers: { "X-Api-Key": config.api_key },
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Sonarr responded with ${response.status}`);
-  }
-  return response;
-}
-
 export async function fetchCalendar(
   config: SonarrConfig,
   signal?: AbortSignal
@@ -98,7 +79,7 @@ export async function fetchCalendar(
   end.setUTCDate(end.getUTCDate() + config.days);
 
   const path = `/api/v3/calendar?start=${start.toISOString()}&end=${end.toISOString()}&includeSeries=true`;
-  const response = await fetchWithAuth(config, path, signal);
+  const response = await fetchWithApiKey(config, path, signal, "Sonarr");
   const data = await response.json();
   return z.array(SonarrEpisodeSchema).parse(data);
 }
@@ -107,10 +88,11 @@ export async function fetchQueue(
   config: SonarrConfig,
   signal?: AbortSignal
 ): Promise<SonarrQueueItem[]> {
-  const response = await fetchWithAuth(
+  const response = await fetchWithApiKey(
     config,
     "/api/v3/queue?pageSize=25&includeSeries=true&includeUnknownSeriesItems=false",
-    signal
+    signal,
+    "Sonarr"
   );
   const data = await response.json();
   return SonarrQueueResponseSchema.parse(data).records;

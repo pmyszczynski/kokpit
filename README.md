@@ -17,12 +17,12 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 
 **Phase 2 — Integrations & Widgets**
 - [x] Widget system architecture
-- [x] Plex integration (streams, transcodes, library stats)
-- [x] Sonarr integration (calendar, queue)
-- [ ] Radarr integration
-- [x] Prowlarr integration (indexer health, grab stats)
-- [x] qBittorrent integration (stats, torrent list)
-- [x] SABnzbd integration (queue stats)
+- [x] Plex integration
+- [x] Sonarr integration
+- [x] Radarr integration
+- [x] qBittorrent integration
+- [x] SABnzbd integration
+- [x] Prowlarr integration
 - [ ] Overseerr / Jellyseerr integration
 - [ ] Immich integration
 - [ ] Unraid, Netdata integrations
@@ -52,7 +52,33 @@ See [`docs/Roadmap.md`](docs/Roadmap.md) for full details and priority levels.
 
 ### Docker (recommended)
 
-1. Clone the repo and copy the example config:
+#### Quick start with pre-built image
+
+If you just want to run Kokpit, use the pre-built image from GitHub Container Registry (available from v0.2.0 onwards):
+
+```bash
+mkdir kokpit && cd kokpit
+docker run -d \
+  --name kokpit \
+  -p 3000:3000 \
+  -v ./data:/data \
+  -e KOKPIT_SESSION_SECRET=change-this-to-a-random-32-char-secret \
+  -e KOKPIT_DB_PATH=/data/users.db \
+  ghcr.io/pmyszczynski/kokpit:latest
+```
+
+Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
+
+To use a specific version:
+```bash
+docker run ... ghcr.io/pmyszczynski/kokpit:0.2.0
+```
+
+#### Building from source
+
+If you want to build the image yourself or need the latest unreleased features:
+
+1. Clone the repo:
 
 ```bash
 git clone https://github.com/pmyszczynski/kokpit.git
@@ -67,7 +93,7 @@ cd kokpit
 docker compose up kokpit --build
 ```
 
-Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
+**For information about Docker image releases, versioning, and publishing to GHCR, see [`docs/DOCKER_RELEASES.md`](docs/DOCKER_RELEASES.md).**
 
 ### Local development
 
@@ -205,11 +231,13 @@ The widget only contacts `/status/sessions` or `/library/sections` depending on 
 
 ### Sonarr
 
-Two widgets are available for Sonarr.
+Two widgets are available for Sonarr: a calendar showing upcoming episodes and a download queue monitor.
 
-#### `sonarr-calendar` — Upcoming episodes
+**Prerequisites:** An API key from Sonarr → Settings → General → Security.
 
-Shows episodes airing in the next N days, with air date, season/episode code, title, and a downloaded/upcoming badge.
+#### `sonarr-calendar`
+
+Shows upcoming episode air dates for the configured number of days ahead.
 
 ```yaml
 services:
@@ -227,17 +255,18 @@ services:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `url` | Yes | Base URL of your Sonarr instance |
-| `api_key` | Yes | Sonarr API key (Settings → General → Security) |
-| `days` | No | Number of days ahead to show (1–30, default: 7) |
+| `api_key` | Yes | API key from Sonarr → Settings → General |
+| `days` | No | Days ahead to show (1–30, default: 7) |
 
-#### `sonarr-queue` — Download queue
+#### `sonarr-queue`
 
-Shows items currently in the Sonarr download queue with their status and progress.
+Shows active downloads with progress bars, status, and ETA.
 
 ```yaml
 services:
   - name: Sonarr
     url: http://192.168.1.10:8989
+    icon: sonarr
     widget:
       type: sonarr-queue
       config:
@@ -248,102 +277,68 @@ services:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `url` | Yes | Base URL of your Sonarr instance |
-| `api_key` | Yes | Sonarr API key (Settings → General → Security) |
+| `api_key` | Yes | API key from Sonarr → Settings → General |
 
 ---
 
-### Prowlarr
+### Radarr
 
-Displays indexer health and grab statistics from Prowlarr in a compact 2×2 grid. The **Failing** count turns red when one or more indexers are unhealthy.
+Two widgets are available for Radarr: a stats overview and a download queue monitor.
 
-**Stats shown:** total indexers, enabled indexers, failing indexers, total grabs.
+**Prerequisites:** An API key from Radarr → Settings → General → Security.
+
+#### `radarr-stats`
+
+Displays a six-stat grid showing the state of your movie library.
 
 ```yaml
 services:
-  - name: Prowlarr
-    url: http://192.168.1.10:9696
-    icon: prowlarr
+  - name: Radarr
+    url: http://192.168.1.10:7878
+    icon: radarr
     widget:
-      type: prowlarr-stats
+      type: radarr-stats
       config:
-        url: http://192.168.1.10:9696
+        url: http://192.168.1.10:7878
         api_key: YOUR_API_KEY
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `url` | Yes | Base URL of your Prowlarr instance |
-| `api_key` | Yes | Prowlarr API key (Settings → General → Security) |
+| `url` | Yes | Base URL of your Radarr instance |
+| `api_key` | Yes | API key from Radarr → Settings → General |
 
----
+**Displayed stats:**
 
-### qBittorrent
+| Stat | Description |
+|------|-------------|
+| Missing | Monitored movies without a file that are already released |
+| Upcoming | Movies in "announced" or "in cinemas" status |
+| Wanted | All monitored movies without a file |
+| Queued | Total items currently in the download queue |
+| Available | Movies with a downloaded file |
+| Total | All movies tracked in Radarr |
 
-Two widgets are available for qBittorrent.
+#### `radarr-queue`
 
-#### `qbittorrent-stats` — Transfer stats
-
-Shows download/upload speeds, session totals, and active torrent counts.
+Shows active movie downloads with progress bars, status, and ETA.
 
 ```yaml
 services:
-  - name: qBittorrent
-    url: http://192.168.1.10:8080
-    icon: qbittorrent
+  - name: Radarr
+    url: http://192.168.1.10:7878
+    icon: radarr
     widget:
-      type: qbittorrent-stats
+      type: radarr-queue
       config:
-        url: http://192.168.1.10:8080
-        username: admin
-        password: YOUR_PASSWORD
+        url: http://192.168.1.10:7878
+        api_key: YOUR_API_KEY
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `url` | Yes | Base URL of your qBittorrent Web UI |
-| `username` | Yes | qBittorrent Web UI username |
-| `password` | Yes | qBittorrent Web UI password |
-
-#### `qbittorrent-torrents` — Torrent list
-
-Shows a scrollable list of active torrents with name, state, and progress.
-
-```yaml
-services:
-  - name: qBittorrent
-    url: http://192.168.1.10:8080
-    widget:
-      type: qbittorrent-torrents
-      config:
-        url: http://192.168.1.10:8080
-        username: admin
-        password: YOUR_PASSWORD
-```
-
-Config fields are identical to `qbittorrent-stats`.
-
----
-
-### SABnzbd
-
-Shows queue speed, total queue size, and number of queued items.
-
-```yaml
-services:
-  - name: SABnzbd
-    url: http://192.168.1.10:8080
-    icon: sabnzbd
-    widget:
-      type: sabnzbd
-      config:
-        url: http://192.168.1.10:8080
-        apikey: YOUR_API_KEY
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your SABnzbd instance |
-| `apikey` | Yes | SABnzbd API key (Config → General → API Key) |
+| `url` | Yes | Base URL of your Radarr instance |
+| `api_key` | Yes | API key from Radarr → Settings → General |
 
 ---
 
