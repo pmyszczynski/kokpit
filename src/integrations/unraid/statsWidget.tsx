@@ -4,16 +4,19 @@ import { fetchStats, UnraidConfigSchema } from "./api";
 import type { UnraidConfig, UnraidStats } from "./api";
 
 function formatBytes(bytes: number): string {
-  if (bytes >= 1_000_000_000_000) {
-    return `${(bytes / 1_000_000_000_000).toFixed(1)} TB`;
+  if (bytes >= 1024 ** 4) {
+    return `${(bytes / 1024 ** 4).toFixed(1)} TiB`;
   }
-  if (bytes >= 1_000_000_000) {
-    return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  if (bytes >= 1024 ** 3) {
+    return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
   }
-  if (bytes >= 1_000_000) {
-    return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  if (bytes >= 1024 ** 2) {
+    return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
   }
-  return `${(bytes / 1_000).toFixed(1)} KB`;
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`;
+  }
+  return `${bytes} B`;
 }
 
 function formatArrayState(state: string): string {
@@ -58,7 +61,7 @@ export function UnraidStatsWidget({
 
   return (
     <div className="unraid-stats-widget" aria-label="Unraid stats">
-      <div className="unraid-stats-widget__stat unraid-stats-widget__stat--state">
+      <div className="unraid-stats-widget__stat">
         <span className="unraid-stats-widget__value">
           {formatArrayState(data.arrayState)}
         </span>
