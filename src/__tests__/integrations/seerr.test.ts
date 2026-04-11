@@ -279,134 +279,86 @@ describe("fetchRequests", () => {
   });
 });
 
-// ── Widget registration — seerr-stats ─────────────────────────────────────────
+// ── Widget registration (table-driven) ───────────────────────────────────────
 
-describe("seerr-stats widget registration", () => {
-  beforeEach(() => {
-    clearRegistry();
-    vi.resetModules();
-  });
+const WIDGET_DESCRIPTORS = [
+  {
+    id: "seerr-stats",
+    importPath: "@/integrations/seerr/statsWidget" as const,
+    expectedName: "Seerr Stats",
+    refreshInterval: 60_000,
+  },
+  {
+    id: "seerr-requests",
+    importPath: "@/integrations/seerr/requestsWidget" as const,
+    expectedName: "Seerr Requests",
+    refreshInterval: 60_000,
+  },
+];
 
-  it("registers a widget with id 'seerr-stats' on import", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    expect(getWidget("seerr-stats")).toBeDefined();
-  });
-
-  it("widget name is 'Seerr Stats'", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    expect(getWidget("seerr-stats")?.name).toBe("Seerr Stats");
-  });
-
-  it("refreshInterval is 60000", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    expect(getWidget("seerr-stats")?.refreshInterval).toBe(60_000);
-  });
-
-  it("configSchema accepts valid config", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    const result = getWidget("seerr-stats")!.configSchema.safeParse({
-      url: "http://192.168.1.10:5055",
-      api_key: "myapikey",
+describe.each(WIDGET_DESCRIPTORS)(
+  "$id widget registration",
+  ({ id, importPath, expectedName, refreshInterval }) => {
+    beforeEach(() => {
+      clearRegistry();
+      vi.resetModules();
     });
-    expect(result.success).toBe(true);
-  });
 
-  it("configSchema rejects invalid URL", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    const result = getWidget("seerr-stats")!.configSchema.safeParse({
-      url: "not-a-url",
-      api_key: "myapikey",
+    it(`registers a widget with id '${id}' on import`, async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget(id)).toBeDefined();
     });
-    expect(result.success).toBe(false);
-  });
 
-  it("configSchema rejects empty api_key", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    const result = getWidget("seerr-stats")!.configSchema.safeParse({
-      url: "http://192.168.1.10:5055",
-      api_key: "",
+    it(`widget name is '${expectedName}'`, async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget(id)?.name).toBe(expectedName);
     });
-    expect(result.success).toBe(false);
-  });
 
-  it("configFields contains url and api_key keys", async () => {
-    await import("@/integrations/seerr/statsWidget");
-    const { getWidget } = await import("@/widgets");
-    const fields = getWidget("seerr-stats")?.configFields ?? [];
-    const keys = fields.map((f) => f.key);
-    expect(keys).toContain("url");
-    expect(keys).toContain("api_key");
-  });
-});
-
-// ── Widget registration — seerr-requests ─────────────────────────────────────
-
-describe("seerr-requests widget registration", () => {
-  beforeEach(() => {
-    clearRegistry();
-    vi.resetModules();
-  });
-
-  it("registers a widget with id 'seerr-requests' on import", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    expect(getWidget("seerr-requests")).toBeDefined();
-  });
-
-  it("widget name is 'Seerr Requests'", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    expect(getWidget("seerr-requests")?.name).toBe("Seerr Requests");
-  });
-
-  it("refreshInterval is 60000", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    expect(getWidget("seerr-requests")?.refreshInterval).toBe(60_000);
-  });
-
-  it("configSchema accepts valid config", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    const result = getWidget("seerr-requests")!.configSchema.safeParse({
-      url: "http://192.168.1.10:5055",
-      api_key: "myapikey",
+    it(`refreshInterval is ${refreshInterval}`, async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget(id)?.refreshInterval).toBe(refreshInterval);
     });
-    expect(result.success).toBe(true);
-  });
 
-  it("configSchema rejects invalid URL", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    const result = getWidget("seerr-requests")!.configSchema.safeParse({
-      url: "not-a-url",
-      api_key: "myapikey",
+    it("configSchema accepts valid config", async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget(id)!.configSchema.safeParse({
+        url: "http://192.168.1.10:5055",
+        api_key: "myapikey",
+      });
+      expect(result.success).toBe(true);
     });
-    expect(result.success).toBe(false);
-  });
 
-  it("configSchema rejects empty api_key", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    const result = getWidget("seerr-requests")!.configSchema.safeParse({
-      url: "http://192.168.1.10:5055",
-      api_key: "",
+    it("configSchema rejects invalid URL", async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget(id)!.configSchema.safeParse({
+        url: "not-a-url",
+        api_key: "myapikey",
+      });
+      expect(result.success).toBe(false);
     });
-    expect(result.success).toBe(false);
-  });
 
-  it("configFields contains url and api_key keys", async () => {
-    await import("@/integrations/seerr/requestsWidget");
-    const { getWidget } = await import("@/widgets");
-    const fields = getWidget("seerr-requests")?.configFields ?? [];
-    const keys = fields.map((f) => f.key);
-    expect(keys).toContain("url");
-    expect(keys).toContain("api_key");
-  });
-});
+    it("configSchema rejects empty api_key", async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget(id)!.configSchema.safeParse({
+        url: "http://192.168.1.10:5055",
+        api_key: "",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("configFields contains url and api_key keys", async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      const fields = getWidget(id)?.configFields ?? [];
+      const keys = fields.map((f) => f.key);
+      expect(keys).toContain("url");
+      expect(keys).toContain("api_key");
+    });
+  }
+);

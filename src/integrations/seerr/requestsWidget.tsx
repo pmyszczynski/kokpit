@@ -79,6 +79,7 @@ export function SeerrRequestsWidget({
       <div className="seerr-requests-widget__list">
         {data.map((req) => {
           const status = effectiveStatus(req);
+          const title = displayTitle(req);
           return (
             <div key={req.id} className="seerr-requests-widget__row">
               <span
@@ -94,9 +95,9 @@ export function SeerrRequestsWidget({
               <div className="seerr-requests-widget__info">
                 <span
                   className="seerr-requests-widget__title"
-                  title={displayTitle(req)}
+                  title={title}
                 >
-                  {displayTitle(req)}
+                  {title}
                 </span>
                 <span className="seerr-requests-widget__requester">
                   {req.requestedBy}
