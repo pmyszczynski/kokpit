@@ -98,6 +98,18 @@ export async function fetchStats(
     throw new Error("Unraid returned invalid JSON from the GraphQL endpoint.");
   }
 
+  if (
+    raw !== null &&
+    typeof raw === "object" &&
+    "errors" in raw &&
+    Array.isArray((raw as { errors: unknown }).errors)
+  ) {
+    const messages = (raw as { errors: Array<{ message?: string }> }).errors
+      .map((e) => e.message ?? "unknown error")
+      .join("; ");
+    throw new Error(`Unraid returned GraphQL errors: ${messages}`);
+  }
+
   const parsed = UnraidResponseSchema.parse(raw);
   const { array, vars } = parsed.data;
 
