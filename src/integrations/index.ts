@@ -8,5 +8,7 @@ import "./sonarr/queueWidget";
 import "./sabnzbd/widget";
 import "./radarr/statsWidget";
 import "./radarr/queueWidget";
+import "./seerr/statsWidget";
+import "./seerr/requestsWidget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

@@ -1632,6 +1632,229 @@ body {
   grid-column: 1 / -1;
 }
 
+/* ── Seerr stats widget ───────────────────────────────────────────────────── */
+
+.seerr-stats-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.seerr-stats-widget__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  flex: 1 1 0;
+  align-content: center;
+  padding: 4px;
+}
+
+.seerr-stats-widget__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  min-width: 0;
+}
+
+.seerr-stats-widget__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.seerr-stats-widget__label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.seerr-stats-widget__stat--pending .seerr-stats-widget__value {
+  color: #f59e0b;
+}
+
+.seerr-stats-widget__stat--approved .seerr-stats-widget__value {
+  color: #615fff;
+}
+
+.seerr-stats-widget__stat--available .seerr-stats-widget__value {
+  color: #22c55e;
+}
+
+.seerr-stats-widget__stat--total .seerr-stats-widget__value {
+  color: var(--color-text);
+}
+
+.seerr-stats-widget--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.seerr-stats-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.seerr-stats-widget__hint--error {
+  color: #f87171;
+}
+
+.seerr-stats-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+/* ── Seerr requests widget ────────────────────────────────────────────────── */
+
+.seerr-requests-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.seerr-requests-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.seerr-requests-widget__row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.seerr-requests-widget__row:last-child {
+  border-bottom: none;
+}
+
+.seerr-requests-widget__badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.seerr-requests-widget__badge--pending {
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+  color: #f59e0b;
+}
+
+.seerr-requests-widget__badge--approved {
+  background: color-mix(in srgb, #615fff 18%, transparent);
+  color: #8b8fff;
+}
+
+.seerr-requests-widget__badge--available {
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+  color: #22c55e;
+}
+
+.seerr-requests-widget__badge--declined,
+.seerr-requests-widget__badge--failed {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #f87171;
+}
+
+.seerr-requests-widget__type {
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.seerr-requests-widget__type--movie {
+  background: color-mix(in srgb, #60a5fa 15%, transparent);
+  color: #60a5fa;
+}
+
+.seerr-requests-widget__type--tv {
+  background: color-mix(in srgb, #a78bfa 15%, transparent);
+  color: #a78bfa;
+}
+
+.seerr-requests-widget__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.seerr-requests-widget__title {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.seerr-requests-widget__requester {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.seerr-requests-widget__time {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.seerr-requests-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.seerr-requests-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.seerr-requests-widget__hint--error {
+  color: #f87171;
+}
+
+.seerr-requests-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;
