@@ -73,7 +73,7 @@ describe("fetchStats", () => {
 
     await fetchStats(BASE_CONFIG);
 
-    const urls = mockFetch.mock.calls.map(([url]: [string]) => url);
+    const urls = mockFetch.mock.calls.map(([url]) => url);
     expect(urls.some((u: string) => u.includes("filter=all"))).toBe(true);
     expect(urls.some((u: string) => u.includes("filter=pending"))).toBe(true);
     expect(urls.some((u: string) => u.includes("filter=approved"))).toBe(true);
@@ -115,7 +115,7 @@ describe("fetchStats", () => {
     const configWithBasePath = { ...BASE_CONFIG, url: "http://seerr.local:5055/seerr/" };
     await fetchStats(configWithBasePath);
 
-    const urls = mockFetch.mock.calls.map(([url]: [string]) => url);
+    const urls = mockFetch.mock.calls.map(([url]) => url);
     for (const url of urls) {
       expect(url).toContain("/seerr/api/v1/request");
     }

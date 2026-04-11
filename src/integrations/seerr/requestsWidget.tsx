@@ -18,7 +18,9 @@ function displayTitle(req: SeerrRequest): string {
 }
 
 function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const ms = new Date(iso).getTime();
+  if (isNaN(ms)) return "unknown";
+  const diff = Math.max(0, Date.now() - ms);
   const m = Math.floor(diff / 60_000);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);

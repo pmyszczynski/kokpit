@@ -56,7 +56,7 @@ export async function fetchStats(
 const RawRequestSchema = z.object({
   id: z.number(),
   status: z.number(),      // 1=PENDING, 2=APPROVED, 3=DECLINED, 4=FAILED
-  createdAt: z.string(),
+  createdAt: z.string().datetime(),
   type: z.enum(["movie", "tv"]),
   requestedBy: z.object({ displayName: z.string() }),
   media: z.object({
