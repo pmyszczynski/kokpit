@@ -67,12 +67,12 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 - [x] `P0` **Plex integration** — live stats on tile (active streams, transcodes)
 - [x] `P0` **Sonarr integration** — two widgets: calendar (upcoming episodes), queue (queue status)
-- [ ] `P0` **Radarr integration** — two widgets: stats (missing, upcoming, wanted, queued, all available), queue (queue status)
-- [ ] `P0` **Prowlarr integration** — stats widget (indexer health, grab stats)
+- [x] `P0` **Radarr integration** — two widgets: stats (missing, upcoming, wanted, queued, all available), queue (queue status)
+- [x] `P0` **Prowlarr integration** — stats widget (indexer health, grab stats)
 - [x] `P0` **qBittorrent integration** — two widgets: stats (active torrents, speed, ratio), torrents (torrent list)
 - [x] `P0` **SABnzbd integration** — stats widget (queue, speed, disk usage)
-- [ ] `P0` **Overseerr / Jellyseerr integration** — two widgets: stats (pending requests count), requests history
-- [ ] `P0` **Immich integration** — stats widget (photo/video count, storage usage)
+- [x] `P0` **Overseerr / Jellyseerr integration** — two widgets: stats (pending requests count), requests history
+- [x] `P0` **Immich integration** — stats widget (photo/video count, storage usage)
 - [ ] `P0` **Unraid integration** — stats widget (array status, disk health, parity)
 - [ ] `P0` **Netdata integration** — live system metrics via Netdata API
 - [ ] `P0` **Tdarr integration** — stats widget (queue, speed, disk usage)

@@ -13,8 +13,28 @@ function effectiveStatus(req: SeerrRequest): EffectiveStatus {
   return "pending";
 }
 
+function formatSeasons(seasons: number[]): string {
+  if (seasons.length === 0) return "";
+  const sorted = [...seasons].sort((a, b) => a - b);
+  if (sorted.length === 1) return ` S${String(sorted[0]).padStart(2, "0")}`;
+
+  // Check if all seasons form a contiguous range
+  const isContiguous = sorted.every((s, i) => i === 0 || s === sorted[i - 1] + 1);
+  if (isContiguous) {
+    const first = String(sorted[0]).padStart(2, "0");
+    const last = String(sorted[sorted.length - 1]).padStart(2, "0");
+    return ` S${first}-S${last}`;
+  }
+
+  return " " + sorted.map((s) => `S${String(s).padStart(2, "0")}`).join(",");
+}
+
 function displayTitle(req: SeerrRequest): string {
-  return req.title ?? (req.mediaType === "movie" ? "(Movie)" : "(Show)");
+  const base = req.title ?? (req.mediaType === "movie" ? "(Movie)" : "(Show)");
+  if (req.mediaType === "tv" && req.seasons && req.seasons.length > 0) {
+    return base + formatSeasons(req.seasons);
+  }
+  return base;
 }
 
 function relativeTime(iso: string): string {

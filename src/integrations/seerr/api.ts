@@ -59,6 +59,7 @@ const RawRequestSchema = z.object({
   createdAt: z.string().datetime(),
   type: z.enum(["movie", "tv"]),
   requestedBy: z.object({ displayName: z.string() }),
+  seasons: z.array(z.object({ seasonNumber: z.number() })).optional(),
   media: z.object({
     tmdbId: z.number(),
     status: z.number(),    // 1=UNKNOWN … 5=AVAILABLE
@@ -74,12 +75,34 @@ const SeerrRequestSchema = RawRequestSchema.transform((r) => ({
   mediaStatus: r.media.status,
   mediaType: r.type,
   title: r.media.title ?? r.media.name ?? null,
+  seasons: r.seasons?.map((s) => s.seasonNumber) ?? null,
   tmdbId: r.media.tmdbId,
   requestedBy: r.requestedBy.displayName,
   createdAt: r.createdAt,
 }));
 
 export type SeerrRequest = z.output<typeof SeerrRequestSchema>;
+
+const MovieDetailSchema = z.object({ title: z.string() });
+const TvDetailSchema = z.object({ name: z.string() });
+
+async function fetchMediaTitle(
+  config: SeerrConfig,
+  mediaType: "movie" | "tv",
+  tmdbId: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  try {
+    const path = mediaType === "movie" ? `api/v1/movie/${tmdbId}` : `api/v1/tv/${tmdbId}`;
+    const res = await fetchWithApiKey(config, path, signal, "Seerr");
+    const json = await res.json();
+    return mediaType === "movie"
+      ? MovieDetailSchema.parse(json).title
+      : TvDetailSchema.parse(json).name;
+  } catch {
+    return null;
+  }
+}
 
 export async function fetchRequests(
   config: SeerrConfig,
@@ -92,5 +115,26 @@ export async function fetchRequests(
     "Seerr"
   );
   const data = await response.json();
-  return z.object({ results: z.array(SeerrRequestSchema) }).parse(data).results;
+  const requests = z.object({ results: z.array(SeerrRequestSchema) }).parse(data).results;
+
+  // Deduplicate by (mediaType, tmdbId) and fetch titles only for items missing them
+  const uniqueMissing = [
+    ...new Map(
+      requests
+        .filter((r) => r.title === null)
+        .map((r) => [`${r.mediaType}:${r.tmdbId}`, r])
+    ).values(),
+  ];
+
+  const titleEntries = await Promise.all(
+    uniqueMissing.map(async (r) => {
+      const title = await fetchMediaTitle(config, r.mediaType, r.tmdbId, signal);
+      return [`${r.mediaType}:${r.tmdbId}`, title] as const;
+    })
+  );
+  const titleMap = new Map(titleEntries);
+
+  return requests.map((r) =>
+    r.title !== null ? r : { ...r, title: titleMap.get(`${r.mediaType}:${r.tmdbId}`) ?? null }
+  );
 }

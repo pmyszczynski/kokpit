@@ -11,5 +11,6 @@ import "./radarr/statsWidget";
 import "./radarr/queueWidget";
 import "./seerr/statsWidget";
 import "./seerr/requestsWidget";
+import "./immich/statsWidget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

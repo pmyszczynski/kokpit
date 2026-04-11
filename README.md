@@ -6,47 +6,7 @@ A self-hosted homelab dashboard built with Next.js. Kokpit gives you a single pl
 
 Kokpit is a personal dashboard for homelab and self-hosted setups. You define your services, widgets, and layout in a single `settings.yaml` file, and Kokpit renders a clean, themeable dashboard accessible from any browser.
 
-**Phase 1 — Foundation**
-- [x] Project scaffold & tech stack (Next.js, Docker, CI)
-- [x] YAML config engine with hot-reload
-- [x] Authentication (username/password, session cookies)
-- [ ] Optional TOTP 2FA
-- [x] Base UI shell (navbar, grid canvas, dark/light/OLED/high-contrast themes)
-- [x] Service tiles with favicon fallback and status ping indicator
-- [x] In-app settings panel (appearance, layout, auth, services CRUD)
-
-**Phase 2 — Integrations & Widgets**
-- [x] Widget system architecture
-- [x] Plex integration
-- [x] Sonarr integration
-- [x] Radarr integration
-- [x] qBittorrent integration
-- [x] SABnzbd integration
-- [x] Prowlarr integration
-- [x] Seerr integration (compatible with Overseerr and Jellyseerr)
-- [ ] Immich integration
-- [ ] Unraid, Netdata integrations
-- [ ] System stats widget (CPU, RAM, disk, Docker)
-- [ ] Useful API widgets (weather, RSS, calendar, search bar)
-- [ ] Docker auto-discovery via socket + container labels
-
-**Phase 3 — Personalization**
-- [ ] Theme engine with community theme support
-- [ ] Drag-and-drop layout editor
-- [ ] Icon library (7000+ homelab icons) & custom icon upload
-- [ ] Background customization (image, gradient, blur)
-- [ ] Multiple dashboard pages / tabs
-- [ ] Mobile-responsive layout & PWA
-
-**Phase 4 — Polish & Growth**
-- [ ] Config import / export / backup
-- [ ] Multi-user & roles (admin, viewer)
-- [ ] SSO / OAuth (Keycloak, Authelia, Authentik, generic OIDC)
-- [ ] Extended integrations (Home Assistant, Nextcloud, Immich, Vaultwarden, Grafana, …)
-- [ ] Keyboard shortcuts & ⌘K global search
-- [ ] Plugin / community widget API
-
-See [`docs/Roadmap.md`](docs/Roadmap.md) for full details and priority levels.
+See `[docs/Roadmap.md](docs/Roadmap.md)` for full details on Roadmap and priority levels.
 
 ## Installation
 
@@ -70,6 +30,7 @@ docker run -d \
 Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
 
 To use a specific version:
+
 ```bash
 docker run ... ghcr.io/pmyszczynski/kokpit:0.2.0
 ```
@@ -85,15 +46,14 @@ git clone https://github.com/pmyszczynski/kokpit.git
 cd kokpit
 ```
 
-2. Set a strong session secret in `docker-compose.yml` (replace the placeholder value for `KOKPIT_SESSION_SECRET`).
-
-3. Start the production container:
+1. Set a strong session secret in `docker-compose.yml` (replace the placeholder value for `KOKPIT_SESSION_SECRET`).
+2. Start the production container:
 
 ```bash
 docker compose up kokpit --build
 ```
 
-**For information about Docker image releases, versioning, and publishing to GHCR, see [`docs/DOCKER_RELEASES.md`](docs/DOCKER_RELEASES.md).**
+**For information about Docker image releases, versioning, and publishing to GHCR, see `[docs/DOCKER_RELEASES.md](docs/DOCKER_RELEASES.md)`.**
 
 ### Local development
 
@@ -204,26 +164,30 @@ services:
 
 **Config fields:**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Plex Media Server |
-| `token` | Yes | `X-Plex-Token` for authentication |
-| `fields` | No | List of stats to display (default: `[streams, transcodes]`) |
+
+| Field    | Required | Description                                                 |
+| -------- | -------- | ----------------------------------------------------------- |
+| `url`    | Yes      | Base URL of your Plex Media Server                          |
+| `token`  | Yes      | `X-Plex-Token` for authentication                           |
+| `fields` | No       | List of stats to display (default: `[streams, transcodes]`) |
+
 
 **Available display fields:**
 
-| Value | Label | Description |
-|-------|-------|-------------|
-| `streams` | Streaming | Total active sessions |
-| `transcodes` | Transcoding | Sessions currently being transcoded |
-| `lan_streams` | LAN | Active sessions on the local network |
-| `remote_streams` | Remote | Active sessions over the internet |
-| `users` | Users | Number of distinct users currently watching |
-| `bandwidth` | Bandwidth | Total streaming bandwidth (shown in Mbps) |
-| `library_movies` | Movies | Total movies across all movie libraries |
-| `library_shows` | Shows | Total shows across all TV libraries |
-| `library_episodes` | Episodes | Total episodes across all TV libraries |
-| `library_music` | Music | Total albums across all music libraries |
+
+| Value              | Label       | Description                                 |
+| ------------------ | ----------- | ------------------------------------------- |
+| `streams`          | Streaming   | Total active sessions                       |
+| `transcodes`       | Transcoding | Sessions currently being transcoded         |
+| `lan_streams`      | LAN         | Active sessions on the local network        |
+| `remote_streams`   | Remote      | Active sessions over the internet           |
+| `users`            | Users       | Number of distinct users currently watching |
+| `bandwidth`        | Bandwidth   | Total streaming bandwidth (shown in Mbps)   |
+| `library_movies`   | Movies      | Total movies across all movie libraries     |
+| `library_shows`    | Shows       | Total shows across all TV libraries         |
+| `library_episodes` | Episodes    | Total episodes across all TV libraries      |
+| `library_music`    | Music       | Total albums across all music libraries     |
+
 
 The widget only contacts `/status/sessions` or `/library/sections` depending on which fields you configure, so it never makes unnecessary requests.
 
@@ -252,11 +216,13 @@ services:
         days: 7
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Sonarr instance |
-| `api_key` | Yes | API key from Sonarr → Settings → General |
-| `days` | No | Days ahead to show (1–30, default: 7) |
+
+| Field     | Required | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `url`     | Yes      | Base URL of your Sonarr instance         |
+| `api_key` | Yes      | API key from Sonarr → Settings → General |
+| `days`    | No       | Days ahead to show (1–30, default: 7)    |
+
 
 #### `sonarr-queue`
 
@@ -274,10 +240,12 @@ services:
         api_key: YOUR_API_KEY
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Sonarr instance |
-| `api_key` | Yes | API key from Sonarr → Settings → General |
+
+| Field     | Required | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `url`     | Yes      | Base URL of your Sonarr instance         |
+| `api_key` | Yes      | API key from Sonarr → Settings → General |
+
 
 ---
 
@@ -303,21 +271,25 @@ services:
         api_key: YOUR_API_KEY
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Radarr instance |
-| `api_key` | Yes | API key from Radarr → Settings → General |
+
+| Field     | Required | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `url`     | Yes      | Base URL of your Radarr instance         |
+| `api_key` | Yes      | API key from Radarr → Settings → General |
+
 
 **Displayed stats:**
 
-| Stat | Description |
-|------|-------------|
-| Missing | Monitored movies without a file that are already released |
-| Upcoming | Movies in "announced" or "in cinemas" status |
-| Wanted | All monitored movies without a file |
-| Queued | Total items currently in the download queue |
-| Available | Movies with a downloaded file |
-| Total | All movies tracked in Radarr |
+
+| Stat      | Description                                               |
+| --------- | --------------------------------------------------------- |
+| Missing   | Monitored movies without a file that are already released |
+| Upcoming  | Movies in "announced" or "in cinemas" status              |
+| Wanted    | All monitored movies without a file                       |
+| Queued    | Total items currently in the download queue               |
+| Available | Movies with a downloaded file                             |
+| Total     | All movies tracked in Radarr                              |
+
 
 #### `radarr-queue`
 
@@ -335,10 +307,12 @@ services:
         api_key: YOUR_API_KEY
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Radarr instance |
-| `api_key` | Yes | API key from Radarr → Settings → General |
+
+| Field     | Required | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `url`     | Yes      | Base URL of your Radarr instance         |
+| `api_key` | Yes      | API key from Radarr → Settings → General |
+
 
 ---
 
@@ -364,19 +338,23 @@ services:
         api_key: YOUR_API_KEY
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Prowlarr instance |
-| `api_key` | Yes | API key from Prowlarr → Settings → General |
+
+| Field     | Required | Description                                |
+| --------- | -------- | ------------------------------------------ |
+| `url`     | Yes      | Base URL of your Prowlarr instance         |
+| `api_key` | Yes      | API key from Prowlarr → Settings → General |
+
 
 **Displayed stats:**
 
-| Stat | Description |
-|------|-------------|
-| Indexers | Total number of configured indexers |
-| Enabled | Indexers currently enabled |
-| Failing | Indexers with an active error status (shown in red when > 0) |
-| Total Grabs | Cumulative grab count across all indexers and history |
+
+| Stat        | Description                                                  |
+| ----------- | ------------------------------------------------------------ |
+| Indexers    | Total number of configured indexers                          |
+| Enabled     | Indexers currently enabled                                   |
+| Failing     | Indexers with an active error status (shown in red when > 0) |
+| Total Grabs | Cumulative grab count across all indexers and history        |
+
 
 ---
 
@@ -402,19 +380,23 @@ services:
         api_key: YOUR_API_KEY
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Seerr instance |
-| `api_key` | Yes | API key from Settings → General |
+
+| Field     | Required | Description                     |
+| --------- | -------- | ------------------------------- |
+| `url`     | Yes      | Base URL of your Seerr instance |
+| `api_key` | Yes      | API key from Settings → General |
+
 
 **Displayed stats:**
 
-| Stat | Description |
-|------|-------------|
-| Pending | Requests awaiting approval |
-| Approved | Requests approved but not yet available |
+
+| Stat      | Description                                        |
+| --------- | -------------------------------------------------- |
+| Pending   | Requests awaiting approval                         |
+| Approved  | Requests approved but not yet available            |
 | Available | Requests where the media has been fully downloaded |
-| Total | All requests regardless of status |
+| Total     | All requests regardless of status                  |
+
 
 #### `seerr-requests`
 
@@ -430,12 +412,55 @@ services:
         api_key: YOUR_API_KEY
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `url` | Yes | Base URL of your Seerr instance |
-| `api_key` | Yes | API key from Settings → General |
+
+| Field     | Required | Description                     |
+| --------- | -------- | ------------------------------- |
+| `url`     | Yes      | Base URL of your Seerr instance |
+| `api_key` | Yes      | API key from Settings → General |
+
 
 A request whose media has become fully available is shown with an **available** badge regardless of its underlying request status.
+
+---
+
+### Immich
+
+Shows global Immich media and storage stats for your instance.
+
+**Prerequisites:** An API key from Immich user settings with permission to read server statistics.
+
+#### `immich-stats`
+
+Displays photos, videos, total storage usage, photo storage usage, and video storage usage.
+
+```yaml
+services:
+  - name: Immich
+    url: http://192.168.1.10:2283
+    icon: immich
+    widget:
+      type: immich-stats
+      config:
+        url: http://192.168.1.10:2283/api
+        api_key: YOUR_API_KEY
+```
+
+
+| Field     | Required | Description                                      |
+| --------- | -------- | ------------------------------------------------ |
+| `url`     | Yes      | Immich API base URL (usually ending with `/api`) |
+| `api_key` | Yes      | API key from Immich user settings                |
+
+
+
+| Stat       | Description                          |
+| ---------- | ------------------------------------ |
+| Photos     | Total number of photos               |
+| Videos     | Total number of videos               |
+| Storage    | Total storage usage across all media |
+| Photo Size | Storage used by photos               |
+| Video Size | Storage used by videos               |
+
 
 ---
 

@@ -139,6 +139,7 @@ const MOCK_TV_REQUEST = {
   createdAt: "2026-02-02T12:00:00.000Z",
   type: "tv",
   requestedBy: { displayName: "Bob" },
+  seasons: [{ seasonNumber: 1 }, { seasonNumber: 2 }],
   media: { tmdbId: 1396, status: 5, title: null, name: "Breaking Bad" },
 };
 
@@ -191,6 +192,79 @@ describe("fetchRequests", () => {
     );
     const result = await fetchRequests(BASE_CONFIG);
     expect(result[0].title).toBeNull();
+  });
+
+  it("extracts seasons as array of season numbers for TV requests", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeJsonResponse({ results: [MOCK_TV_REQUEST] }))
+    );
+    const result = await fetchRequests(BASE_CONFIG);
+    expect(result[0].seasons).toEqual([1, 2]);
+  });
+
+  it("sets seasons to null for movie requests without seasons field", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeJsonResponse({ results: [MOCK_MOVIE_REQUEST] }))
+    );
+    const result = await fetchRequests(BASE_CONFIG);
+    expect(result[0].seasons).toBeNull();
+  });
+
+  it("sets seasons to null when seasons field is absent", async () => {
+    const tvNoSeasons = { ...MOCK_TV_REQUEST, seasons: undefined };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(makeJsonResponse({ results: [tvNoSeasons] }))
+    );
+    const result = await fetchRequests(BASE_CONFIG);
+    expect(result[0].seasons).toBeNull();
+  });
+
+  it("fetches title from /movie/:tmdbId when media.title and media.name are absent", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ results: [MOCK_NO_TITLE_REQUEST] }))
+      .mockResolvedValueOnce(makeJsonResponse({ title: "Fight Club" }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await fetchRequests(BASE_CONFIG);
+    expect(result[0].title).toBe("Fight Club");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [secondUrl] = mockFetch.mock.calls[1];
+    expect(secondUrl).toContain(`/movie/${MOCK_NO_TITLE_REQUEST.media.tmdbId}`);
+  });
+
+  it("fetches title from /tv/:tmdbId for TV requests missing a title", async () => {
+    const tvNoTitle = {
+      ...MOCK_TV_REQUEST,
+      media: { ...MOCK_TV_REQUEST.media, title: null, name: null },
+    };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ results: [tvNoTitle] }))
+      .mockResolvedValueOnce(makeJsonResponse({ name: "Breaking Bad" }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await fetchRequests(BASE_CONFIG);
+    expect(result[0].title).toBe("Breaking Bad");
+    const [secondUrl] = mockFetch.mock.calls[1];
+    expect(secondUrl).toContain(`/tv/${tvNoTitle.media.tmdbId}`);
+  });
+
+  it("deduplicates media title fetches for repeated tmdbId", async () => {
+    const req2 = { ...MOCK_NO_TITLE_REQUEST, id: 99 };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ results: [MOCK_NO_TITLE_REQUEST, req2] }))
+      .mockResolvedValueOnce(makeJsonResponse({ title: "Unique Movie" }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await fetchRequests(BASE_CONFIG);
+    expect(mockFetch).toHaveBeenCalledTimes(2); // only 1 media fetch despite 2 items
+    expect(result[0].title).toBe("Unique Movie");
+    expect(result[1].title).toBe("Unique Movie");
   });
 
   it("preserves requestStatus and mediaStatus correctly", async () => {

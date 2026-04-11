@@ -1730,6 +1730,102 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Immich stats widget ──────────────────────────────────────────────────── */
+
+.immich-stats-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.immich-stats-widget__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  flex: 1 1 0;
+  align-content: center;
+  padding: 4px;
+}
+
+.immich-stats-widget__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  min-width: 0;
+}
+
+.immich-stats-widget__value {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.immich-stats-widget__label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.immich-stats-widget__stat--usage {
+  grid-column: 1 / -1;
+}
+
+.immich-stats-widget__stat--photos .immich-stats-widget__value {
+  color: #22c55e;
+}
+
+.immich-stats-widget__stat--videos .immich-stats-widget__value {
+  color: #60a5fa;
+}
+
+.immich-stats-widget__stat--usage .immich-stats-widget__value {
+  color: var(--color-text);
+}
+
+.immich-stats-widget__stat--usage-photos .immich-stats-widget__value {
+  color: #86efac;
+}
+
+.immich-stats-widget__stat--usage-videos .immich-stats-widget__value {
+  color: #93c5fd;
+}
+
+.immich-stats-widget--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.immich-stats-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.immich-stats-widget__hint--error {
+  color: #f87171;
+}
+
+.immich-stats-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
 /* ── Seerr requests widget ────────────────────────────────────────────────── */
 
 .seerr-requests-widget {
