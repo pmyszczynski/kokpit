@@ -22,7 +22,7 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 - [x] Radarr integration
 - [x] qBittorrent integration
 - [x] SABnzbd integration
-- [ ] Prowlarr integration
+- [x] Prowlarr integration
 - [ ] Overseerr / Jellyseerr integration
 - [ ] Immich integration
 - [ ] Unraid, Netdata integrations
