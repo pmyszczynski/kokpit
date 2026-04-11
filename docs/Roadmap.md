@@ -73,7 +73,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 - [x] `P0` **SABnzbd integration** — stats widget (queue, speed, disk usage)
 - [x] `P0` **Overseerr / Jellyseerr integration** — two widgets: stats (pending requests count), requests history
 - [x] `P0` **Immich integration** — stats widget (photo/video count, storage usage)
-- [ ] `P0` **Unraid integration** — stats widget (array status, disk health, parity)
+- [x] `P0` **Unraid integration** — stats widget (array status, disk health, parity)
 - [ ] `P0` **Netdata integration** — live system metrics via Netdata API
 - [ ] `P0` **Tdarr integration** — stats widget (queue, speed, disk usage)
 - [x] `P0` **Tile type picker in service editor (UI only)**

@@ -956,7 +956,8 @@ body {
 
 .qbt-stats-widget,
 .sabnzbd-widget,
-.prowlarr-stats-widget {
+.prowlarr-stats-widget,
+.unraid-stats-widget {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -967,7 +968,8 @@ body {
 
 .qbt-stats-widget__stat,
 .sabnzbd-widget__stat,
-.prowlarr-stats-widget__stat {
+.prowlarr-stats-widget__stat,
+.unraid-stats-widget__stat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -982,7 +984,8 @@ body {
 
 .qbt-stats-widget__value,
 .sabnzbd-widget__value,
-.prowlarr-stats-widget__value {
+.prowlarr-stats-widget__value,
+.unraid-stats-widget__value {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text);
@@ -995,7 +998,8 @@ body {
 
 .qbt-stats-widget__label,
 .sabnzbd-widget__label,
-.prowlarr-stats-widget__label {
+.prowlarr-stats-widget__label,
+.unraid-stats-widget__label {
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--color-text-muted);
@@ -1006,7 +1010,8 @@ body {
 
 .qbt-stats-widget__stale-error,
 .sabnzbd-widget__stale-error,
-.prowlarr-stats-widget__stale-error {
+.prowlarr-stats-widget__stale-error,
+.unraid-stats-widget__stale-error {
   grid-column: 1 / -1;
   font-size: 0.7rem;
   color: #f87171;
@@ -1016,7 +1021,8 @@ body {
 
 .qbt-stats-widget--empty,
 .sabnzbd-widget--empty,
-.prowlarr-stats-widget--empty {
+.prowlarr-stats-widget--empty,
+.unraid-stats-widget--empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1025,14 +1031,16 @@ body {
 
 .qbt-stats-widget__hint,
 .sabnzbd-widget__hint,
-.prowlarr-stats-widget__hint {
+.prowlarr-stats-widget__hint,
+.unraid-stats-widget__hint {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
 
 .qbt-stats-widget__hint--error,
 .sabnzbd-widget__hint--error,
-.prowlarr-stats-widget__hint--error {
+.prowlarr-stats-widget__hint--error,
+.unraid-stats-widget__hint--error {
   color: #f87171;
 }
 
@@ -1963,6 +1971,22 @@ body {
   text-align: center;
   padding: 4px 0;
   flex-shrink: 0;
+}
+
+/* ── Unraid stats widget ─────────────────────────────────────────────────── */
+
+.unraid-stats-widget__stat--wide {
+  grid-column: 1 / -1;
+}
+
+.unraid-stats-widget__sub {
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.unraid-stats-widget__value--error {
+  color: #f87171;
 }
 
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
