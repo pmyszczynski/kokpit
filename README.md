@@ -23,7 +23,7 @@ Kokpit is a personal dashboard for homelab and self-hosted setups. You define yo
 - [x] qBittorrent integration
 - [x] SABnzbd integration
 - [x] Prowlarr integration
-- [ ] Overseerr / Jellyseerr integration
+- [x] Seerr integration (compatible with Overseerr and Jellyseerr)
 - [ ] Immich integration
 - [ ] Unraid, Netdata integrations
 - [ ] System stats widget (CPU, RAM, disk, Docker)
@@ -339,6 +339,103 @@ services:
 |-------|----------|-------------|
 | `url` | Yes | Base URL of your Radarr instance |
 | `api_key` | Yes | API key from Radarr → Settings → General |
+
+---
+
+### Prowlarr
+
+Displays indexer health and lifetime grab statistics from Prowlarr.
+
+**Prerequisites:** An API key from Prowlarr → Settings → General → Security.
+
+#### `prowlarr-stats`
+
+Shows a four-stat grid: total indexers, enabled indexers, failing indexers (highlighted in red when non-zero), and total grabs across all time.
+
+```yaml
+services:
+  - name: Prowlarr
+    url: http://192.168.1.10:9696
+    icon: prowlarr
+    widget:
+      type: prowlarr-stats
+      config:
+        url: http://192.168.1.10:9696
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Prowlarr instance |
+| `api_key` | Yes | API key from Prowlarr → Settings → General |
+
+**Displayed stats:**
+
+| Stat | Description |
+|------|-------------|
+| Indexers | Total number of configured indexers |
+| Enabled | Indexers currently enabled |
+| Failing | Indexers with an active error status (shown in red when > 0) |
+| Total Grabs | Cumulative grab count across all indexers and history |
+
+---
+
+### Seerr
+
+Two widgets are available for Seerr. Both are also compatible with Jellyseerr and Overseerr, which share the same API.
+
+**Prerequisites:** An API key from Settings → General → API Key.
+
+#### `seerr-stats`
+
+Displays a four-stat grid summarising the current state of all media requests.
+
+```yaml
+services:
+  - name: Seerr
+    url: http://192.168.1.10:5055
+    icon: seerr
+    widget:
+      type: seerr-stats
+      config:
+        url: http://192.168.1.10:5055
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Seerr instance |
+| `api_key` | Yes | API key from Settings → General |
+
+**Displayed stats:**
+
+| Stat | Description |
+|------|-------------|
+| Pending | Requests awaiting approval |
+| Approved | Requests approved but not yet available |
+| Available | Requests where the media has been fully downloaded |
+| Total | All requests regardless of status |
+
+#### `seerr-requests`
+
+Shows a scrollable list of the 15 most recently submitted requests. Each row displays a colour-coded status badge (pending / approved / available / declined), a media type chip (movie / tv), the title, the requester's name, and a relative timestamp.
+
+```yaml
+services:
+  - name: Seerr Requests
+    widget:
+      type: seerr-requests
+      config:
+        url: http://192.168.1.10:5055
+        api_key: YOUR_API_KEY
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | Yes | Base URL of your Seerr instance |
+| `api_key` | Yes | API key from Settings → General |
+
+A request whose media has become fully available is shown with an **available** badge regardless of its underlying request status.
 
 ---
 
