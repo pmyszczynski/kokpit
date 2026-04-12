@@ -102,7 +102,8 @@ export async function fetchStats(
     raw !== null &&
     typeof raw === "object" &&
     "errors" in raw &&
-    Array.isArray((raw as { errors: unknown }).errors)
+    Array.isArray((raw as { errors: unknown }).errors) &&
+    (raw as { errors: unknown[] }).errors.length > 0
   ) {
     const messages = (raw as { errors: Array<{ message?: string }> }).errors
       .map((e) => e.message ?? "unknown error")
