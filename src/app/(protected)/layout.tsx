@@ -4,6 +4,8 @@ import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfig } from "@/config";
 import Navbar from "@/components/Navbar";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ProtectedLayout({
   children,
 }: {
