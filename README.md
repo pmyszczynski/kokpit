@@ -16,11 +16,10 @@ See `[docs/Roadmap.md](docs/Roadmap.md)` for full details on Roadmap and priorit
 
 If you just want to run Kokpit, use the pre-built image from GitHub Container Registry (available from v0.2.0 onwards).
 
-**1. Create a working directory and a minimal config file:**
+**1. Create a working directory:**
 
 ```bash
 mkdir kokpit && cd kokpit
-touch settings.yaml   # Kokpit will populate this on first save
 ```
 
 **2. Create a `docker-compose.yml`:**
@@ -38,23 +37,17 @@ services:
       # Generate one with: openssl rand -hex 32
       KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret
 
-      # Path inside the container where the SQLite user database is stored.
-      # Keep this inside the /data volume so it survives container restarts.
+      # Paths inside the container for persistent data.
+      # Both point into /data so a single volume covers everything.
+      KOKPIT_CONFIG_PATH: /data/settings.yaml
       KOKPIT_DB_PATH: /data/users.db
-
-      # Optional — override the path to settings.yaml inside the container.
-      # Default: /app/settings.yaml (matches the volume mount below).
-      # KOKPIT_CONFIG_PATH: /app/settings.yaml
 
       # Optional — set to "true" to skip authentication entirely.
       # Only use this on a trusted local network behind a firewall.
       # KOKPIT_AUTH_DISABLED: "false"
     volumes:
-      # Your YAML config. Created automatically on first run if empty.
-      # The :ro flag is intentional — config writes go through the API on the host side.
-      - ./settings.yaml:/app/settings.yaml:ro
-
-      # Persistent storage for the SQLite user/session database.
+      # Single directory for all persistent state: settings.yaml + SQLite DB.
+      # Kokpit creates settings.yaml automatically on first save.
       - ./data:/data
     restart: unless-stopped
     healthcheck:
