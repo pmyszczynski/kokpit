@@ -50,6 +50,8 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV KOKPIT_CONFIG_PATH=/data/settings.yaml
+ENV KOKPIT_DB_PATH=/data/users.db
 
 # OCI image metadata
 LABEL org.opencontainers.image.title="Kokpit"

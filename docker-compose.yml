@@ -34,12 +34,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
-      NEXT_TELEMETRY_DISABLED: "1"
       KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret-before-use
-      KOKPIT_DB_PATH: /data/users.db
     volumes:
-      - ./settings.yaml:/app/settings.yaml:ro
       - ./data:/data
     restart: unless-stopped
     healthcheck:

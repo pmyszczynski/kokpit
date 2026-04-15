@@ -37,17 +37,12 @@ services:
       # Generate one with: openssl rand -hex 32
       KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret
 
-      # Paths inside the container for persistent data.
-      # Both point into /data so a single volume covers everything.
-      KOKPIT_CONFIG_PATH: /data/settings.yaml
-      KOKPIT_DB_PATH: /data/users.db
-
       # Optional — set to "true" to skip authentication entirely.
       # Only use this on a trusted local network behind a firewall.
       # KOKPIT_AUTH_DISABLED: "false"
     volumes:
-      # Single directory for all persistent state: settings.yaml + SQLite DB.
-      # Kokpit creates settings.yaml automatically on first save.
+      # All persistent state (settings.yaml + SQLite DB) lives here.
+      # The image defaults both paths to /data — no extra config needed.
       - ./data:/data
     restart: unless-stopped
     healthcheck:
