@@ -14,25 +14,69 @@ See `[docs/Roadmap.md](docs/Roadmap.md)` for full details on Roadmap and priorit
 
 #### Quick start with pre-built image
 
-If you just want to run Kokpit, use the pre-built image from GitHub Container Registry (available from v0.2.0 onwards):
+If you just want to run Kokpit, use the pre-built image from GitHub Container Registry (available from v0.2.0 onwards).
+
+**1. Create a working directory and a minimal config file:**
 
 ```bash
 mkdir kokpit && cd kokpit
-docker run -d \
-  --name kokpit \
-  -p 3000:3000 \
-  -v ./data:/data \
-  -e KOKPIT_SESSION_SECRET=change-this-to-a-random-32-char-secret \
-  -e KOKPIT_DB_PATH=/data/users.db \
-  ghcr.io/pmyszczynski/kokpit:latest
+touch settings.yaml   # Kokpit will populate this on first save
+```
+
+**2. Create a `docker-compose.yml`:**
+
+```yaml
+services:
+  kokpit:
+    image: ghcr.io/pmyszczynski/kokpit:latest
+    container_name: kokpit
+    ports:
+      - "3000:3000"          # Change the left side to expose on a different host port
+    environment:
+      # Required — must be a random string of at least 32 characters.
+      # Used to sign session tokens. Changing this invalidates all active sessions.
+      # Generate one with: openssl rand -hex 32
+      KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret
+
+      # Path inside the container where the SQLite user database is stored.
+      # Keep this inside the /data volume so it survives container restarts.
+      KOKPIT_DB_PATH: /data/users.db
+
+      # Optional — override the path to settings.yaml inside the container.
+      # Default: /app/settings.yaml (matches the volume mount below).
+      # KOKPIT_CONFIG_PATH: /app/settings.yaml
+
+      # Optional — set to "true" to skip authentication entirely.
+      # Only use this on a trusted local network behind a firewall.
+      # KOKPIT_AUTH_DISABLED: "false"
+    volumes:
+      # Your YAML config. Created automatically on first run if empty.
+      # The :ro flag is intentional — config writes go through the API on the host side.
+      - ./settings.yaml:/app/settings.yaml:ro
+
+      # Persistent storage for the SQLite user/session database.
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+```
+
+**3. Start it:**
+
+```bash
+docker compose up -d
 ```
 
 Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
 
-To use a specific version:
+To pin to a specific version instead of `latest`:
 
-```bash
-docker run ... ghcr.io/pmyszczynski/kokpit:0.2.0
+```yaml
+    image: ghcr.io/pmyszczynski/kokpit:0.2.0
 ```
 
 #### Building from source
