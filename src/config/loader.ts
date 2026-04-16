@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { parseDocument } from "yaml";
 import { KokpitConfigSchema, type KokpitConfig } from "./schema";
@@ -7,6 +7,8 @@ const CONFIG_PATH =
   process.env.KOKPIT_CONFIG_PATH ??
   path.join(process.cwd(), "settings.yaml");
 
+const DEFAULT_CONFIG = `schema_version: 1\nauth:\n  enabled: true\n  session_ttl_hours: 24\nappearance:\n  theme: dark\nlayout:\n  columns: 4\n  row_height: 120\nservices: []\n`;
+
 let cachedConfig: KokpitConfig | null = null;
 
 export function getConfigPath(): string {
@@ -14,6 +16,9 @@ export function getConfigPath(): string {
 }
 
 export function loadConfig(): KokpitConfig {
+  if (!existsSync(CONFIG_PATH)) {
+    writeFileSync(CONFIG_PATH, DEFAULT_CONFIG, "utf-8");
+  }
   const raw = readFileSync(CONFIG_PATH, "utf-8");
   const parsed = parseDocument(raw).toJS() as unknown;
   const result = KokpitConfigSchema.safeParse(parsed);
