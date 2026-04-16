@@ -1,0 +1,10 @@
+schema_version: 1
+auth:
+  enabled: true
+  session_ttl_hours: 24
+appearance:
+  theme: dark
+layout:
+  columns: 4
+  row_height: 120
+services: []

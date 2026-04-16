@@ -11,6 +11,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "start:standalone": "node $(find .next/standalone -name 'server.js' | grep -v node_modules | head -1)",
+    "test:e2e:auth": "playwright test --config playwright.auth.config.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

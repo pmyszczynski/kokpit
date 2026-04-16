@@ -4,6 +4,8 @@ import { getConfig } from "@/config";
 import { getConfigPath } from "@/config/loader";
 import { resolveAppearance } from "@/config/theme";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "kokpit",
   description: "Your self-hosted personal dashboard",
