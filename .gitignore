@@ -44,3 +44,4 @@ settings.yaml
 # git worktrees
 .worktrees/
 test-results/
+e2e/fixtures/auth-test-users.db*
