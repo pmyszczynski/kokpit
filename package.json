@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "start:standalone": "node $(find .next/standalone -name 'server.js' | grep -v node_modules | head -1)",
+    "start:standalone": "sh -c 'f=$(find .next/standalone -name server.js | grep -v node_modules | head -1); [ -n \"$f\" ] || { echo \"Error: server.js not found — run npm run build first\" >&2; exit 1; }; node \"$f\"'",
     "test:e2e:auth": "playwright test --config playwright.auth.config.ts",
     "type-check": "tsc --noEmit"
   },

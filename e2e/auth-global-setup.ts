@@ -4,11 +4,12 @@ import path from "path";
 const DB_PATH = path.resolve("./e2e/fixtures/auth-test-users.db");
 
 export default function globalSetup() {
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      fs.unlinkSync(DB_PATH);
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const p = DB_PATH + suffix;
+    try {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch {
+      console.warn(`[auth-global-setup] Could not delete ${p} — tests may see stale state`);
     }
-  } catch {
-    console.warn("[auth-global-setup] Could not delete auth test DB — tests may see stale state");
   }
 }

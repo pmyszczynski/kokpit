@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
 import LoginForm from "./LoginForm";
 
+export const dynamic = 'force-dynamic';
+
 export default async function LoginPage() {
   if (countUsers() === 0) {
     redirect("/setup");

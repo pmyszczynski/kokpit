@@ -73,7 +73,7 @@ test.describe.serial("authentication flow", () => {
     await page.getByPlaceholder("Password").fill(ADMIN.password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
-    await expect(page.locator(".navbar")).toBeVisible();
+    await expect(page.getByRole("navigation")).toBeVisible();
   });
 
   // ── Authenticated-state guards ────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 
 export default defineConfig({
@@ -7,7 +7,12 @@ export default defineConfig({
   testMatch: "**/auth.spec.ts",
   timeout: 60_000,
   expect: { timeout: 60_000 },
-  use: { baseURL: "http://localhost:3001" },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3001" },
+    },
+  ],
   webServer: {
     command: "sh e2e/start-prod.sh",
     env: {
@@ -18,6 +23,5 @@ export default defineConfig({
     },
     url: "http://localhost:3001",
     timeout: 180_000,
-    reuseExistingServer: !process.env.CI,
   },
 });
