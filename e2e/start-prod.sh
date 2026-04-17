@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
 
-npm run build
-
 STANDALONE=$(find .next/standalone -name 'server.js' | grep -v node_modules | head -1)
 if [ -z "$STANDALONE" ]; then
   echo "Error: server.js not found in .next/standalone" >&2

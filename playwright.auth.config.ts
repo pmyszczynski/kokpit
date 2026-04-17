@@ -6,7 +6,6 @@ export default defineConfig({
   testDir: "./e2e/tests",
   testMatch: "**/auth.spec.ts",
   timeout: 60_000,
-  expect: { timeout: 10_000 },
   projects: [
     {
       name: "chromium",
@@ -22,6 +21,5 @@ export default defineConfig({
       PORT: "3001",
     },
     url: "http://localhost:3001",
-    timeout: 300_000,
   },
 });
