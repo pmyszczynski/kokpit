@@ -9,7 +9,7 @@ vi.mock("next/headers", () => ({
 
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const BASE_YAML = `
 schema_version: 1
@@ -54,6 +54,7 @@ describe("PATCH /api/settings – validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -94,6 +95,7 @@ describe("PATCH /api/settings – layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -140,6 +142,7 @@ describe("PATCH /api/settings – appearance & services", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
