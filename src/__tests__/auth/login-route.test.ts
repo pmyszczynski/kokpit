@@ -100,4 +100,89 @@ describe("POST /api/auth/login", () => {
     expect(typeof json.challengeToken).toBe("string");
     expect(mockSet).not.toHaveBeenCalled();
   });
+
+  it("sets the session cookie on successful login", async () => {
+    const { createUser, hashPassword } = await import("@/auth");
+    const hash = await hashPassword("password123");
+    await createUser("cookieuser", hash);
+
+    const mockSet = vi.fn();
+    const { cookies } = await import("next/headers");
+    (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({ set: mockSet, delete: vi.fn(), get: vi.fn() });
+
+    const { POST } = await import("../../app/api/auth/login/route");
+    await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: "cookieuser", password: "password123" }),
+      })
+    );
+    expect(mockSet).toHaveBeenCalledWith(
+      "session",
+      expect.any(String),
+      expect.objectContaining({ httpOnly: true })
+    );
+  });
+
+  it("returns the user id and username in the response body", async () => {
+    const { createUser, hashPassword } = await import("@/auth");
+    const hash = await hashPassword("pass1234");
+    const user = await createUser("bodyuser", hash);
+
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: "bodyuser", password: "pass1234" }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.id).toBe(user.id);
+    expect(json.username).toBe("bodyuser");
+  });
+
+  it("returns 400 on invalid JSON body", async () => {
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: "not-valid-json",
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 on empty username", async () => {
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: "", password: "somepassword" }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 on empty password", async () => {
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: "admin", password: "" }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when username is not a string", async () => {
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: 42, password: "somepassword" }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
 });
