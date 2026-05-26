@@ -1989,6 +1989,75 @@ body {
   color: #f87171;
 }
 
+/* ── Netdata widgets ─────────────────────────────────────────────────────── */
+
+.netdata-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.netdata-widget__label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.netdata-widget__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.netdata-widget__subvalue {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.netdata-widget__stale-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  padding: 2px 0;
+}
+
+.netdata-widget--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.netdata-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.netdata-widget__hint--error {
+  color: #f87171;
+}
+
+/* Load average — three values side by side */
+.netdata-load-widget__row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.netdata-load-widget__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;
