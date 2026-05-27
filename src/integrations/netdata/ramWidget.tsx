@@ -6,7 +6,7 @@ import {
   fetchChartHistory,
   extractRam,
 } from "./api";
-import type { NetdataBaseConfig } from "./api";
+import type { NetdataBaseConfig, RawChartHistory } from "./api";
 import { Sparkline } from "./Sparkline";
 
 interface RamData {
@@ -27,10 +27,9 @@ async function fetchRamData(
 ): Promise<RamData> {
   const [metrics, hist] = await Promise.all([
     fetchAllMetrics(config, signal),
-    fetchChartHistory(config, "system.ram", signal).catch(() => ({
-      dimensionNames: [],
-      rows: [],
-    })),
+    fetchChartHistory(config, "system.ram", signal).catch(
+      (): RawChartHistory => ({ dimensionNames: [], rows: [] })
+    ),
   ]);
   const MiB = 1_048_576;
   const usedIdx = hist.dimensionNames.indexOf("used");

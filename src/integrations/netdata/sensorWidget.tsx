@@ -7,6 +7,7 @@ import {
   fetchChartHistory,
   extractSensor,
 } from "./api";
+import type { RawChartHistory } from "./api";
 import { Sparkline } from "./Sparkline";
 
 const SensorConfigSchema = NetdataBaseConfigSchema.extend({
@@ -28,10 +29,9 @@ async function fetchSensorData(
 ): Promise<SensorData> {
   const [metrics, hist] = await Promise.all([
     fetchAllMetrics(config, signal),
-    fetchChartHistory(config, config.chart_id, signal).catch(() => ({
-      dimensionNames: [],
-      rows: [],
-    })),
+    fetchChartHistory(config, config.chart_id, signal).catch(
+      (): RawChartHistory => ({ dimensionNames: [], rows: [] })
+    ),
   ]);
 
   const sensor = extractSensor(metrics, config.chart_id);

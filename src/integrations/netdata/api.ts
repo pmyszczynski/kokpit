@@ -7,21 +7,17 @@ export const NetdataBaseConfigSchema = z.object({
 });
 export type NetdataBaseConfig = z.infer<typeof NetdataBaseConfigSchema>;
 
-const DimensionSchema = z
-  .object({ value: z.number().nullable() })
-  .passthrough();
+const DimensionSchema = z.object({ value: z.number().nullable() });
 
-const ChartSchema = z
-  .object({
-    family: z.string().optional(),
-    units: z.string().optional(),
-    dimensions: z.record(DimensionSchema),
-  })
-  .passthrough();
+const ChartSchema = z.object({
+  family: z.string().optional(),
+  units: z.string().optional(),
+  dimensions: z.record(z.string(), DimensionSchema),
+});
 
-const AllMetricsSchema = z
-  .object({ charts: z.record(ChartSchema) })
-  .passthrough();
+const AllMetricsSchema = z.object({
+  charts: z.record(z.string(), ChartSchema),
+});
 
 export type AllMetrics = z.infer<typeof AllMetricsSchema>;
 

@@ -6,7 +6,7 @@ import {
   fetchChartHistory,
   extractCpu,
 } from "./api";
-import type { NetdataBaseConfig } from "./api";
+import type { NetdataBaseConfig, RawChartHistory } from "./api";
 import { Sparkline } from "./Sparkline";
 
 interface CpuData {
@@ -20,10 +20,9 @@ async function fetchCpuData(
 ): Promise<CpuData> {
   const [metrics, hist] = await Promise.all([
     fetchAllMetrics(config, signal),
-    fetchChartHistory(config, "system.cpu", signal).catch(() => ({
-      dimensionNames: [],
-      rows: [],
-    })),
+    fetchChartHistory(config, "system.cpu", signal).catch(
+      (): RawChartHistory => ({ dimensionNames: [], rows: [] })
+    ),
   ]);
   const idleIdx = hist.dimensionNames.indexOf("idle");
   const history =

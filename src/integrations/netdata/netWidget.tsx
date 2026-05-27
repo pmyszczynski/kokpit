@@ -6,7 +6,7 @@ import {
   fetchChartHistory,
   extractNet,
 } from "./api";
-import type { NetdataBaseConfig } from "./api";
+import type { NetdataBaseConfig, RawChartHistory } from "./api";
 import { Sparkline } from "./Sparkline";
 
 interface NetData {
@@ -29,10 +29,9 @@ async function fetchNetData(
 ): Promise<NetData> {
   const [metrics, hist] = await Promise.all([
     fetchAllMetrics(config, signal),
-    fetchChartHistory(config, "system.net", signal).catch(() => ({
-      dimensionNames: [],
-      rows: [],
-    })),
+    fetchChartHistory(config, "system.net", signal).catch(
+      (): RawChartHistory => ({ dimensionNames: [], rows: [] })
+    ),
   ]);
   const rxIdx = hist.dimensionNames.indexOf("received");
   const txIdx = hist.dimensionNames.indexOf("sent");

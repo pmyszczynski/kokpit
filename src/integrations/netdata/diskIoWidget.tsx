@@ -6,7 +6,7 @@ import {
   fetchChartHistory,
   extractDiskIo,
 } from "./api";
-import type { NetdataBaseConfig } from "./api";
+import type { NetdataBaseConfig, RawChartHistory } from "./api";
 import { Sparkline } from "./Sparkline";
 
 interface DiskIoData {
@@ -29,10 +29,9 @@ async function fetchDiskIoData(
 ): Promise<DiskIoData> {
   const [metrics, hist] = await Promise.all([
     fetchAllMetrics(config, signal),
-    fetchChartHistory(config, "system.io", signal).catch(() => ({
-      dimensionNames: [],
-      rows: [],
-    })),
+    fetchChartHistory(config, "system.io", signal).catch(
+      (): RawChartHistory => ({ dimensionNames: [], rows: [] })
+    ),
   ]);
   // system.io is in KiB/s; convert to bytes/s
   const toBytes = (kib: number) => Math.abs(kib) * 1024;
