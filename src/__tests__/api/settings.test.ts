@@ -2,7 +2,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("node:fs");
+vi.mock("node:fs", () => {
+  const readFileSync = vi.fn();
+  const writeFileSync = vi.fn();
+  const existsSync = vi.fn().mockReturnValue(true);
+  const mkdirSync = vi.fn();
+  return {
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    readFileSync,
+    writeFileSync,
+    existsSync,
+    mkdirSync,
+  };
+});
 vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
 }));
