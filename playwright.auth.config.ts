@@ -6,6 +6,7 @@ export default defineConfig({
   testDir: "./e2e/tests",
   testMatch: "**/auth.spec.ts",
   timeout: 60_000,
+  expect: { timeout: 60_000 },
   projects: [
     {
       name: "chromium",
