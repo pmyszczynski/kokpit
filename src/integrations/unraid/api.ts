@@ -115,7 +115,7 @@ export async function fetchStats(
   const { array, vars } = parsed.data;
 
   const dataDisks = array.disks.filter((d) => d.type === "Data");
-  const diskErrors = array.disks.filter(
+  const diskErrors = dataDisks.filter(
     (d) => d.status !== "DISK_OK" && d.status !== "DISK_NP"
   ).length;
 
