@@ -21,6 +21,7 @@ export default defineConfig({
       KOKPIT_CONFIG_PATH: path.resolve("./e2e/fixtures/auth-settings.yaml"),
       PORT: "3001",
       KOKPIT_INSECURE_COOKIE: "true",
+      KOKPIT_SESSION_SECRET: "test-secret-32-chars-minimum-length-xx",
     },
     url: "http://localhost:3001",
   },
