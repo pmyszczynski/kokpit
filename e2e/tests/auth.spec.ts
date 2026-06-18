@@ -99,4 +99,73 @@ test.describe.serial("authentication flow", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL("/login");
   });
+
+  // ── API-level login tests ─────────────────────────────────────────────────────
+
+  test("POST /api/auth/login returns user data on success", async ({ page }) => {
+    const res = await page.request.post("/api/auth/login", {
+      data: { username: ADMIN.username, password: ADMIN.password },
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.username).toBe(ADMIN.username);
+    expect(typeof json.id).toBe("string");
+  });
+
+  test("POST /api/auth/login returns 401 on wrong password", async ({ page }) => {
+    const res = await page.request.post("/api/auth/login", {
+      data: { username: ADMIN.username, password: "wrong-password" },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  // ── Session persistence ───────────────────────────────────────────────────────
+
+  test("session persists after a page reload", async ({ page }) => {
+    await goto(page, "/login");
+    await page.getByPlaceholder("Username").fill(ADMIN.username);
+    await page.getByPlaceholder("Password").fill(ADMIN.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL("/");
+
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("navigation")).toBeVisible();
+  });
+
+  // ── /api/auth/me ──────────────────────────────────────────────────────────────
+
+  test("GET /api/auth/me returns user data while authenticated", async ({ page }) => {
+    await goto(page, "/login");
+    await page.getByPlaceholder("Username").fill(ADMIN.username);
+    await page.getByPlaceholder("Password").fill(ADMIN.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL("/");
+
+    const res = await page.request.get("/api/auth/me");
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.username).toBe(ADMIN.username);
+    expect(typeof json.id).toBe("string");
+  });
+
+  test("GET /api/auth/me returns 401 when not authenticated", async ({ page }) => {
+    const res = await page.request.get("/api/auth/me");
+    expect(res.status()).toBe(401);
+  });
+
+  // ── Post-logout state ─────────────────────────────────────────────────────────
+
+  test("visiting / after logout redirects to /login", async ({ page }) => {
+    await goto(page, "/login");
+    await page.getByPlaceholder("Username").fill(ADMIN.username);
+    await page.getByPlaceholder("Password").fill(ADMIN.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL("/");
+
+    await page.request.post("/api/auth/logout");
+    await goto(page, "/");
+    await expect(page).toHaveURL("/login");
+  });
 });

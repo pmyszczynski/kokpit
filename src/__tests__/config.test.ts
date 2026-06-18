@@ -5,7 +5,13 @@ vi.mock("fs", () => {
   const writeFileSync = vi.fn();
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
-  return { default: { readFileSync, writeFileSync, existsSync, mkdirSync }, readFileSync, writeFileSync, existsSync, mkdirSync };
+  return {
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    readFileSync,
+    writeFileSync,
+    existsSync,
+    mkdirSync,
+  };
 });
 
 import { readFileSync, writeFileSync } from "fs";
