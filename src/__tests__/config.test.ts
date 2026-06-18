@@ -3,7 +3,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  return { default: { readFileSync, writeFileSync }, readFileSync, writeFileSync };
+  const existsSync = vi.fn().mockReturnValue(true);
+  const mkdirSync = vi.fn();
+  return {
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    readFileSync,
+    writeFileSync,
+    existsSync,
+    mkdirSync,
+  };
 });
 
 import { readFileSync, writeFileSync } from "fs";
