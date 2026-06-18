@@ -13,5 +13,12 @@ import "./seerr/statsWidget";
 import "./seerr/requestsWidget";
 import "./immich/statsWidget";
 import "./unraid/statsWidget";
+import "./netdata/cpuWidget";
+import "./netdata/ramWidget";
+import "./netdata/netWidget";
+import "./netdata/diskIoWidget";
+import "./netdata/diskSpaceWidget";
+import "./netdata/loadWidget";
+import "./netdata/sensorWidget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";
