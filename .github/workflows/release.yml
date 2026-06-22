@@ -4,12 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 0.2.6)'
+        description: 'Version number without v prefix (e.g., 0.2.6 or 0.3.0-beta.1). A v prefix is added automatically to the git tag.'
         required: true
         type: string
-
-permissions:
-  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -20,11 +17,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
+
+      - name: Validate version format
+        run: |
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "Error: '$VERSION' is not valid semver (expected e.g. 0.2.6 or 1.0.0-beta.1)"
+            exit 1
+          fi
+        env:
+          VERSION: ${{ inputs.version }}
 
       - name: Install dependencies
         run: npm ci
@@ -58,6 +66,8 @@ jobs:
     name: Release
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -69,18 +79,24 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+        run: npm version "$VERSION" --no-git-tag-version
+        env:
+          VERSION: ${{ inputs.version }}
 
       - name: Commit and push
         run: |
           git add package.json package-lock.json
-          git commit -m "chore: bump version to ${{ inputs.version }}"
-          git push origin main
+          git commit -m "chore: bump version to $VERSION"
+          git push origin "$BRANCH"
+        env:
+          VERSION: ${{ inputs.version }}
+          BRANCH: ${{ github.ref_name }}
 
       - name: Tag and release
         run: |
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
-          gh release create ${{ inputs.version }} --title "${{ inputs.version }}" --generate-notes
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
