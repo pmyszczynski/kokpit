@@ -2,14 +2,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("fs");
+vi.mock("node:fs", () => {
+  const readFileSync = vi.fn();
+  const writeFileSync = vi.fn();
+  const existsSync = vi.fn().mockReturnValue(true);
+  const mkdirSync = vi.fn();
+  return {
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    readFileSync,
+    writeFileSync,
+    existsSync,
+    mkdirSync,
+  };
+});
 vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
 }));
 
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const BASE_YAML = `
 schema_version: 1
@@ -58,6 +70,7 @@ describe("PATCH /api/settings – validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -98,6 +111,7 @@ describe("PATCH /api/settings – layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -144,6 +158,7 @@ describe("PATCH /api/settings – appearance & services", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -175,6 +190,7 @@ describe("GET /api/settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
   });
 
