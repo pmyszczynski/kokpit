@@ -62,6 +62,10 @@ function patch(body: unknown) {
   });
 }
 
+beforeEach(() => {
+  vi.mocked(existsSync).mockReturnValue(true);
+});
+
 describe("PATCH /api/settings – validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
