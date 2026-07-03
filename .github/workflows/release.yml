@@ -71,6 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -86,20 +87,31 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
 
-      - name: Commit and push
+      - name: Open and merge version bump PR
+        id: bump
         run: |
+          BUMP_BRANCH="release/v$VERSION"
+          git checkout -b "$BUMP_BRANCH"
           git add package.json package-lock.json
           git commit -m "chore: bump version to $VERSION"
-          git push origin "$BRANCH"
+          git push origin "$BUMP_BRANCH"
+          gh pr create --title "chore: bump version to $VERSION" \
+            --body "Automated version bump for release v$VERSION." \
+            --base "$BRANCH" --head "$BUMP_BRANCH"
+          gh pr merge "$BUMP_BRANCH" --squash --delete-branch
+          git fetch origin "$BRANCH"
+          echo "merge_sha=$(git rev-parse origin/$BRANCH)" >> "$GITHUB_OUTPUT"
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
           BRANCH: ${{ github.ref_name }}
 
       - name: Tag and release
         run: |
-          git tag "v$VERSION"
+          git tag "v$VERSION" "$MERGE_SHA"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes --target "$MERGE_SHA"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
+          MERGE_SHA: ${{ steps.bump.outputs.merge_sha }}
