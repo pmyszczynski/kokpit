@@ -71,6 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -93,6 +94,16 @@ jobs:
           git tag "v$VERSION"
           git push origin "v$VERSION"
           gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+
+      - name: Trigger Docker publish
+        run: |
+          # The release we just created was authored by GITHUB_TOKEN, so GitHub
+          # suppresses the "release published" event that would normally trigger
+          # publish.yml (loop prevention). Dispatch it explicitly instead.
+          gh workflow run publish.yml -f "tag=v$VERSION"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}

@@ -3,6 +3,12 @@ name: Publish Docker Image
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to publish (e.g., v0.2.6). Needed because releases created by GITHUB_TOKEN (our Create Release workflow) do not auto-trigger this workflow — GitHub suppresses events authored by GITHUB_TOKEN to prevent recursive runs.'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,6 +27,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Resolve release info
+        id: release_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            IS_PRERELEASE=$(gh release view "$TAG" --json isPrerelease -q .isPrerelease)
+          else
+            IS_PRERELEASE="${{ github.event.release.prerelease }}"
+          fi
+          echo "prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -41,7 +62,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=tag
-            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+            type=raw,value=latest,enable=${{ steps.release_info.outputs.prerelease != 'true' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
