@@ -1,0 +1,109 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number without v prefix (e.g., 0.2.6 or 0.3.0-beta.1). Must already match package.json on main — bump it via a merged PR first. A v prefix is added automatically to the git tag.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: Lint · Type-check · Test · E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Validate version format
+        run: |
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "Error: '$VERSION' is not valid semver (expected e.g. 0.2.6 or 1.0.0-beta.1)"
+            exit 1
+          fi
+        env:
+          VERSION: ${{ inputs.version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Auth E2E tests
+        run: npm run test:e2e:auth
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results
+
+  release:
+    name: Release
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify package.json version matches input
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "Error: package.json on this branch is at $PKG_VERSION, but release was requested for $VERSION."
+            echo "main requires changes via PR (GitHub Actions cannot open/merge its own PRs here), so bump"
+            echo "package.json and package-lock.json on main via a merged PR before running this workflow."
+            exit 1
+          fi
+        env:
+          VERSION: ${{ inputs.version }}
+
+      - name: Tag and release
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+
+      - name: Trigger Docker publish
+        run: |
+          # The release we just created was authored by GITHUB_TOKEN, so GitHub
+          # suppresses the "release published" event that would normally trigger
+          # publish.yml (loop prevention). Dispatch it explicitly instead.
+          gh workflow run publish.yml -f "tag=v$VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
