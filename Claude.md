@@ -74,6 +74,22 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 ---
 
+## Release Process
+
+`main` has a branch ruleset requiring all changes go through a PR, and GitHub Actions is deliberately **not** permitted to create/approve its own PRs in this repo (a security setting, left off on purpose — enabling it would let any workflow self-merge unreviewed changes). This means the version bump can't happen inside CI; it has to be merged as a normal PR first. When asked to cut a release, do this:
+
+1. **Pick the version** (semver). Check the latest tag/release and the commits since it to decide patch/minor/major.
+2. **Bump the version on `main` via a PR** (Actions can't do this step, so do it directly):
+   - Create a branch off `main`, run `npm version <version> --no-git-tag-version`, commit `package.json` + `package-lock.json`, push.
+   - Open a PR into `main` (`mcp__github__create_pull_request`) and merge it (`mcp__github__merge_pull_request`, squash).
+3. **Trigger the release workflow**: `mcp__github__actions_run_trigger`, method `run_workflow`, `workflow_id: release.yml`, `ref: main`, `inputs: {"version": "<version>"}`. It runs the full test gate (lint, type-check, unit, E2E), checks `package.json` matches the input version, tags `vX.Y.Z`, and creates the GitHub Release.
+4. **Docker publish is automatic**: the published Release triggers `.github/workflows/publish.yml`, which builds and pushes the image to `ghcr.io/pmyszczynski/kokpit`.
+5. **Verify**: check the release workflow run, the new tag/release, and that the publish workflow succeeded (`mcp__github__actions_list`, `mcp__github__list_releases`).
+
+If `release.yml`'s "Verify package.json version matches input" step fails, it means step 2 was skipped or used the wrong version — fix the PR, then re-run.
+
+---
+
 ## Key References
 
 - **Full roadmap & task list:** [`docs/Roadmap.md`](docs/Roadmap.md)

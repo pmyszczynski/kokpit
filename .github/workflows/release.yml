@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number without v prefix (e.g., 0.2.6 or 0.3.0-beta.1). A v prefix is added automatically to the git tag.'
+        description: 'Version number without v prefix (e.g., 0.2.6 or 0.3.0-beta.1). Must already match package.json on main — bump it via a merged PR first. A v prefix is added automatically to the git tag.'
         required: true
         type: string
 
@@ -71,47 +71,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure git
+      - name: Verify package.json version matches input
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version
-        run: npm version "$VERSION" --no-git-tag-version
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "Error: package.json on this branch is at $PKG_VERSION, but release was requested for $VERSION."
+            echo "main requires changes via PR (GitHub Actions cannot open/merge its own PRs here), so bump"
+            echo "package.json and package-lock.json on main via a merged PR before running this workflow."
+            exit 1
+          fi
         env:
           VERSION: ${{ inputs.version }}
-
-      - name: Open and merge version bump PR
-        id: bump
-        run: |
-          BUMP_BRANCH="release/v$VERSION"
-          git checkout -b "$BUMP_BRANCH"
-          git add package.json package-lock.json
-          git commit -m "chore: bump version to $VERSION"
-          git push origin "$BUMP_BRANCH"
-          gh pr create --title "chore: bump version to $VERSION" \
-            --body "Automated version bump for release v$VERSION." \
-            --base "$BRANCH" --head "$BUMP_BRANCH"
-          gh pr merge "$BUMP_BRANCH" --squash --delete-branch
-          git fetch origin "$BRANCH"
-          echo "merge_sha=$(git rev-parse origin/$BRANCH)" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ inputs.version }}
-          BRANCH: ${{ github.ref_name }}
 
       - name: Tag and release
         run: |
-          git tag "v$VERSION" "$MERGE_SHA"
+          git tag "v$VERSION"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --title "v$VERSION" --generate-notes --target "$MERGE_SHA"
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
-          MERGE_SHA: ${{ steps.bump.outputs.merge_sha }}
