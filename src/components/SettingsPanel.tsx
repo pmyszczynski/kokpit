@@ -109,8 +109,8 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       });
       if (res.ok) {
         setTotpCode("");
-        setTotpMessage("2FA enabled successfully.");
         await fetchTotpStatus();
+        setTotpMessage("2FA enabled successfully.");
       } else {
         const json = await res.json().catch(() => ({}));
         setTotpMessage((json as { error?: string }).error ?? "Failed to enable 2FA");
@@ -131,8 +131,8 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       if (res.ok) {
         setTotpDisableCode("");
         setShowDisableConfirm(false);
-        setTotpMessage("2FA disabled.");
         await fetchTotpStatus();
+        setTotpMessage("2FA disabled.");
       } else {
         const json = await res.json().catch(() => ({}));
         setTotpMessage((json as { error?: string }).error ?? "Failed to disable 2FA");
