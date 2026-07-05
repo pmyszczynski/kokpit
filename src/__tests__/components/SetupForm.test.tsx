@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-
-const pushMock = vi.fn();
-const refreshMock = vi.fn();
+import { pushMock, refreshMock, resetNavigationMock } from "@/test/mocks/navigation";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
@@ -25,8 +23,7 @@ function fillAndSubmit(username: string, password: string, confirm: string) {
 
 describe("SetupForm", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
+    resetNavigationMock();
   });
 
   afterEach(() => {

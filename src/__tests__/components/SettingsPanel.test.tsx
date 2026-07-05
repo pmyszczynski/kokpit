@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import type { KokpitConfig, Service } from "@/config/schema";
-
-const pushMock = vi.fn();
-const refreshMock = vi.fn();
+import { pushMock, refreshMock, resetNavigationMock } from "@/test/mocks/navigation";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
@@ -51,16 +49,21 @@ function jsonResponse(body: unknown, ok = true) {
   return { ok, json: () => Promise.resolve(body) } as Response;
 }
 
+// Common reset/cleanup shared by every describe below; describes that need
+// extra setup (fetch stubs, theme reset, fake timers) add their own
+// beforeEach/afterEach on top of this one.
+beforeEach(() => {
+  resetNavigationMock();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
 describe("SettingsPanel - tab switching", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ enabled: false, secret: "S", qrCode: "data:x" })));
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
 
   it("shows the Appearance section by default", () => {
@@ -84,14 +87,10 @@ describe("SettingsPanel - tab switching", () => {
 
 describe("SettingsPanel - appearance tab", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
     document.documentElement.dataset.theme = "";
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -144,16 +143,6 @@ describe("SettingsPanel - appearance tab", () => {
 });
 
 describe("SettingsPanel - layout tab", () => {
-  beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-
   it("shows desktop columns/row-height inputs with config values", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig({ layout: { columns: 6, row_height: 150 } })} />);
@@ -211,16 +200,6 @@ describe("SettingsPanel - layout tab", () => {
 });
 
 describe("SettingsPanel - auth tab / TOTP", () => {
-  beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-
   it("shows the setup form when TOTP is not enabled", async () => {
     vi.stubGlobal(
       "fetch",
@@ -312,16 +291,6 @@ describe("SettingsPanel - auth tab / TOTP", () => {
 });
 
 describe("SettingsPanel - services tab", () => {
-  beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-
   it("renders the services table with existing services", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig()} />);

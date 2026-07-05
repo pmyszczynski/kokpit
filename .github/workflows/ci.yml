@@ -45,6 +45,9 @@ jobs:
         with:
           name: coverage-report
           path: coverage
+          # Coverage trend is only worth checking on demand; a short
+          # retention avoids piling up artifacts nothing consumes automatically.
+          retention-days: 7
 
   e2e:
     name: E2E

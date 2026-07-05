@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-
-const pushMock = vi.fn();
-const refreshMock = vi.fn();
+import { pushMock, refreshMock, resetNavigationMock } from "@/test/mocks/navigation";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
@@ -22,8 +20,7 @@ function fillCredentials(username: string, password: string) {
 
 describe("LoginForm - credentials step", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
+    resetNavigationMock();
   });
 
   afterEach(() => {
@@ -139,8 +136,7 @@ describe("LoginForm - credentials step", () => {
 
 describe("LoginForm - TOTP step", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
+    resetNavigationMock();
   });
 
   afterEach(() => {

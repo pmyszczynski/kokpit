@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-
-const pushMock = vi.fn();
-const refreshMock = vi.fn();
+import { pushMock, refreshMock, resetNavigationMock } from "@/test/mocks/navigation";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
@@ -12,8 +10,7 @@ import LogoutButton from "@/components/LogoutButton";
 
 describe("LogoutButton", () => {
   beforeEach(() => {
-    pushMock.mockReset();
-    refreshMock.mockReset();
+    resetNavigationMock();
     vi.spyOn(window, "alert").mockImplementation(() => {});
   });
 

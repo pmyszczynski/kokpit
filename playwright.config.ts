@@ -6,8 +6,8 @@ export default defineConfig({
   testIgnore: ["**/auth.spec.ts"],
   // Tests across files share one dev server + settings.yaml (mutated via
   // PATCH /api/settings in beforeEach hooks) — a single worker keeps those
-  // writes from racing each other when running outside CI (CI already
-  // defaults workers to 1).
+  // writes from racing each other. Playwright's own default is 50% of CPU
+  // cores (not 1), so this must stay explicit even in CI.
   workers: 1,
   // Allow 60 s per test — Next.js dev mode compiles routes on first hit.
   timeout: 60_000,

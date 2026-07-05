@@ -1,23 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
+import { FIXTURE_SERVICES } from "../helpers/fixture-services";
 
 const MOCK = "http://localhost:32400";
-
-/** Services list matching the fixture settings.yaml, used to reset state between tests. */
-const FIXTURE_SERVICES = [
-  {
-    name: "Plex",
-    url: "http://localhost:32400",
-    widget: {
-      type: "plex",
-      config: {
-        url: "http://localhost:32400",
-        token: "test-token",
-        fields: ["streams", "transcodes", "library_movies"],
-      },
-    },
-  },
-];
 
 /**
  * Visual regression: catches CSS/layout/theme regressions that DOM assertions
@@ -45,8 +30,6 @@ test.describe("visual regression", () => {
     await expect(page.locator(".plex-widget__value").first()).toBeVisible();
   }
 
-  const MASK = (page: Page) => [page.locator(".status-dot")];
-
   for (const theme of ["dark", "light", "oled", "high-contrast"] as const) {
     test(`dashboard renders correctly in ${theme} theme`, async ({ page, request }) => {
       await request.patch("/api/settings", { data: { appearance: { theme } } });
@@ -54,7 +37,7 @@ test.describe("visual regression", () => {
       await waitForDashboardReady(page);
 
       await expect(page.locator(".shell")).toHaveScreenshot(`dashboard-${theme}.png`, {
-        mask: MASK(page),
+        mask: [page.locator(".status-dot")],
       });
     });
   }
@@ -67,7 +50,7 @@ test.describe("visual regression", () => {
     await expect(page.locator(".widget-error")).toBeVisible();
 
     await expect(page.locator(".shell")).toHaveScreenshot("dashboard-widget-error.png", {
-      mask: MASK(page),
+      mask: [page.locator(".status-dot")],
     });
   });
 
@@ -84,7 +67,7 @@ test.describe("visual regression", () => {
     await waitForDashboardReady(page);
 
     await expect(page.locator(".shell")).toHaveScreenshot("dashboard-custom-css.png", {
-      mask: MASK(page),
+      mask: [page.locator(".status-dot")],
     });
   });
 

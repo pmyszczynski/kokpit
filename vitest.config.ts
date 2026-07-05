@@ -41,11 +41,13 @@ export default defineConfig({
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/**/*.test.{ts,tsx}",
-        "src/__tests__/**",
         "src/test/**",
         "src/**/*.d.ts",
+        // page.tsx files are thin data-fetch-and-render wiring with no
+        // branching logic. layout.tsx is deliberately NOT excluded here —
+        // src/app/(protected)/layout.tsx contains real auth-redirect
+        // branching that should stay visible in the coverage report.
         "src/app/**/page.tsx",
-        "src/app/**/layout.tsx",
       ],
     },
   },
