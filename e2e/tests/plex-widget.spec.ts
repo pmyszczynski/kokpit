@@ -1,24 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 import type { MockPlexState } from "../helpers/mock-plex-server";
+import { FIXTURE_SERVICES } from "../helpers/fixture-services";
 
 const MOCK = "http://localhost:32400";
-
-/** Services list that matches the fixture settings.yaml. */
-const FIXTURE_SERVICES = [
-  {
-    name: "Plex",
-    url: "http://localhost:32400",
-    widget: {
-      type: "plex",
-      config: {
-        url: "http://localhost:32400",
-        token: "test-token",
-        fields: ["streams", "transcodes", "library_movies"],
-      },
-    },
-  },
-];
 
 /**
  * Warm up Next.js route compilation before the first test.

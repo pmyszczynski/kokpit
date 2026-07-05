@@ -37,7 +37,17 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          # Coverage trend is only worth checking on demand; a short
+          # retention avoids piling up artifacts nothing consumes automatically.
+          retention-days: 7
 
   e2e:
     name: E2E
