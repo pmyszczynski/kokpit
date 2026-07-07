@@ -94,7 +94,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Search bar widget (configurable search engine)
 
 - [x] `P1` **Docker widget** *(re-scoped from "Docker auto-discovery" — see `docs/plans/2026-07-06-docker-widget.md`)*
-  - Widget listing running containers via the Docker socket (state, name, image, uptime) with a running/total summary
+  - Widget listing active (running, paused, restarting) containers via the Docker socket (state, name, image, uptime) with a running/total summary
   - Read-only Docker Engine API client over the unix socket; socket path configurable per widget or via `KOKPIT_DOCKER_SOCKET`
   - Deferred to backlog: label-based tile auto-discovery (auto-populate service tiles from container labels)
 

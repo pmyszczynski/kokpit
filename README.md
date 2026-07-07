@@ -535,7 +535,17 @@ services:
 
 Stopped containers count toward the total but are not listed. Paused and restarting containers appear with a yellow dot.
 
-**Security note:** The Docker socket is a powerful interface — even read-only access exposes details about everything running on the host, and write access is root-equivalent. Kokpit only ever issues a single read-only call (`GET /containers/json`) and never sends raw Docker API data to the browser. For a hardened setup, point `socket_path` at a filtered proxy such as [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) with only `CONTAINERS=1` enabled, instead of mounting the real socket.
+**Security note:** The Docker socket is a powerful interface — even read-only access exposes details about everything running on the host, and write access is root-equivalent. Kokpit only ever issues read-only calls (`GET /_ping` to negotiate the API version, then `GET /containers/json`) and never sends raw Docker API data to the browser. The widget talks to Docker over a **unix socket only** — TCP endpoints such as [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)'s default `:2375` listener can't be used as `socket_path` directly. For a hardened setup, bridge a filtered proxy (with only `CONTAINERS=1` enabled) back to a unix socket and point `socket_path` at the bridge, e.g. with a socat sidecar:
+
+```yaml
+  docker-proxy-bridge:
+    image: alpine/socat
+    command: UNIX-LISTEN:/sockets/docker.sock,fork,mode=666 TCP:docker-socket-proxy:2375
+    volumes:
+      - sockets:/sockets
+```
+
+Native TCP Docker host support is on the backlog.
 
 ---
 
