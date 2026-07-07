@@ -24,6 +24,8 @@ services:
       - /app/node_modules
       - /app/.next
       - ./data:/data
+      # Uncomment to enable the Docker widget (read-only socket; see README):
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   # ─── Production ───────────────────────────────────────────
@@ -37,6 +39,8 @@ services:
       KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret-before-use
     volumes:
       - ./data:/data
+      # Uncomment to enable the Docker widget (read-only socket; see README):
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
