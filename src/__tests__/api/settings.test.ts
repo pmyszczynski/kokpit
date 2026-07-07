@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("node:fs", () => {
@@ -183,6 +183,43 @@ describe("PATCH /api/settings – appearance & services", () => {
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
     expect(written).toContain("Jellyfin");
+  });
+});
+
+describe("/api/settings – auth", () => {
+  const AUTH_ENABLED_YAML = BASE_YAML.replace("enabled: false", "enabled: true");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
+    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+    process.env.KOKPIT_AUTH_DISABLED = "false";
+  });
+
+  afterEach(() => {
+    process.env.KOKPIT_AUTH_DISABLED = "true";
+  });
+
+  it("GET returns 401 without a session when auth is enabled", async () => {
+    const { GET } = await import("../../app/api/settings/route");
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("PATCH returns 401 and writes nothing without a session when auth is enabled", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+    expect(res.status).toBe(401);
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("succeeds without a session when KOKPIT_AUTH_DISABLED is set", async () => {
+    process.env.KOKPIT_AUTH_DISABLED = "true";
+    const { GET } = await import("../../app/api/settings/route");
+    const res = await GET();
+    expect(res.status).toBe(200);
   });
 });
 
