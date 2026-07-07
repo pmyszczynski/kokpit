@@ -496,6 +496,49 @@ services:
 
 ---
 
+### Docker
+
+Lists the containers running on the Docker host: a colored state dot, container name, image, and uptime per row, plus a "running / total" summary.
+
+**Prerequisites:** Kokpit needs read access to the Docker socket. Mount it read-only into the container:
+
+```yaml
+services:
+  kokpit:
+    # ...
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+The image's entrypoint automatically grants its non-root runtime user membership in the socket's owning group, so no extra `group_add` configuration is needed.
+
+**YAML example:**
+
+```yaml
+services:
+  - name: Docker
+    icon: docker
+    widget:
+      type: docker
+      config: {}
+```
+
+**Config fields:**
+
+
+| Field         | Required | Description                                                                                             |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `socket_path` | No       | Unix socket path inside the Kokpit container (default: `KOKPIT_DOCKER_SOCKET` env, then `/var/run/docker.sock`) |
+| `max_items`   | No       | Containers shown in the list, 1–50 (default: 10)                                                        |
+
+
+Stopped containers count toward the total but are not listed. Paused and restarting containers appear with a yellow dot.
+
+**Security note:** The Docker socket is a powerful interface — even read-only access exposes details about everything running on the host, and write access is root-equivalent. Kokpit only ever issues a single read-only call (`GET /containers/json`) and never sends raw Docker API data to the browser. For a hardened setup, point `socket_path` at a filtered proxy such as [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) with only `CONTAINERS=1` enabled, instead of mounting the real socket.
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please open an issue first to discuss significant changes before sending a pull request.
