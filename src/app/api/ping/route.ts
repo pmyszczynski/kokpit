@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
+import { isRequestAuthenticated } from "@/auth";
 
 export async function GET(request: Request) {
+  if (!(await isRequestAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const raw = new URL(request.url).searchParams.get("url");
 
   if (!raw) {

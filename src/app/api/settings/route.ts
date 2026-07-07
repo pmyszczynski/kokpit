@@ -1,20 +1,7 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getAuthUser, SESSION_COOKIE_NAME } from "@/auth";
+import { isRequestAuthenticated } from "@/auth";
 import { getConfig, writeConfig } from "@/config";
-
-async function checkAuth(): Promise<boolean> {
-  const config = getConfig();
-  const authEnabled =
-    config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
-  if (!authEnabled) return true;
-
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const user = await getAuthUser(token);
-  return !!user;
-}
 
 const PatchBodySchema = z.object({
   appearance: z
@@ -69,7 +56,7 @@ const PatchBodySchema = z.object({
 });
 
 export async function GET() {
-  if (!(await checkAuth())) {
+  if (!(await isRequestAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -78,7 +65,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await checkAuth())) {
+  if (!(await isRequestAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
