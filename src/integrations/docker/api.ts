@@ -1,15 +1,13 @@
 import { z } from "zod";
 import type http from "node:http";
 
-export interface DockerConfig {
-  socket_path?: string;
-  max_items?: number;
-}
-
 export const DockerConfigSchema = z.object({
   socket_path: z.string().min(1).optional(),
   max_items: z.number().int().min(1).max(50).default(10),
 });
+
+// z.input (not z.infer): callers may omit max_items and let the default apply.
+export type DockerConfig = z.input<typeof DockerConfigSchema>;
 
 // Narrow view of the Docker Engine API container object — unknown fields are
 // stripped so raw payloads never travel beyond this module.
@@ -78,7 +76,7 @@ function requestJson(
   socketPath: string,
   path: string,
   signal?: AbortSignal
-): Promise<{ status: number; body: string }> {
+): Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = getHttp().request(
       { socketPath, path, method: "GET", signal },
@@ -89,6 +87,7 @@ function requestJson(
           resolve({
             status: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString("utf-8"),
+            headers: res.headers,
           })
         );
         res.on("error", reject);
@@ -104,6 +103,38 @@ function requestJson(
   });
 }
 
+// Fallback when /_ping doesn't report a version. 1.44 is Docker Engine 29's
+// minimum supported API version; engines back to 25.0 accept it too.
+const FALLBACK_API_VERSION = "1.44";
+
+const apiVersionCache = new Map<string, string>();
+
+/** Clears negotiated API versions. Intended for use in tests only. */
+export function clearApiVersionCache(): void {
+  apiVersionCache.clear();
+}
+
+// Hardcoding a version breaks one end or the other: Engine 29+ rejects
+// versions below 1.44, older engines reject versions above their own. Do what
+// the official client does: read the daemon's Api-Version from /_ping (an
+// endpoint that is unversioned by design) and pin requests to it.
+async function negotiateApiVersion(
+  socketPath: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const cached = apiVersionCache.get(socketPath);
+  if (cached) return cached;
+
+  const { status, headers } = await requestJson(socketPath, "/_ping", signal);
+  const reported = headers["api-version"];
+  const version =
+    status === 200 && typeof reported === "string" && /^\d+\.\d+$/.test(reported)
+      ? reported
+      : FALLBACK_API_VERSION;
+  apiVersionCache.set(socketPath, version);
+  return version;
+}
+
 export async function fetchDockerData(
   config: DockerConfig,
   signal?: AbortSignal
@@ -111,12 +142,16 @@ export async function fetchDockerData(
   const socketPath = resolveSocketPath(config);
   const maxItems = config.max_items ?? 10;
 
+  const apiVersion = await negotiateApiVersion(socketPath, signal);
   const { status, body } = await requestJson(
     socketPath,
-    "/v1.41/containers/json?all=1",
+    `/v${apiVersion}/containers/json?all=1`,
     signal
   );
   if (status !== 200) {
+    // The daemon may have been up/downgraded since we negotiated; renegotiate
+    // on the next refresh instead of failing forever with a stale version.
+    apiVersionCache.delete(socketPath);
     throw new Error(`Docker API responded with ${status}`);
   }
 

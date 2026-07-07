@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  clearApiVersionCache,
   DockerConfigSchema,
   fetchDockerData,
   resolveSocketPath,
@@ -49,9 +50,13 @@ const FIXTURE_CONTAINERS = [
 
 let server: http.Server;
 let respondWith: (req: http.IncomingMessage, res: http.ServerResponse) => void;
+let requestedPaths: string[] = [];
 
 beforeAll(async () => {
-  server = http.createServer((req, res) => respondWith(req, res));
+  server = http.createServer((req, res) => {
+    requestedPaths.push(req.url ?? "");
+    respondWith(req, res);
+  });
   await new Promise<void>((resolve) => server.listen(SOCKET_PATH, resolve));
 });
 
@@ -62,12 +67,31 @@ afterAll(async () => {
 
 afterEach(() => {
   delete process.env.KOKPIT_DOCKER_SOCKET;
+  clearApiVersionCache();
+  requestedPaths = [];
 });
 
+/** Serves payload on every path; /_ping gets no Api-Version header. */
 function serveJson(payload: unknown, status = 200) {
   respondWith = (_req, res) => {
     res.writeHead(status, { "Content-Type": "application/json" });
     res.end(JSON.stringify(payload));
+  };
+}
+
+/** Emulates a real daemon: /_ping reports apiVersion, containers are versioned. */
+function serveDocker(payload: unknown, apiVersion: string) {
+  respondWith = (req, res) => {
+    if (req.url === "/_ping") {
+      res.writeHead(200, { "Api-Version": apiVersion });
+      res.end("OK");
+    } else if (req.url === `/v${apiVersion}/containers/json?all=1`) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(payload));
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
   };
 }
 
@@ -177,6 +201,30 @@ describe("fetchDockerData", () => {
     await expect(
       fetchDockerData({ socket_path: SOCKET_PATH })
     ).rejects.toThrow(/unexpected .* shape/i);
+  });
+
+  it("negotiates the API version from /_ping and pins requests to it", async () => {
+    serveDocker(FIXTURE_CONTAINERS, "1.51");
+    const data = await fetchDockerData({ socket_path: SOCKET_PATH });
+    expect(data.total).toBe(4);
+    expect(requestedPaths).toEqual([
+      "/_ping",
+      "/v1.51/containers/json?all=1",
+    ]);
+  });
+
+  it("caches the negotiated API version across fetches", async () => {
+    serveDocker(FIXTURE_CONTAINERS, "1.51");
+    await fetchDockerData({ socket_path: SOCKET_PATH });
+    await fetchDockerData({ socket_path: SOCKET_PATH });
+    const pings = requestedPaths.filter((p) => p === "/_ping");
+    expect(pings).toHaveLength(1);
+  });
+
+  it("falls back to API version 1.44 when /_ping reports none", async () => {
+    serveJson(FIXTURE_CONTAINERS);
+    await fetchDockerData({ socket_path: SOCKET_PATH });
+    expect(requestedPaths).toContain("/v1.44/containers/json?all=1");
   });
 
   it("rejects promptly when the abort signal fires", async () => {
