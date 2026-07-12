@@ -65,6 +65,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 
 describe("POST /api/widget/test", () => {
@@ -146,6 +147,34 @@ describe("POST /api/widget/test", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual({ ok: true });
+  });
+
+  it("returns 504 when the connection test exceeds the 5s timeout", async () => {
+    vi.useFakeTimers();
+    // A fetch that never settles until its signal aborts — the route's
+    // AbortController is the only thing that can end this request.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        (_url: string, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts?.signal?.addEventListener("abort", () =>
+              reject(new Error("aborted"))
+            );
+          })
+      )
+    );
+    const { POST } = await import("../../app/api/widget/test/route");
+    const resPromise = POST(
+      post({
+        type: "plex",
+        config: { url: "http://plex.test:32400", token: "t" },
+      })
+    );
+    await vi.advanceTimersByTimeAsync(5001);
+    const res = await resPromise;
+    expect(res.status).toBe(504);
+    expect((await res.json()).error).toMatch(/timed out/i);
   });
 
   it("returns 500 with the error message when the widget fetch fails", async () => {
