@@ -70,6 +70,30 @@ function initFromService(service: Service | null): {
   };
 }
 
+/**
+ * Drops entries that don't count as "configured": empty strings, empty
+ * arrays, null/undefined. A widget config that cleans down to {} means the
+ * user left the widget unconfigured and the tile renders as a plain link.
+ */
+function cleanWidgetConfig(
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
+
+type TestStatus =
+  | { state: "idle" }
+  | { state: "testing" }
+  | { state: "success" }
+  | { state: "error"; message: string };
+
 function GroupCombobox({
   value,
   onChange,
@@ -195,7 +219,6 @@ function WidgetConfigFields({
                 onChange(field.key, field.type === "number" ? (raw === "" ? undefined : Number(raw)) : raw);
               }}
               placeholder={field.placeholder}
-              required={field.required}
             />
             {field.description && (
               <p className="settings-form-hint">{field.description}</p>
@@ -227,6 +250,7 @@ export default function ServiceForm({
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
+  const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
 
   const presetWidgets = getWidgetsWithServiceEditorPreset();
 
@@ -239,8 +263,22 @@ export default function ServiceForm({
 
   const showWidgetSection = tileType !== "" || orphanWidget !== null;
 
+  const activeWidgetType =
+    tileType !== "" ? tileType : orphanWidget?.type ?? null;
+  const activeCleanedConfig = cleanWidgetConfig(
+    tileType !== ""
+      ? widgetConfig
+      : ((orphanWidget?.config as Record<string, unknown>) ?? {})
+  );
+  // Mirrors the dashboard's rule: the widget renders only when its config
+  // passes the schema. Unknown types can't be validated client-side.
+  const widgetConfigValid = selectedWidgetDef
+    ? selectedWidgetDef.configSchema.safeParse(activeCleanedConfig).success
+    : null;
+
   function handleWidgetConfigChange(key: string, value: unknown) {
     setWidgetConfig((prev) => ({ ...prev, [key]: value }));
+    setTestStatus({ state: "idle" });
   }
 
   function handleOrphanWidgetConfigChange(key: string, value: unknown) {
@@ -249,9 +287,11 @@ export default function ServiceForm({
       const cfg = { ...((prev.config as Record<string, unknown>) ?? {}), [key]: value };
       return { ...prev, config: cfg };
     });
+    setTestStatus({ state: "idle" });
   }
 
   function handleTileTypeChange(newTile: string) {
+    setTestStatus({ state: "idle" });
     if (newTile === "") {
       if (tileType !== "") {
         setOrphanWidget(null);
@@ -269,6 +309,35 @@ export default function ServiceForm({
     if (def?.serviceEditorPreset) {
       setName(def.serviceEditorPreset.defaultName);
       setIcon(def.serviceEditorPreset.defaultIconUrl);
+    }
+  }
+
+  async function handleTestConnection() {
+    if (!activeWidgetType) return;
+    setTestStatus({ state: "testing" });
+    try {
+      const res = await fetch("/api/widget/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: activeWidgetType,
+          config: activeCleanedConfig,
+        }),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (json.ok) {
+        setTestStatus({ state: "success" });
+      } else {
+        setTestStatus({
+          state: "error",
+          message: json.error ?? "Connection test failed",
+        });
+      }
+    } catch (err) {
+      setTestStatus({
+        state: "error",
+        message: err instanceof Error ? err.message : "Connection test failed",
+      });
     }
   }
 
@@ -294,10 +363,10 @@ export default function ServiceForm({
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
+      const cfg = cleanWidgetConfig(widgetConfig);
       widget = {
         type: tileType,
-        config:
-          Object.keys(widgetConfig).length > 0 ? widgetConfig : undefined,
+        config: Object.keys(cfg).length > 0 ? cfg : undefined,
         refresh_interval_ms:
           refreshInterval !== "" ? Number(refreshInterval) : undefined,
       };
@@ -439,6 +508,13 @@ export default function ServiceForm({
               <span>Widget</span>
             </div>
 
+            {tileType !== "" && (
+              <p className="settings-form-hint">
+                Optional — leave these fields empty to add a plain link tile.
+                You can configure the widget later.
+              </p>
+            )}
+
             {selectedWidgetDef?.configFields &&
               selectedWidgetDef.configFields.length > 0 && (
                 <WidgetConfigFields
@@ -490,6 +566,48 @@ export default function ServiceForm({
                 min={5000}
                 step={1000}
               />
+            </div>
+
+            {selectedWidgetDef && (
+              <p
+                role="status"
+                className={`settings-form-hint service-form__widget-status service-form__widget-status--${
+                  widgetConfigValid ? "active" : "inactive"
+                }`}
+              >
+                {widgetConfigValid
+                  ? "Widget configured — it will render on the dashboard tile."
+                  : "Widget not configured — the tile will render as a plain link until the required fields are filled."}
+              </p>
+            )}
+
+            <div className="service-form__test-row">
+              <button
+                type="button"
+                className="settings-btn"
+                onClick={handleTestConnection}
+                disabled={
+                  testStatus.state === "testing" || widgetConfigValid === false
+                }
+              >
+                {testStatus.state === "testing" ? "Testing…" : "Test connection"}
+              </button>
+              {testStatus.state === "success" && (
+                <span
+                  className="service-form__test-result service-form__test-result--success"
+                  role="status"
+                >
+                  Connection OK
+                </span>
+              )}
+              {testStatus.state === "error" && (
+                <span
+                  className="service-form__test-result service-form__test-result--error"
+                  role="alert"
+                >
+                  {testStatus.message}
+                </span>
+              )}
             </div>
           </>
         )}

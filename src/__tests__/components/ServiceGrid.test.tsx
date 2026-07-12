@@ -86,6 +86,86 @@ describe("ServiceGrid", () => {
     expect(zetaGroup.textContent).toContain("Sonarr");
   });
 
+  it("renders the widget when its config passes the widget schema", async () => {
+    getConfig.mockReturnValue({
+      services: [
+        makeService({
+          name: "Plex",
+          url: "http://plex.local",
+          widget: {
+            type: "plex",
+            config: { url: "http://plex.local:32400", token: "t" },
+          },
+        }),
+      ],
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(<ServiceGrid />));
+    });
+    expect(
+      container.querySelector('.service-tile__widget[data-widget-type="plex"]')
+    ).not.toBeNull();
+  });
+
+  it("renders a plain tile when the widget has no config", async () => {
+    getConfig.mockReturnValue({
+      services: [
+        makeService({
+          name: "Plex",
+          url: "http://plex.local",
+          widget: { type: "plex" },
+        }),
+      ],
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(<ServiceGrid />));
+    });
+    expect(screen.getByText("Plex")).toBeInTheDocument();
+    expect(container.querySelector(".service-tile__widget")).toBeNull();
+    expect(container.querySelector(".widget-error")).toBeNull();
+  });
+
+  it("renders a plain tile when the widget config is partial/invalid", async () => {
+    getConfig.mockReturnValue({
+      services: [
+        makeService({
+          name: "Plex",
+          url: "http://plex.local",
+          widget: {
+            type: "plex",
+            config: { url: "http://plex.local:32400" }, // token missing
+          },
+        }),
+      ],
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(<ServiceGrid />));
+    });
+    expect(screen.getByText("Plex")).toBeInTheDocument();
+    expect(container.querySelector(".service-tile__widget")).toBeNull();
+    expect(container.querySelector(".widget-error")).toBeNull();
+  });
+
+  it("keeps the error box for an unknown widget type", async () => {
+    getConfig.mockReturnValue({
+      services: [
+        makeService({
+          name: "Mystery",
+          widget: { type: "not-a-real-widget" },
+        }),
+      ],
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(<ServiceGrid />));
+    });
+    expect(container.querySelector(".widget-error")).not.toBeNull();
+    expect(screen.getByText(/unknown widget type/i)).toBeInTheDocument();
+  });
+
   it("renders both grouped and ungrouped services together", async () => {
     getConfig.mockReturnValue({
       services: [

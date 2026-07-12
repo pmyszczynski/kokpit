@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
 
 beforeEach(() => {
@@ -220,6 +220,152 @@ describe("ServiceForm – tile type", () => {
         },
       })
     );
+  });
+});
+
+describe("ServiceForm – optional widget config", () => {
+  it("saves widget with type only when the config fields are left empty", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.widget.type).toBe("plex");
+    expect(saved.widget.config).toBeUndefined();
+  });
+
+  it("treats config fields that were filled and cleared as unconfigured", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    const urlInput = screen.getByLabelText(/Server URL/);
+    fireEvent.change(urlInput, { target: { value: "http://plex.local:32400" } });
+    fireEvent.change(urlInput, { target: { value: "" } });
+    fireEvent.click(screen.getByText("Save"));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.widget.type).toBe("plex");
+    expect(saved.widget.config).toBeUndefined();
+  });
+
+  it("shows the not-configured status until required fields are filled", () => {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    expect(screen.getByText(/widget not configured/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Server URL/), {
+      target: { value: "http://plex.local:32400" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Token/), {
+      target: { value: "t" },
+    });
+    expect(screen.getByText(/widget configured/i)).toBeInTheDocument();
+    expect(screen.queryByText(/widget not configured/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ServiceForm – test connection", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function setupPlexForm() {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+  }
+
+  function fillPlexConfig() {
+    fireEvent.change(screen.getByLabelText(/Server URL/), {
+      target: { value: "http://plex.local:32400" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Token/), {
+      target: { value: "secret" },
+    });
+  }
+
+  it("is disabled while the config does not validate", () => {
+    setupPlexForm();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    fillPlexConfig();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+  });
+
+  it("posts the current type and config and shows success", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    setupPlexForm();
+    fillPlexConfig();
+    fireEvent.click(screen.getByText("Test connection"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Connection OK")).toBeInTheDocument()
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/widget/test",
+      expect.objectContaining({ method: "POST" })
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      type: "plex",
+      config: { url: "http://plex.local:32400", token: "secret" },
+    });
+  });
+
+  it("shows the server error message when the test fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: false, error: "Plex responded with 503" }),
+      } as Response)
+    );
+
+    setupPlexForm();
+    fillPlexConfig();
+    fireEvent.click(screen.getByText("Test connection"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Plex responded with 503")).toBeInTheDocument()
+    );
+  });
+
+  it("resets the test result when a config field changes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true }),
+      } as Response)
+    );
+
+    setupPlexForm();
+    fillPlexConfig();
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() =>
+      expect(screen.getByText("Connection OK")).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByLabelText(/^Token/), {
+      target: { value: "different" },
+    });
+    expect(screen.queryByText("Connection OK")).not.toBeInTheDocument();
   });
 });
 

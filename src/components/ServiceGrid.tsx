@@ -1,6 +1,28 @@
+// Populate the widget registry server-side so widget configs can be
+// validated before deciding whether a tile renders its widget.
+import "@/integrations";
 import { getConfig } from "@/config";
-import { Service } from "@/config/schema";
-import ServiceTile from "./ServiceTile";
+import { Service, ServiceWidget } from "@/config/schema";
+import { getWidget } from "@/widgets";
+import ServiceTile, { TileWidget } from "./ServiceTile";
+
+// Decide what the client tile gets to see of a service's widget:
+// - no widget → nothing
+// - unknown type → sanitized pass-through, so the renderer surfaces the typo
+// - known type with valid config → sanitized widget
+// - known type with missing/invalid config → nothing (plain link tile)
+// Config (credentials) never leaves the server either way.
+function resolveTileWidget(widget?: ServiceWidget): TileWidget | undefined {
+  if (!widget) return undefined;
+  const def = getWidget(widget.type);
+  if (def && !def.configSchema.safeParse(widget.config ?? {}).success) {
+    return undefined;
+  }
+  return {
+    type: widget.type,
+    refresh_interval_ms: widget.refresh_interval_ms,
+  };
+}
 
 function groupServices(services: Service[]): {
   ungrouped: Service[];
@@ -49,7 +71,7 @@ export default function ServiceGrid() {
                 url={service.url}
                 icon={service.icon}
                 description={service.description}
-                widget={service.widget}
+                widget={resolveTileWidget(service.widget)}
                 position={service.position}
               />
             ))}
@@ -65,7 +87,7 @@ export default function ServiceGrid() {
               url={service.url}
               icon={service.icon}
               description={service.description}
-              widget={service.widget}
+              widget={resolveTileWidget(service.widget)}
               position={service.position}
             />
           ))}

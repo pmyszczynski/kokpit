@@ -782,6 +782,28 @@ body {
   background: var(--color-surface-2);
 }
 
+.service-form__widget-status--active {
+  color: #22c55e;
+}
+
+.service-form__test-row {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.service-form__test-result {
+  font-size: 0.8rem;
+}
+
+.service-form__test-result--success {
+  color: #22c55e;
+}
+
+.service-form__test-result--error {
+  color: var(--color-error);
+}
+
 .service-form__actions {
   display: flex;
   justify-content: flex-end;
