@@ -30,6 +30,25 @@ describe("POST /api/setup", () => {
     expect(res.status).toBe(201);
   });
 
+  it("returns a recovery code and stores only its hash", async () => {
+    const { POST } = await import("../../app/api/setup/route");
+    const res = await POST(
+      new Request("http://localhost/api/setup", {
+        method: "POST",
+        body: JSON.stringify({ username: "reco-admin", password: "password123" }),
+      })
+    );
+    const json = await res.json();
+    expect(typeof json.recoveryCode).toBe("string");
+    expect(json.recoveryCode).toMatch(/^[0-9a-f]{8}(-[0-9a-f]{8}){3}$/);
+
+    const { getUserByUsername, verifyRecoveryCode } = await import("@/auth");
+    const user = getUserByUsername("reco-admin");
+    expect(user?.recoveryCodeHash).toBeTruthy();
+    expect(user!.recoveryCodeHash).not.toBe(json.recoveryCode);
+    expect(verifyRecoveryCode(json.recoveryCode, user!.recoveryCodeHash!)).toBe(true);
+  });
+
   it("returns 409 if users already exist", async () => {
     const { POST } = await import("../../app/api/setup/route");
     await POST(

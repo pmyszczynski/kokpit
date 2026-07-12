@@ -53,4 +53,31 @@ describe("user management", () => {
     await createUser("dup", "h");
     await expect(createUser("dup", "h2")).rejects.toThrow();
   });
+
+  it("new users have a null recoveryCodeHash", async () => {
+    const { createUser } = await import("../../auth/users");
+    const user = await createUser("noreco", "h");
+    expect(user.recoveryCodeHash).toBeNull();
+  });
+
+  it("setRecoveryCodeHash stores the hash and clearRecoveryCodeHash removes it", async () => {
+    const { createUser, setRecoveryCodeHash, clearRecoveryCodeHash, getUserById } = await import(
+      "../../auth/users"
+    );
+    const user = await createUser("reco", "h");
+
+    setRecoveryCodeHash(user.id, "somehash");
+    expect(getUserById(user.id)?.recoveryCodeHash).toBe("somehash");
+
+    clearRecoveryCodeHash(user.id);
+    expect(getUserById(user.id)?.recoveryCodeHash).toBeNull();
+  });
+
+  it("updatePasswordHash changes the stored password hash", async () => {
+    const { createUser, updatePasswordHash, getUserById } = await import("../../auth/users");
+    const user = await createUser("pwupdate", "oldhash");
+
+    updatePasswordHash(user.id, "newhash");
+    expect(getUserById(user.id)?.passwordHash).toBe("newhash");
+  });
 });

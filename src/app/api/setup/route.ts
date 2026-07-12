@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { countUsers, createUser, hashPassword } from "@/auth";
+import {
+  countUsers,
+  createUser,
+  hashPassword,
+  generateRecoveryCode,
+  hashRecoveryCode,
+  setRecoveryCodeHash,
+} from "@/auth";
 
 export async function GET(_req: Request) {
   return NextResponse.json({ setupRequired: countUsers() === 0 });
@@ -52,8 +59,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const recoveryCode = generateRecoveryCode();
+  setRecoveryCodeHash(user.id, hashRecoveryCode(recoveryCode));
+
   return NextResponse.json(
-    { id: user.id, username: user.username },
+    { id: user.id, username: user.username, recoveryCode },
     { status: 201 }
   );
 }

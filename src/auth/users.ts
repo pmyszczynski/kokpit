@@ -5,6 +5,7 @@ export type User = {
   username: string;
   passwordHash: string;
   totpSecret: string | null;
+  recoveryCodeHash: string | null;
   createdAt: Date;
 };
 
@@ -13,6 +14,7 @@ type UserRow = {
   username: string;
   password_hash: string;
   totp_secret: string | null;
+  recovery_code_hash: string | null;
   created_at: number;
 };
 
@@ -22,6 +24,7 @@ function rowToUser(row: UserRow): User {
     username: row.username,
     passwordHash: row.password_hash,
     totpSecret: row.totp_secret,
+    recoveryCodeHash: row.recovery_code_hash,
     createdAt: new Date(row.created_at),
   };
 }
@@ -41,6 +44,7 @@ export async function createUser(
     username,
     passwordHash,
     totpSecret: null,
+    recoveryCodeHash: null,
     createdAt: new Date(createdAt),
   };
 }
@@ -76,4 +80,22 @@ export function clearTotpSecret(userId: string): void {
   getDb()
     .prepare("UPDATE users SET totp_secret = NULL WHERE id = ?")
     .run(userId);
+}
+
+export function setRecoveryCodeHash(userId: string, hash: string): void {
+  getDb()
+    .prepare("UPDATE users SET recovery_code_hash = ? WHERE id = ?")
+    .run(hash, userId);
+}
+
+export function clearRecoveryCodeHash(userId: string): void {
+  getDb()
+    .prepare("UPDATE users SET recovery_code_hash = NULL WHERE id = ?")
+    .run(userId);
+}
+
+export function updatePasswordHash(userId: string, passwordHash: string): void {
+  getDb()
+    .prepare("UPDATE users SET password_hash = ? WHERE id = ?")
+    .run(passwordHash, userId);
 }

@@ -7,6 +7,8 @@ export default function SetupForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,11 +34,53 @@ export default function SetupForm() {
     setLoading(false);
 
     if (res.ok) {
-      router.push("/login");
+      const json = await res.json();
+      setRecoveryCode(json.recoveryCode);
     } else {
       const json = await res.json();
       setError(json.error ?? "Setup failed");
     }
+  }
+
+  if (recoveryCode) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "320px" }}>
+        <h1>Save your recovery code</h1>
+        <p style={{ margin: 0, opacity: 0.7 }}>
+          Kokpit doesn&apos;t store an email address, so this code is the only way to
+          reset your password if you forget it. Save it somewhere safe (a password
+          manager) — it will not be shown again.
+        </p>
+        <code
+          style={{
+            userSelect: "all",
+            padding: "0.75rem",
+            border: "1px solid currentColor",
+            borderRadius: "4px",
+            textAlign: "center",
+            letterSpacing: "0.05em",
+            wordBreak: "break-all",
+          }}
+        >
+          {recoveryCode}
+        </code>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={saved}
+            onChange={(e) => setSaved(e.target.checked)}
+          />
+          I&apos;ve saved this code
+        </label>
+        <button
+          type="button"
+          disabled={!saved}
+          onClick={() => router.push("/login")}
+        >
+          Continue to login
+        </button>
+      </div>
+    );
   }
 
   return (

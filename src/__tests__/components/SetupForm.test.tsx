@@ -51,10 +51,10 @@ describe("SetupForm", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("submits to /api/setup and navigates to /login on success", async () => {
+  it("submits to /api/setup and shows the recovery code screen on success", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({}),
+      json: () => Promise.resolve({ recoveryCode: "aaaaaaaa-bbbbbbbb-cccccccc-dddddddd" }),
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
     render(<SetupForm />);
@@ -68,6 +68,29 @@ describe("SetupForm", () => {
         body: JSON.stringify({ username: "admin", password: "password1" }),
       })
     );
+    expect(screen.getByText("Save your recovery code")).toBeInTheDocument();
+    expect(screen.getByText("aaaaaaaa-bbbbbbbb-cccccccc-dddddddd")).toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("only navigates to /login once the recovery code is confirmed saved", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ recoveryCode: "aaaaaaaa-bbbbbbbb-cccccccc-dddddddd" }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SetupForm />);
+    await act(async () => {
+      fillAndSubmit("admin", "password1", "password1");
+    });
+
+    const continueButton = screen.getByRole("button", { name: /continue to login/i });
+    expect(continueButton).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(continueButton).toBeEnabled();
+
+    fireEvent.click(continueButton);
     expect(pushMock).toHaveBeenCalledWith("/login");
   });
 

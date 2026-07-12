@@ -143,6 +143,29 @@ auth:
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
 
+## Account Recovery
+
+Kokpit doesn't collect an email address or phone number, so password recovery works differently than most apps.
+
+**Recovery code (self-service).** When you complete the setup wizard, Kokpit shows you a one-time recovery code (`xxxxxxxx-xxxxxxxx-xxxxxxxx-xxxxxxxx`). Save it in a password manager — it's shown exactly once and is the only way to reset your password from the web UI. If you forget your password:
+
+1. Click **Forgot password?** on the login page.
+2. Enter your username, recovery code, and a new password.
+
+Redeeming the code resets your password only. If you have 2FA enabled, you'll still need your authenticator app to sign in afterward — a leaked recovery code can't bypass 2FA on its own. The code is single-use; after redeeming it, generate a new one from **Settings → Authentication → Generate new recovery code** (this requires your current password).
+
+**Lost the recovery code too?** If you're locked out entirely — forgotten password, and no recovery code, and (if applicable) no TOTP device — you can reset your password directly from the host or container running Kokpit, the same access level already required to read `data/users.db`:
+
+```bash
+# Docker
+docker compose exec kokpit npm run reset-password
+
+# Bare metal / local dev
+npm run reset-password
+```
+
+This walks you through setting a new password, and optionally clearing 2FA and/or the saved recovery code, directly against the database.
+
 ## Widgets
 
 Widgets display live data from your self-hosted services directly on a service tile. Each widget polls its service on a configurable interval and renders the data you choose.
