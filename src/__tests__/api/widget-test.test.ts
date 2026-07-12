@@ -21,6 +21,16 @@ vi.mock("next/headers", () => ({
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
 import { existsSync, readFileSync } from "node:fs";
+import "@/integrations";
+import { getAllWidgets } from "@/widgets";
+
+// Every registered widget type, with what its schema says about an empty
+// config. Collected once at module load; the tests re-import the route (and
+// a fresh registry) after vi.resetModules(), but the ids are stable.
+const allWidgets = getAllWidgets().map((w) => ({
+  id: w.id,
+  emptyConfigValid: w.configSchema.safeParse({}).success,
+}));
 
 const BASE_YAML = `
 schema_version: 1
@@ -86,6 +96,25 @@ describe("POST /api/widget/test", () => {
     expect(res.status).toBe(404);
     expect((await res.json()).error).toMatch(/unknown widget type/i);
   });
+
+  it.each(allWidgets)(
+    "$id: rejects an empty config per its schema without fetching",
+    async ({ id, emptyConfigValid }) => {
+      const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
+      vi.stubGlobal("fetch", fetchMock);
+      const { POST } = await import("../../app/api/widget/test/route");
+      const res = await POST(post({ type: id, config: {} }));
+      if (emptyConfigValid) {
+        // Schema accepts an empty config — the endpoint attempts the fetch.
+        expect(res.status).toBe(500);
+        expect(fetchMock).toHaveBeenCalled();
+      } else {
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toMatch(/invalid widget config/i);
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+    }
+  );
 
   it("returns 400 with issue details when the config fails the widget schema", async () => {
     const { POST } = await import("../../app/api/widget/test/route");

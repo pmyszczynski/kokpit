@@ -9,6 +9,16 @@ vi.mock("@/config", () => ({
 }));
 
 import ServiceGrid from "@/components/ServiceGrid";
+import "@/integrations";
+import { getAllWidgets } from "@/widgets";
+
+// Every registered widget type, with what its schema says about an empty
+// config. Derived from the registry so new integrations are covered
+// automatically.
+const allTiles = getAllWidgets().map((w) => ({
+  id: w.id,
+  emptyConfigValid: w.configSchema.safeParse({}).success,
+}));
 
 function makeService(overrides: Partial<Service> & { name: string }): Service {
   return { ...overrides };
@@ -108,24 +118,33 @@ describe("ServiceGrid", () => {
     ).not.toBeNull();
   });
 
-  it("renders a plain tile when the widget has no config", async () => {
-    getConfig.mockReturnValue({
-      services: [
-        makeService({
-          name: "Plex",
-          url: "http://plex.local",
-          widget: { type: "plex" },
-        }),
-      ],
-    });
-    let container!: HTMLElement;
-    await act(async () => {
-      ({ container } = render(<ServiceGrid />));
-    });
-    expect(screen.getByText("Plex")).toBeInTheDocument();
-    expect(container.querySelector(".service-tile__widget")).toBeNull();
-    expect(container.querySelector(".widget-error")).toBeNull();
-  });
+  it.each(allTiles)(
+    "$id: renders per its schema when the widget has no config",
+    async ({ id, emptyConfigValid }) => {
+      getConfig.mockReturnValue({
+        services: [
+          makeService({
+            name: "Svc",
+            url: "http://svc.local",
+            widget: { type: id },
+          }),
+        ],
+      });
+      let container!: HTMLElement;
+      await act(async () => {
+        ({ container } = render(<ServiceGrid />));
+      });
+      expect(screen.getByText("Svc")).toBeInTheDocument();
+      if (emptyConfigValid) {
+        // Schema accepts an empty config — the widget renders.
+        expect(container.querySelector(".service-tile__widget")).not.toBeNull();
+      } else {
+        // Unconfigured widget — plain link tile, no error box.
+        expect(container.querySelector(".service-tile__widget")).toBeNull();
+        expect(container.querySelector(".widget-error")).toBeNull();
+      }
+    }
+  );
 
   it("renders a plain tile when the widget config is partial/invalid", async () => {
     getConfig.mockReturnValue({

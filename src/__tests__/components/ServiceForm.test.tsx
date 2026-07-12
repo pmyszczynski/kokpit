@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
+import "@/integrations";
+import { getWidgetsWithServiceEditorPreset } from "@/widgets";
+
+// Every selectable tile type, with what its schema says about an empty
+// config. Derived from the registry so new integrations are covered
+// automatically.
+const allPresetTiles = getWidgetsWithServiceEditorPreset().map((w) => ({
+  id: w.id,
+  emptyConfigValid: w.configSchema.safeParse({}).success,
+}));
 
 beforeEach(() => {
   // jsdom does not implement dialog methods; close() must dispatch the
@@ -224,20 +234,42 @@ describe("ServiceForm – tile type", () => {
 });
 
 describe("ServiceForm – optional widget config", () => {
-  it("saves widget with type only when the config fields are left empty", () => {
-    const onSave = vi.fn();
-    render(
-      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
-    );
-    fireEvent.change(screen.getByLabelText("Tile type"), {
-      target: { value: "plex" },
-    });
-    fireEvent.click(screen.getByText("Save"));
-    expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0];
-    expect(saved.widget.type).toBe("plex");
-    expect(saved.widget.config).toBeUndefined();
-  });
+  it.each(allPresetTiles)(
+    "$id: saves widget with type only when the config fields are left empty",
+    ({ id }) => {
+      const onSave = vi.fn();
+      render(
+        <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+      );
+      fireEvent.change(screen.getByLabelText("Tile type"), {
+        target: { value: id },
+      });
+      fireEvent.click(screen.getByText("Save"));
+      expect(onSave).toHaveBeenCalledTimes(1);
+      const saved = onSave.mock.calls[0][0];
+      expect(saved.widget.type).toBe(id);
+      expect(saved.widget.config).toBeUndefined();
+    }
+  );
+
+  it.each(allPresetTiles)(
+    "$id: status line and test button reflect the empty-config state",
+    ({ id, emptyConfigValid }) => {
+      render(
+        <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+      );
+      fireEvent.change(screen.getByLabelText("Tile type"), {
+        target: { value: id },
+      });
+      if (emptyConfigValid) {
+        expect(screen.getByText(/widget configured/i)).toBeInTheDocument();
+        expect(screen.getByText("Test connection")).toBeEnabled();
+      } else {
+        expect(screen.getByText(/widget not configured/i)).toBeInTheDocument();
+        expect(screen.getByText("Test connection")).toBeDisabled();
+      }
+    }
+  );
 
   it("treats config fields that were filled and cleared as unconfigured", () => {
     const onSave = vi.fn();
