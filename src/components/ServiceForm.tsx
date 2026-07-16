@@ -105,6 +105,7 @@ function GroupCombobox({
       <input
         id="sf-group"
         type="text"
+        className="settings-input"
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
@@ -189,6 +190,7 @@ function WidgetConfigFields({
             <input
               id={`sf-widget-${field.key}`}
               type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
+              className="settings-input"
               value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
               onChange={(e) => {
                 const raw = e.target.value;
@@ -347,6 +349,7 @@ export default function ServiceForm({
           <label htmlFor="sf-tile-type">Tile type</label>
           <select
             id="sf-tile-type"
+            className="settings-input"
             value={tileType}
             onChange={(e) => handleTileTypeChange(e.target.value)}
           >
@@ -373,6 +376,7 @@ export default function ServiceForm({
             <input
               id="sf-name"
               type="text"
+              className="settings-input"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -399,6 +403,7 @@ export default function ServiceForm({
           <input
             id="sf-url"
             type="url"
+            className="settings-input"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://jellyfin.example.com"
@@ -409,6 +414,7 @@ export default function ServiceForm({
           <input
             id="sf-icon"
             type="text"
+            className="settings-input"
             value={icon}
             onChange={(e) => setIcon(e.target.value)}
             placeholder="https://example.com/icon.png"
@@ -419,6 +425,7 @@ export default function ServiceForm({
           <input
             id="sf-description"
             type="text"
+            className="settings-input"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Media server"
@@ -463,6 +470,7 @@ export default function ServiceForm({
               <input
                 id="sf-widget-refresh"
                 type="number"
+                className="settings-input"
                 value={
                   tileType !== ""
                     ? refreshInterval

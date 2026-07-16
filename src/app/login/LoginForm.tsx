@@ -85,67 +85,84 @@ export default function LoginForm() {
 
   if (step === "totp") {
     return (
-      <form
-        onSubmit={handleTotpSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "320px" }}
-      >
-        <h1>Two-Factor Authentication</h1>
-        <p style={{ margin: 0, opacity: 0.7 }}>Enter the 6-digit code from your authenticator app.</p>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        <label htmlFor="totp-code" style={{ fontWeight: 500 }}>Authenticator code</label>
-        <input
-          id="totp-code"
-          name="code"
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]{6}"
-          maxLength={6}
-          placeholder="000000"
-          required
-          autoComplete="one-time-code"
-          autoFocus
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? "Verifying…" : "Verify"}
-        </button>
-        <button
-          type="button"
-          onClick={() => { setStep("credentials"); setChallengeToken(null); setError(null); }}
-          style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.6, padding: 0 }}
-        >
-          ← Back
-        </button>
-      </form>
+      <div className="auth-card">
+        <div>
+          <div className="auth-card__badge">K</div>
+          <h1 className="auth-card__title">Two-Factor Authentication</h1>
+          <p className="auth-card__subtitle">Enter the 6-digit code from your authenticator app.</p>
+        </div>
+        <form onSubmit={handleTotpSubmit} className="auth-form">
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <div className="auth-field">
+            <label htmlFor="totp-code">Authenticator code</label>
+            <input
+              id="totp-code"
+              name="code"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              placeholder="000000"
+              required
+              autoComplete="one-time-code"
+              autoFocus
+              className="auth-otp-input"
+            />
+          </div>
+          <button type="submit" className="auth-submit-btn" disabled={loading}>
+            {loading ? "Verifying…" : "Verify"}
+          </button>
+          <button
+            type="button"
+            className="auth-back-btn"
+            onClick={() => { setStep("credentials"); setChallengeToken(null); setError(null); }}
+          >
+            ← Back
+          </button>
+        </form>
+      </div>
     );
   }
 
   return (
-    <form
-      onSubmit={handleCredentialsSubmit}
-      style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "320px" }}
-    >
-      <h1>Sign in to Kokpit</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <input
-        name="username"
-        type="text"
-        placeholder="Username"
-        required
-        autoComplete="username"
-      />
-      <input
-        name="password"
-        type="password"
-        placeholder="Password"
-        required
-        autoComplete="current-password"
-      />
-      <button type="submit" disabled={loading}>
-        {loading ? "Signing in…" : "Sign in"}
-      </button>
-      <Link href="/reset-password" style={{ opacity: 0.6, fontSize: "0.9em" }}>
-        Forgot password?
-      </Link>
-    </form>
+    <div className="auth-card">
+      <div>
+        <div className="auth-card__badge">K</div>
+        <h1 className="auth-card__title">Sign in to Kokpit</h1>
+        <p className="auth-card__subtitle">Enter your credentials to access your dashboard.</p>
+      </div>
+      <form onSubmit={handleCredentialsSubmit} className="auth-form">
+        {error && <p className="auth-error" role="alert">{error}</p>}
+        <div className="auth-field">
+          <label htmlFor="login-username">Username</label>
+          <input
+            id="login-username"
+            name="username"
+            type="text"
+            placeholder="Username"
+            required
+            autoComplete="username"
+            autoFocus
+          />
+        </div>
+        <div className="auth-field">
+          <label htmlFor="login-password">Password</label>
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            placeholder="Password"
+            required
+            autoComplete="current-password"
+          />
+        </div>
+        <button type="submit" className="auth-submit-btn" disabled={loading}>
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+        <Link href="/reset-password" className="auth-back-btn">
+          Forgot password?
+        </Link>
+      </form>
+    </div>
   );
 }

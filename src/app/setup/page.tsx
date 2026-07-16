@@ -10,9 +10,7 @@ export default async function SetupPage() {
   }
 
   return (
-    <main
-      style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}
-    >
+    <main className="auth-page">
       <SetupForm />
     </main>
   );

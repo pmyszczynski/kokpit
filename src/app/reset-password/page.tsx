@@ -18,9 +18,7 @@ export default async function ResetPasswordPage() {
   }
 
   return (
-    <main
-      style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}
-    >
+    <main className="auth-page">
       <ResetPasswordForm />
     </main>
   );
