@@ -18,9 +18,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main
-      style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}
-    >
+    <main className="auth-page">
       <LoginForm />
     </main>
   );
