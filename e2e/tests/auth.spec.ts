@@ -34,12 +34,20 @@ test.describe.serial("authentication flow", () => {
 
   // ── Setup form ────────────────────────────────────────────────────────────────
 
-  test("setup form creates admin and redirects to /login", async ({ page }) => {
+  test("setup form creates admin, shows the recovery code, and redirects to /login", async ({ page }) => {
     await goto(page, "/setup");
     await page.getByPlaceholder("Username").fill(ADMIN.username);
     await page.getByPlaceholder("Password (min 8 chars)").fill(ADMIN.password);
     await page.getByPlaceholder("Confirm password").fill(ADMIN.password);
     await page.getByRole("button", { name: "Create admin account" }).click();
+
+    await expect(page.getByRole("heading", { name: "Save your recovery code" })).toBeVisible();
+    const continueButton = page.getByRole("button", { name: "Continue to login" });
+    await expect(continueButton).toBeDisabled();
+    await page.getByRole("checkbox").check();
+    await expect(continueButton).toBeEnabled();
+    await continueButton.click();
+
     await expect(page).toHaveURL("/login");
   });
 
