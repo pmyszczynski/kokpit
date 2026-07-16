@@ -2,6 +2,7 @@ import "@/integrations";
 import { NextResponse } from "next/server";
 import { getWidget } from "@/widgets";
 import { checkAuth } from "../../_auth";
+import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "../_timeout";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead
@@ -44,25 +45,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(new Error("Connection test timed out")), 5000);
   try {
     // Only pass/fail matters here — discard the data so credentials-derived
     // payloads never round-trip through the form.
-    await widget.fetchData(parsed.data, ac.signal);
+    await fetchWithHardTimeout(
+      (signal) => widget.fetchData(parsed.data, signal),
+      "Connection test timed out"
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (ac.signal.aborted) {
-      return NextResponse.json(
-        { ok: false, error: "Connection test timed out" },
-        { status: 504 }
-      );
+    if (err instanceof WidgetFetchTimeoutError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
     }
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Connection test failed" },
       { status: 500 }
     );
-  } finally {
-    clearTimeout(timer);
   }
 }

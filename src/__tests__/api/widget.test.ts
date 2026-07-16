@@ -130,6 +130,22 @@ describe("GET /api/widget", () => {
     expect((await res.json()).error).toMatch(/502/);
   });
 
+  it("returns 504 even when the widget ignores its abort signal", async () => {
+    vi.useFakeTimers();
+    // A fetch that never settles, abort or not — the hard timeout race is
+    // the only thing that can end this request.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => new Promise(() => {}))
+    );
+    const { GET } = await import("../../app/api/widget/route");
+    const resPromise = GET(get({ type: "plex", service: "Plex" }));
+    await vi.advanceTimersByTimeAsync(5001);
+    const res = await resPromise;
+    expect(res.status).toBe(504);
+    expect((await res.json()).error).toMatch(/timed out/i);
+  });
+
   it("returns 504 when the widget fetch exceeds the 5s timeout", async () => {
     vi.useFakeTimers();
     // A fetch that never settles until its signal aborts — the route's

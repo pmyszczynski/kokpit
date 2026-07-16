@@ -177,6 +177,27 @@ describe("POST /api/widget/test", () => {
     expect((await res.json()).error).toMatch(/timed out/i);
   });
 
+  it("returns 504 even when the widget ignores its abort signal", async () => {
+    vi.useFakeTimers();
+    // A fetch that never settles, abort or not — the hard timeout race is
+    // the only thing that can end this request.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => new Promise(() => {}))
+    );
+    const { POST } = await import("../../app/api/widget/test/route");
+    const resPromise = POST(
+      post({
+        type: "plex",
+        config: { url: "http://plex.test:32400", token: "t" },
+      })
+    );
+    await vi.advanceTimersByTimeAsync(5001);
+    const res = await resPromise;
+    expect(res.status).toBe(504);
+    expect((await res.json()).error).toMatch(/timed out/i);
+  });
+
   it("returns 500 with the error message when the widget fetch fails", async () => {
     vi.stubGlobal(
       "fetch",
