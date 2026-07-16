@@ -50,6 +50,15 @@ export async function POST(req: Request) {
   const passwordHash = await hashPassword(password);
   let user;
   try {
+    // Re-check right before the insert: hashPassword awaits, so a concurrent
+    // request could have raced past the check above and created a user with
+    // a different username in the meantime.
+    if (countUsers() > 0) {
+      return NextResponse.json(
+        { error: "Setup already complete" },
+        { status: 409 }
+      );
+    }
     user = await createUser(username, passwordHash);
   } catch {
     // Username conflict (e.g. from concurrent setup requests)

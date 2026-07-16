@@ -36,4 +36,16 @@ describe("recovery code helpers", () => {
     const hash = hashRecoveryCode(code);
     expect(verifyRecoveryCode(`  ${code}  `, hash)).toBe(true);
   });
+
+  it("tolerates missing dashes", () => {
+    const code = generateRecoveryCode();
+    const hash = hashRecoveryCode(code);
+    expect(verifyRecoveryCode(code.replace(/-/g, ""), hash)).toBe(true);
+  });
+
+  it("tolerates internal whitespace typed in place of dashes", () => {
+    const code = generateRecoveryCode();
+    const hash = hashRecoveryCode(code);
+    expect(verifyRecoveryCode(code.replace(/-/g, " "), hash)).toBe(true);
+  });
 });

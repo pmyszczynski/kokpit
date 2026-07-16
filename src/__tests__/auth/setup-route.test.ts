@@ -66,6 +66,29 @@ describe("POST /api/setup", () => {
     expect(res.status).toBe(409);
   });
 
+  it("only lets one of two concurrent setup requests with different usernames succeed", async () => {
+    const { POST } = await import("../../app/api/setup/route");
+    const [resA, resB] = await Promise.all([
+      POST(
+        new Request("http://localhost/api/setup", {
+          method: "POST",
+          body: JSON.stringify({ username: "race-a", password: "password123" }),
+        })
+      ),
+      POST(
+        new Request("http://localhost/api/setup", {
+          method: "POST",
+          body: JSON.stringify({ username: "race-b", password: "password456" }),
+        })
+      ),
+    ]);
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([201, 409]);
+
+    const { countUsers } = await import("../../auth/users");
+    expect(countUsers()).toBe(1);
+  });
+
   it("returns 400 for missing password", async () => {
     const { POST } = await import("../../app/api/setup/route");
     const res = await POST(

@@ -10,6 +10,7 @@
 const Database = require("better-sqlite3");
 const bcrypt = require("bcryptjs");
 const readline = require("readline");
+const { Writable } = require("stream");
 const { mkdirSync } = require("fs");
 const { dirname } = require("path");
 
@@ -40,21 +41,16 @@ function ask(rl, question) {
   return new Promise((resolve) => rl.question(question, resolve));
 }
 
-// Masks keystrokes with "*" while still letting readline's own line-editing
-// (backspace, piped input, etc.) do the actual reading — a second listener
-// that consumed stdin directly would race with readline's own listener.
+// Mutes readline's own output while it reads the line, instead of racing it
+// with a second stdin listener — readline still handles backspace, arrow
+// keys, and piped input itself, so nothing gets corrupted or duplicated.
 function askHidden(rl, question) {
   return new Promise((resolve) => {
-    const isTTY = process.stdin.isTTY;
-    const onKeypress = () => {
-      if (!isTTY) return;
-      readline.moveCursor(process.stdout, -1, 0);
-      readline.clearLine(process.stdout, 1);
-      process.stdout.write("*");
-    };
-    if (isTTY) process.stdin.on("data", onKeypress);
-    rl.question(question, (value) => {
-      if (isTTY) process.stdin.removeListener("data", onKeypress);
+    process.stdout.write(question);
+    rl.output.muted = true;
+    rl.question("", (value) => {
+      rl.output.muted = false;
+      process.stdout.write("\n");
       resolve(value);
     });
   });
@@ -75,7 +71,17 @@ async function main() {
     process.exit(1);
   }
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const mutableStdout = new Writable({
+    write(chunk, encoding, callback) {
+      if (!this.muted) process.stdout.write(chunk, encoding);
+      callback();
+    },
+  });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: mutableStdout,
+    terminal: process.stdin.isTTY,
+  });
 
   let user;
   if (users.length === 1) {

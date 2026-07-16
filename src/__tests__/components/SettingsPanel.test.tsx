@@ -340,6 +340,38 @@ describe("SettingsPanel - auth tab / recovery code", () => {
 
     expect(screen.getByText("Invalid password")).toBeInTheDocument();
   });
+
+  it("disables Confirm and ignores extra clicks while a regeneration request is in flight", async () => {
+    let resolveRequest!: (value: Response) => void;
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ enabled: false, secret: "S", qrCode: "d" }));
+    fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => { resolveRequest = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SettingsPanel config={makeConfig()} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Auth" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate new recovery code" }));
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "mypassword" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await Promise.resolve();
+
+    const pendingButton = screen.getByRole("button", { name: "Generating…" });
+    expect(pendingButton).toBeDisabled();
+    fireEvent.click(pendingButton);
+
+    await act(async () => {
+      resolveRequest(jsonResponse({ recoveryCode: "aaaaaaaa-bbbbbbbb-cccccccc-dddddddd" }));
+      await Promise.resolve();
+    });
+
+    // Only one recovery-code request was ever sent, despite the extra click.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("aaaaaaaa-bbbbbbbb-cccccccc-dddddddd")).toBeInTheDocument();
+  });
 });
 
 describe("SettingsPanel - services tab", () => {

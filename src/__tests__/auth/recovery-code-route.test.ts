@@ -65,6 +65,20 @@ describe("POST /api/auth/recovery-code", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 when the JSON body is null", async () => {
+    const { createUser, hashPassword } = await import("@/auth");
+    const hash = await hashPassword("correctpassword");
+    const user = await createUser("dave", hash);
+    const token = await makeSessionCookie(user.id);
+    mockCookieGet.mockReturnValue({ value: token });
+
+    const { POST } = await import("../../app/api/auth/recovery-code/route");
+    const res = await POST(
+      new Request("http://localhost", { method: "POST", body: "null" })
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("issues a new recovery code and overwrites the old one", async () => {
     const { createUser, hashPassword, generateRecoveryCode, hashRecoveryCode, setRecoveryCodeHash, getUserById, verifyRecoveryCode } =
       await import("@/auth");

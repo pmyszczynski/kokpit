@@ -42,14 +42,21 @@ function recordFailure(key: string) {
 export async function POST(req: Request) {
   pruneExpired();
 
-  let body: { username?: unknown; recoveryCode?: unknown; newPassword?: unknown };
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (typeof body !== "object" || body === null) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-  const { username, recoveryCode, newPassword } = body;
+  const { username, recoveryCode, newPassword } = body as {
+    username?: unknown;
+    recoveryCode?: unknown;
+    newPassword?: unknown;
+  };
   if (
     typeof username !== "string" ||
     typeof recoveryCode !== "string" ||

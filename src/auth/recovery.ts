@@ -13,7 +13,7 @@ export function generateRecoveryCode(): string {
 }
 
 function normalize(code: string): string {
-  return code.trim().toLowerCase();
+  return code.replace(/[-\s]/g, "").toLowerCase();
 }
 
 export function hashRecoveryCode(code: string): string {

@@ -34,11 +34,18 @@ export default function SetupForm() {
     setLoading(false);
 
     if (res.ok) {
-      const json = await res.json();
-      setRecoveryCode(json.recoveryCode);
+      const json = await res.json().catch(() => ({}));
+      const code = (json as { recoveryCode?: unknown }).recoveryCode;
+      if (typeof code === "string" && code) {
+        setRecoveryCode(code);
+      } else {
+        setError(
+          "Account created, but the recovery code couldn't be read. Log in, then generate a new one from Settings → Authentication."
+        );
+      }
     } else {
-      const json = await res.json();
-      setError(json.error ?? "Setup failed");
+      const json = await res.json().catch(() => ({}));
+      setError((json as { error?: string }).error ?? "Setup failed");
     }
   }
 

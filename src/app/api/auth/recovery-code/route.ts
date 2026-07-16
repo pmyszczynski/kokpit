@@ -21,14 +21,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { password?: unknown };
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (typeof body !== "object" || body === null) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-  const { password } = body;
+  const { password } = body as { password?: unknown };
   if (typeof password !== "string" || !password) {
     return NextResponse.json({ error: "password is required" }, { status: 400 });
   }

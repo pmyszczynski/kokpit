@@ -59,6 +59,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [newRecoveryCode, setNewRecoveryCode] = useState<string | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const [recoveryPending, setRecoveryPending] = useState(false);
 
   // Services
   const [services, setServices] = useState<Service[]>(config.services);
@@ -147,6 +148,8 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   async function handleRegenerateRecoveryCode() {
+    if (recoveryPending) return;
+    setRecoveryPending(true);
     setRecoveryMessage(null);
     try {
       const res = await fetch("/api/auth/recovery-code", {
@@ -164,6 +167,8 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       }
     } catch {
       setRecoveryMessage("Failed to generate recovery code");
+    } finally {
+      setRecoveryPending(false);
     }
   }
 
@@ -585,9 +590,9 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                   <button
                     className="settings-save-btn"
                     onClick={handleRegenerateRecoveryCode}
-                    disabled={!recoveryPassword}
+                    disabled={!recoveryPassword || recoveryPending}
                   >
-                    Confirm
+                    {recoveryPending ? "Generating…" : "Confirm"}
                   </button>
                   <button
                     className="settings-btn"

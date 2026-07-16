@@ -150,6 +150,17 @@ describe("POST /api/auth/reset-password", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 when the JSON body is null", async () => {
+    const { POST } = await import("../../app/api/auth/reset-password/route");
+    const res = await POST(
+      new Request("http://localhost/api/auth/reset-password", {
+        method: "POST",
+        body: "null",
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("rate-limits repeated failed attempts for the same username", async () => {
     const { generateRecoveryCode } = await import("@/auth");
     await setupUserWithRecoveryCode("frank");

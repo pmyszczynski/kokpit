@@ -108,6 +108,34 @@ describe("SetupForm", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("shows a fallback error and no recovery screen when the success body has no valid recoveryCode", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SetupForm />);
+    await act(async () => {
+      fillAndSubmit("admin", "password1", "password1");
+    });
+    expect(screen.queryByText("Save your recovery code")).not.toBeInTheDocument();
+    expect(screen.getByText(/couldn't be read/i)).toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a fallback error when the success response body fails to parse as JSON", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.reject(new Error("not json")),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SetupForm />);
+    await act(async () => {
+      fillAndSubmit("admin", "password1", "password1");
+    });
+    expect(screen.getByText(/couldn't be read/i)).toBeInTheDocument();
+  });
+
   it("falls back to 'Setup failed' when the error body has no message", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
