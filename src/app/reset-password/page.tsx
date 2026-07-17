@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
-import LoginForm from "./LoginForm";
+import ResetPasswordForm from "./ResetPasswordForm";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function ResetPasswordPage() {
   if (countUsers() === 0) {
     redirect("/setup");
   }
@@ -19,7 +19,7 @@ export default async function LoginPage() {
 
   return (
     <main className="auth-page">
-      <LoginForm />
+      <ResetPasswordForm />
     </main>
   );
 }

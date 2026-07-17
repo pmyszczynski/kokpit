@@ -35,6 +35,12 @@ describe("LoginForm - credentials step", () => {
     expect(screen.getByPlaceholderText("Password")).toBeInTheDocument();
   });
 
+  it("renders a Forgot password? link to /reset-password", () => {
+    render(<LoginForm />);
+    const link = screen.getByRole("link", { name: /forgot password/i });
+    expect(link).toHaveAttribute("href", "/reset-password");
+  });
+
   it("navigates home on success without requiresTotp", async () => {
     vi.stubGlobal(
       "fetch",

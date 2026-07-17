@@ -6,6 +6,9 @@ export {
   countUsers,
   setTotpSecret,
   clearTotpSecret,
+  setRecoveryCodeHash,
+  clearRecoveryCodeHash,
+  updatePasswordHash,
 } from "./users";
 export { hashPassword, verifyPassword } from "./passwords";
 export { signJWT, verifyJWT, signTotpChallenge, verifyTotpChallenge } from "./jwt";
@@ -18,3 +21,8 @@ export {
   getTotpQrCode,
   verifyTotpCode,
 } from "./totp";
+export {
+  generateRecoveryCode,
+  hashRecoveryCode,
+  verifyRecoveryCode,
+} from "./recovery";

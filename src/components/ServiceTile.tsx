@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ServiceWidget, WidgetPosition } from "@/config/schema";
+import type { WidgetPosition } from "@/config/schema";
 import { WidgetRenderer } from "./WidgetRenderer";
+
+// Client-safe slice of ServiceWidget: the config (credentials) stays on the
+// server — the widget data API looks it up in settings.yaml by service name.
+export interface TileWidget {
+  type: string;
+  refresh_interval_ms?: number;
+}
 
 interface ServiceTileProps {
   name: string;
   url?: string;
   icon?: string;
   description?: string;
-  widget?: ServiceWidget;
+  widget?: TileWidget;
   position?: WidgetPosition;
 }
 
