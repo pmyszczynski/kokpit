@@ -1389,7 +1389,7 @@ button {
 
 .docker-widget__stale-error {
   font-size: 0.7rem;
-  color: #f87171;
+  color: var(--color-error);
   text-align: center;
   padding: 4px 0;
   flex-shrink: 0;
@@ -1410,7 +1410,7 @@ button {
 }
 
 .docker-widget__hint--error {
-  color: #f87171;
+  color: var(--color-error);
 }
 
 /* ── Sonarr calendar widget ──────────────────────────────────────────────── */

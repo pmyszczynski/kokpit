@@ -99,7 +99,7 @@ describe("POST /api/widget/test", () => {
   });
 
   it.each(allWidgets)(
-    "$id: rejects an empty config per its schema without fetching",
+    "$id: validates an empty config according to its schema",
     async ({ id, emptyConfigValid }) => {
       // The docker widget doesn't use global fetch — it speaks node:http over
       // a unix socket. Point it at a guaranteed-missing socket so its attempt
