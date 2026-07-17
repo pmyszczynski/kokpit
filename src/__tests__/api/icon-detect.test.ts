@@ -58,7 +58,15 @@ function htmlResponse(html: string, url = "http://example.com/") {
   } as unknown as Response;
 }
 
-describe("GET /api/icon/detect", () => {
+function post(body: unknown) {
+  return new Request("http://localhost/api/icon/detect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+}
+
+describe("POST /api/icon/detect", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
@@ -66,18 +74,30 @@ describe("GET /api/icon/detect", () => {
     vi.mocked(readFileSync).mockReturnValue(AUTH_DISABLED_YAML);
   });
 
-  it("returns 400 when url param is missing", async () => {
-    const { GET } = await import("../../app/api/icon/detect/route");
-    const req = new Request("http://localhost/api/icon/detect");
-    const res = await GET(req);
+  it("returns 400 for malformed JSON", async () => {
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post("not json"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/invalid json/i);
+  });
+
+  it("returns 400 when url is missing", async () => {
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({}));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/missing/i);
   });
 
-  it("returns 400 when url param is not a valid URL", async () => {
-    const { GET } = await import("../../app/api/icon/detect/route");
-    const req = new Request("http://localhost/api/icon/detect?url=not-a-url");
-    const res = await GET(req);
+  it("returns 400 when url is not a valid URL", async () => {
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "not-a-url" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/invalid/i);
+  });
+
+  it("returns 400 for a non-http(s) url", async () => {
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "ftp://example.com/file" }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/invalid/i);
   });
@@ -92,11 +112,8 @@ describe("GET /api/icon/detect", () => {
         )
       )
     );
-    const { GET } = await import("../../app/api/icon/detect/route");
-    const req = new Request(
-      "http://localhost/api/icon/detect?url=http%3A%2F%2Fexample.com"
-    );
-    const res = await GET(req);
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "http://example.com" }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual({ icon: "http://example.com/icon.png", source: "page" });
@@ -107,18 +124,38 @@ describe("GET /api/icon/detect", () => {
       "fetch",
       vi.fn().mockResolvedValue({ status: 404, ok: false } as Response)
     );
-    const { GET } = await import("../../app/api/icon/detect/route");
-    const req = new Request(
-      "http://localhost/api/icon/detect?url=http%3A%2F%2Fexample.com"
-    );
-    const res = await GET(req);
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "http://example.com" }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual({ icon: null, source: null });
   });
+
+  it("returns icon: null for a blocked host (cloud metadata) without making a request", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "http://169.254.169.254/latest/meta-data/" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ icon: null, source: null });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not block loopback (kokpit and a target service commonly share a host)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        htmlResponse('<html><head><link rel="icon" href="/icon.png"></head></html>', "http://127.0.0.1:8080/")
+      )
+    );
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "http://127.0.0.1:8080" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).icon).not.toBeNull();
+  });
 });
 
-describe("GET /api/icon/detect – auth", () => {
+describe("POST /api/icon/detect – auth", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.mocked(existsSync).mockReturnValue(true);
@@ -133,11 +170,8 @@ describe("GET /api/icon/detect – auth", () => {
   it("returns 401 without a session when auth is enabled", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
-    const { GET } = await import("../../app/api/icon/detect/route");
-    const req = new Request(
-      "http://localhost/api/icon/detect?url=http%3A%2F%2Fexample.com"
-    );
-    const res = await GET(req);
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "http://example.com" }));
     expect(res.status).toBe(401);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

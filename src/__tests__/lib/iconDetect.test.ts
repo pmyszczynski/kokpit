@@ -32,6 +32,35 @@ describe("detectServiceIcon", () => {
     expect(result).toEqual({ icon: null, source: null });
   });
 
+  it.each([
+    "http://169.254.169.254/latest/meta-data/",
+    "http://100.100.100.200/",
+    "http://metadata.google.internal/",
+    "http://[fd00:ec2::254]",
+  ])("blocks cloud metadata target %s without making a request", async (url) => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await detectServiceIcon(url);
+    expect(result).toEqual({ icon: null, source: null });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "http://192.168.1.50",
+    "http://10.0.0.5",
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
+  ])("does not block LAN or loopback addresses (%s) — reaching them is the point", async (url) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        htmlResponse('<html><head><link rel="icon" href="/icon.png"></head></html>', url + "/")
+      )
+    );
+    const result = await detectServiceIcon(url);
+    expect(result.icon).not.toBeNull();
+  });
+
   it("returns null for an unparsable url", async () => {
     const result = await detectServiceIcon("not a url");
     expect(result).toEqual({ icon: null, source: null });

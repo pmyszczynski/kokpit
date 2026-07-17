@@ -197,6 +197,25 @@ async function detectSimpleIcons(target: URL): Promise<string | null> {
   }
 }
 
+// Cloud instance-metadata endpoints hand out credentials to anything
+// running on the host, no auth required — there is no scenario where one
+// is a legitimate "my self-hosted service" icon target, so blocking them
+// costs nothing. Deliberately narrow beyond that: no loopback or private-
+// LAN blocking, since kokpit and a target service commonly share a host
+// (NAS/homelab setups binding multiple apps to 127.0.0.1) and reaching
+// the LAN at all is the entire point of the feature. Only checks the
+// initial host, not redirect targets.
+const BLOCKED_HOSTNAMES = new Set([
+  "169.254.169.254", // AWS / GCP / Azure / DigitalOcean metadata
+  "100.100.100.200", // Alibaba Cloud metadata
+  "metadata.google.internal", // GCP metadata (alternate hostname)
+  "[fd00:ec2::254]", // AWS IMDSv2, IPv6
+]);
+
+function isBlockedTarget(target: URL): boolean {
+  return BLOCKED_HOSTNAMES.has(target.hostname.toLowerCase());
+}
+
 export async function detectServiceIcon(rawUrl: string): Promise<IconDetectionResult> {
   let target: URL;
   try {
@@ -205,6 +224,9 @@ export async function detectServiceIcon(rawUrl: string): Promise<IconDetectionRe
     return { icon: null, source: null };
   }
   if (target.protocol !== "http:" && target.protocol !== "https:") {
+    return { icon: null, source: null };
+  }
+  if (isBlockedTarget(target)) {
     return { icon: null, source: null };
   }
 

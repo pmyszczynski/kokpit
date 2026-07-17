@@ -380,7 +380,11 @@ export default function ServiceForm({
     const requestId = ++iconDetectRequestId.current;
     setIconDetectStatus({ state: "detecting" });
     try {
-      const res = await fetch(`/api/icon/detect?url=${encodeURIComponent(trimmedUrl)}`);
+      const res = await fetch("/api/icon/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
       if (iconDetectRequestId.current !== requestId) return;
       if (!res.ok) {
         setIconDetectStatus({ state: "error", message: "Icon detection failed" });

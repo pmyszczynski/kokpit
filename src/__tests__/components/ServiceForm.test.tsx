@@ -174,8 +174,11 @@ describe("ServiceForm – icon detection", () => {
       )
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/icon/detect?url=" + encodeURIComponent("http://jellyfin.local")
+      "/api/icon/detect",
+      expect.objectContaining({ method: "POST" })
     );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({ url: "http://jellyfin.local" });
   });
 
   it("shows a hint when no icon is found", async () => {
