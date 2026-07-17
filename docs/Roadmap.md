@@ -93,10 +93,10 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Calendar widget (CalDAV, Google Calendar via API key)
   - Search bar widget (configurable search engine)
 
-- [ ] `P1` **Docker auto-discovery**
-  - Detect running containers via Docker socket
-  - Auto-populate service tiles from container labels
-  - Label schema: `dashboard.name`, `dashboard.url`, `dashboard.icon`, `dashboard.group`
+- [x] `P1` **Docker widget** *(re-scoped from "Docker auto-discovery")*
+  - Widget listing active (running, paused, restarting) containers via the Docker socket (state, name, image, uptime) with a running/total summary
+  - Read-only Docker Engine API client over the unix socket; socket path configurable per widget or via `KOKPIT_DOCKER_SOCKET`
+  - Deferred to backlog: label-based tile auto-discovery (auto-populate service tiles from container labels)
 
 - [ ] `P2` **Bookmarks & groups**
   - Bookmark links separate from service tiles
@@ -186,6 +186,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 > Ideas captured but not yet prioritized into a phase.
 
+- [ ] Docker label-based auto-discovery (auto-populate service tiles from `dashboard.*` container labels)
 - [ ] Workspace view (multiple services open in iframes side by side)
 - [ ] Notification center (pull alerts from integrated services)
 - [ ] CLI tool for config management (`dashboard config set`, `dashboard backup`)

@@ -1,10 +1,15 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
+import { isRequestAuthenticated } from "@/auth";
 import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "./_timeout";
 
 export async function GET(request: Request) {
+  if (!(await isRequestAuthenticated())) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
   const service = searchParams.get("service");

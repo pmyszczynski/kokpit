@@ -1291,6 +1291,128 @@ button {
   color: #f87171;
 }
 
+/* ── Docker widget ───────────────────────────────────────────────────────── */
+
+.docker-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docker-widget__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 4px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.docker-widget__summary-total {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.docker-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.docker-widget__row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, auto);
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.docker-widget__row:last-child {
+  border-bottom: none;
+}
+
+.docker-widget__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.docker-widget__dot--running {
+  background: #22c55e;
+}
+
+.docker-widget__dot--warning {
+  background: #fbbf24;
+}
+
+.docker-widget__dot--stopped {
+  background: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.docker-widget__name {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.docker-widget__image {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.docker-widget__status {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  max-width: 90px;
+}
+
+.docker-widget__stale-error {
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.docker-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.docker-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.docker-widget__hint--error {
+  color: var(--color-error);
+}
+
 /* ── Sonarr calendar widget ──────────────────────────────────────────────── */
 
 .sonarr-calendar-widget {

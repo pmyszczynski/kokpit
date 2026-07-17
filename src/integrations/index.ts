@@ -20,5 +20,6 @@ import "./netdata/diskIoWidget";
 import "./netdata/diskSpaceWidget";
 import "./netdata/loadWidget";
 import "./netdata/sensorWidget";
+import "./docker/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

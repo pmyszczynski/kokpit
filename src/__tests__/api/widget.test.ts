@@ -14,6 +14,9 @@ vi.mock("node:fs", () => {
     mkdirSync,
   };
 });
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
+}));
 
 import { existsSync, readFileSync } from "node:fs";
 
@@ -46,6 +49,8 @@ services:
     widget:
       type: not-a-real-widget
 `.trim();
+
+const AUTH_ENABLED_YAML = SERVICES_YAML.replace("enabled: false", "enabled: true");
 
 function get(params: Record<string, string>) {
   const qs = new URLSearchParams(params).toString();
@@ -167,5 +172,31 @@ describe("GET /api/widget", () => {
     const res = await resPromise;
     expect(res.status).toBe(504);
     expect((await res.json()).error).toMatch(/timed out/i);
+  });
+});
+
+describe("GET /api/widget – auth", () => {
+  beforeEach(() => {
+    vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
+    process.env.KOKPIT_AUTH_DISABLED = "false";
+  });
+
+  afterEach(() => {
+    delete process.env.KOKPIT_AUTH_DISABLED;
+  });
+
+  it("returns 401 without a session when auth is enabled", async () => {
+    const { GET } = await import("../../app/api/widget/route");
+    const res = await GET(get({ type: "plex", service: "Plex" }));
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toMatch(/unauthorized/i);
+  });
+
+  it("proceeds without a session when KOKPIT_AUTH_DISABLED is set", async () => {
+    process.env.KOKPIT_AUTH_DISABLED = "true";
+    const { GET } = await import("../../app/api/widget/route");
+    const res = await GET(get({ type: "plex", service: "Ghost" }));
+    // Auth passed; fails later on service lookup instead.
+    expect(res.status).toBe(404);
   });
 });

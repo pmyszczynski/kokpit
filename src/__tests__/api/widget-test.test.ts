@@ -99,8 +99,12 @@ describe("POST /api/widget/test", () => {
   });
 
   it.each(allWidgets)(
-    "$id: rejects an empty config per its schema without fetching",
+    "$id: validates an empty config according to its schema",
     async ({ id, emptyConfigValid }) => {
+      // The docker widget doesn't use global fetch — it speaks node:http over
+      // a unix socket. Point it at a guaranteed-missing socket so its attempt
+      // fails deterministically regardless of the host running the tests.
+      vi.stubEnv("KOKPIT_DOCKER_SOCKET", "/nonexistent/docker.sock");
       const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
       vi.stubGlobal("fetch", fetchMock);
       const { POST } = await import("../../app/api/widget/test/route");
@@ -108,7 +112,9 @@ describe("POST /api/widget/test", () => {
       if (emptyConfigValid) {
         // Schema accepts an empty config — the endpoint attempts the fetch.
         expect(res.status).toBe(500);
-        expect(fetchMock).toHaveBeenCalled();
+        if (id !== "docker") {
+          expect(fetchMock).toHaveBeenCalled();
+        }
       } else {
         expect(res.status).toBe(400);
         expect((await res.json()).error).toMatch(/invalid widget config/i);

@@ -48,3 +48,6 @@ e2e/fixtures/auth-test-users.db*
 
 # claude code local settings (per-developer, not shared)
 .claude/settings.local.json
+
+# implementation plans (working documents, not shared)
+docs/plans/

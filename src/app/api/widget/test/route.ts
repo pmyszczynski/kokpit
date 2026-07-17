@@ -1,7 +1,7 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
+import { isRequestAuthenticated } from "@/auth";
 import { getWidget } from "@/widgets";
-import { checkAuth } from "../../_auth";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "../_timeout";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
@@ -10,7 +10,7 @@ import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "../_timeout";
 // endpoint triggers server-side requests to caller-supplied URLs, so it is
 // strictly auth-gated.
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await isRequestAuthenticated())) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { isRequestAuthenticated } from "@/auth";
 import { getConfig, writeConfig } from "@/config";
-import { checkAuth } from "../_auth";
 
 const PatchBodySchema = z.object({
   appearance: z
@@ -56,7 +56,7 @@ const PatchBodySchema = z.object({
 });
 
 export async function GET() {
-  if (!(await checkAuth())) {
+  if (!(await isRequestAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -65,7 +65,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await checkAuth())) {
+  if (!(await isRequestAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

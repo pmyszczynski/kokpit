@@ -1,10 +1,49 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("node:fs", () => {
+  const readFileSync = vi.fn();
+  const writeFileSync = vi.fn();
+  const existsSync = vi.fn().mockReturnValue(true);
+  const mkdirSync = vi.fn();
+  return {
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    readFileSync,
+    writeFileSync,
+    existsSync,
+    mkdirSync,
+  };
+});
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
+}));
+
+process.env.KOKPIT_AUTH_DISABLED = "true";
+
+import { existsSync, readFileSync } from "node:fs";
+
+const AUTH_DISABLED_YAML = `
+schema_version: 1
+auth:
+  enabled: false
+  session_ttl_hours: 24
+services: []
+`.trim();
+
+const AUTH_ENABLED_YAML = `
+schema_version: 1
+auth:
+  enabled: true
+  session_ttl_hours: 24
+services: []
+`.trim();
 
 describe("GET /api/ping", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(AUTH_DISABLED_YAML);
   });
 
   it("returns 400 when url param is missing", async () => {
@@ -99,5 +138,44 @@ describe("GET /api/ping", () => {
     const res = await GET(req);
     const json = await res.json();
     expect(json.ok).toBe(false);
+  });
+});
+
+describe("GET /api/ping – auth", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
+    process.env.KOKPIT_AUTH_DISABLED = "false";
+  });
+
+  afterEach(() => {
+    process.env.KOKPIT_AUTH_DISABLED = "true";
+  });
+
+  it("returns 401 without a session when auth is enabled", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { GET } = await import("../../app/api/ping/route");
+    const req = new Request(
+      "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("succeeds without a session when KOKPIT_AUTH_DISABLED is set", async () => {
+    process.env.KOKPIT_AUTH_DISABLED = "true";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({ status: 200 } as Response)
+    );
+    const { GET } = await import("../../app/api/ping/route");
+    const req = new Request(
+      "http://localhost/api/ping?url=http%3A%2F%2Fexample.com"
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
   });
 });
