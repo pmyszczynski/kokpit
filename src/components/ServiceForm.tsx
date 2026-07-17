@@ -94,6 +94,21 @@ type TestStatus =
   | { state: "success" }
   | { state: "error"; message: string };
 
+type IconDetectStatus =
+  | { state: "idle" }
+  | { state: "detecting" }
+  | { state: "not-found" }
+  | { state: "error"; message: string };
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function GroupCombobox({
   value,
   onChange,
@@ -253,6 +268,8 @@ export default function ServiceForm({
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
+  const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
+  const [iconPreviewError, setIconPreviewError] = useState(false);
 
   const presetWidgets = getWidgetsWithServiceEditorPreset();
 
@@ -311,6 +328,8 @@ export default function ServiceForm({
     if (def?.serviceEditorPreset) {
       setName(def.serviceEditorPreset.defaultName);
       setIcon(def.serviceEditorPreset.defaultIconUrl);
+      setIconPreviewError(false);
+      setIconDetectStatus({ state: "idle" });
     }
   }
 
@@ -339,6 +358,32 @@ export default function ServiceForm({
       setTestStatus({
         state: "error",
         message: err instanceof Error ? err.message : "Connection test failed",
+      });
+    }
+  }
+
+  function updateIcon(value: string) {
+    setIcon(value);
+    setIconPreviewError(false);
+  }
+
+  async function handleDetectIcon() {
+    const trimmedUrl = url.trim();
+    if (!isValidHttpUrl(trimmedUrl)) return;
+    setIconDetectStatus({ state: "detecting" });
+    try {
+      const res = await fetch(`/api/icon/detect?url=${encodeURIComponent(trimmedUrl)}`);
+      const json = (await res.json()) as { icon: string | null };
+      if (json.icon) {
+        updateIcon(json.icon);
+        setIconDetectStatus({ state: "idle" });
+      } else {
+        setIconDetectStatus({ state: "not-found" });
+      }
+    } catch (err) {
+      setIconDetectStatus({
+        state: "error",
+        message: err instanceof Error ? err.message : "Icon detection failed",
       });
     }
   }
@@ -480,14 +525,45 @@ export default function ServiceForm({
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>
-          <input
-            id="sf-icon"
-            type="text"
-            className="settings-input"
-            value={icon}
-            onChange={(e) => setIcon(e.target.value)}
-            placeholder="https://example.com/icon.png"
-          />
+          <div className="service-form__icon-row">
+            {icon.trim() !== "" && !iconPreviewError && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={icon}
+                alt=""
+                className="service-form__icon-preview"
+                onError={() => setIconPreviewError(true)}
+              />
+            )}
+            <input
+              id="sf-icon"
+              type="text"
+              className="settings-input"
+              value={icon}
+              onChange={(e) => updateIcon(e.target.value)}
+              placeholder="https://example.com/icon.png"
+            />
+            <button
+              type="button"
+              className="settings-btn service-form__icon-detect-btn"
+              onClick={handleDetectIcon}
+              disabled={
+                iconDetectStatus.state === "detecting" || !isValidHttpUrl(url)
+              }
+            >
+              {iconDetectStatus.state === "detecting" ? "Detecting…" : "Detect icon"}
+            </button>
+          </div>
+          {iconDetectStatus.state === "not-found" && (
+            <p className="settings-form-hint">
+              No icon found — enter a URL manually.
+            </p>
+          )}
+          {iconDetectStatus.state === "error" && (
+            <p className="settings-form-hint settings-form-hint--error" role="alert">
+              {iconDetectStatus.message}
+            </p>
+          )}
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-description">Description</label>

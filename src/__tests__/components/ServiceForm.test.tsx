@@ -133,6 +133,89 @@ describe("ServiceForm – submission", () => {
   });
 });
 
+describe("ServiceForm – icon detection", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("disables the Detect icon button until the URL field has a valid URL", () => {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    expect(screen.getByText("Detect icon")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "not-a-url" },
+    });
+    expect(screen.getByText("Detect icon")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://jellyfin.local" },
+    });
+    expect(screen.getByText("Detect icon")).toBeEnabled();
+  });
+
+  it("fills the Icon URL field when detection finds an icon", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ icon: "http://jellyfin.local/icon.png", source: "page" }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://jellyfin.local" },
+    });
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Icon URL")).toHaveValue(
+        "http://jellyfin.local/icon.png"
+      )
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/icon/detect?url=" + encodeURIComponent("http://jellyfin.local")
+    );
+  });
+
+  it("shows a hint when no icon is found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ icon: null, source: null }),
+      } as Response)
+    );
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://jellyfin.local" },
+    });
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/no icon found/i)).toBeInTheDocument()
+    );
+    expect(screen.getByLabelText("Icon URL")).toHaveValue("");
+  });
+
+  it("shows an error message when the request fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://jellyfin.local" },
+    });
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    await waitFor(() =>
+      expect(screen.getByText("network down")).toBeInTheDocument()
+    );
+  });
+});
+
 describe("ServiceForm – tile type", () => {
   it("does not show the Widget section when Generic is selected", () => {
     render(

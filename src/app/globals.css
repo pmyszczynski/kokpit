@@ -801,6 +801,32 @@ button {
   gap: 0.25rem;
 }
 
+.service-form__icon-row {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.service-form__icon-row input {
+  flex: 1;
+  width: auto;
+}
+
+.service-form__icon-preview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+  height: 28px;
+  object-fit: contain;
+  width: 28px;
+}
+
+.service-form__icon-detect-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .service-form__section-divider {
   display: flex;
   align-items: center;
