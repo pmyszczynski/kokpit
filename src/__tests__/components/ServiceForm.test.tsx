@@ -155,6 +155,7 @@ describe("ServiceForm – icon detection", () => {
 
   it("fills the Icon URL field when detection finds an icon", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ icon: "http://jellyfin.local/icon.png", source: "page" }),
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
@@ -181,6 +182,7 @@ describe("ServiceForm – icon detection", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
+        ok: true,
         json: () => Promise.resolve({ icon: null, source: null }),
       } as Response)
     );
@@ -212,6 +214,67 @@ describe("ServiceForm – icon detection", () => {
 
     await waitFor(() =>
       expect(screen.getByText("network down")).toBeInTheDocument()
+    );
+  });
+
+  it("shows an error message when the response is not ok (e.g. 401)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Unauthorized" }),
+      } as Response)
+    );
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://jellyfin.local" },
+    });
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/icon detection failed/i)).toBeInTheDocument()
+    );
+    expect(screen.getByLabelText("Icon URL")).toHaveValue("");
+  });
+
+  it("ignores a stale detect response once the user has since edited the icon manually", async () => {
+    let resolveFetch!: (value: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; })
+      )
+    );
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://jellyfin.local" },
+    });
+
+    // Detect request starts and is left pending (button disables while it's in flight).
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    // The user manually edits the icon field before the request resolves.
+    fireEvent.change(screen.getByLabelText("Icon URL"), {
+      target: { value: "http://manually-typed.example/icon.png" },
+    });
+
+    // The pending (now stale) request resolves with a different icon — it
+    // must not clobber what the user has since typed.
+    resolveFetch({
+      ok: true,
+      json: () => Promise.resolve({ icon: "http://jellyfin.local/detected.png", source: "page" }),
+    } as Response);
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByLabelText("Icon URL")).toHaveValue(
+      "http://manually-typed.example/icon.png"
     );
   });
 });

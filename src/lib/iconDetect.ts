@@ -56,9 +56,11 @@ function parseIconLinks(html: string): IconCandidate[] {
 
 function sizeScore(sizes: string | null): number {
   if (!sizes) return 0;
-  const match = sizes.match(/(\d+)x(\d+)/i);
-  if (!match) return 0;
-  return Number(match[1]) * Number(match[2]);
+  let max = 0;
+  for (const [, width, height] of sizes.matchAll(/(\d+)x(\d+)/gi)) {
+    max = Math.max(max, Number(width) * Number(height));
+  }
+  return max;
 }
 
 /**
@@ -84,7 +86,7 @@ function pickBestCandidate(candidates: IconCandidate[]): IconCandidate | null {
 
 function scoreCandidate(candidate: IconCandidate): number {
   if (candidate.type === "image/svg+xml" || candidate.href.endsWith(".svg")) {
-    return 1_000_000;
+    return Number.POSITIVE_INFINITY;
   }
   const bySize = sizeScore(candidate.sizes);
   if (bySize > 0) return bySize;
@@ -114,26 +116,32 @@ async function readBodyCapped(response: Response, maxBytes: number): Promise<str
 }
 
 async function detectFromPage(target: URL): Promise<string | null> {
-  const response = await fetchWithHardTimeout(
-    (signal) =>
-      fetch(target.toString(), {
+  // Body-reading happens inside the same hard-timeout callback as the
+  // fetch itself: fetch() resolving only means headers arrived, and a
+  // server that stalls the body stream afterward would otherwise hang
+  // past the 5s budget once the timeout race has already resolved.
+  const page = await fetchWithHardTimeout(
+    async (signal) => {
+      const response = await fetch(target.toString(), {
         method: "GET",
         signal,
         redirect: "follow",
         headers: { Accept: "text/html" },
-      }),
+      });
+      if (!response.ok) return null;
+      return { html: await readBodyCapped(response, MAX_HTML_BYTES), finalUrl: response.url };
+    },
     "Page fetch timed out",
     DETECT_TIMEOUT_MS
   );
-  if (!response.ok) return null;
+  if (!page) return null;
 
-  const html = await readBodyCapped(response, MAX_HTML_BYTES);
-  const candidates = parseIconLinks(html);
+  const candidates = parseIconLinks(page.html);
   const best = pickBestCandidate(candidates);
   if (!best) return null;
 
   try {
-    return new URL(best.href, response.url || target.toString()).href;
+    return new URL(best.href, page.finalUrl || target.toString()).href;
   } catch {
     return null;
   }
@@ -143,7 +151,14 @@ async function detectFavicon(target: URL): Promise<string | null> {
   const faviconUrl = new URL("/favicon.ico", target).href;
   try {
     const response = await fetchWithHardTimeout(
-      (signal) => fetch(faviconUrl, { method: "HEAD", signal, redirect: "follow" }),
+      async (signal) => {
+        let res = await fetch(faviconUrl, { method: "HEAD", signal, redirect: "follow" });
+        // Some servers don't allow HEAD — fall back to GET, same as /api/ping.
+        if (res.status === 405 || res.status === 501) {
+          res = await fetch(faviconUrl, { method: "GET", signal, redirect: "follow" });
+        }
+        return res;
+      },
       "Favicon fetch timed out",
       DETECT_TIMEOUT_MS
     );

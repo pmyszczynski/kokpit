@@ -330,6 +330,7 @@ export default function ServiceForm({
       setIcon(def.serviceEditorPreset.defaultIconUrl);
       setIconPreviewError(false);
       setIconDetectStatus({ state: "idle" });
+      iconDetectRequestId.current++;
     }
   }
 
@@ -367,13 +368,26 @@ export default function ServiceForm({
     setIconPreviewError(false);
   }
 
+  // Bumped on every manual URL/icon edit and at the start of each detect
+  // request. A response is only applied if this still matches the id it
+  // was issued under — guards against a slow/superseded request landing
+  // after the user has since edited the field or re-clicked the button.
+  const iconDetectRequestId = useRef(0);
+
   async function handleDetectIcon() {
     const trimmedUrl = url.trim();
     if (!isValidHttpUrl(trimmedUrl)) return;
+    const requestId = ++iconDetectRequestId.current;
     setIconDetectStatus({ state: "detecting" });
     try {
       const res = await fetch(`/api/icon/detect?url=${encodeURIComponent(trimmedUrl)}`);
+      if (iconDetectRequestId.current !== requestId) return;
+      if (!res.ok) {
+        setIconDetectStatus({ state: "error", message: "Icon detection failed" });
+        return;
+      }
       const json = (await res.json()) as { icon: string | null };
+      if (iconDetectRequestId.current !== requestId) return;
       if (json.icon) {
         updateIcon(json.icon);
         setIconDetectStatus({ state: "idle" });
@@ -381,6 +395,7 @@ export default function ServiceForm({
         setIconDetectStatus({ state: "not-found" });
       }
     } catch (err) {
+      if (iconDetectRequestId.current !== requestId) return;
       setIconDetectStatus({
         state: "error",
         message: err instanceof Error ? err.message : "Icon detection failed",
@@ -519,7 +534,10 @@ export default function ServiceForm({
             type="url"
             className="settings-input"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              iconDetectRequestId.current++;
+            }}
             placeholder="https://jellyfin.example.com"
           />
         </div>
@@ -540,7 +558,10 @@ export default function ServiceForm({
               type="text"
               className="settings-input"
               value={icon}
-              onChange={(e) => updateIcon(e.target.value)}
+              onChange={(e) => {
+                updateIcon(e.target.value);
+                iconDetectRequestId.current++;
+              }}
               placeholder="https://example.com/icon.png"
             />
             <button

@@ -17,7 +17,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    new URL(raw);
+    const target = new URL(raw);
+    if (target.protocol !== "http:" && target.protocol !== "https:") {
+      return NextResponse.json({ error: "Invalid url parameter" }, { status: 400 });
+    }
   } catch {
     return NextResponse.json({ error: "Invalid url parameter" }, { status: 400 });
   }
