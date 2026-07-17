@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Service,
   ServiceWidget,
@@ -130,13 +131,20 @@ function GroupCombobox({
   groups: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLUListElement>(null);
 
   const suggestions = value.trim()
     ? groups.filter((g) => g.toLowerCase().includes(value.toLowerCase().trim()))
     : groups;
 
   const isNew = value.trim() !== "" && !groups.some((g) => g.toLowerCase() === value.toLowerCase().trim());
+  const showDropdown = open && (suggestions.length > 0 || isNew);
 
   function select(g: string) {
     onChange(g);
@@ -144,11 +152,41 @@ function GroupCombobox({
   }
 
   function handleBlur(e: React.FocusEvent) {
-    // Only close if focus moves outside the container
-    if (!containerRef.current?.contains(e.relatedTarget as Node)) {
-      setOpen(false);
+    const next = e.relatedTarget as Node | null;
+    if (
+      containerRef.current?.contains(next) ||
+      dropdownRef.current?.contains(next)
+    ) {
+      return;
     }
+    setOpen(false);
   }
+
+  useLayoutEffect(() => {
+    if (!showDropdown || !containerRef.current) {
+      setCoords(null);
+      return;
+    }
+
+    function updatePosition() {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    // Capture scrolls from the dialog form body (and other ancestors).
+    document.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      document.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [showDropdown, suggestions.length, isNew, value]);
 
   return (
     <div ref={containerRef} className="group-combobox" onBlur={handleBlur}>
@@ -162,31 +200,43 @@ function GroupCombobox({
         placeholder="Media"
         autoComplete="off"
       />
-      {open && (suggestions.length > 0 || isNew) && (
-        <ul className="group-combobox__dropdown" role="listbox">
-          {suggestions.map((g) => (
-            <li
-              key={g}
-              role="option"
-              aria-selected={g === value}
-              className={`group-combobox__option${g === value ? " group-combobox__option--selected" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); select(g); }}
-            >
-              {g}
-            </li>
-          ))}
-          {isNew && (
-            <li
-              role="option"
-              aria-selected={false}
-              className="group-combobox__option group-combobox__option--new"
-              onMouseDown={(e) => { e.preventDefault(); select(value.trim()); }}
-            >
-              Create &ldquo;{value.trim()}&rdquo;
-            </li>
-          )}
-        </ul>
-      )}
+      {showDropdown &&
+        coords &&
+        createPortal(
+          <ul
+            ref={dropdownRef}
+            className="group-combobox__dropdown"
+            role="listbox"
+            style={{
+              top: coords.top,
+              left: coords.left,
+              width: coords.width,
+            }}
+          >
+            {suggestions.map((g) => (
+              <li
+                key={g}
+                role="option"
+                aria-selected={g === value}
+                className={`group-combobox__option${g === value ? " group-combobox__option--selected" : ""}`}
+                onMouseDown={(e) => { e.preventDefault(); select(g); }}
+              >
+                {g}
+              </li>
+            ))}
+            {isNew && (
+              <li
+                role="option"
+                aria-selected={false}
+                className="group-combobox__option group-combobox__option--new"
+                onMouseDown={(e) => { e.preventDefault(); select(value.trim()); }}
+              >
+                Create &ldquo;{value.trim()}&rdquo;
+              </li>
+            )}
+          </ul>,
+          document.body
+        )}
     </div>
   );
 }
@@ -489,6 +539,7 @@ export default function ServiceForm({
         </button>
       </div>
       <form onSubmit={handleSubmit} className="service-form">
+        <div className="service-form__body">
         <div className="settings-form-row">
           <label htmlFor="sf-tile-type">Tile type</label>
           <select
@@ -732,6 +783,7 @@ export default function ServiceForm({
             </div>
           </>
         )}
+        </div>
 
         <div className="service-form__actions">
           <button type="button" className="settings-btn" onClick={handleClose}>
