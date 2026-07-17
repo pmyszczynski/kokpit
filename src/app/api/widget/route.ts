@@ -2,6 +2,7 @@ import "@/integrations";
 import { NextResponse } from "next/server";
 import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
+import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "./_timeout";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -44,21 +45,19 @@ export async function GET(request: Request) {
     );
   }
 
-  // Use an AbortController so the timeout actually cancels the widget's fetch, not just the race.
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(new Error("Widget fetch timed out")), 5000);
   try {
-    const data = await widget.fetchData(parsed.data, ac.signal);
+    const data = await fetchWithHardTimeout(
+      (signal) => widget.fetchData(parsed.data, signal),
+      "Widget fetch timed out"
+    );
     return NextResponse.json({ ok: true, data });
   } catch (err) {
-    if (ac.signal.aborted) {
-      return NextResponse.json({ ok: false, error: "Widget fetch timed out" }, { status: 504 });
+    if (err instanceof WidgetFetchTimeoutError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
     }
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Widget fetch failed" },
       { status: 500 }
     );
-  } finally {
-    clearTimeout(timer);
   }
 }

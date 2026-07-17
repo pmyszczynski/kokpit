@@ -1,20 +1,7 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getAuthUser, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfig, writeConfig } from "@/config";
-
-async function checkAuth(): Promise<boolean> {
-  const config = getConfig();
-  const authEnabled =
-    config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
-  if (!authEnabled) return true;
-
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const user = await getAuthUser(token);
-  return !!user;
-}
+import { checkAuth } from "../_auth";
 
 const PatchBodySchema = z.object({
   appearance: z

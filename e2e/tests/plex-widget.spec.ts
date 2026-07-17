@@ -142,3 +142,69 @@ test("settings form saves Plex widget config and renders the tile", async ({
   const tile = page.locator(".service-tile").filter({ hasText: "My Plex" });
   await expect(tile.locator(".plex-widget")).toBeVisible({ timeout: 15_000 });
 });
+
+// ── Test 5 ───────────────────────────────────────────────────────────────────
+
+test("integration tile saved without widget config renders as a plain tile", async ({
+  page,
+}) => {
+  await page.goto("/settings");
+  await page.click("button.settings-tab:has-text('Services')");
+  await page.click("button:has-text('+ Add Service')");
+
+  // Pick Plex but leave the widget config completely empty.
+  await page.selectOption("#sf-tile-type", "plex");
+  await page.fill("#sf-name", "Plex Later");
+  await expect(page.getByText(/widget not configured/i)).toBeVisible();
+
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("dialog.service-form-dialog")).toBeHidden();
+
+  await page.goto("/");
+  const tile = page.locator(".service-tile").filter({ hasText: "Plex Later" });
+  await expect(tile).toBeVisible();
+  await expect(tile.locator(".service-tile__widget")).toHaveCount(0);
+  await expect(tile.locator(".widget-error")).toHaveCount(0);
+
+  // Re-opening the editor remembers the Plex tile type.
+  await page.goto("/settings");
+  await page.click("button.settings-tab:has-text('Services')");
+  await page.click(
+    ".service-table tr:has-text('Plex Later') button:has-text('Edit')"
+  );
+  await expect(page.locator("#sf-tile-type")).toHaveValue("plex");
+});
+
+// ── Test 6 ───────────────────────────────────────────────────────────────────
+
+test("Test connection button reports success and failure", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/settings");
+  await page.click("button.settings-tab:has-text('Services')");
+  await page.click("button:has-text('+ Add Service')");
+  await page.selectOption("#sf-tile-type", "plex");
+
+  // Disabled until the required widget fields are filled.
+  const testBtn = page.getByRole("button", { name: "Test connection" });
+  await expect(testBtn).toBeDisabled();
+
+  await page.fill("#sf-widget-url", MOCK);
+  await page.fill("#sf-widget-token", "test-token");
+  await expect(testBtn).toBeEnabled();
+
+  await testBtn.click();
+  await expect(page.getByText("Connection OK")).toBeVisible({ timeout: 15_000 });
+
+  // Flip the mock into an error state — the retest surfaces the failure.
+  await request.post(`${MOCK}/__control`, {
+    data: { ...DEFAULT_MOCK_STATE, error: 503 },
+  });
+  await page.fill("#sf-widget-token", "test-token-2");
+  await expect(page.getByText("Connection OK")).toBeHidden();
+  await testBtn.click();
+  await expect(page.getByText(/Plex responded with 503/)).toBeVisible({
+    timeout: 15_000,
+  });
+});
