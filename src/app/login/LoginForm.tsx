@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -158,6 +159,9 @@ export default function LoginForm() {
         <button type="submit" className="auth-submit-btn" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
+        <Link href="/reset-password" className="auth-back-btn">
+          Forgot password?
+        </Link>
       </form>
     </div>
   );

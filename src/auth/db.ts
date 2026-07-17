@@ -22,6 +22,11 @@ export function getDb(): Database.Database {
     )
   `);
 
+  const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "recovery_code_hash")) {
+    db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+  }
+
   return db;
 }
 

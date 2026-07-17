@@ -55,6 +55,11 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [totpMessage, setTotpMessage] = useState<string | null>(null);
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [totpDisableCode, setTotpDisableCode] = useState("");
+  const [showRecoveryConfirm, setShowRecoveryConfirm] = useState(false);
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [newRecoveryCode, setNewRecoveryCode] = useState<string | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const [recoveryPending, setRecoveryPending] = useState(false);
 
   // Services
   const [services, setServices] = useState<Service[]>(config.services);
@@ -139,6 +144,31 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       }
     } catch {
       setTotpMessage("Failed to disable 2FA");
+    }
+  }
+
+  async function handleRegenerateRecoveryCode() {
+    if (recoveryPending) return;
+    setRecoveryPending(true);
+    setRecoveryMessage(null);
+    try {
+      const res = await fetch("/api/auth/recovery-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: recoveryPassword }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setRecoveryPassword("");
+        setShowRecoveryConfirm(false);
+        setNewRecoveryCode(json.recoveryCode);
+      } else {
+        setRecoveryMessage((json as { error?: string }).error ?? "Failed to generate recovery code");
+      }
+    } catch {
+      setRecoveryMessage("Failed to generate recovery code");
+    } finally {
+      setRecoveryPending(false);
     }
   }
 
@@ -514,6 +544,68 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
 
             {totpMessage && (
               <p className="settings-hint">{totpMessage}</p>
+            )}
+
+            <h3 className="settings-section__subtitle">Password Recovery</h3>
+
+            {newRecoveryCode ? (
+              <div className="settings-form-row settings-form-row--column">
+                <p className="settings-hint">
+                  Save this code now — it will not be shown again. Your previous
+                  recovery code no longer works.
+                </p>
+                <code style={{ userSelect: "all", padding: "0.5rem", border: "1px solid currentColor", borderRadius: "4px" }}>
+                  {newRecoveryCode}
+                </code>
+                <button className="settings-btn" onClick={() => setNewRecoveryCode(null)}>
+                  Done
+                </button>
+              </div>
+            ) : !showRecoveryConfirm ? (
+              <div className="settings-form-row settings-form-row--column">
+                <p className="settings-hint">
+                  Your recovery code lets you reset your password from the login
+                  page without an email address. Generating a new one invalidates
+                  the old one.
+                </p>
+                <button className="settings-btn" onClick={() => { setShowRecoveryConfirm(true); setRecoveryMessage(null); }}>
+                  Generate new recovery code
+                </button>
+              </div>
+            ) : (
+              <div className="settings-form-row settings-form-row--column">
+                <p className="settings-hint">Enter your current password to confirm:</p>
+                <div className="settings-form-row">
+                  <label htmlFor="recovery-password">Password</label>
+                  <input
+                    id="recovery-password"
+                    type="password"
+                    value={recoveryPassword}
+                    onChange={(e) => setRecoveryPassword(e.target.value)}
+                    className="settings-input"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="settings-form-row">
+                  <button
+                    className="settings-save-btn"
+                    onClick={handleRegenerateRecoveryCode}
+                    disabled={!recoveryPassword || recoveryPending}
+                  >
+                    {recoveryPending ? "Generating…" : "Confirm"}
+                  </button>
+                  <button
+                    className="settings-btn"
+                    onClick={() => { setShowRecoveryConfirm(false); setRecoveryPassword(""); setRecoveryMessage(null); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {recoveryMessage && (
+              <p className="settings-hint">{recoveryMessage}</p>
             )}
           </section>
         )}
