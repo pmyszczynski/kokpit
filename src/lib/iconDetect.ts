@@ -1,4 +1,5 @@
 import { fetchWithHardTimeout } from "@/lib/fetchTimeout";
+import { ssrfSafeFetch } from "@/lib/ssrfGuard";
 
 const DETECT_TIMEOUT_MS = 5000;
 const MAX_HTML_BYTES = 100_000;
@@ -115,18 +116,18 @@ async function readBodyCapped(response: Response, maxBytes: number): Promise<str
   return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
 }
 
-async function detectFromPage(target: URL): Promise<string | null> {
+async function detectFromPage(target: URL, allowPrivateNetworks: boolean): Promise<string | null> {
   // Body-reading happens inside the same hard-timeout callback as the
   // fetch itself: fetch() resolving only means headers arrived, and a
   // server that stalls the body stream afterward would otherwise hang
   // past the 5s budget once the timeout race has already resolved.
   const page = await fetchWithHardTimeout(
     async (signal) => {
-      const response = await fetch(target.toString(), {
+      const response = await ssrfSafeFetch(target.toString(), {
         method: "GET",
         signal,
-        redirect: "follow",
         headers: { Accept: "text/html" },
+        allowPrivateNetworks,
       });
       if (!response.ok) return null;
       return { html: await readBodyCapped(response, MAX_HTML_BYTES), finalUrl: response.url };
@@ -147,15 +148,15 @@ async function detectFromPage(target: URL): Promise<string | null> {
   }
 }
 
-async function detectFavicon(target: URL): Promise<string | null> {
+async function detectFavicon(target: URL, allowPrivateNetworks: boolean): Promise<string | null> {
   const faviconUrl = new URL("/favicon.ico", target).href;
   try {
     const response = await fetchWithHardTimeout(
       async (signal) => {
-        let res = await fetch(faviconUrl, { method: "HEAD", signal, redirect: "follow" });
+        let res = await ssrfSafeFetch(faviconUrl, { method: "HEAD", signal, allowPrivateNetworks });
         // Some servers don't allow HEAD — fall back to GET, same as /api/ping.
         if (res.status === 405 || res.status === 501) {
-          res = await fetch(faviconUrl, { method: "GET", signal, redirect: "follow" });
+          res = await ssrfSafeFetch(faviconUrl, { method: "GET", signal, allowPrivateNetworks });
         }
         return res;
       },
@@ -187,7 +188,10 @@ async function detectSimpleIcons(target: URL): Promise<string | null> {
   const iconUrl = `https://cdn.simpleicons.org/${slug}`;
   try {
     const response = await fetchWithHardTimeout(
-      (signal) => fetch(iconUrl, { method: "HEAD", signal, redirect: "follow" }),
+      // Simple Icons is a fixed, well-known public CDN, not a caller-
+      // supplied host — still routed through the guard for consistency and
+      // redirect safety, but never needs private-network access.
+      (signal) => ssrfSafeFetch(iconUrl, { method: "HEAD", signal, allowPrivateNetworks: false }),
       "Simple Icons fetch timed out",
       DETECT_TIMEOUT_MS
     );
@@ -197,23 +201,16 @@ async function detectSimpleIcons(target: URL): Promise<string | null> {
   }
 }
 
-// Cloud instance-metadata endpoints hand out credentials to anything
-// running on the host, no auth required — there is no scenario where one
-// is a legitimate "my self-hosted service" icon target, so blocking them
-// costs nothing. Deliberately narrow beyond that: no loopback or private-
-// LAN blocking, since kokpit and a target service commonly share a host
-// (NAS/homelab setups binding multiple apps to 127.0.0.1) and reaching
-// the LAN at all is the entire point of the feature. Only checks the
-// initial host, not redirect targets.
-const BLOCKED_HOSTNAMES = new Set([
-  "169.254.169.254", // AWS / GCP / Azure / DigitalOcean metadata
-  "100.100.100.200", // Alibaba Cloud metadata
-  "metadata.google.internal", // GCP metadata (alternate hostname)
-  "[fd00:ec2::254]", // AWS IMDSv2, IPv6
-]);
-
-function isBlockedTarget(target: URL): boolean {
-  return BLOCKED_HOSTNAMES.has(target.hostname.toLowerCase());
+/**
+ * Off by default: kokpit's core use case is detecting icons for LAN-only
+ * self-hosted services, but shipping that reachable by default means any
+ * caller who can hit this endpoint can also reach the rest of your private
+ * network. Mirrors Heimdall's ALLOW_INTERNAL_REQUESTS — safe by default,
+ * opt in if you want it. Cloud metadata addresses stay blocked either way
+ * (see ssrfGuard.ts).
+ */
+function allowPrivateNetworksEnabled(): boolean {
+  return process.env.KOKPIT_ICON_DETECT_ALLOW_PRIVATE_NETWORKS === "true";
 }
 
 export async function detectServiceIcon(rawUrl: string): Promise<IconDetectionResult> {
@@ -226,18 +223,17 @@ export async function detectServiceIcon(rawUrl: string): Promise<IconDetectionRe
   if (target.protocol !== "http:" && target.protocol !== "https:") {
     return { icon: null, source: null };
   }
-  if (isBlockedTarget(target)) {
-    return { icon: null, source: null };
-  }
+
+  const allowPrivateNetworks = allowPrivateNetworksEnabled();
 
   try {
-    const fromPage = await detectFromPage(target);
+    const fromPage = await detectFromPage(target, allowPrivateNetworks);
     if (fromPage) return { icon: fromPage, source: "page" };
   } catch {
     // fall through to the next strategy
   }
 
-  const favicon = await detectFavicon(target);
+  const favicon = await detectFavicon(target, allowPrivateNetworks);
   if (favicon) return { icon: favicon, source: "favicon" };
 
   const simpleIcon = await detectSimpleIcons(target);

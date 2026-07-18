@@ -18,9 +18,30 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
 }));
 
+const dnsLookupMock = vi.fn();
+vi.mock("node:dns/promises", () => ({
+  lookup: (...args: unknown[]) => dnsLookupMock(...args),
+}));
+
+const undiciFetchMock = vi.fn();
+vi.mock("undici", () => ({
+  fetch: (...args: unknown[]) => undiciFetchMock(...args),
+  Agent: class {
+    constructor(_opts: unknown) {}
+  },
+}));
+
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
 import { existsSync, readFileSync } from "node:fs";
+
+const PUBLIC_IP = "93.184.216.34";
+const LOOPBACK_IP = "127.0.0.1";
+const METADATA_IP = "169.254.169.254";
+
+function resolvesTo(ip: string, family: 4 | 6 = 4) {
+  return [{ address: ip, family }];
+}
 
 const AUTH_DISABLED_YAML = `
 schema_version: 1
@@ -41,7 +62,9 @@ services: []
 function htmlResponse(html: string, url = "http://example.com/") {
   return {
     ok: true,
+    status: 200,
     url,
+    headers: new Headers({ "content-type": "text/html" }),
     body: {
       getReader: () => {
         let done = false;
@@ -55,7 +78,11 @@ function htmlResponse(html: string, url = "http://example.com/") {
         };
       },
     },
-  } as unknown as Response;
+  };
+}
+
+function plainResponse(status: number, headers: Record<string, string> = {}) {
+  return { ok: status >= 200 && status < 300, status, url: "", headers: new Headers(headers) };
 }
 
 function post(body: unknown) {
@@ -70,8 +97,15 @@ describe("POST /api/icon/detect", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
+    dnsLookupMock.mockReset();
+    undiciFetchMock.mockReset();
+    dnsLookupMock.mockResolvedValue(resolvesTo(PUBLIC_IP));
     vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(AUTH_DISABLED_YAML);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("returns 400 for malformed JSON", async () => {
@@ -86,8 +120,6 @@ describe("POST /api/icon/detect", () => {
     // enctype="text/plain" as a CORS-simple request (no preflight, no
     // user click needed) — browsers can't set application/json from a
     // plain form, only from script, so this must be rejected.
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
     const { POST } = await import("../../app/api/icon/detect/route");
     const req = new Request("http://localhost/api/icon/detect", {
       method: "POST",
@@ -96,7 +128,7 @@ describe("POST /api/icon/detect", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(415);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 when url is missing", async () => {
@@ -121,14 +153,8 @@ describe("POST /api/icon/detect", () => {
   });
 
   it("returns the icon found on the page", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValueOnce(
-        htmlResponse(
-          '<html><head><link rel="icon" href="/icon.png"></head></html>',
-          "http://example.com/"
-        )
-      )
+    undiciFetchMock.mockResolvedValueOnce(
+      htmlResponse('<html><head><link rel="icon" href="/icon.png"></head></html>', "http://example.com/")
     );
     const { POST } = await import("../../app/api/icon/detect/route");
     const res = await POST(post({ url: "http://example.com" }));
@@ -138,10 +164,7 @@ describe("POST /api/icon/detect", () => {
   });
 
   it("returns icon: null when nothing is found", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ status: 404, ok: false } as Response)
-    );
+    undiciFetchMock.mockResolvedValue(plainResponse(404));
     const { POST } = await import("../../app/api/icon/detect/route");
     const res = await POST(post({ url: "http://example.com" }));
     expect(res.status).toBe(200);
@@ -150,21 +173,28 @@ describe("POST /api/icon/detect", () => {
   });
 
   it("returns icon: null for a blocked host (cloud metadata) without making a request", async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
+    dnsLookupMock.mockResolvedValue(resolvesTo(METADATA_IP));
     const { POST } = await import("../../app/api/icon/detect/route");
     const res = await POST(post({ url: "http://169.254.169.254/latest/meta-data/" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ icon: null, source: null });
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 
-  it("does not block loopback (kokpit and a target service commonly share a host)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValueOnce(
-        htmlResponse('<html><head><link rel="icon" href="/icon.png"></head></html>', "http://127.0.0.1:8080/")
-      )
+  it("blocks a LAN/loopback target by default", async () => {
+    dnsLookupMock.mockResolvedValue(resolvesTo(LOOPBACK_IP));
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const res = await POST(post({ url: "http://127.0.0.1:8080" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ icon: null, source: null });
+    expect(undiciFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a LAN/loopback target once KOKPIT_ICON_DETECT_ALLOW_PRIVATE_NETWORKS=true", async () => {
+    vi.stubEnv("KOKPIT_ICON_DETECT_ALLOW_PRIVATE_NETWORKS", "true");
+    dnsLookupMock.mockResolvedValue(resolvesTo(LOOPBACK_IP));
+    undiciFetchMock.mockResolvedValueOnce(
+      htmlResponse('<html><head><link rel="icon" href="/icon.png"></head></html>', "http://127.0.0.1:8080/")
     );
     const { POST } = await import("../../app/api/icon/detect/route");
     const res = await POST(post({ url: "http://127.0.0.1:8080" }));
@@ -176,6 +206,8 @@ describe("POST /api/icon/detect", () => {
 describe("POST /api/icon/detect – auth", () => {
   beforeEach(() => {
     vi.resetModules();
+    dnsLookupMock.mockReset();
+    undiciFetchMock.mockReset();
     vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
     process.env.KOKPIT_AUTH_DISABLED = "false";
@@ -186,11 +218,9 @@ describe("POST /api/icon/detect – auth", () => {
   });
 
   it("returns 401 without a session when auth is enabled", async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
     const { POST } = await import("../../app/api/icon/detect/route");
     const res = await POST(post({ url: "http://example.com" }));
     expect(res.status).toBe(401);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 });
