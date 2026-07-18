@@ -28,6 +28,9 @@ vi.mock("undici", () => ({
   fetch: (...args: unknown[]) => undiciFetchMock(...args),
   Agent: class {
     constructor(_opts: unknown) {}
+    close() {
+      return Promise.resolve();
+    }
   },
 }));
 

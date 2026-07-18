@@ -14,6 +14,9 @@ vi.mock("undici", () => ({
   // actually open a socket in these unit tests.
   Agent: class {
     constructor(_opts: unknown) {}
+    close() {
+      return Promise.resolve();
+    }
   },
 }));
 

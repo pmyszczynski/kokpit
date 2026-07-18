@@ -27,13 +27,23 @@ function isAllowedRange(range: string, allowPrivateNetworks: boolean): boolean {
   return false;
 }
 
+// URL.hostname keeps the brackets for an IPv6 literal (e.g. "[::1]"), but
+// dns.lookup() rejects a bracketed literal outright — without stripping
+// them, every IPv6-literal target would be refused as blocked regardless
+// of whether it's actually a public address.
+function unbracket(hostname: string): string {
+  return hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname;
+}
+
 async function resolveValidatedAddresses(
   hostname: string,
   allowPrivateNetworks: boolean
 ): Promise<{ address: string; family: 4 | 6 }[]> {
   let resolved: { address: string; family: number }[];
   try {
-    resolved = await dnsLookup(hostname, { all: true, verbatim: true });
+    resolved = await dnsLookup(unbracket(hostname), { all: true, verbatim: true });
   } catch {
     throw new SsrfBlockedError(hostname);
   }
@@ -123,6 +133,14 @@ export async function ssrfSafeFetch(
       redirect: "manual",
       dispatcher,
     })) as unknown as Response;
+
+    // Each hop gets its own dispatcher (a fresh one per validated address
+    // set), so it needs to be reclaimed once we're done with it — close()
+    // waits for any in-flight body read to finish before actually closing
+    // the socket, so this is safe to fire immediately without waiting on
+    // it, even though the caller may still be streaming the body of the
+    // response we're about to return.
+    void dispatcher.close().catch(() => {});
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");

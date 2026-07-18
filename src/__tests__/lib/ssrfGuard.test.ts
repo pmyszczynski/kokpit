@@ -11,6 +11,9 @@ vi.mock("undici", () => ({
   fetch: (...args: unknown[]) => undiciFetchMock(...args),
   Agent: class {
     constructor(_opts: unknown) {}
+    close() {
+      return Promise.resolve();
+    }
   },
 }));
 
@@ -82,6 +85,16 @@ describe("ssrfSafeFetch", () => {
       ssrfSafeFetch("http://target.example.com", { allowPrivateNetworks: true })
     ).rejects.toThrow(SsrfBlockedError);
     expect(undiciFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("strips brackets from an IPv6 literal before resolving (dns.lookup rejects a bracketed literal)", async () => {
+    dnsLookupMock.mockResolvedValue(resolvesTo("2606:4700:4700::1111", 6));
+    undiciFetchMock.mockResolvedValueOnce(response(200));
+    await ssrfSafeFetch("http://[2606:4700:4700::1111]:8080/", { allowPrivateNetworks: false });
+    expect(dnsLookupMock).toHaveBeenCalledWith(
+      "2606:4700:4700::1111",
+      expect.anything()
+    );
   });
 
   it("blocks when only one of several resolved addresses is disallowed", async () => {
