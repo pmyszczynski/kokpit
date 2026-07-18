@@ -89,6 +89,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Global backstop (defense-in-depth, RC1): belt-and-suspenders against any
+   future horizontal overflow source. The app has no `position: sticky`
+   descendants (navbar is a grid row; dialogs use the top layer; the
+   group-combobox dropdown is `position: absolute`), so this is low-risk.
+   The real guardrail is the per-element overflow sweep in
+   e2e/tests/mobile-layout.spec.ts, not this rule. */
+html,
+body {
+  overflow-x: hidden;
+}
+
 /* === FORM ELEMENT BASELINE ===
    Gives every raw <input>/<select>/<textarea>/<button> a themed look even
    before any component-specific class is applied, so forms never fall back
@@ -176,6 +187,14 @@ button {
 
 .shell-main {
   padding: var(--gap);
+  /* Backstop (RC1): without an explicit overflow-x, the CSS overflow spec
+     computes it to `auto` because overflow-y is non-visible, turning this
+     into a silent horizontal scroll container that hides real overflow from
+     document.documentElement.scrollWidth. Fix A removes the overflow source;
+     this just guards against any future regression by clipping instead of
+     scrolling sideways. It does not affect scrollWidth, so overflow is still
+     detectable by tests. */
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -222,19 +241,19 @@ button {
 /* Outer grid: stacked full-width sections only (no fixed row height — avoids stretching group headers). */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(var(--layout-columns-desktop, 4), 1fr);
+  grid-template-columns: repeat(var(--layout-columns-desktop, 4), minmax(0, 1fr));
   gap: var(--gap);
 }
 
 @media (max-width: 768px) {
   .dashboard-grid {
-    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), 1fr);
+    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), minmax(0, 1fr));
   }
 }
 
 @media (max-width: 480px) {
   .dashboard-grid {
-    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), 1fr);
+    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
   }
 }
 
@@ -242,22 +261,31 @@ button {
 .dashboard-tile-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(var(--layout-columns-desktop, 4), 1fr);
+  grid-template-columns: repeat(var(--layout-columns-desktop, 4), minmax(0, 1fr));
   grid-auto-rows: var(--layout-row-height-desktop, 120px);
   gap: var(--gap);
 }
 
 @media (max-width: 768px) {
   .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), 1fr);
+    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), minmax(0, 1fr));
     grid-auto-rows: var(--layout-row-height-tablet, var(--layout-row-height-desktop, 120px));
   }
 }
 
 @media (max-width: 480px) {
   .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), 1fr);
+    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
     grid-auto-rows: var(--layout-row-height-mobile, var(--layout-row-height-desktop, 120px));
+  }
+
+  /* RC4 (defensive): neutralize desktop-absolute inline grid-column/grid-row
+     positions (ServiceTile.tsx `position` prop) so tiles flow normally on
+     phones instead of retaining desktop coordinates that don't make sense
+     in a 1-2 column layout. Inline styles require !important to override. */
+  .dashboard-tile-grid > .service-tile {
+    grid-column: auto !important;
+    grid-row: auto !important;
   }
 }
 
@@ -275,6 +303,7 @@ button {
   color: var(--color-text);
   transition: background 150ms ease, border-color 150ms ease;
   cursor: pointer;
+  min-width: 0; /* grid item: allow shrinking below content width (RC3) */
 }
 
 .service-tile:hover {
@@ -306,12 +335,16 @@ button {
 .service-tile__name {
   font-weight: 600;
   font-size: 0.95rem;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long unbreakable tokens wrap instead of forcing width (RC3) */
 }
 
 .service-tile__description {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long unbreakable tokens wrap instead of forcing width (RC3) */
 }
 
 .service-tile__widget {
@@ -437,6 +470,7 @@ button {
 /* === SETTINGS TABS === */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap; /* RC5: wrap onto a second row instead of overflowing on narrow phones */
   gap: 4px;
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 0;
