@@ -40,6 +40,13 @@ services:
       # Optional — set to "true" to skip authentication entirely.
       # Only use this on a trusted local network behind a firewall.
       # KOKPIT_AUTH_DISABLED: "false"
+
+      # Optional — set to "true" to let the service editor's icon-detect
+      # feature fetch icons from LAN/loopback addresses. Off by default:
+      # icon detection only reaches ordinary public hosts, since anyone who
+      # can trigger it could otherwise probe your private network. Cloud
+      # metadata addresses stay blocked either way.
+      # KOKPIT_ICON_DETECT_ALLOW_PRIVATE_NETWORKS: "false"
     volumes:
       # All persistent state (settings.yaml + SQLite DB) lives here.
       # The image defaults both paths to /data — no extra config needed.
@@ -89,7 +96,7 @@ docker compose up kokpit --build
 
 ### Local development
 
-**Prerequisites:** Node.js 20+
+**Prerequisites:** Node.js 22.19.0+
 
 ```bash
 npm install

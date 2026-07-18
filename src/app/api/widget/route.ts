@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
 import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
-import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "./_timeout";
+import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 
 export async function GET(request: Request) {
   if (!(await isRequestAuthenticated())) {

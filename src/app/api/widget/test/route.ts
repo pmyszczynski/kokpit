@@ -2,7 +2,7 @@ import "@/integrations";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
 import { getWidget } from "@/widgets";
-import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "../_timeout";
+import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead

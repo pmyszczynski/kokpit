@@ -94,6 +94,32 @@ type TestStatus =
   | { state: "success" }
   | { state: "error"; message: string };
 
+type IconDetectStatus =
+  | { state: "idle" }
+  | { state: "detecting" }
+  | { state: "not-found" }
+  | { state: "error"; message: string };
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// Rejects non-http(s) URL schemes (e.g. "javascript:") before a value
+// reaches an <img src>. Browsers already refuse to execute those as image
+// sources, so this doesn't close a real exploit — it's a belt-and-suspenders
+// check with no behavior cost for legitimate icon URLs.
+function isSafeImagePreviewUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "") return false;
+  if (trimmed.startsWith("/")) return true;
+  return isValidHttpUrl(trimmed);
+}
+
 function GroupCombobox({
   value,
   onChange,
@@ -253,6 +279,8 @@ export default function ServiceForm({
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
+  const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
+  const [iconPreviewError, setIconPreviewError] = useState(false);
 
   const presetWidgets = getWidgetsWithServiceEditorPreset();
 
@@ -311,6 +339,9 @@ export default function ServiceForm({
     if (def?.serviceEditorPreset) {
       setName(def.serviceEditorPreset.defaultName);
       setIcon(def.serviceEditorPreset.defaultIconUrl);
+      setIconPreviewError(false);
+      setIconDetectStatus({ state: "idle" });
+      iconDetectRequestId.current++;
     }
   }
 
@@ -339,6 +370,50 @@ export default function ServiceForm({
       setTestStatus({
         state: "error",
         message: err instanceof Error ? err.message : "Connection test failed",
+      });
+    }
+  }
+
+  function updateIcon(value: string) {
+    setIcon(value);
+    setIconPreviewError(false);
+  }
+
+  // Bumped on every manual URL/icon edit and at the start of each detect
+  // request. A response is only applied if this still matches the id it
+  // was issued under — guards against a slow/superseded request landing
+  // after the user has since edited the field or re-clicked the button.
+  const iconDetectRequestId = useRef(0);
+
+  async function handleDetectIcon() {
+    const trimmedUrl = url.trim();
+    if (!isValidHttpUrl(trimmedUrl)) return;
+    const requestId = ++iconDetectRequestId.current;
+    setIconDetectStatus({ state: "detecting" });
+    try {
+      const res = await fetch("/api/icon/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
+      if (iconDetectRequestId.current !== requestId) return;
+      if (!res.ok) {
+        setIconDetectStatus({ state: "error", message: "Icon detection failed" });
+        return;
+      }
+      const json = (await res.json()) as { icon: string | null };
+      if (iconDetectRequestId.current !== requestId) return;
+      if (json.icon) {
+        updateIcon(json.icon);
+        setIconDetectStatus({ state: "idle" });
+      } else {
+        setIconDetectStatus({ state: "not-found" });
+      }
+    } catch (err) {
+      if (iconDetectRequestId.current !== requestId) return;
+      setIconDetectStatus({
+        state: "error",
+        message: err instanceof Error ? err.message : "Icon detection failed",
       });
     }
   }
@@ -474,20 +549,57 @@ export default function ServiceForm({
             type="url"
             className="settings-input"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              iconDetectRequestId.current++;
+            }}
             placeholder="https://jellyfin.example.com"
           />
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>
-          <input
-            id="sf-icon"
-            type="text"
-            className="settings-input"
-            value={icon}
-            onChange={(e) => setIcon(e.target.value)}
-            placeholder="https://example.com/icon.png"
-          />
+          <div className="service-form__icon-row">
+            {isSafeImagePreviewUrl(icon) && !iconPreviewError && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={icon}
+                alt=""
+                className="service-form__icon-preview"
+                onError={() => setIconPreviewError(true)}
+              />
+            )}
+            <input
+              id="sf-icon"
+              type="text"
+              className="settings-input"
+              value={icon}
+              onChange={(e) => {
+                updateIcon(e.target.value);
+                iconDetectRequestId.current++;
+              }}
+              placeholder="https://example.com/icon.png"
+            />
+            <button
+              type="button"
+              className="settings-btn service-form__icon-detect-btn"
+              onClick={handleDetectIcon}
+              disabled={
+                iconDetectStatus.state === "detecting" || !isValidHttpUrl(url)
+              }
+            >
+              {iconDetectStatus.state === "detecting" ? "Detecting…" : "Detect icon"}
+            </button>
+          </div>
+          {iconDetectStatus.state === "not-found" && (
+            <p className="settings-form-hint">
+              No icon found — enter a URL manually.
+            </p>
+          )}
+          {iconDetectStatus.state === "error" && (
+            <p className="settings-form-hint settings-form-hint--error" role="alert">
+              {iconDetectStatus.message}
+            </p>
+          )}
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-description">Description</label>
