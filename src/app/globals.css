@@ -282,10 +282,18 @@ button {
   /* RC4 (defensive): neutralize desktop-absolute inline grid-column/grid-row
      positions (ServiceTile.tsx `position` prop) so tiles flow normally on
      phones instead of retaining desktop coordinates that don't make sense
-     in a 1-2 column layout. Inline styles require !important to override. */
+     in a 1-2 column layout. Inline styles require !important to override.
+     - grid-column is fully reset (start position AND span): a configured
+       column span can exceed the mobile column count, which would create
+       an oversized implicit track and reintroduce horizontal overflow.
+     - grid-row only has its start position reset via the longhand below;
+       the row span (height) from the inline style is intentionally left
+       in place, since a taller row never causes horizontal overflow and
+       dropping it would needlessly shrink/clip widgets configured to need
+       extra vertical space. */
   .dashboard-tile-grid > .service-tile {
     grid-column: auto !important;
-    grid-row: auto !important;
+    grid-row-start: auto !important;
   }
 }
 

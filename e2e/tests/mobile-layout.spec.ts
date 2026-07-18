@@ -103,14 +103,17 @@ for (const viewport of VIEWPORTS) {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
     test.beforeEach(async ({ request }) => {
-      await request.post(`${MOCK}/__control`, { data: DEFAULT_MOCK_STATE });
-      await request.patch("/api/settings", {
+      const mockRes = await request.post(`${MOCK}/__control`, { data: DEFAULT_MOCK_STATE });
+      expect(mockRes.ok(), `Mock control endpoint failed: ${mockRes.status()}`).toBeTruthy();
+
+      const settingsRes = await request.patch("/api/settings", {
         data: {
           layout: { columns: 4, row_height: 120 }, // no mobile override -> reproduces default RC2
           appearance: { theme: "dark", custom_css: undefined },
           services: MOBILE_FIXTURE_SERVICES,
         },
       });
+      expect(settingsRes.ok(), `Settings patch failed: ${settingsRes.status()}`).toBeTruthy();
     });
 
     test("dashboard has no horizontal overflow", async ({ page }) => {
