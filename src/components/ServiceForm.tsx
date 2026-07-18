@@ -109,6 +109,17 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
+// Rejects non-http(s) URL schemes (e.g. "javascript:") before a value
+// reaches an <img src>. Browsers already refuse to execute those as image
+// sources, so this doesn't close a real exploit — it's a belt-and-suspenders
+// check with no behavior cost for legitimate icon URLs.
+function isSafeImagePreviewUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "") return false;
+  if (trimmed.startsWith("/")) return true;
+  return isValidHttpUrl(trimmed);
+}
+
 function GroupCombobox({
   value,
   onChange,
@@ -548,7 +559,7 @@ export default function ServiceForm({
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>
           <div className="service-form__icon-row">
-            {icon.trim() !== "" && !iconPreviewError && (
+            {isSafeImagePreviewUrl(icon) && !iconPreviewError && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={icon}

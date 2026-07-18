@@ -138,6 +138,31 @@ describe("ServiceForm – icon detection", () => {
     vi.unstubAllGlobals();
   });
 
+  it("renders a preview thumbnail for an http(s) or root-relative icon URL", () => {
+    const { container } = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Icon URL"), {
+      target: { value: "https://example.com/icon.png" },
+    });
+    expect(container.querySelector(".service-form__icon-preview")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Icon URL"), {
+      target: { value: "/icons/local.png" },
+    });
+    expect(container.querySelector(".service-form__icon-preview")).toBeInTheDocument();
+  });
+
+  it("does not render a preview thumbnail for a non-http(s) URL scheme", () => {
+    const { container } = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Icon URL"), {
+      target: { value: "javascript:alert(1)" },
+    });
+    expect(container.querySelector(".service-form__icon-preview")).not.toBeInTheDocument();
+  });
+
   it("disables the Detect icon button until the URL field has a valid URL", () => {
     render(
       <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
