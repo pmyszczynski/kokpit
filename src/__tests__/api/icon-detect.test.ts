@@ -81,6 +81,24 @@ describe("POST /api/icon/detect", () => {
     expect((await res.json()).error).toMatch(/invalid json/i);
   });
 
+  it("returns 415 for a text/plain request even with a JSON-shaped body", async () => {
+    // A hostile page can auto-submit a hidden <form> with
+    // enctype="text/plain" as a CORS-simple request (no preflight, no
+    // user click needed) — browsers can't set application/json from a
+    // plain form, only from script, so this must be rejected.
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { POST } = await import("../../app/api/icon/detect/route");
+    const req = new Request("http://localhost/api/icon/detect", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ url: "http://example.com" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(415);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when url is missing", async () => {
     const { POST } = await import("../../app/api/icon/detect/route");
     const res = await POST(post({}));

@@ -11,10 +11,20 @@ import { detectServiceIcon } from "@/lib/iconDetect";
 // navigation (a link, an auto-redirect) even with a SameSite=Lax session
 // cookie, since Lax cookies still ride along on top-level GET navigations.
 // A JSON POST can only be issued by same-origin script, which closes that
-// CSRF path without weakening the feature itself.
+// CSRF path without weakening the feature itself — but only if the server
+// actually requires the application/json content type. A plain HTML form
+// can set Content-Type to text/plain (still a CORS-simple request, no
+// preflight) with a body that happens to parse as JSON; browsers can't set
+// application/json from a form, only from script, so rejecting anything
+// else closes that gap.
 export async function POST(request: Request) {
   if (!(await isRequestAuthenticated())) {
     return NextResponse.json({ icon: null, source: null, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (contentType !== "application/json") {
+    return NextResponse.json({ error: "Unsupported content type" }, { status: 415 });
   }
 
   let body: unknown;
