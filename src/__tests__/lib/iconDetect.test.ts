@@ -20,6 +20,12 @@ vi.mock("undici", () => ({
   },
 }));
 
+const matchIconLibrariesMock = vi.fn();
+vi.mock("@/lib/iconLibraries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/iconLibraries")>();
+  return { ...actual, matchIconLibraries: (...args: [string]) => matchIconLibrariesMock(...args) };
+});
+
 import { detectServiceIcon } from "@/lib/iconDetect";
 
 const PUBLIC_IP = "93.184.216.34"; // example.com's real public address
@@ -60,10 +66,15 @@ function resolvesTo(ip: string, family: 4 | 6 = 4) {
 beforeEach(() => {
   dnsLookupMock.mockReset();
   undiciFetchMock.mockReset();
+  matchIconLibrariesMock.mockReset();
   // Default: every hostname resolves to an ordinary public address, so
   // tests that don't care about DNS/blocking behavior don't need to set it
   // up themselves.
   dnsLookupMock.mockResolvedValue(resolvesTo(PUBLIC_IP));
+  // Default: no icon-library match, so tests that only care about the
+  // page/favicon tiers don't need to reason about library-matching too —
+  // that has its own dedicated test file (iconLibraries.test.ts).
+  matchIconLibrariesMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -158,27 +169,93 @@ describe("detectServiceIcon", () => {
   it("does not accept a favicon.ico response with a non-image content-type", async () => {
     undiciFetchMock
       .mockResolvedValueOnce(htmlResponse("<html><head></head></html>"))
-      .mockResolvedValueOnce(plainResponse(200, { "content-type": "text/html" }))
-      .mockResolvedValueOnce(plainResponse(404));
+      .mockResolvedValueOnce(plainResponse(200, { "content-type": "text/html" }));
     const result = await detectServiceIcon("http://example.com");
     expect(result).toEqual({ icon: null, source: null });
-  });
-
-  it("falls back to a Simple Icons slug guess when nothing else matches", async () => {
-    undiciFetchMock
-      .mockResolvedValueOnce(htmlResponse("<html><head></head></html>"))
-      .mockResolvedValueOnce(plainResponse(404))
-      .mockResolvedValueOnce(plainResponse(200));
-    const result = await detectServiceIcon("http://app.plex.tv");
-    expect(result).toEqual({
-      icon: "https://cdn.simpleicons.org/plex",
-      source: "simple-icons",
-    });
   });
 
   it("returns null when every strategy fails", async () => {
     undiciFetchMock.mockRejectedValue(new Error("network down"));
     const result = await detectServiceIcon("http://example.com");
+    expect(result).toEqual({ icon: null, source: null });
+  });
+});
+
+describe("detectServiceIcon - name and hostname-guess fallback tiers", () => {
+  function nothingViaPageOrFavicon() {
+    undiciFetchMock
+      .mockResolvedValueOnce(htmlResponse("<html><head></head></html>"))
+      .mockResolvedValueOnce(plainResponse(404));
+  }
+
+  it("matches the given service name against the icon libraries when page/favicon fail", async () => {
+    nothingViaPageOrFavicon();
+    matchIconLibrariesMock.mockImplementation(async (candidate: string) =>
+      candidate === "Arcane"
+        ? { url: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/arcane.svg", source: "dashboard-icons" }
+        : null
+    );
+    const result = await detectServiceIcon("http://towarcloud.worm-marlin.ts.net:3552", "Arcane");
+    expect(result).toEqual({
+      icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/arcane.svg",
+      source: "dashboard-icons",
+    });
+    expect(matchIconLibrariesMock).toHaveBeenCalledWith("Arcane");
+  });
+
+  it("does not attempt a name match when no name is given", async () => {
+    nothingViaPageOrFavicon();
+    const result = await detectServiceIcon("http://example.com");
+    expect(result).toEqual({ icon: null, source: null });
+    // Only the hostname-guess call ("example"), never an empty/undefined name.
+    expect(matchIconLibrariesMock).toHaveBeenCalledTimes(1);
+    expect(matchIconLibrariesMock).toHaveBeenCalledWith("example");
+  });
+
+  it("does not attempt a name match when the name is blank", async () => {
+    nothingViaPageOrFavicon();
+    const result = await detectServiceIcon("http://example.com", "   ");
+    expect(result).toEqual({ icon: null, source: null });
+    expect(matchIconLibrariesMock).toHaveBeenCalledTimes(1);
+    expect(matchIconLibrariesMock).toHaveBeenCalledWith("example");
+  });
+
+  it("falls back to a hostname-derived guess when the name doesn't match anything", async () => {
+    nothingViaPageOrFavicon();
+    matchIconLibrariesMock.mockImplementation(async (candidate: string) =>
+      candidate === "sonarr"
+        ? { url: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/sonarr.svg", source: "dashboard-icons" }
+        : null
+    );
+    const result = await detectServiceIcon("http://sonarr.example.com", "My Media Downloader");
+    expect(result).toEqual({
+      icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/sonarr.svg",
+      source: "dashboard-icons",
+    });
+    expect(matchIconLibrariesMock).toHaveBeenNthCalledWith(1, "My Media Downloader");
+    expect(matchIconLibrariesMock).toHaveBeenNthCalledWith(2, "sonarr");
+  });
+
+  it("prefers a name match over a hostname-guess match when both would resolve", async () => {
+    nothingViaPageOrFavicon();
+    matchIconLibrariesMock.mockImplementation(async (candidate: string) => {
+      if (candidate === "Arcane") {
+        return { url: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/arcane.svg", source: "dashboard-icons" };
+      }
+      if (candidate === "towarcloud") {
+        return { url: "https://cdn.simpleicons.org/towarcloud", source: "simple-icons" };
+      }
+      return null;
+    });
+    const result = await detectServiceIcon("http://towarcloud.worm-marlin.ts.net:3552", "Arcane");
+    expect(result.source).toBe("dashboard-icons");
+    // The name match wins before the hostname-guess tier is ever tried.
+    expect(matchIconLibrariesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns null when neither the name nor the hostname guess match", async () => {
+    nothingViaPageOrFavicon();
+    const result = await detectServiceIcon("http://towarcloud.worm-marlin.ts.net:3552", "Something Unmatched");
     expect(result).toEqual({ icon: null, source: null });
   });
 });

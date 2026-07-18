@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { url: raw } = (body ?? {}) as { url?: unknown };
+  const { url: raw, name } = (body ?? {}) as { url?: unknown; name?: unknown };
   if (typeof raw !== "string" || raw === "") {
     return NextResponse.json({ error: "Missing url" }, { status: 400 });
   }
@@ -48,6 +48,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid url" }, { status: 400 });
   }
 
-  const result = await detectServiceIcon(raw);
+  const result = await detectServiceIcon(raw, typeof name === "string" ? name : undefined);
   return NextResponse.json(result);
 }

@@ -1,10 +1,11 @@
 import { fetchWithHardTimeout } from "@/lib/fetchTimeout";
 import { ssrfSafeFetch } from "@/lib/ssrfGuard";
+import { guessNamesFromHostname, matchIconLibraries } from "@/lib/iconLibraries";
 
 const DETECT_TIMEOUT_MS = 5000;
 const MAX_HTML_BYTES = 100_000;
 
-export type IconSource = "page" | "favicon" | "simple-icons";
+export type IconSource = "page" | "favicon" | "dashboard-icons" | "simple-icons";
 
 export interface IconDetectionResult {
   icon: string | null;
@@ -183,35 +184,6 @@ async function detectFavicon(target: URL, allowPrivateNetworks: boolean): Promis
   }
 }
 
-function guessSimpleIconsSlug(hostname: string): string | null {
-  const parts = hostname.toLowerCase().split(".").filter(Boolean);
-  if (parts.length < 2) return null;
-  // Drop the TLD (and a leading "www"): app.plex.tv -> plex
-  const withoutTld = parts.slice(0, -1);
-  const withoutWww = withoutTld[0] === "www" ? withoutTld.slice(1) : withoutTld;
-  const slug = withoutWww[withoutWww.length - 1];
-  return slug && /^[a-z0-9-]+$/.test(slug) ? slug : null;
-}
-
-async function detectSimpleIcons(target: URL): Promise<string | null> {
-  const slug = guessSimpleIconsSlug(target.hostname);
-  if (!slug) return null;
-  const iconUrl = `https://cdn.simpleicons.org/${slug}`;
-  try {
-    const response = await fetchWithHardTimeout(
-      // Simple Icons is a fixed, well-known public CDN, not a caller-
-      // supplied host — still routed through the guard for consistency and
-      // redirect safety, but never needs private-network access.
-      (signal) => ssrfSafeFetch(iconUrl, { method: "HEAD", signal, allowPrivateNetworks: false }),
-      "Simple Icons fetch timed out",
-      DETECT_TIMEOUT_MS
-    );
-    return response.status === 200 ? iconUrl : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Off by default: kokpit's core use case is detecting icons for LAN-only
  * self-hosted services, but shipping that reachable by default means any
@@ -224,7 +196,25 @@ function allowPrivateNetworksEnabled(): boolean {
   return process.env.KOKPIT_ICON_DETECT_ALLOW_PRIVATE_NETWORKS === "true";
 }
 
-export async function detectServiceIcon(rawUrl: string): Promise<IconDetectionResult> {
+/**
+ * Detection order, from most to least reliable:
+ *  1. The page's own declared <link rel="icon"> — the actual configured
+ *     favicon, when the URL is reachable at all.
+ *  2. /favicon.ico, same reachability requirement.
+ *  3. The service's given name matched against dashboard-icons (curated
+ *     for self-hosted homelab apps) then Simple Icons (general brands) —
+ *     doesn't require the target URL to be reachable at all, which matters
+ *     for services fronted by a VPN/tailnet the dashboard server itself
+ *     isn't on.
+ *  4. A hostname-derived guess (e.g. sonarr.example.com -> "sonarr")
+ *     matched the same way — a common reverse-proxy subdomain-per-app
+ *     convention, but kept as a last resort since a tile's name and its
+ *     hostname aren't guaranteed to be related.
+ */
+export async function detectServiceIcon(
+  rawUrl: string,
+  name?: string
+): Promise<IconDetectionResult> {
   let target: URL;
   try {
     target = new URL(rawUrl);
@@ -247,8 +237,15 @@ export async function detectServiceIcon(rawUrl: string): Promise<IconDetectionRe
   const favicon = await detectFavicon(target, allowPrivateNetworks);
   if (favicon) return { icon: favicon, source: "favicon" };
 
-  const simpleIcon = await detectSimpleIcons(target);
-  if (simpleIcon) return { icon: simpleIcon, source: "simple-icons" };
+  if (name && name.trim() !== "") {
+    const byName = await matchIconLibraries(name).catch(() => null);
+    if (byName) return { icon: byName.url, source: byName.source };
+  }
+
+  for (const guess of guessNamesFromHostname(target.hostname)) {
+    const byHostname = await matchIconLibraries(guess).catch(() => null);
+    if (byHostname) return { icon: byHostname.url, source: byHostname.source };
+  }
 
   return { icon: null, source: null };
 }

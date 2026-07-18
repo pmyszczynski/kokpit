@@ -203,7 +203,33 @@ describe("ServiceForm – icon detection", () => {
       expect.objectContaining({ method: "POST" })
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body).toEqual({ url: "http://jellyfin.local" });
+    expect(body).toEqual({ url: "http://jellyfin.local", name: "" });
+  });
+
+  it("sends the service name alongside the URL for name-based fallback matching", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ icon: null, source: null }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Arcane" },
+    });
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://towarcloud.worm-marlin.ts.net:3552" },
+    });
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      url: "http://towarcloud.worm-marlin.ts.net:3552",
+      name: "Arcane",
+    });
   });
 
   it("shows a hint when no icon is found", async () => {
