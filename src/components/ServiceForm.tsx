@@ -525,6 +525,7 @@ export default function ServiceForm({
               onChange={(e) => {
                 setName(e.target.value);
                 setNameError(null);
+                iconDetectRequestId.current++;
               }}
               required
               placeholder="Jellyfin"

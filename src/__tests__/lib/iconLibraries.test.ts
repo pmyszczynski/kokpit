@@ -33,6 +33,9 @@ const SAMPLE_DASHBOARD_ICONS = {
 const SAMPLE_SIMPLE_ICONS = [
   { title: "Docker", aliases: undefined },
   { title: ".ENV", aliases: { aka: ["Dotenv"] } },
+  // A real Simple Icons disambiguation case: the auto-slugified title would
+  // collide with something else, so the data declares an explicit slug.
+  { title: "Graphite", slug: "graphite_editor", aliases: undefined },
 ];
 
 function mockDashboardIconsFetch(data = SAMPLE_DASHBOARD_ICONS) {
@@ -216,5 +219,58 @@ describe("matchIconLibraries", () => {
     const { matchIconLibraries } = await freshModule();
     const result = await matchIconLibraries("Arcane");
     expect(result).toBeNull();
+  });
+
+  it("uses a Simple Icons entry's explicit slug instead of the title-derived one", async () => {
+    mockDashboardIconsFetch();
+    const { matchIconLibraries } = await freshModule();
+    const result = await matchIconLibraries("Graphite");
+    // Not "graphite" -- the naive title-derived slug -- since the data
+    // declares an explicit "graphite_editor" to disambiguate.
+    expect(result).toEqual({
+      url: "https://cdn.simpleicons.org/graphite_editor",
+      source: "simple-icons",
+    });
+  });
+
+  it("also matches a Simple Icons candidate on its explicit slug directly", async () => {
+    mockDashboardIconsFetch();
+    const { matchIconLibraries } = await freshModule();
+    const result = await matchIconLibraries("graphite_editor");
+    expect(result).toEqual({
+      url: "https://cdn.simpleicons.org/graphite_editor",
+      source: "simple-icons",
+    });
+  });
+
+  it("backs off after a failed index load instead of retrying immediately", async () => {
+    vi.useFakeTimers();
+    try {
+      ssrfSafeFetchMock.mockImplementation(async (url: string) => {
+        if (url === DASHBOARD_ICONS_URL) return plainResponse(500);
+        if (url === SIMPLE_ICONS_URL) return jsonResponse(SAMPLE_SIMPLE_ICONS);
+        return plainResponse(200);
+      });
+      const { matchIconLibraries } = await freshModule();
+
+      await matchIconLibraries("Arcane");
+      await matchIconLibraries("sonarr");
+      const dashboardCallsBeforeBackoff = ssrfSafeFetchMock.mock.calls.filter(
+        ([url]) => url === DASHBOARD_ICONS_URL
+      );
+      // One failed attempt, not one per candidate -- the second call should
+      // have backed off rather than retrying the CDN immediately.
+      expect(dashboardCallsBeforeBackoff).toHaveLength(1);
+
+      vi.setSystemTime(Date.now() + 61_000);
+      await matchIconLibraries("filebrowser");
+      const dashboardCallsAfterBackoff = ssrfSafeFetchMock.mock.calls.filter(
+        ([url]) => url === DASHBOARD_ICONS_URL
+      );
+      // Once the backoff window passes, a retry is attempted again.
+      expect(dashboardCallsAfterBackoff).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

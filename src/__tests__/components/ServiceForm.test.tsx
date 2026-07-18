@@ -331,6 +331,43 @@ describe("ServiceForm – icon detection", () => {
       "http://manually-typed.example/icon.png"
     );
   });
+
+  it("ignores a stale detect response once the user has since edited the name", async () => {
+    let resolveFetch!: (value: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; })
+      )
+    );
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Arcane" },
+    });
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://towarcloud.worm-marlin.ts.net:3552" },
+    });
+
+    // Detect request starts (matching "Arcane") and is left pending.
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    // The user edits the name before the request resolves — a response
+    // matched against the old name must not land.
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Something Else" },
+    });
+
+    resolveFetch({
+      ok: true,
+      json: () => Promise.resolve({ icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/arcane.svg", source: "dashboard-icons" }),
+    } as Response);
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByLabelText("Icon URL")).toHaveValue("");
+  });
 });
 
 describe("ServiceForm – tile type", () => {

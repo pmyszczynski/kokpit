@@ -32,34 +32,60 @@ function normalizeName(name: string): string {
 }
 
 async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetchWithHardTimeout(
-    (signal) => ssrfSafeFetch(url, { method: "GET", signal, allowPrivateNetworks: false }),
+  // Body parsing happens inside the same hard-timeout callback as the fetch
+  // itself, same reasoning as detectFromPage in iconDetect.ts: fetch()
+  // resolving only means headers arrived, and a server that stalls the body
+  // stream afterward would otherwise hang past the timeout budget once the
+  // race has already resolved.
+  return fetchWithHardTimeout(
+    async (signal) => {
+      const response = await ssrfSafeFetch(url, {
+        method: "GET",
+        signal,
+        allowPrivateNetworks: false,
+      });
+      if (!response.ok) {
+        if (response.body && !response.bodyUsed) {
+          await response.body.cancel().catch(() => {});
+        }
+        throw new Error(`Icon index fetch failed: ${response.status}`);
+      }
+      return response.json();
+    },
     "Icon index fetch timed out",
     FETCH_TIMEOUT_MS
   );
-  if (!response.ok) {
-    if (response.body && !response.bodyUsed) {
-      await response.body.cancel().catch(() => {});
-    }
-    throw new Error(`Icon index fetch failed: ${response.status}`);
-  }
-  return response.json();
 }
+
+// A failed load is remembered for a short backoff window rather than retried
+// immediately: a single detection attempt can call load() up to three times
+// in a row (name guess + two hostname guesses), and without this an outage
+// would pay the full fetch timeout on every one of those instead of once.
+const FAILURE_BACKOFF_MS = 60_000;
 
 function makeCache(loader: () => Promise<LibraryIndex>) {
   let cached: { index: LibraryIndex; fetchedAt: number } | null = null;
   let inflight: Promise<LibraryIndex> | null = null;
+  let failedAt: number | null = null;
 
   return async function load(): Promise<LibraryIndex> {
     if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
       return cached.index;
     }
     if (inflight) return inflight;
+    if (failedAt !== null && Date.now() - failedAt < FAILURE_BACKOFF_MS) {
+      throw new Error("Icon index load recently failed, backing off");
+    }
 
     inflight = loader()
       .then((index) => {
         cached = { index, fetchedAt: Date.now() };
+        failedAt = null;
         return index;
+      })
+      .catch((err) => {
+        failedAt = Date.now();
+        throw err;
       })
       .finally(() => {
         inflight = null;
@@ -98,6 +124,7 @@ const loadDashboardIcons = makeCache(async () => {
 
 interface SimpleIconEntry {
   title: string;
+  slug?: string;
   aliases?: { aka?: string[] };
 }
 
@@ -105,15 +132,22 @@ const loadSimpleIcons = makeCache(async () => {
   const data = (await fetchJson(SIMPLE_ICONS_DATA_URL)) as SimpleIconEntry[];
   const byNormalizedName = new Map<string, LibraryEntry>();
   for (const item of data) {
-    // The CDN slug is derived from the title via Simple Icons' own
-    // slugification, which we don't replicate exactly (it has special
-    // handling for a handful of characters) — this is a best-effort
-    // candidate, verified with a HEAD request before ever being returned.
-    const slug = normalizeName(item.title);
+    // A handful of entries declare an explicit `slug` that overrides the
+    // title-derived one, used when the auto-slugified title would collide
+    // with another icon (e.g. "Graphite" -> "graphite_editor", not
+    // "graphite"). Falling back to the normalized title otherwise is still
+    // only a best-effort match of Simple Icons' own slugification — verified
+    // with a HEAD request before ever being returned.
+    const slug = item.slug || normalizeName(item.title);
     if (!slug) continue;
     const entry: LibraryEntry = { slug, base: "svg" };
     const titleKey = normalizeName(item.title);
     if (titleKey && !byNormalizedName.has(titleKey)) byNormalizedName.set(titleKey, entry);
+    // Also index the slug itself: a divergent explicit slug (e.g.
+    // "graphite_editor") is itself a reasonable thing for a hostname guess
+    // or a user-typed name to match against, separately from the title.
+    const slugKey = normalizeName(slug);
+    if (slugKey && !byNormalizedName.has(slugKey)) byNormalizedName.set(slugKey, entry);
     for (const alias of item.aliases?.aka ?? []) {
       const key = normalizeName(alias);
       if (key && !byNormalizedName.has(key)) byNormalizedName.set(key, entry);
