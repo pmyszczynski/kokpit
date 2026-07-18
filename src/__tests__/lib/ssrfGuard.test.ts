@@ -7,10 +7,24 @@ vi.mock("node:dns/promises", () => ({
 }));
 
 const undiciFetchMock = vi.fn();
+interface MockAgentOpts {
+  connect: {
+    lookup: (
+      hostname: string,
+      options: unknown,
+      callback: (err: Error | null, addresses: { address: string; family: number }[]) => void
+    ) => void;
+  };
+}
+let createdAgents: { opts: MockAgentOpts }[] = [];
 vi.mock("undici", () => ({
   fetch: (...args: unknown[]) => undiciFetchMock(...args),
   Agent: class {
-    constructor(_opts: unknown) {}
+    opts: MockAgentOpts;
+    constructor(opts: MockAgentOpts) {
+      this.opts = opts;
+      createdAgents.push(this);
+    }
     close() {
       return Promise.resolve();
     }
@@ -30,6 +44,7 @@ function response(status: number, headers: Record<string, string> = {}) {
 beforeEach(() => {
   dnsLookupMock.mockReset();
   undiciFetchMock.mockReset();
+  createdAgents = [];
 });
 
 describe("ssrfSafeFetch", () => {
@@ -163,5 +178,38 @@ describe("ssrfSafeFetch", () => {
     const [, options] = undiciFetchMock.mock.calls[0];
     expect(options.dispatcher).toBeDefined();
     expect(options.redirect).toBe("manual");
+
+    // Not enough to know a dispatcher was passed — assert its connect.lookup
+    // actually returns the exact validated address, not a live re-resolution
+    // of the hostname. This is the specific behavior DNS-rebinding
+    // protection depends on.
+    expect(createdAgents).toHaveLength(1);
+    const lookup = createdAgents[0].opts.connect.lookup;
+    const callback = vi.fn();
+    lookup("target.example.com", {}, callback);
+    expect(callback).toHaveBeenCalledWith(null, [{ address: "93.184.216.34", family: 4 }]);
+  });
+
+  it("pins each redirect hop's dispatcher to that hop's own validated address, not the previous hop's", async () => {
+    dnsLookupMock.mockImplementation(async (hostname: string) =>
+      hostname === "hop1.example.com"
+        ? resolvesTo("93.184.216.34")
+        : resolvesTo("8.8.8.8")
+    );
+    undiciFetchMock
+      .mockResolvedValueOnce(response(302, { location: "https://hop2.example.com/" }))
+      .mockResolvedValueOnce(response(200));
+
+    await ssrfSafeFetch("https://hop1.example.com", { allowPrivateNetworks: false });
+
+    expect(createdAgents).toHaveLength(2);
+    const firstLookup = createdAgents[0].opts.connect.lookup;
+    const secondLookup = createdAgents[1].opts.connect.lookup;
+    const firstCallback = vi.fn();
+    const secondCallback = vi.fn();
+    firstLookup("hop1.example.com", {}, firstCallback);
+    secondLookup("hop2.example.com", {}, secondCallback);
+    expect(firstCallback).toHaveBeenCalledWith(null, [{ address: "93.184.216.34", family: 4 }]);
+    expect(secondCallback).toHaveBeenCalledWith(null, [{ address: "8.8.8.8", family: 4 }]);
   });
 });

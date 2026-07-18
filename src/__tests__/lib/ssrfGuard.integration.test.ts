@@ -87,12 +87,16 @@ describe("ssrfSafeFetch (real DNS + real sockets, no mocks)", () => {
     expect(await res.text()).toBe(body);
   });
 
-  it("does not let a redirect to a hostname resolving elsewhere bypass validation", async () => {
-    // The redirect target's hostname is "127.0.0.1" again (real, re-resolved,
-    // re-validated) rather than a stale address carried over from the first
-    // hop -- if pinning leaked across hops instead of being re-derived per
-    // hop, this would either fail to connect or silently reuse the wrong
-    // address.
+  it("re-resolves and reconnects per redirect hop over real sockets", async () => {
+    // Both hops happen to resolve to the same loopback address here, so this
+    // doesn't simulate a rebinding attempt (that's covered with a
+    // controllable resolver in ssrfGuard.test.ts, where the two hops are
+    // made to resolve differently and the pinned lookup callback is
+    // asserted on directly). What this proves instead: a fresh dispatcher
+    // is actually created and connected per hop over a real socket rather
+    // than reusing the first hop's connection/dispatcher — if hops shared a
+    // dispatcher, this would either fail to connect to the second server or
+    // silently reuse the first one's address.
     const target = await startServer((_req, res) => res.end("second hop"));
     servers.push(target);
     const redirector = await startServer((_req, res) => {

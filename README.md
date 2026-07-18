@@ -96,7 +96,7 @@ docker compose up kokpit --build
 
 ### Local development
 
-**Prerequisites:** Node.js 20+
+**Prerequisites:** Node.js 22.19.0+
 
 ```bash
 npm install

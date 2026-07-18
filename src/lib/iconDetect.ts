@@ -129,7 +129,12 @@ async function detectFromPage(target: URL, allowPrivateNetworks: boolean): Promi
         headers: { Accept: "text/html" },
         allowPrivateNetworks,
       });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        if (response.body && !response.bodyUsed) {
+          await response.body.cancel().catch(() => {});
+        }
+        return null;
+      }
       return { html: await readBodyCapped(response, MAX_HTML_BYTES), finalUrl: response.url };
     },
     "Page fetch timed out",
@@ -163,6 +168,12 @@ async function detectFavicon(target: URL, allowPrivateNetworks: boolean): Promis
       "Favicon fetch timed out",
       DETECT_TIMEOUT_MS
     );
+    // Neither branch below reads the body — only status/headers decide the
+    // outcome — so cancel it rather than leave a possibly-large image
+    // response (from the GET fallback) unread on the connection.
+    if (response.body && !response.bodyUsed) {
+      await response.body.cancel().catch(() => {});
+    }
     if (response.status !== 200) return null;
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.startsWith("image/")) return null;

@@ -126,13 +126,21 @@ export async function ssrfSafeFetch(
     const addresses = await resolveValidatedAddresses(target.hostname, options.allowPrivateNetworks);
     const dispatcher = createPinnedDispatcher(addresses);
 
-    const response = (await undiciFetch(target.toString(), {
-      method: options.method ?? "GET",
-      signal: options.signal,
-      headers: options.headers,
-      redirect: "manual",
-      dispatcher,
-    })) as unknown as Response;
+    let response: Response;
+    try {
+      response = (await undiciFetch(target.toString(), {
+        method: options.method ?? "GET",
+        signal: options.signal,
+        headers: options.headers,
+        redirect: "manual",
+        dispatcher,
+      })) as unknown as Response;
+    } catch (err) {
+      // Nothing to hand back to the caller on this path, so there's no
+      // in-flight body read to wait for — reclaim the dispatcher now.
+      void dispatcher.close().catch(() => {});
+      throw err;
+    }
 
     // Each hop gets its own dispatcher (a fresh one per validated address
     // set), so it needs to be reclaimed once we're done with it — close()
@@ -145,6 +153,16 @@ export async function ssrfSafeFetch(
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) return response;
+      // We're discarding this response — cancel its body instead of
+      // leaving it unread. An unread body keeps the underlying connection
+      // "in use" until it fully drains over the wire (verified: without
+      // this, dispatcher.close() on a slow/large discarded response took
+      // as long as the full transfer; cancelling made it near-instant),
+      // so skipping this would let a slow redirect hop hold a connection
+      // open for no reason.
+      if (response.body && !response.bodyUsed) {
+        await response.body.cancel().catch(() => {});
+      }
       try {
         target = new URL(location, target);
       } catch {
