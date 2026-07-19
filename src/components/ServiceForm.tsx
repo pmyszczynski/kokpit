@@ -188,6 +188,8 @@ function GroupCombobox({
     };
   }, [showDropdown, suggestions.length, isNew, value]);
 
+  const portalHost = containerRef.current?.closest("dialog") ?? null;
+
   return (
     <div ref={containerRef} className="group-combobox" onBlur={handleBlur}>
       <input
@@ -202,6 +204,7 @@ function GroupCombobox({
       />
       {showDropdown &&
         coords &&
+        portalHost &&
         createPortal(
           <ul
             ref={dropdownRef}
@@ -235,7 +238,7 @@ function GroupCombobox({
               </li>
             )}
           </ul>,
-          document.body
+          portalHost
         )}
     </div>
   );
