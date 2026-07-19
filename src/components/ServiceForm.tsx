@@ -394,7 +394,7 @@ export default function ServiceForm({
       const res = await fetch("/api/icon/detect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmedUrl }),
+        body: JSON.stringify({ url: trimmedUrl, name: name.trim() }),
       });
       if (iconDetectRequestId.current !== requestId) return;
       if (!res.ok) {
@@ -525,6 +525,7 @@ export default function ServiceForm({
               onChange={(e) => {
                 setName(e.target.value);
                 setNameError(null);
+                iconDetectRequestId.current++;
               }}
               required
               placeholder="Jellyfin"

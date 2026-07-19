@@ -203,7 +203,33 @@ describe("ServiceForm – icon detection", () => {
       expect.objectContaining({ method: "POST" })
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body).toEqual({ url: "http://jellyfin.local" });
+    expect(body).toEqual({ url: "http://jellyfin.local", name: "" });
+  });
+
+  it("sends the service name alongside the URL for name-based fallback matching", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ icon: null, source: null }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Arcane" },
+    });
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://towarcloud.worm-marlin.ts.net:3552" },
+    });
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      url: "http://towarcloud.worm-marlin.ts.net:3552",
+      name: "Arcane",
+    });
   });
 
   it("shows a hint when no icon is found", async () => {
@@ -304,6 +330,43 @@ describe("ServiceForm – icon detection", () => {
     expect(screen.getByLabelText("Icon URL")).toHaveValue(
       "http://manually-typed.example/icon.png"
     );
+  });
+
+  it("ignores a stale detect response once the user has since edited the name", async () => {
+    let resolveFetch!: (value: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; })
+      )
+    );
+
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Arcane" },
+    });
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "http://towarcloud.worm-marlin.ts.net:3552" },
+    });
+
+    // Detect request starts (matching "Arcane") and is left pending.
+    fireEvent.click(screen.getByText("Detect icon"));
+
+    // The user edits the name before the request resolves — a response
+    // matched against the old name must not land.
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Something Else" },
+    });
+
+    resolveFetch({
+      ok: true,
+      json: () => Promise.resolve({ icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/arcane.svg", source: "dashboard-icons" }),
+    } as Response);
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByLabelText("Icon URL")).toHaveValue("");
   });
 });
 
