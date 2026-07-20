@@ -136,22 +136,21 @@ in the existing CSS grid (`grid-auto-flow: dense` for gap filling):
 
 | Preset | Span (cols×rows) | Content shown |
 |--------|------------------|---------------|
-| `compact` | 1×h½ (half-height row) | icon + name on one line — for link-only tiles |
 | `normal` (default) | 1×1 | icon, name, description, status |
 | `wide` | 2×1 | + widget summary row (stat strip) |
 | `tall` | 1×2 | + vertical widget (queues, lists) |
 | `large` | 2×2 | full widget canvas |
 
-- Default sizing is **smart**: a service with no widget defaults to `normal`
-  (or `compact` inside a bookmark-ish group); attaching a widget suggests the
-  widget's preferred size (each `WidgetDefinition` gains a
-  `preferredSize`/`minSize` hint — e.g. `qbittorrent-torrents` → `tall`,
-  `netdata-cpu` → `normal` with sparkline).
+- **Decision (2026-07-20):** no half-height `compact` preset. Services always
+  occupy at least one full row; link density is the job of bookmark-group
+  tiles (§6.5). This keeps the grid on whole-row units — no half-row math.
+- Default sizing is **smart**: a service with no widget defaults to `normal`;
+  attaching a widget suggests the widget's preferred size (each
+  `WidgetDefinition` gains a `preferredSize`/`minSize` hint — e.g.
+  `qbittorrent-torrents` → `tall`, `netdata-cpu` → `normal` with sparkline).
 - Widgets adapt to size rather than clip: definitions may ship a compact
   variant (single stat + sparkline) and an expanded variant. Minimum viable
   version: widgets declare `minSize` and the size picker greys out sizes below it.
-- The half-height `compact` row is the Glance/Homepage trick that instantly
-  breaks the tile wall: rows of small link chips under groups of bigger tiles.
 
 **Deprecate `position`** (#9): migrate any existing `position` values to the
 nearest size preset + array order on load, warn in the validator, remove the
@@ -174,7 +173,9 @@ groups:
   Groups referenced by services but missing from `groups:` are auto-appended
   (current alphabetical behavior becomes the fallback, so existing configs
   render identically until the user starts ordering).
-- Ungrouped services render as an implicit first or last section (configurable).
+- Ungrouped services render as an implicit section whose placement is
+  **user-configurable**: `layout.ungrouped: first | last` (default `last`,
+  matching today's behavior).
 - Group headers get a collapse chevron in view mode; collapsed state is
   localStorage (per-device preference), the `collapsed` key only sets default.
 - In edit mode, group headers become drag handles for reordering whole groups,
@@ -250,6 +251,7 @@ bookmarks:
       - name: Grafana docs
         url: https://grafana.com/docs
         abbr: GD             # Homepage-style 2-letter fallback
+        description: Panels & alerting reference   # optional, list style only
 placement:                   # optional; defaults to a "Bookmarks" group at the end
   group: Infrastructure
   size: tall
@@ -258,8 +260,10 @@ placement:                   # optional; defaults to a "Bookmarks" group at the 
 - **Styles:** `list` (icon + name rows, accent-colored marker — the Glance
   look), `icon-grid` (favicon grid for many links in small space),
   `compact` (text-only two-column). Style is switchable from the tile kebab.
-- Rendered visibly *lighter* than service tiles: smaller type, no status dots,
-  no per-link descriptions in `list`/`compact`. Bookmarks are links, not apps.
+- Rendered visibly *lighter* than service tiles: smaller type, no status dots.
+  A per-link `description` is **optional** and rendered only in `list` style
+  as a muted second line; `icon-grid` and `compact` ignore it. Bookmarks are
+  links, not apps.
 - Edit mode: "+ Add link" affordance inside the tile; links reorder by drag
   within the tile; a link can be **promoted to a service** ("make this a tile")
   and a link-only service **demoted to a bookmark** — cheap migration between
@@ -313,6 +317,7 @@ appearance:
 layout:
   columns: 4
   row_height: 120            # becomes the base row unit for spans
+  ungrouped: last            # NEW — first | last (default last)
 groups:                      # NEW — ordered, optional (fallback = today's behavior)
   - name: Media
     collapsed: false
@@ -322,7 +327,7 @@ services:
     url: https://plex.local
     icon: sh-plex            # shorthand resolution added
     group: Media
-    size: large              # NEW — compact|normal|wide|tall|large (default normal)
+    size: large              # NEW — normal|wide|tall|large (default normal)
     widget: { type: plex, ... }
   # position: {...}          # DEPRECATED — migrated to size+order, validator warns
 bookmarks:                   # NEW — see §6.5
@@ -363,17 +368,16 @@ Zod additions: `GroupSchema`, `SizeEnum`, `BookmarkGroupSchema`, `BookmarkLinkSc
     bookmark tiles, collapse chevrons. Stays a server component.
   - `EditableServiceGrid` (new, client) — dnd-kit sortable contexts (one per
     group + one for group order), ghost/add tiles, edit bar.
-  - `ServiceTile` — gains `size` variants (CSS classes `--compact … --large`),
+  - `ServiceTile` — gains `size` variants (CSS classes `--normal … --large`),
     kebab slot, warning badge; keeps `.service-tile` selector family (e2e
     dependency).
   - `BookmarkTile` (new) — three styles, accent variable.
   - `TileKebab`, `SizePicker`, `AddTilePicker`, `EditBar`, `IconPicker` (new,
     all client, all only mounted in edit mode except the hover pencil).
-- **CSS:** size presets as modifier classes over the existing grid; half-height
-  rows via `grid-auto-rows: calc(var(--row-height)/2)` on the inner grid with
-  presets spanning 1–4 half-rows. Mobile media queries collapse every preset to
-  full-width `normal`/`compact` (preserving the no-horizontal-overflow e2e
-  invariant).
+- **CSS:** size presets as modifier classes over the existing grid, spanning
+  whole rows/columns (`grid-auto-rows: var(--row-height)` stays as-is). Mobile
+  media queries collapse every preset to full-width `normal` (preserving the
+  no-horizontal-overflow e2e invariant).
 
 ### 7.3 Persistence & API
 
@@ -440,14 +444,15 @@ forward the P1 icon library, and stays compatible with future multi-page tabs
   to the client-only edit grid; (2) YAML round-trip fidelity under array
   reordering — `writeConfig` uses key-wise `setIn`, array rewrites may drop
   intra-array comments; needs a focused test and possibly item-identity-aware
-  writing; (3) half-height rows complicate the row-height setting — make
-  `row_height` documentation explicit that it defines the `normal` unit.
+  writing.
 
-## 10. Open questions
+## 10. Resolved decisions (2026-07-20, project owner)
 
-1. Should ungrouped services render first or last by default (today: last)?
-2. `compact` half-rows: worth the grid complexity in Phase A, or defer to B?
-3. Bookmark links: also allow per-link `description` in `list` style, or keep
-   it strictly minimal (proposal: strictly minimal)?
-4. Is per-device collapse state (localStorage) acceptable, or should collapse
-   be shared config only?
+1. **Ungrouped placement:** user-configurable via `layout.ungrouped:
+   first | last`, default `last` (today's behavior).
+2. **Half-height `compact` preset:** dropped entirely. Link density comes from
+   bookmark-group tiles; the grid stays on whole-row units.
+3. **Bookmark link descriptions:** allowed as an optional per-link
+   `description`, rendered only in `list` style as a muted second line.
+4. **Group collapse state:** per-device (localStorage); the YAML `collapsed:`
+   key only sets the default.
