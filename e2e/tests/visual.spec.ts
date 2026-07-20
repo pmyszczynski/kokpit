@@ -1,6 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
-import { FIXTURE_SERVICES } from "../helpers/fixture-services";
+import {
+  FIXTURE_SERVICES,
+  FIXTURE_GROUPS,
+  FIXTURE_BOOKMARKS,
+} from "../helpers/fixture-services";
 
 const MOCK = "http://localhost:32400";
 
@@ -18,6 +22,8 @@ test.describe("visual regression", () => {
     await request.patch("/api/settings", {
       data: {
         services: FIXTURE_SERVICES,
+        groups: FIXTURE_GROUPS,
+        bookmarks: FIXTURE_BOOKMARKS,
         appearance: { theme: "dark", custom_css: undefined },
       },
     });
@@ -28,6 +34,10 @@ test.describe("visual regression", () => {
       page.locator(".service-tile__letter-fallback, .service-tile__icon").first()
     ).toBeVisible();
     await expect(page.locator(".plex-widget__value").first()).toBeVisible();
+    // Bookmark tiles use inline data: URI icons (no favicon fetch), so once a
+    // link is visible the whole bookmark section has painted — no async icon
+    // error-swap can race the screenshot.
+    await expect(page.locator(".bookmark-tile__link").first()).toBeVisible();
   }
 
   for (const theme of ["dark", "light", "oled", "high-contrast"] as const) {
@@ -93,6 +103,22 @@ test.describe("visual regression", () => {
     await expect(page.locator(".settings-section__title")).toHaveText("Services");
 
     await expect(page.locator(".settings-panel")).toHaveScreenshot("settings-services.png");
+  });
+
+  test("settings panel: groups tab", async ({ page }) => {
+    await page.goto("/settings");
+    await page.click("button.settings-tab:has-text('Groups')");
+    await expect(page.locator(".settings-section__title")).toHaveText("Groups");
+
+    await expect(page.locator(".settings-panel")).toHaveScreenshot("settings-groups.png");
+  });
+
+  test("settings panel: bookmarks tab", async ({ page }) => {
+    await page.goto("/settings");
+    await page.click("button.settings-tab:has-text('Bookmarks')");
+    await expect(page.locator(".settings-section__title")).toHaveText("Bookmarks");
+
+    await expect(page.locator(".settings-panel")).toHaveScreenshot("settings-bookmarks.png");
   });
 
   test("add-service dialog renders correctly", async ({ page }) => {
