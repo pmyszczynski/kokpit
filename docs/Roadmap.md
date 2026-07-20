@@ -110,26 +110,42 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 > Goal: Let users make the dashboard their own without touching code.
 
 - [ ] `P0` **Theme engine**
-  - Built-in themes: dark, light, OLED, high-contrast (minimum)
-  - Theme picker in UI settings
-  - All colors as CSS variables, overridable via `appearance.customCss`
-  - Theme schema documented so community themes are possible
+  - [x] Built-in themes: dark, light, OLED, high-contrast (minimum)
+  - [x] Theme picker in UI settings
+  - [x] All colors as CSS variables, overridable via `appearance.custom_css`
+  - [ ] Theme schema documented so community themes are possible
 
-- [ ] `P0` **Drag-and-drop layout editor**
-  - Visual grid editor: move, resize, delete tiles and widgets
-  - Layout saved back to `settings.yaml` on save
-  - Lock layout option (prevents accidental changes)
+- [ ] `P0` **Drag-and-drop layout editor** *(UX redesign Phase B — see `docs/plans/2026-07-20-dashboard-ux-redesign.md` §6.3–6.4)*
+  - [x] Non-drag foundation: tile size presets (normal/wide/tall/large) and group/service/bookmark ordering via settings-panel up/down controls *(shipped v0.5.0)*
+  - [ ] Edit mode: navbar toggle + `Mod+E`, staged changes, atomic save/discard, revision conflict check against external YAML edits
+  - [ ] Drag-to-reorder tiles within and across groups, and drag group headers to reorder groups (dnd-kit)
+  - [ ] Per-tile kebab menu: edit (reuses ServiceForm), size picker, duplicate, remove; "+ Add" picker for services/widget presets/bookmark groups
+  - [ ] Touch fallback: up/down + move-to-group controls instead of drag on touch devices
+  - [ ] Layout saved back to `settings.yaml` on save; lock layout outside edit mode (prevents accidental changes)
 
-- [ ] `P1` **Icon library & custom icons**
+- [ ] `P1` **Icon library & custom icons** *(part of UX redesign Phase C)*
   - Bundle Walkxcode / Dashboard Icons set (7000+ homelab icons)
   - Simple Icons fallback
+  - Icon shorthand prefixes resolved at render (`sh-` selfh.st, `di-` dashboard-icons, `mdi-` Material Design) + `/api/icons/search`
   - User icon upload per service tile
   - Icon search in the service editor
 
-- [ ] `P1` **Background customization**
+- [ ] `P1` **Background customization** *(part of UX redesign Phase C)*
   - Options: solid color, gradient, custom image URL, local upload
-  - Blur-behind effect toggle
+  - Blur-behind effect toggle + frosted-glass card blur (`appearance.card_blur`)
   - Opacity overlay (configurable in UI and YAML)
+
+- [ ] `P1` **Status indicator upgrades** *(part of UX redesign Phase C)*
+  - Hover tooltip with response time + HTTP status; optional `statusStyle: dot | badge`
+  - Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
+
+- [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
+  - Welcome card with "Add your first service" when the dashboard is empty (today: blank page)
+  - Ghost "+" tile in empty groups while editing; first-edit coach marks
+
+- [ ] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
+  - Warning badge on tiles whose widget config fails validation, instead of today's silent downgrade to a plain link
+  - Badge links to the edit dialog with the validation error shown
 
 - [ ] `P2` **Multiple dashboard pages / tabs**
   - Named pages (e.g. Home, Media, Monitoring, Network)
@@ -137,9 +153,9 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Per-page layout stored in `settings.yaml`
 
 - [ ] `P2` **Mobile-responsive layout**
-  - Responsive breakpoints for tablet and mobile
-  - Optional separate mobile layout config
-  - PWA manifest for home screen installation
+  - [x] Responsive breakpoints for tablet and mobile (per-breakpoint column/row-height overrides; size presets collapse gracefully at 768px/480px since v0.5.0)
+  - [ ] Optional separate mobile layout config — *partially done: tablet/mobile can override columns and row height; a full per-device layout (own order/sizes) remains open*
+  - [ ] PWA manifest for home screen installation
 
 ---
 
