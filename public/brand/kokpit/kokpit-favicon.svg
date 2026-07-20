@@ -5,7 +5,7 @@
   </defs>
   <path fill="#0B1020" stroke="#64748B" stroke-width="3" stroke-linejoin="round" d="M11 7h42l7 9v30l-8 11H12L4 46V16z"/>
   <path fill="#243247" d="M12.5 10h39l5.5 7v28l-6.5 9H13.5L7 45V17z"/>
-  <path fill="url(#hud)" stroke="#AAB6FF" stroke-width="1.8" stroke-linejoin="round" d="M17 16h30l4 12H13z"/>
+  <path fill="url(#hud)" stroke="#64748B" stroke-width="1.8" stroke-linejoin="round" d="M17 16h30l4 12H13z"/>
   <circle cx="32" cy="39" r="11" fill="#0B1020" stroke="#64748B" stroke-width="2.2"/>
   <path fill="none" stroke="#53C4FF" stroke-width="2" stroke-linecap="round" d="M25 42a7.5 7.5 0 0 1 14 0M32 31v-2"/>
   <path fill="#F8FAFC" d="m31.1 40.2 7.2-5.3-5.3 7.2z"/>
