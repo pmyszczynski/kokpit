@@ -2806,6 +2806,148 @@ button {
   color: var(--color-text);
 }
 
+/* === SETTINGS: GROUPS / BOOKMARKS / SIZE CONTROLS (WP3) === */
+/* Small square icon button used for ▲/▼ reorder controls. */
+.settings-icon-btn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.settings-icon-btn:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.settings-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Services table reorder cell keeps the two arrows stacked tight. */
+.service-table__reorder {
+  display: flex;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+/* Groups / bookmarks list rows. */
+.groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.groups-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+}
+
+.groups-row__reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.groups-row__collapsed {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.groups-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.groups-row--undeclared {
+  opacity: 0.7;
+}
+
+.groups-undeclared {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.groups-undeclared__name {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.groups-add {
+  gap: 0.5rem;
+}
+
+.bookmarks-row__name {
+  font-weight: 600;
+}
+
+.bookmarks-row__meta {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+/* Bookmark group form: accent color picker + link rows. */
+.bookmark-form__accent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.bookmark-form__color {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bookmark-link-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+}
+
+.bookmark-link-row__reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bookmark-link-row__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;

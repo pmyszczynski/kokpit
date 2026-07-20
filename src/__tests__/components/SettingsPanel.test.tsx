@@ -471,4 +471,262 @@ describe("SettingsPanel - services tab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     expect(screen.getByText("No services configured yet.")).toBeInTheDocument();
   });
+
+  it("shows a Size column with the effective size of each service", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
+    render(
+      <SettingsPanel
+        config={makeConfig({
+          services: [
+            { name: "Jellyfin", url: "http://j.local", size: "wide" },
+            { name: "Portainer", url: "http://p.local" },
+          ],
+        })}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    const jelly = screen.getByText("Jellyfin").closest("tr")!;
+    expect(within(jelly).getByText("Wide (2×1)")).toBeInTheDocument();
+    const port = screen.getByText("Portainer").closest("tr")!;
+    expect(within(port).getByText("Normal (1×1)")).toBeInTheDocument();
+  });
+
+  it("reorders a service down and saves the new array order via PATCH", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Move Jellyfin down" }));
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.services.map((s: Service) => s.name)).toEqual(["Portainer", "Jellyfin"]);
+  });
+
+  it("disables the up arrow on the first row and the down arrow on the last row", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
+    render(<SettingsPanel config={makeConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    expect(screen.getByRole("button", { name: "Move Jellyfin up" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move Portainer down" })).toBeDisabled();
+  });
+});
+
+describe("SettingsPanel - groups tab", () => {
+  function groupsConfig() {
+    return makeConfig({
+      groups: [{ name: "Media" }, { name: "Infra" }],
+      services: [
+        { name: "Jellyfin", url: "http://j.local", group: "Media" },
+        { name: "Loose", url: "http://l.local" },
+        { name: "Undeclared", url: "http://u.local", group: "Downloads" },
+      ],
+      bookmarks: [
+        {
+          name: "Dev",
+          placement: { group: "Media" },
+          links: [{ name: "GH", url: "https://github.com" }],
+        },
+      ],
+    });
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
+  });
+
+  function gotoGroups() {
+    render(<SettingsPanel config={groupsConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+  }
+
+  it("lists declared groups and undeclared referenced groups", () => {
+    gotoGroups();
+    expect(screen.getByLabelText("Group name for Media")).toHaveValue("Media");
+    expect(screen.getByLabelText("Group name for Infra")).toHaveValue("Infra");
+    // "Downloads" is referenced by a service but not declared.
+    expect(screen.getByText("Downloads")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Declare" })).toBeInTheDocument();
+  });
+
+  it("reorders declared groups and saves the new order", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+    fireEvent.click(screen.getByRole("button", { name: "Move Media down" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.groups.map((g: { name: string }) => g.name)).toEqual(["Infra", "Media"]);
+  });
+
+  it("declaring an undeclared group adds it and saves it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+    fireEvent.click(screen.getByRole("button", { name: "Declare" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.groups.map((g: { name: string }) => g.name)).toEqual([
+      "Media",
+      "Infra",
+      "Downloads",
+    ]);
+    // A pure declare doesn't touch services/bookmarks.
+    expect(body.services).toBeUndefined();
+    expect(body.bookmarks).toBeUndefined();
+  });
+
+  it("renaming a group cascades into services and bookmark placements in one save", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+    const input = screen.getByLabelText("Group name for Media");
+    fireEvent.change(input, { target: { value: "Movies" } });
+    fireEvent.blur(input);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.groups[0].name).toBe("Movies");
+    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
+    expect(jelly.group).toBe("Movies");
+    expect(body.bookmarks[0].placement.group).toBe("Movies");
+  });
+
+  it("deleting a group clears members' group and bookmark placement references", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+    const mediaRow = screen.getByLabelText("Group name for Media").closest<HTMLElement>(".groups-row")!;
+    fireEvent.click(within(mediaRow).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(mediaRow).getByRole("button", { name: "Confirm" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.groups.map((g: { name: string }) => g.name)).toEqual(["Infra"]);
+    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
+    expect(jelly.group).toBeUndefined();
+    expect(body.bookmarks[0].placement).toBeUndefined();
+  });
+
+  it("saves the ungrouped position via layout.ungrouped", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+    fireEvent.change(screen.getByLabelText("Ungrouped position"), {
+      target: { value: "first" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.layout.ungrouped).toBe("first");
+  });
+
+  it("persists a per-group collapsed default and column override", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+    const mediaRow = screen.getByLabelText("Group name for Media").closest<HTMLElement>(".groups-row")!;
+    fireEvent.click(within(mediaRow).getByLabelText("Collapsed by default"));
+    fireEvent.change(within(mediaRow).getByLabelText("Columns for Media"), {
+      target: { value: "3" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.groups[0]).toEqual({ name: "Media", collapsed: true, columns: 3 });
+  });
+});
+
+describe("SettingsPanel - bookmarks tab", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
+    HTMLDialogElement.prototype.showModal = vi.fn().mockImplementation(function (
+      this: HTMLDialogElement
+    ) {
+      this.open = true;
+    });
+    HTMLDialogElement.prototype.close = vi.fn().mockImplementation(function (
+      this: HTMLDialogElement
+    ) {
+      this.open = false;
+      this.dispatchEvent(new Event("close"));
+    });
+  });
+
+  function bookmarksConfig() {
+    return makeConfig({
+      bookmarks: [
+        { name: "Dev", links: [{ name: "GH", url: "https://github.com" }] },
+        { name: "Ops", links: [{ name: "Grafana", url: "https://grafana.com" }] },
+      ],
+    });
+  }
+
+  it("lists bookmark groups with style and link count", () => {
+    render(<SettingsPanel config={bookmarksConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
+    const devRow = screen.getByText("Dev").closest<HTMLElement>(".groups-row")!;
+    expect(within(devRow).getByText(/list · 1 link/)).toBeInTheDocument();
+  });
+
+  it("reorders bookmark groups and saves the new order", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={bookmarksConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Move Dev down" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.bookmarks.map((b: { name: string }) => b.name)).toEqual(["Ops", "Dev"]);
+  });
+
+  it("adds a new bookmark group through the dialog and saves it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig({ bookmarks: [] })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add bookmark group" }));
+
+    fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Dev" } });
+    fireEvent.change(screen.getByLabelText("Link 1 name"), { target: { value: "GitHub" } });
+    fireEvent.change(screen.getByLabelText("Link 1 URL"), {
+      target: { value: "https://github.com" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.bookmarks).toHaveLength(1);
+    expect(body.bookmarks[0].name).toBe("Dev");
+    expect(body.bookmarks[0].links[0]).toEqual({
+      name: "GitHub",
+      url: "https://github.com",
+    });
+  });
+
+  it("deletes a bookmark group after confirming and saves via PATCH", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={bookmarksConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
+    const devRow = screen.getByText("Dev").closest<HTMLElement>(".groups-row")!;
+    fireEvent.click(within(devRow).getByRole("button", { name: "Delete" }));
+    await act(async () => {
+      fireEvent.click(within(devRow).getByRole("button", { name: "Confirm" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.bookmarks.map((b: { name: string }) => b.name)).toEqual(["Ops"]);
+  });
 });

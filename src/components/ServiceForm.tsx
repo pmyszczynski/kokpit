@@ -5,14 +5,17 @@ import { createPortal } from "react-dom";
 import {
   Service,
   ServiceWidget,
+  Size,
   serviceNameUniquenessKey,
 } from "@/config/schema";
+import { sizeSatisfies } from "@/config";
 import "@/integrations";
 import {
   getWidget,
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
+import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
   service: Service | null;
@@ -325,6 +328,7 @@ export default function ServiceForm({
   const [icon, setIcon] = useState(initial.icon);
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group);
+  const [size, setSize] = useState<Size | "">(service?.size ?? "");
   const [nameError, setNameError] = useState<string | null>(null);
 
   const [tileType, setTileType] = useState(initial.tileType);
@@ -345,6 +349,8 @@ export default function ServiceForm({
         : null;
 
   const showWidgetSection = tileType !== "" || orphanWidget !== null;
+
+  const widgetMinSize: Size | undefined = selectedWidgetDef?.minSize;
 
   const activeWidgetType =
     tileType !== "" ? tileType : orphanWidget?.type ?? null;
@@ -389,6 +395,10 @@ export default function ServiceForm({
     setWidgetConfig({});
     setRefreshInterval("");
     const def = getWidget(newTile);
+    // Clear an explicit size the new widget can't satisfy; fall back to Auto.
+    if (def?.minSize && size !== "" && !sizeSatisfies(size, def.minSize)) {
+      setSize("");
+    }
     if (def?.serviceEditorPreset) {
       setName(def.serviceEditorPreset.defaultName);
       setIcon(def.serviceEditorPreset.defaultIconUrl);
@@ -517,6 +527,7 @@ export default function ServiceForm({
       icon: icon.trim() || undefined,
       description: description.trim() || undefined,
       group: group.trim() || undefined,
+      size: size || undefined,
       widget,
     });
   }
@@ -674,6 +685,33 @@ export default function ServiceForm({
             onChange={setGroup}
             groups={existingGroups}
           />
+        </div>
+        <div className="settings-form-row">
+          <label htmlFor="sf-size">Size</label>
+          <select
+            id="sf-size"
+            className="settings-input"
+            value={size}
+            onChange={(e) => setSize(e.target.value as Size | "")}
+          >
+            <option value="">Auto</option>
+            {SIZE_ORDER.map((s) => {
+              const disabled = widgetMinSize
+                ? !sizeSatisfies(s, widgetMinSize)
+                : false;
+              return (
+                <option key={s} value={s} disabled={disabled}>
+                  {sizeLabel(s)}
+                  {disabled ? " — too small for this widget" : ""}
+                </option>
+              );
+            })}
+          </select>
+          {widgetMinSize && (
+            <span className="settings-form-hint">
+              This widget needs at least {sizeLabel(widgetMinSize)}.
+            </span>
+          )}
         </div>
 
         {showWidgetSection && (
