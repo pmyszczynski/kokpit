@@ -2,6 +2,21 @@
 
 Use `kokpit-mark-detailed.svg` at 64 px and above, `kokpit-mark-navbar.svg` from 24 px to 48 px, and `kokpit-favicon.svg` from 16 px to 32 px. Do not substitute one for another.
 
+## Visual direction
+
+The artwork is an original, literal front-facing cockpit: a graphite shell, blue HUD, centered gauge, paired service indicators, and lower console/yoke. Do not treat it as a generic K, status ring, or dashboard grid.
+
+The palette is fixed:
+
+- Ink `#0B1020`
+- Shell `#243247`
+- Shell highlight `#64748B`
+- HUD blue `#53C4FF`
+- HUD indigo `#5267D8`
+- Signal green `#43DF7A`
+- Signal lavender `#AAB6FF`
+- Paper `#F8FAFC`
+
 ## Inventory
 
 - `kokpit-logo-dark.svg` — full lockup on an Ink field for dark/OLED product surfaces.
