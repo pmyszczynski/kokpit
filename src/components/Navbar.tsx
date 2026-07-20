@@ -1,4 +1,5 @@
 import Link from "next/link";
+import KokpitLogo from "./KokpitLogo";
 import LogoutButton from "./LogoutButton";
 import EditToggleButton from "./edit/EditToggleButton";
 
@@ -11,7 +12,9 @@ interface NavbarProps {
 export default function Navbar({ showLogout, canEdit = false }: NavbarProps) {
   return (
     <nav className="navbar">
-      <Link href="/" className="navbar-brand">kokpit</Link>
+      <Link href="/" className="navbar-brand">
+        <KokpitLogo />
+      </Link>
       <div className="navbar-actions">
         {canEdit && <EditToggleButton />}
         <Link href="/settings" className="settings-link" aria-label="Settings">

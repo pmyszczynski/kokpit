@@ -17,6 +17,10 @@ describe("Navbar", () => {
   it("renders the site brand link", () => {
     render(Navbar({ showLogout: false }));
     expect(screen.getByRole("link", { name: "kokpit" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { hidden: true })).toHaveAttribute(
+      "src",
+      expect.stringContaining("kokpit-mark-navbar.svg"),
+    );
   });
 
   it("hides logout when showLogout is false", () => {
