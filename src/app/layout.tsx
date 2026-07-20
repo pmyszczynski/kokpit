@@ -7,6 +7,11 @@ import { resolveAppearance } from "@/config/theme";
 export const metadata: Metadata = {
   title: "kokpit",
   description: "Your self-hosted personal dashboard",
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
