@@ -38,21 +38,34 @@ export function sizeSatisfies(size: Size, min: Size): boolean {
  * 3. the widget's `preferredSize` hint (caller looks it up via
  *    `getWidgetSizeHints` from `@/widgets`)
  * 4. `normal`
+ *
+ * The result is then clamped up to `widgetMinSize` when declared: a
+ * hand-edited config with an explicit `size` below the widget's floor still
+ * renders at (at least) the floor, matching the size picker's greyed-out
+ * options. When no `widgetMinSize` is given, behavior is unchanged.
  */
 export function resolveServiceSize(
   service: Pick<Service, "size" | "position">,
-  widgetPreferredSize?: Size
+  widgetPreferredSize?: Size,
+  widgetMinSize?: Size
 ): Size {
-  if (service.size) return service.size;
-  if (service.position) {
-    const wide = service.position.width >= 2;
-    const tall = service.position.height >= 2;
-    if (wide && tall) return "large";
-    if (wide) return "wide";
-    if (tall) return "tall";
-    return DEFAULT_SIZE;
+  const base = ((): Size => {
+    if (service.size) return service.size;
+    if (service.position) {
+      const wide = service.position.width >= 2;
+      const tall = service.position.height >= 2;
+      if (wide && tall) return "large";
+      if (wide) return "wide";
+      if (tall) return "tall";
+      return DEFAULT_SIZE;
+    }
+    return widgetPreferredSize ?? DEFAULT_SIZE;
+  })();
+
+  if (widgetMinSize && !sizeSatisfies(base, widgetMinSize)) {
+    return widgetMinSize;
   }
-  return widgetPreferredSize ?? DEFAULT_SIZE;
+  return base;
 }
 
 /** One entry in the resolved display order of dashboard sections. */

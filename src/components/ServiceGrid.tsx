@@ -62,7 +62,7 @@ function renderServiceTile(service: Service) {
       icon={service.icon}
       description={service.description}
       widget={resolveTileWidget(service.widget)}
-      size={resolveServiceSize(service, hints?.preferredSize)}
+      size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
     />
   );
 }

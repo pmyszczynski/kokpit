@@ -57,6 +57,31 @@ describe("resolveServiceSize", () => {
     expect(resolveServiceSize({})).toBe("normal");
     expect(DEFAULT_SIZE).toBe("normal");
   });
+
+  it("clamps an explicit size below the widget minSize up to the floor", () => {
+    // Hand-edited YAML: explicit normal under a tall floor renders at tall.
+    expect(resolveServiceSize({ size: "normal" }, undefined, "tall")).toBe("tall");
+    expect(resolveServiceSize({ size: "wide" }, undefined, "large")).toBe("large");
+  });
+
+  it("clamps a legacy position below the widget minSize up to the floor", () => {
+    expect(
+      resolveServiceSize(
+        { position: { col: 1, row: 1, width: 1, height: 1 } },
+        undefined,
+        "tall"
+      )
+    ).toBe("tall");
+  });
+
+  it("leaves a size at or above the widget minSize unchanged", () => {
+    expect(resolveServiceSize({ size: "large" }, undefined, "tall")).toBe("large");
+    expect(resolveServiceSize({ size: "tall" }, undefined, "tall")).toBe("tall");
+  });
+
+  it("does not clamp when no minSize is declared (unchanged behavior)", () => {
+    expect(resolveServiceSize({ size: "normal" }, "large")).toBe("normal");
+  });
 });
 
 describe("sizeSatisfies", () => {

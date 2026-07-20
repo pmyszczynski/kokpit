@@ -101,7 +101,7 @@ export default function BookmarkTile({
         {links.map((link) =>
           variant === "icon-grid" ? (
             <a
-              key={link.name}
+              key={`${link.name} ${link.url}`}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
@@ -118,7 +118,7 @@ export default function BookmarkTile({
             </a>
           ) : variant === "compact" ? (
             <a
-              key={link.name}
+              key={`${link.name} ${link.url}`}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
@@ -128,7 +128,7 @@ export default function BookmarkTile({
             </a>
           ) : (
             <a
-              key={link.name}
+              key={`${link.name} ${link.url}`}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"

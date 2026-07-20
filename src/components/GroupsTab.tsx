@@ -113,7 +113,12 @@ function GroupRow({
         onChange={(e) => {
           const v = e.target.value;
           const n = parseInt(v, 10);
-          onColumnsChange(index, v === "" || isNaN(n) || n < 1 ? undefined : n);
+          // Clamp to the input's own declared range [1, 12] so a typed value
+          // (which the number input doesn't clamp) can't set absurd columns.
+          onColumnsChange(
+            index,
+            v === "" || isNaN(n) || n < 1 ? undefined : Math.min(n, 12)
+          );
         }}
       />
 

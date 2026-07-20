@@ -425,6 +425,17 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
 
   function handleGroupRename(oldName: string, newName: string) {
     const oldKey = serviceNameUniquenessKey(oldName);
+    const newKey = serviceNameUniquenessKey(newName);
+    // Reject a rename that would collide with ANOTHER declared group (the
+    // GroupsSchema would reject the whole save otherwise, and it clashes with
+    // key={g.name}). A letter-case-only change of the same group (newKey ===
+    // oldKey) is allowed. Silent no-op, matching add/declare's duplicate guard.
+    if (
+      newKey !== oldKey &&
+      groups.some((g) => serviceNameUniquenessKey(g.name) === newKey)
+    ) {
+      return;
+    }
     setGroups((prev) =>
       prev.map((g) =>
         serviceNameUniquenessKey(g.name) === oldKey ? { ...g, name: newName } : g

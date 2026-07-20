@@ -796,6 +796,30 @@ describe("ServiceForm – size", () => {
     expect(screen.getByText(/needs at least Tall/)).toBeInTheDocument();
   });
 
+  it("migrates a legacy position-only service to an explicit size on save", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Legacy",
+          // width 2 / height 1 → "wide"; no explicit size.
+          position: { col: 1, row: 1, width: 2, height: 1 },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+    // The select is seeded from the position mapping so the effective size
+    // survives dropping the deprecated field.
+    expect(screen.getByLabelText("Size")).toHaveValue("wide");
+    fireEvent.click(screen.getByText("Save"));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.size).toBe("wide");
+    // `position` is deprecated and intentionally dropped.
+    expect(saved.position).toBeUndefined();
+  });
+
   it("resets an incompatible explicit size to Auto when picking a widget with a larger minSize", () => {
     render(
       <ServiceForm

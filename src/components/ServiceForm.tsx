@@ -8,7 +8,7 @@ import {
   Size,
   serviceNameUniquenessKey,
 } from "@/config/schema";
-import { sizeSatisfies } from "@/config";
+import { resolveServiceSize, sizeSatisfies } from "@/config";
 import "@/integrations";
 import {
   getWidget,
@@ -328,7 +328,20 @@ export default function ServiceForm({
   const [icon, setIcon] = useState(initial.icon);
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group);
-  const [size, setSize] = useState<Size | "">(service?.size ?? "");
+  // Migrate a legacy `position`-only service to an explicit `size`: seed the
+  // select with the size derived from `position` (clamped to the widget floor)
+  // so saving writes an equivalent `size` and the effective size survives the
+  // drop of the deprecated `position` field.
+  const [size, setSize] = useState<Size | "">(() => {
+    if (service?.size) return service.size;
+    if (service?.position) {
+      const min = service.widget
+        ? getWidget(service.widget.type)?.minSize
+        : undefined;
+      return resolveServiceSize(service, undefined, min);
+    }
+    return "";
+  });
   const [nameError, setNameError] = useState<string | null>(null);
 
   const [tileType, setTileType] = useState(initial.tileType);

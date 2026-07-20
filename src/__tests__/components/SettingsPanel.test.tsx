@@ -650,6 +650,21 @@ describe("SettingsPanel - groups tab", () => {
     expect(body.groups[0]).toEqual({ name: "Media", collapsed: true, columns: 3 });
   });
 
+  it("clamps a typed per-group columns value to the input's max of 12", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={groupsConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    fireEvent.change(screen.getByLabelText("Columns for Media"), {
+      target: { value: "99" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.groups[0].columns).toBe(12);
+  });
+
   it("does not leak an unsaved group rename into a Services-tab save", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
@@ -724,6 +739,53 @@ describe("SettingsPanel - groups tab", () => {
       body.services.find((s: Service) => s.name === "Jellyfin").group
     ).toBe("Movies");
     expect(body.bookmarks[0].placement.group).toBe("Movies");
+  });
+
+  it("no-ops a rename that would collide with another declared group", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={groupsConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const infra = screen.getByLabelText("Group name for Infra");
+    // "media" collides case-insensitively with the existing "Media" group.
+    fireEvent.change(infra, { target: { value: "media" } });
+    fireEvent.blur(infra);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string
+    );
+    // No duplicate created — the rename was rejected, groups unchanged.
+    expect(body.groups.map((g: { name: string }) => g.name)).toEqual([
+      "Media",
+      "Infra",
+    ]);
+    // No cascade was staged, so services/bookmarks aren't in the payload.
+    expect(body.services).toBeUndefined();
+    expect(body.bookmarks).toBeUndefined();
+  });
+
+  it("allows a letter-case-only rename of the same group and cascades it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={groupsConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const media = screen.getByLabelText("Group name for Media");
+    fireEvent.change(media, { target: { value: "media" } });
+    fireEvent.blur(media);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string
+    );
+    expect(body.groups[0].name).toBe("media");
+    expect(
+      body.services.find((s: Service) => s.name === "Jellyfin").group
+    ).toBe("media");
+    const dev = body.bookmarks.find((b: { name: string }) => b.name === "Dev");
+    expect(dev.placement.group).toBe("media");
   });
 });
 

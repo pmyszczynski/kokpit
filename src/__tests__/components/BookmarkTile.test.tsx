@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import BookmarkTile from "@/components/BookmarkTile";
 import type { BookmarkLink } from "@/config/schema";
@@ -31,6 +31,30 @@ describe("BookmarkTile", () => {
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
     }
   });
+
+  it.each(["list", "icon-grid", "compact"] as const)(
+    "renders links with duplicate names without a React key collision (%s)",
+    (variant) => {
+      const dupLinks: BookmarkLink[] = [
+        { name: "Docs", url: "https://a.example.com" },
+        { name: "Docs", url: "https://b.example.com" },
+      ];
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(
+        <BookmarkTile name="Dev" variant={variant} size="tall" links={dupLinks} />
+      );
+      // Both same-named links (distinct URLs) render, and React logged no
+      // duplicate-key warning thanks to the composite `${name} ${url}` key.
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href"));
+      expect(hrefs).toEqual(["https://a.example.com", "https://b.example.com"]);
+      expect(
+        errorSpy.mock.calls.some((c) => String(c[0]).includes("same key"))
+      ).toBe(false);
+      errorSpy.mockRestore();
+    }
+  );
 
   it("applies variant and size modifier classes", () => {
     const { container } = render(
