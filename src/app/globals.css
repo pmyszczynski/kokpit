@@ -209,11 +209,22 @@ button {
 }
 
 .navbar-brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
   color: var(--color-text);
   text-decoration: none;
+}
+
+.kokpit-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kokpit-logo__wordmark {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .navbar-actions {
