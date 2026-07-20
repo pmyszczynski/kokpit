@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Kokpit detailed cockpit mark</title>
+  <defs>
+    <linearGradient id="hud" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#53C4FF"/>
+      <stop offset="1" stop-color="#5267D8"/>
+    </linearGradient>
+    <linearGradient id="console" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#30435B"/>
+      <stop offset="1" stop-color="#1B2738"/>
+    </linearGradient>
+  </defs>
+  <path fill="#0B1020" stroke="#64748B" stroke-width="7" stroke-linejoin="round" d="M45 31h166l27 33v122l-29 40H47l-29-40V64z"/>
+  <path fill="#243247" d="M50 42h156l21 27v111l-25 35H54l-25-35V69z"/>
+  <path fill="url(#hud)" stroke="#AAB6FF" stroke-width="4" stroke-linejoin="round" d="M65 61h126l16 45H49z"/>
+  <path fill="none" stroke="#D9F4FF" stroke-opacity=".55" stroke-width="3" stroke-linecap="round" d="M77 72h102M89 84h78"/>
+  <path fill="#18253A" stroke="#64748B" stroke-width="4" d="M77 109h102l15 67H62z"/>
+  <rect x="71" y="126" width="28" height="9" rx="4.5" fill="#43DF7A"/>
+  <rect x="71" y="140" width="21" height="8" rx="4" fill="#AAB6FF"/>
+  <rect x="71" y="153" width="32" height="8" rx="4" fill="#43DF7A"/>
+  <rect x="157" y="126" width="28" height="9" rx="4.5" fill="#43DF7A"/>
+  <rect x="164" y="140" width="21" height="8" rx="4" fill="#AAB6FF"/>
+  <rect x="153" y="153" width="32" height="8" rx="4" fill="#43DF7A"/>
+  <circle cx="128" cy="139" r="31" fill="#0B1020" stroke="#64748B" stroke-width="5"/>
+  <path fill="none" stroke="#53C4FF" stroke-width="4" stroke-linecap="round" d="M108 149a23 23 0 0 1 40 0M112 132l-5-3M128 124v-6M144 132l5-3"/>
+  <path fill="#F8FAFC" d="M126 141l18-13-13 18z"/>
+  <circle cx="128" cy="141" r="4" fill="#53C4FF"/>
+  <path fill="url(#console)" stroke="#64748B" stroke-width="4" stroke-linejoin="round" d="M67 176h122l-12 29h-98z"/>
+  <path fill="none" stroke="#53C4FF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" d="M128 174v22m-26-8 26-14 26 14m-47 8 11 14m31-14-11 14"/>
+  <path fill="#64748B" d="M85 209h86l-9 12H94z"/>
+</svg>
