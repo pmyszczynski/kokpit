@@ -257,43 +257,33 @@ button {
   }
 }
 
-/* Inner grid: actual service tiles with fixed row height (inherits layout vars from .dashboard-grid). */
+/* Inner grid: actual service tiles with fixed row height (inherits layout vars from .dashboard-grid).
+   --group-columns is a per-group override (groups[].columns in settings.yaml)
+   set inline by ServiceGrid; it falls back to the viewport layout columns.
+   grid-auto-flow: dense backfills the gaps that wide/tall/large spans leave. */
 .dashboard-tile-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(var(--layout-columns-desktop, 4), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--group-columns, var(--layout-columns-desktop, 4)), minmax(0, 1fr));
   grid-auto-rows: var(--layout-row-height-desktop, 120px);
+  grid-auto-flow: dense;
   gap: var(--gap);
 }
 
 @media (max-width: 768px) {
   .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--group-columns, var(--layout-columns-tablet, var(--layout-columns-desktop, 2))), minmax(0, 1fr));
     grid-auto-rows: var(--layout-row-height-tablet, var(--layout-row-height-desktop, 120px));
   }
 }
 
 @media (max-width: 480px) {
+  /* The per-group --group-columns override is intentionally ignored on
+     phones: mobile always uses the mobile column count so every tile can
+     collapse to a full-width single cell (no-horizontal-overflow invariant). */
   .dashboard-tile-grid {
     grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
     grid-auto-rows: var(--layout-row-height-mobile, var(--layout-row-height-desktop, 120px));
-  }
-
-  /* RC4 (defensive): neutralize desktop-absolute inline grid-column/grid-row
-     positions (ServiceTile.tsx `position` prop) so tiles flow normally on
-     phones instead of retaining desktop coordinates that don't make sense
-     in a 1-2 column layout. Inline styles require !important to override.
-     - grid-column is fully reset (start position AND span): a configured
-       column span can exceed the mobile column count, which would create
-       an oversized implicit track and reintroduce horizontal overflow.
-     - grid-row only has its start position reset via the longhand below;
-       the row span (height) from the inline style is intentionally left
-       in place, since a taller row never causes horizontal overflow and
-       dropping it would needlessly shrink/clip widgets configured to need
-       extra vertical space. */
-  .dashboard-tile-grid > .service-tile {
-    grid-column: auto !important;
-    grid-row-start: auto !important;
   }
 }
 
@@ -309,14 +299,59 @@ button {
   border-radius: var(--radius);
   text-decoration: none;
   color: var(--color-text);
-  transition: background 150ms ease, border-color 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease,
+    transform 150ms ease, box-shadow 150ms ease;
   cursor: pointer;
   min-width: 0; /* grid item: allow shrinking below content width (RC3) */
+  min-height: 0; /* grid item: spans must not stretch past their tracks */
 }
 
+/* Hover lift: subtle translate + existing shadow token. High-contrast theme
+   sets --shadow-sm to none, so the lift degrades to translate-only there. */
 .service-tile:hover {
   background: var(--color-surface-2);
   border-color: var(--color-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* === TILE SIZE PRESETS === */
+/* Col×row spans per SIZE_SPANS (src/config/resolve.ts):
+   normal 1×1 (base, no rule needed), wide 2×1, tall 1×2, large 2×2.
+   Shared by service tiles and bookmark tiles. */
+.service-tile--wide,
+.service-tile--large,
+.bookmark-tile--wide,
+.bookmark-tile--large {
+  grid-column: span 2;
+}
+
+.service-tile--tall,
+.service-tile--large,
+.bookmark-tile--tall,
+.bookmark-tile--large {
+  grid-row: span 2;
+}
+
+@media (max-width: 768px) {
+  /* Column spans collapse to full width so a 2-col span can never create an
+     oversized implicit track when the tablet/mobile column count is 1. */
+  .service-tile--wide,
+  .service-tile--large,
+  .bookmark-tile--wide,
+  .bookmark-tile--large {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Phones: every size preset collapses to a full-width single cell
+     (no-horizontal-overflow e2e invariant); bookmark tiles full-width too. */
+  .dashboard-tile-grid > .service-tile,
+  .dashboard-tile-grid > .bookmark-tile {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
 }
 
 .service-tile__icon {
@@ -434,6 +469,242 @@ button {
   color: var(--color-text-muted);
   line-height: 1.2;
   margin: 0;
+}
+
+/* Chevron toggle inside the group header (CollapsibleGroup). Inherits the
+   header's uppercase/letter-spacing typography. */
+.service-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.service-group__toggle:hover {
+  color: var(--color-text);
+}
+
+.service-group__chevron {
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+
+.service-group--collapsed .service-group__chevron {
+  transform: rotate(-90deg);
+}
+
+/* Collapse animation via the grid-template-rows 1fr → 0fr trick: the body is
+   a one-row grid whose row shrinks to nothing; the inner wrapper provides the
+   min-height:0 + overflow:hidden the trick requires. */
+.service-group__body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 250ms ease;
+}
+
+.service-group--collapsed .service-group__body {
+  grid-template-rows: 0fr;
+}
+
+.service-group__body-inner {
+  min-height: 0;
+  overflow: hidden;
+  /* Vertical negative-margin/padding slack so overflow:hidden doesn't clip
+     the hover lift (translateY(-2px)) and --shadow-sm of edge-row tiles.
+     Vertical only: horizontal negative margins would widen the element and
+     could trip the mobile overflow sweep. */
+  padding-top: 6px;
+  margin-top: -6px;
+  padding-bottom: 8px;
+  margin-bottom: -8px;
+  /* Collapsed content leaves the tab order once the animation finishes. */
+  visibility: visible;
+  transition: visibility 0s linear;
+}
+
+.service-group--collapsed .service-group__body-inner {
+  visibility: hidden;
+  transition-delay: 250ms;
+}
+
+/* === BOOKMARK TILES === */
+/* One bookmark group = one grid tile. Visibly lighter than service tiles:
+   smaller type, no status dots. The group accent (--bookmark-accent, set
+   inline from bookmarks[].accent) tints the header underline, list markers
+   and abbr fallbacks; it defaults to the theme accent. */
+.bookmark-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: calc(var(--gap) * 0.75);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  min-width: 0;
+  min-height: 0;
+}
+
+.bookmark-tile__header {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  line-height: 1.2;
+  margin: 0;
+  padding-bottom: 5px;
+  border-bottom: 2px solid var(--bookmark-accent, var(--color-accent));
+}
+
+/* Overflowing links scroll inside the tile — never grow the grid cell. */
+.bookmark-tile__links {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.bookmark-tile__icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.bookmark-tile__abbr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bookmark-accent, var(--color-accent)) 25%, transparent);
+  color: var(--color-text);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+/* list style: icon + name rows with an accent marker; optional description
+   as a muted second line (list style only). */
+.bookmark-tile--list .bookmark-tile__links {
+  display: flex;
+  flex-direction: column;
+}
+
+.bookmark-tile--list .bookmark-tile__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px;
+  border-radius: 4px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.8rem;
+  min-width: 0;
+  transition: background 100ms ease;
+}
+
+.bookmark-tile--list .bookmark-tile__link:hover {
+  background: var(--color-surface-2);
+}
+
+.bookmark-tile__marker {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--bookmark-accent, var(--color-accent));
+  flex-shrink: 0;
+}
+
+.bookmark-tile__link-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bookmark-tile__link-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-tile__link-description {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* icon-grid style: a grid of icons; the name lives in title/aria-label. */
+.bookmark-tile--icon-grid .bookmark-tile__links {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: 6px;
+  align-content: start;
+}
+
+.bookmark-tile--icon-grid .bookmark-tile__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px;
+  border-radius: 4px;
+  transition: background 100ms ease;
+}
+
+.bookmark-tile--icon-grid .bookmark-tile__link:hover {
+  background: var(--color-surface-2);
+}
+
+.bookmark-tile--icon-grid .bookmark-tile__icon,
+.bookmark-tile--icon-grid .bookmark-tile__abbr {
+  width: 22px;
+  height: 22px;
+}
+
+.bookmark-tile--icon-grid .bookmark-tile__abbr {
+  font-size: 0.6rem;
+}
+
+/* compact style: text-only two-column list, no icons. */
+.bookmark-tile--compact .bookmark-tile__links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  align-content: start;
+}
+
+.bookmark-tile--compact .bookmark-tile__link {
+  display: block;
+  padding: 2px 2px;
+  border-radius: 3px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 100ms ease, background 100ms ease;
+}
+
+.bookmark-tile--compact .bookmark-tile__link:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
 }
 
 /* === SETTINGS LINK (navbar) === */
