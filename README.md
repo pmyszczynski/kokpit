@@ -113,7 +113,7 @@ docker compose up kokpit-dev
 
 ## Usage
 
-All configuration lives in `settings.yaml` at the project root. The in-app settings panel (accessible via the ⚙ icon in the navbar) reads from and writes back to this file — changes take effect immediately without a restart. You can also edit the YAML directly.
+All configuration lives in `settings.yaml` at the project root. The in-app settings panel (accessible via the ⚙ icon in the navbar, with Services, Groups, and Bookmarks tabs) reads from and writes back to this file — changes take effect immediately without a restart. You can also edit the YAML directly.
 
 **Add a service tile:**
 
@@ -125,6 +125,55 @@ services:
     description: Media server
     group: Media
 ```
+
+**Set a tile size:**
+
+```yaml
+services:
+  - name: Plex
+    url: http://192.168.1.10:32400
+    size: large  # normal (default) | wide | tall | large
+```
+
+Sizes are col×row spans in the dashboard grid: `normal` 1×1, `wide` 2×1, `tall` 1×2, `large` 2×2. When omitted, a widget's preferred size is used, falling back to `normal`. The legacy `position: {col, row, width, height}` field is **deprecated** — it's still parsed (and migrated to an equivalent size on load) but logs a deprecation warning; use `size` plus array order instead. Both `size` and array order can also be set from the Services tab in the settings panel.
+
+**Group services into ordered sections:**
+
+```yaml
+groups:
+  - name: Media
+    collapsed: false  # default expanded; live state is saved per-browser
+    columns: 4        # optional per-group column override
+  - name: Downloads
+
+services:
+  - name: Jellyfin
+    group: Media
+```
+
+Array order in `groups:` is display order. A group referenced by a service but not listed here is auto-appended (today's alphabetical behavior), so this block is optional. Ungrouped services render as their own section, placed first or last via `layout.ungrouped: first | last` (default `last`). Groups are collapsible on the dashboard; the `collapsed` key only sets the default — collapse state itself is remembered per device. The Groups tab in the settings panel covers reordering, renaming (cascades to member services), declaring, deleting, and setting these options.
+
+**Add a bookmarks tile:**
+
+```yaml
+bookmarks:
+  - name: Dev
+    accent: "#7aa2f7"    # group accent (header + link markers)
+    style: list          # list | icon-grid | compact (default: list)
+    placement:
+      group: Infrastructure  # optional: render inside this group
+      size: tall              # optional: tile size preset
+    links:
+      - name: GitHub
+        url: https://github.com
+        icon: sh-github        # optional; falls back to favicon, then abbr
+      - name: Grafana docs
+        url: https://grafana.com/docs
+        abbr: GD                # 2-letter fallback when there is no icon
+        description: Panels & alerting reference  # shown in list style only
+```
+
+A bookmark group renders as a single grid tile holding plain links — useful for links that don't warrant a full service tile. Without `placement`, bookmarks render in an implicit "Bookmarks" section at the end. The Bookmarks tab in the settings panel covers full CRUD, including link ordering.
 
 **Change the theme:**
 

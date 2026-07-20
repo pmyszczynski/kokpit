@@ -1,6 +1,6 @@
 # Dashboard Creation & Editing UX — Redesign Proposal
 
-**Status:** Proposal — no code changes yet
+**Status:** Phase A implemented on branch `claude/dashboard-creation-ux-i0v4vs` (schema, resolve-time defaults, settings panel Groups/Bookmarks tabs). Phase B (edit mode) and Phase C (polish pass) are pending.
 **Date:** 2026-07-20
 **Scope:** Dashboard layout, tile sizing, ordering, in-place editing, bookmarks, visual polish. Design + architecture only.
 
