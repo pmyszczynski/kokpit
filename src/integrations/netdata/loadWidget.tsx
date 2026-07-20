@@ -66,6 +66,7 @@ export function NetdataLoadWidget({
 registerWidget<NetdataBaseConfig, LoadData>({
   id: "netdata-load",
   name: "Netdata Load",
+  preferredSize: "normal",
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchLoadData,
   refreshInterval: 10_000,

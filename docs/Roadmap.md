@@ -99,9 +99,9 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Deferred to backlog: label-based tile auto-discovery (auto-populate service tiles from container labels)
 
 - [ ] `P2` **Bookmarks & groups**
-  - Bookmark links separate from service tiles
-  - Grouped into named sections/tabs
-  - Drag-to-reorder within groups
+  - [x] Bookmark links separate from service tiles
+  - [x] Grouped into named sections/tabs
+  - [ ] Drag-to-reorder within groups — coming with the drag-and-drop layout editor (Phase 3 `P0`); reordering today is via up/down controls in the settings panel
 
 ---
 

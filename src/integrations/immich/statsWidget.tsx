@@ -75,6 +75,7 @@ export function ImmichStatsWidget({
 registerWidget<ImmichConfig, ImmichStats>({
   id: "immich-stats",
   name: "Immich Stats",
+  preferredSize: "wide",
   configSchema: ImmichConfigSchema,
   fetchData: fetchStats,
   refreshInterval: 60_000,

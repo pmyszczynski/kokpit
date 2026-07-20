@@ -86,6 +86,7 @@ export function NetdataNetWidget({
 registerWidget<NetdataBaseConfig, NetData>({
   id: "netdata-net",
   name: "Netdata Network",
+  preferredSize: "normal",
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchNetData,
   refreshInterval: 10_000,

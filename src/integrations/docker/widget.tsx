@@ -77,6 +77,8 @@ export function DockerWidget({
 registerWidget<DockerConfig, DockerData>({
   id: "docker",
   name: "Docker",
+  preferredSize: "tall",
+  minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Docker",
     defaultIconUrl: "https://cdn.simpleicons.org/docker/2496ED",

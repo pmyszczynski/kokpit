@@ -140,6 +140,27 @@ describe("ServiceTile", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("defaults to the service-tile--normal size variant", async () => {
+    await act(async () => {
+      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+    });
+    const link = screen.getByRole("link");
+    expect(link).toHaveClass("service-tile");
+    expect(link).toHaveClass("service-tile--normal");
+  });
+
+  it.each(["normal", "wide", "tall", "large"] as const)(
+    "applies the size variant class for size=%s",
+    async (size) => {
+      await act(async () => {
+        render(
+          <ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" size={size} />
+        );
+      });
+      expect(screen.getByRole("link")).toHaveClass(`service-tile--${size}`);
+    }
+  );
+
   it("polls ping again after 30 seconds", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),

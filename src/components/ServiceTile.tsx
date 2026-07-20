@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { WidgetPosition } from "@/config/schema";
+import type { Size } from "@/config/schema";
 import { WidgetRenderer } from "./WidgetRenderer";
 
 // Client-safe slice of ServiceWidget: the config (credentials) stays on the
@@ -17,7 +17,14 @@ interface ServiceTileProps {
   icon?: string;
   description?: string;
   widget?: TileWidget;
-  position?: WidgetPosition;
+  /**
+   * Tile size preset (see SIZE_SPANS in src/config/resolve.ts). The grid span
+   * comes from the `service-tile--<size>` CSS modifier, not inline styles, so
+   * the mobile media queries can collapse every preset to a full-width single
+   * cell. All sizes show icon + name + description + status; the widget area
+   * simply gets the extra room on wide/tall/large.
+   */
+  size?: Size;
 }
 
 type PingStatus = "pending" | "ok" | "error";
@@ -96,16 +103,8 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-function positionStyle(position?: WidgetPosition): React.CSSProperties {
-  if (!position) return {};
-  return {
-    gridColumn: `${position.col} / span ${position.width}`,
-    gridRow: `${position.row} / span ${position.height}`,
-  };
-}
-
-export default function ServiceTile({ name, url, icon, description, widget, position }: ServiceTileProps) {
-  const style = positionStyle(position);
+export default function ServiceTile({ name, url, icon, description, widget, size = "normal" }: ServiceTileProps) {
+  const className = `service-tile service-tile--${size}`;
 
   const inner = (
     <>
@@ -133,17 +132,12 @@ export default function ServiceTile({ name, url, icon, description, widget, posi
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="service-tile"
-        style={style}
+        className={className}
       >
         {inner}
       </a>
     );
   }
 
-  return (
-    <div className="service-tile" style={style}>
-      {inner}
-    </div>
-  );
+  return <div className={className}>{inner}</div>;
 }

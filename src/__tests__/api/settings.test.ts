@@ -186,6 +186,118 @@ describe("PATCH /api/settings – appearance & services", () => {
   });
 });
 
+describe("PATCH /api/settings – groups, bookmarks & new layout/service fields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
+    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+  });
+
+  it("saves a groups array", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({
+        groups: [
+          { name: "Media", collapsed: false, columns: 4 },
+          { name: "Downloads" },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+    const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+    expect(written).toContain("groups:");
+    expect(written).toContain("Media");
+    expect(written).toContain("Downloads");
+  });
+
+  it("returns 400 for duplicate group names and writes nothing", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({ groups: [{ name: "Media" }, { name: "media" }] })
+    );
+    expect(res.status).toBe(400);
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("saves a bookmarks array", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({
+        bookmarks: [
+          {
+            name: "Dev",
+            accent: "#7aa2f7",
+            style: "list",
+            placement: { group: "Infrastructure", size: "tall" },
+            links: [
+              { name: "GitHub", url: "https://github.com", icon: "sh-github" },
+            ],
+          },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+    expect(written).toContain("bookmarks:");
+    expect(written).toContain("GitHub");
+    expect(written).toContain("https://github.com");
+  });
+
+  it("returns 400 for a bookmark link with an invalid URL", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({
+        bookmarks: [{ name: "Dev", links: [{ name: "Bad", url: "nope" }] }],
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("saves layout.ungrouped", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({ layout: { columns: 4, row_height: 120, ungrouped: "first" } })
+    );
+    expect(res.status).toBe(200);
+    const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+    expect(written).toContain("ungrouped: first");
+  });
+
+  it("returns 400 for an invalid layout.ungrouped value", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({ layout: { columns: 4, row_height: 120, ungrouped: "middle" } })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("saves services with a size preset", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({
+        services: [
+          { name: "Plex", url: "http://plex.local", size: "large" },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+    expect(written).toContain("size: large");
+  });
+
+  it("returns 400 for an invalid service size", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({ services: [{ name: "Plex", size: "huge" }] })
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("/api/settings – auth", () => {
   const AUTH_ENABLED_YAML = BASE_YAML.replace("enabled: false", "enabled: true");
 

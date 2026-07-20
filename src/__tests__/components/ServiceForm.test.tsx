@@ -746,3 +746,91 @@ describe("GroupCombobox", () => {
     );
   });
 });
+
+describe("ServiceForm – size", () => {
+  it("defaults the size select to Auto and omits size from the payload", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    expect(screen.getByLabelText("Size")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Plex" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave.mock.calls[0][0].size).toBeUndefined();
+  });
+
+  it("pre-fills the size select from the service and includes it on save", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{ name: "Plex", size: "wide" }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+    expect(screen.getByLabelText("Size")).toHaveValue("wide");
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "large" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Plex", size: "large" })
+    );
+  });
+
+  it("disables sizes below the selected widget's minSize", () => {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    // Docker declares minSize "tall" (1×2): normal (1×1) and wide (2×1) can't
+    // satisfy it, tall and large can.
+    fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "docker" } });
+    const sizeSelect = screen.getByLabelText("Size") as HTMLSelectElement;
+    const optByValue = (value: string) =>
+      Array.from(sizeSelect.querySelectorAll("option")).find(
+        (o) => o.value === value
+      )!;
+    expect(optByValue("normal")).toBeDisabled();
+    expect(optByValue("wide")).toBeDisabled();
+    expect(optByValue("tall")).not.toBeDisabled();
+    expect(optByValue("large")).not.toBeDisabled();
+    expect(screen.getByText(/needs at least Tall/)).toBeInTheDocument();
+  });
+
+  it("migrates a legacy position-only service to an explicit size on save", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Legacy",
+          // width 2 / height 1 → "wide"; no explicit size.
+          position: { col: 1, row: 1, width: 2, height: 1 },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+    // The select is seeded from the position mapping so the effective size
+    // survives dropping the deprecated field.
+    expect(screen.getByLabelText("Size")).toHaveValue("wide");
+    fireEvent.click(screen.getByText("Save"));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.size).toBe("wide");
+    // `position` is deprecated and intentionally dropped.
+    expect(saved.position).toBeUndefined();
+  });
+
+  it("resets an incompatible explicit size to Auto when picking a widget with a larger minSize", () => {
+    render(
+      <ServiceForm
+        service={{ name: "Box", size: "normal" }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+    expect(screen.getByLabelText("Size")).toHaveValue("normal");
+    fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "docker" } });
+    expect(screen.getByLabelText("Size")).toHaveValue("");
+  });
+});

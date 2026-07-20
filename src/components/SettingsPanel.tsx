@@ -2,12 +2,28 @@
 
 // Register all integration widgets into the client-side registry.
 import "@/integrations";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KokpitConfig, Service } from "@/config/schema";
+import { KokpitConfig, Service, Group, BookmarkGroup } from "@/config/schema";
+import {
+  resolveServiceSize,
+  resolveGroupOrder,
+  serviceNameUniquenessKey,
+} from "@/config";
+import { getWidgetSizeHints } from "@/widgets";
 import ServiceForm from "./ServiceForm";
+import GroupsTab from "./GroupsTab";
+import BookmarksTab from "./BookmarksTab";
+import BookmarkGroupForm from "./BookmarkGroupForm";
+import { sizeLabel } from "./settingsSizeOptions";
 
-type Tab = "appearance" | "layout" | "auth" | "services";
+type Tab =
+  | "appearance"
+  | "layout"
+  | "groups"
+  | "services"
+  | "bookmarks"
+  | "auth";
 
 type TotpState =
   | { status: "loading" }
@@ -17,6 +33,63 @@ type TotpState =
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
+
+/** A staged group edit whose effect on services/bookmarks is applied at save. */
+type GroupCascadeOp =
+  | { type: "rename"; from: string; to: string }
+  | { type: "delete"; name: string };
+
+/**
+ * Applies staged group ops (in order) to the current services and bookmarks,
+ * producing cascaded copies. A rename rewrites every matching `service.group`
+ * and `bookmark.placement.group`; a delete clears those references (dropping an
+ * emptied placement). Pure — used both for the display projection and to build
+ * the Groups-save PATCH, so shared state is only mutated on a successful save.
+ */
+function applyGroupCascades(
+  services: Service[],
+  bookmarks: BookmarkGroup[],
+  ops: GroupCascadeOp[]
+): {
+  services: Service[];
+  bookmarks: BookmarkGroup[];
+  servicesChanged: boolean;
+  bookmarksChanged: boolean;
+} {
+  let svc = services;
+  let bm = bookmarks;
+  let servicesChanged = false;
+  let bookmarksChanged = false;
+
+  for (const op of ops) {
+    const key = serviceNameUniquenessKey(
+      op.type === "rename" ? op.from : op.name
+    );
+
+    svc = svc.map((s) => {
+      if (!s.group || serviceNameUniquenessKey(s.group) !== key) return s;
+      servicesChanged = true;
+      if (op.type === "rename") return { ...s, group: op.to };
+      const { group: _group, ...rest } = s;
+      return rest;
+    });
+
+    bm = bm.map((b) => {
+      if (!b.placement?.group || serviceNameUniquenessKey(b.placement.group) !== key)
+        return b;
+      bookmarksChanged = true;
+      if (op.type === "rename") {
+        return { ...b, placement: { ...b.placement, group: op.to } };
+      }
+      const { group: _group, ...restPlacement } = b.placement;
+      const placement =
+        Object.keys(restPlacement).length > 0 ? restPlacement : undefined;
+      return { ...b, placement };
+    });
+  }
+
+  return { services: svc, bookmarks: bm, servicesChanged, bookmarksChanged };
+}
 
 function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
   return (
@@ -66,12 +139,35 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
+  // Groups
+  const [groups, setGroups] = useState<Group[]>(config.groups ?? []);
+  const [ungrouped, setUngrouped] = useState<"first" | "last">(
+    config.layout.ungrouped ?? "last"
+  );
+  // A group rename/delete must cascade into services and bookmark placements.
+  // These edits are staged as ordered ops and only applied to the shared
+  // services/bookmarks state when the Groups tab is saved — so a save on the
+  // Services or Bookmarks tab can never persist a half-applied cascade (services
+  // pointing at a renamed group whose `groups` entry was never committed).
+  const [pendingGroupOps, setPendingGroupOps] = useState<GroupCascadeOp[]>([]);
+
+  // Bookmarks
+  const [bookmarks, setBookmarks] = useState<BookmarkGroup[]>(
+    config.bookmarks ?? []
+  );
+  const [showBookmarkForm, setShowBookmarkForm] = useState(false);
+  const [editingBookmarkIndex, setEditingBookmarkIndex] = useState<number | null>(
+    null
+  );
+
   // Per-tab save status
   const [saveStatus, setSaveStatus] = useState<Record<Tab, SaveStatus>>({
     appearance: "idle",
     layout: "idle",
+    groups: "idle",
     auth: "idle",
     services: "idle",
+    bookmarks: "idle",
   });
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -172,22 +268,50 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     }
   }
 
-  async function save(section: Tab, data: unknown) {
+  async function saveRaw(section: Tab, payload: Record<string, unknown>) {
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [section]: data }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Save failed");
       setSaveStatus((s) => ({ ...s, [section]: "saved" }));
       startTransition(() => router.refresh());
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => setSaveStatus((s) => ({ ...s, [section]: "idle" })), 2000);
+      return true;
     } catch {
       setSaveStatus((s) => ({ ...s, [section]: "error" }));
+      return false;
     }
+  }
+
+  function save(section: Tab, data: unknown) {
+    return saveRaw(section, { [section]: data });
+  }
+
+  // Layout PATCH requires columns + row_height; ungrouped (edited on the Groups
+  // tab) is folded in so a layout save never drops it. Omitted when "last"
+  // (the default) so YAML round-trips stay clean and unchanged configs don't
+  // gain the key.
+  function buildLayoutPayload() {
+    function parseViewport(cols: string, rh: string) {
+      const c = parseInt(cols);
+      const r = parseInt(rh);
+      const obj: Record<string, number> = {};
+      if (!isNaN(c) && c > 0) obj.columns = c;
+      if (!isNaN(r) && r > 0) obj.row_height = r;
+      return Object.keys(obj).length > 0 ? obj : undefined;
+    }
+    return {
+      columns,
+      row_height: rowHeight,
+      ungrouped: ungrouped === "first" ? ("first" as const) : undefined,
+      tablet: parseViewport(tabletColumns, tabletRowHeight),
+      mobile: parseViewport(mobileColumns, mobileRowHeight),
+    };
   }
 
   function handleThemeSelect(t: typeof THEMES[number]) {
@@ -200,20 +324,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   function handleSaveLayout() {
-    function parseViewport(cols: string, rh: string) {
-      const c = parseInt(cols);
-      const r = parseInt(rh);
-      const obj: Record<string, number> = {};
-      if (!isNaN(c) && c > 0) obj.columns = c;
-      if (!isNaN(r) && r > 0) obj.row_height = r;
-      return Object.keys(obj).length > 0 ? obj : undefined;
-    }
-    save("layout", {
-      columns,
-      row_height: rowHeight,
-      tablet: parseViewport(tabletColumns, tabletRowHeight),
-      mobile: parseViewport(mobileColumns, mobileRowHeight),
-    });
+    save("layout", buildLayoutPayload());
   }
 
   function handleSaveAuth() {
@@ -239,6 +350,196 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     save("services", next);
   }
 
+  function handleServiceReorder(from: number, to: number) {
+    if (to < 0 || to >= services.length) return;
+    const next = [...services];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setServices(next);
+    save("services", next);
+  }
+
+  function effectiveSize(svc: Service) {
+    const preferred = svc.widget
+      ? getWidgetSizeHints(svc.widget.type)?.preferredSize
+      : undefined;
+    return resolveServiceSize(svc, preferred);
+  }
+
+  // ----- Groups tab -----
+
+  const declaredKeys = useMemo(
+    () => new Set(groups.map((g) => serviceNameUniquenessKey(g.name))),
+    [groups]
+  );
+
+  // Services/bookmarks as they WILL look once the staged group ops are applied.
+  // Drives the undeclared-group detection so a group pending rename/delete
+  // doesn't spuriously reappear as "undeclared" while its cascade is unsaved.
+  const projectedCascade = useMemo(
+    () => applyGroupCascades(services, bookmarks, pendingGroupOps),
+    [services, bookmarks, pendingGroupOps]
+  );
+
+  const undeclaredGroups = useMemo(
+    () =>
+      resolveGroupOrder({
+        layout: config.layout,
+        services: projectedCascade.services,
+        groups,
+        bookmarks: projectedCascade.bookmarks,
+      })
+        .filter((g) => g.name !== null && !g.declared)
+        .map((g) => g.name as string),
+    [config.layout, projectedCascade, groups]
+  );
+
+  const knownGroupNames = useMemo(() => {
+    const names: string[] = [...groups.map((g) => g.name), ...undeclaredGroups];
+    const seen = new Set<string>();
+    return names.filter((n) => {
+      const key = serviceNameUniquenessKey(n);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [groups, undeclaredGroups]);
+
+  function handleGroupReorder(from: number, to: number) {
+    if (to < 0 || to >= groups.length) return;
+    const next = [...groups];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setGroups(next);
+  }
+
+  function handleGroupDeclare(name: string) {
+    if (declaredKeys.has(serviceNameUniquenessKey(name))) return;
+    setGroups((prev) => [...prev, { name }]);
+  }
+
+  function handleGroupAdd(name: string) {
+    if (declaredKeys.has(serviceNameUniquenessKey(name))) return;
+    setGroups((prev) => [...prev, { name }]);
+  }
+
+  function handleGroupRename(oldName: string, newName: string) {
+    const oldKey = serviceNameUniquenessKey(oldName);
+    const newKey = serviceNameUniquenessKey(newName);
+    // Reject a rename that would collide with ANOTHER declared group (the
+    // GroupsSchema would reject the whole save otherwise, and it clashes with
+    // key={g.name}). A letter-case-only change of the same group (newKey ===
+    // oldKey) is allowed. Silent no-op, matching add/declare's duplicate guard.
+    if (
+      newKey !== oldKey &&
+      groups.some((g) => serviceNameUniquenessKey(g.name) === newKey)
+    ) {
+      return;
+    }
+    setGroups((prev) =>
+      prev.map((g) =>
+        serviceNameUniquenessKey(g.name) === oldKey ? { ...g, name: newName } : g
+      )
+    );
+    // Stage the cascade; it's applied to services/bookmarks only on Groups save.
+    setPendingGroupOps((prev) => [
+      ...prev,
+      { type: "rename", from: oldName, to: newName },
+    ]);
+  }
+
+  function handleGroupToggleCollapsed(index: number) {
+    setGroups((prev) =>
+      prev.map((g, i) =>
+        i === index ? { ...g, collapsed: !(g.collapsed ?? false) } : g
+      )
+    );
+  }
+
+  function handleGroupColumnsChange(index: number, columns: number | undefined) {
+    setGroups((prev) =>
+      prev.map((g, i) => (i === index ? { ...g, columns } : g))
+    );
+  }
+
+  function handleGroupDelete(index: number) {
+    const removed = groups[index];
+    setGroups((prev) => prev.filter((_, i) => i !== index));
+    // Members become ungrouped and bookmark placements are cleared — but only
+    // once the Groups tab is saved (staged as an op, applied at save time).
+    setPendingGroupOps((prev) => [...prev, { type: "delete", name: removed.name }]);
+  }
+
+  async function handleSaveGroups() {
+    // Strip default values so omitted keys stay omitted in the YAML round-trip.
+    const cleanGroups = groups.map((g) => ({
+      name: g.name,
+      ...(g.collapsed ? { collapsed: true } : {}),
+      ...(g.columns ? { columns: g.columns } : {}),
+    }));
+    // Apply the staged cascade to the CURRENT services/bookmarks so the PATCH
+    // carries the renamed/cleared references atomically with the `groups` write.
+    const cascade = applyGroupCascades(services, bookmarks, pendingGroupOps);
+    const payload: Record<string, unknown> = {
+      groups: cleanGroups,
+      layout: buildLayoutPayload(),
+    };
+    if (cascade.servicesChanged) payload.services = cascade.services;
+    if (cascade.bookmarksChanged) payload.bookmarks = cascade.bookmarks;
+    const ok = await saveRaw("groups", payload);
+    if (ok) {
+      // Now — and only now — reflect the cascade in shared state and clear ops.
+      if (cascade.servicesChanged) setServices(cascade.services);
+      if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
+      setPendingGroupOps([]);
+    }
+  }
+
+  // ----- Bookmarks tab -----
+
+  function handleBookmarkReorder(from: number, to: number) {
+    if (to < 0 || to >= bookmarks.length) return;
+    const next = [...bookmarks];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setBookmarks(next);
+    save("bookmarks", next);
+  }
+
+  function handleBookmarkDelete(index: number) {
+    const next = bookmarks.filter((_, i) => i !== index);
+    setBookmarks(next);
+    save("bookmarks", next);
+  }
+
+  function openAddBookmark() {
+    setEditingBookmarkIndex(null);
+    setShowBookmarkForm(true);
+  }
+
+  function openEditBookmark(index: number) {
+    setEditingBookmarkIndex(index);
+    setShowBookmarkForm(true);
+  }
+
+  function handleBookmarkSave(bookmark: BookmarkGroup) {
+    const next = [...bookmarks];
+    if (editingBookmarkIndex !== null) {
+      next[editingBookmarkIndex] = bookmark;
+    } else {
+      next.push(bookmark);
+    }
+    setBookmarks(next);
+    setShowBookmarkForm(false);
+    setEditingBookmarkIndex(null);
+    save("bookmarks", next);
+  }
+
+  function closeBookmarkForm() {
+    setShowBookmarkForm(false);
+    setEditingBookmarkIndex(null);
+  }
+
   function openAddForm() {
     setEditingIndex(null);
     setShowServiceForm(true);
@@ -257,7 +558,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   return (
     <div className="settings-panel">
       <nav className="settings-tabs" aria-label="Settings sections">
-        {(["appearance", "layout", "auth", "services"] as Tab[]).map((tab) => (
+        {(["appearance", "layout", "groups", "services", "bookmarks", "auth"] as Tab[]).map((tab) => (
           <button
             key={tab}
             className={`settings-tab${activeTab === tab ? " settings-tab--active" : ""}`}
@@ -610,6 +911,37 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
           </section>
         )}
 
+        {/* GROUPS */}
+        {activeTab === "groups" && (
+          <GroupsTab
+            groups={groups}
+            undeclaredGroups={undeclaredGroups}
+            ungrouped={ungrouped}
+            saveStatus={saveStatus.groups}
+            onReorder={handleGroupReorder}
+            onRename={handleGroupRename}
+            onToggleCollapsed={handleGroupToggleCollapsed}
+            onColumnsChange={handleGroupColumnsChange}
+            onDelete={handleGroupDelete}
+            onDeclare={handleGroupDeclare}
+            onAdd={handleGroupAdd}
+            onUngroupedChange={setUngrouped}
+            onSave={handleSaveGroups}
+          />
+        )}
+
+        {/* BOOKMARKS */}
+        {activeTab === "bookmarks" && (
+          <BookmarksTab
+            bookmarks={bookmarks}
+            saveStatus={saveStatus.bookmarks}
+            onReorder={handleBookmarkReorder}
+            onEdit={openEditBookmark}
+            onDelete={handleBookmarkDelete}
+            onAdd={openAddBookmark}
+          />
+        )}
+
         {/* SERVICES */}
         {activeTab === "services" && (
           <section className="settings-section">
@@ -621,18 +953,39 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
               <table className="service-table">
                 <thead>
                   <tr>
+                    <th>Order</th>
                     <th>Name</th>
                     <th>URL</th>
                     <th>Group</th>
+                    <th>Size</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {services.map((svc, i) => (
                     <tr key={svc.name}>
+                      <td className="service-table__reorder">
+                        <button
+                          className="settings-icon-btn"
+                          aria-label={`Move ${svc.name} up`}
+                          disabled={i === 0}
+                          onClick={() => handleServiceReorder(i, i - 1)}
+                        >
+                          ▲
+                        </button>
+                        <button
+                          className="settings-icon-btn"
+                          aria-label={`Move ${svc.name} down`}
+                          disabled={i === services.length - 1}
+                          onClick={() => handleServiceReorder(i, i + 1)}
+                        >
+                          ▼
+                        </button>
+                      </td>
                       <td>{svc.name}</td>
                       <td className="service-table__url">{svc.url ?? "—"}</td>
                       <td>{svc.group ?? "—"}</td>
+                      <td>{sizeLabel(effectiveSize(svc))}</td>
                       <td className="service-table__actions">
                         <button
                           className="settings-btn"
@@ -673,12 +1026,26 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       {showServiceForm && (
         <ServiceForm
           service={editingIndex !== null ? services[editingIndex] : null}
-          existingGroups={[...new Set(services.map((s) => s.group).filter(Boolean) as string[])]}
+          existingGroups={knownGroupNames}
           takenNames={services
             .filter((_, i) => editingIndex === null || i !== editingIndex)
             .map((s) => s.name)}
           onSave={handleServiceSave}
           onClose={closeServiceForm}
+        />
+      )}
+
+      {showBookmarkForm && (
+        <BookmarkGroupForm
+          bookmark={
+            editingBookmarkIndex !== null ? bookmarks[editingBookmarkIndex] : null
+          }
+          knownGroups={knownGroupNames}
+          takenNames={bookmarks
+            .filter((_, i) => editingBookmarkIndex === null || i !== editingBookmarkIndex)
+            .map((b) => b.name)}
+          onSave={handleBookmarkSave}
+          onClose={closeBookmarkForm}
         />
       )}
     </div>

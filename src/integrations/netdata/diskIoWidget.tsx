@@ -86,6 +86,7 @@ export function NetdataDiskIoWidget({
 registerWidget<NetdataBaseConfig, DiskIoData>({
   id: "netdata-disk-io",
   name: "Netdata Disk I/O",
+  preferredSize: "normal",
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchDiskIoData,
   refreshInterval: 10_000,

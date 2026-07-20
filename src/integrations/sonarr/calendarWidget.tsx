@@ -103,6 +103,8 @@ export function SonarrCalendarWidget({
 registerWidget<SonarrConfig, SonarrEpisode[]>({
   id: "sonarr-calendar",
   name: "Sonarr Calendar",
+  preferredSize: "tall",
+  minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Sonarr",
     defaultIconUrl: "https://cdn.simpleicons.org/sonarr/35c5f4",
