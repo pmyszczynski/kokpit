@@ -92,6 +92,8 @@ export function RadarrQueueWidget({
 registerWidget<RadarrConfig, RadarrQueueItem[]>({
   id: "radarr-queue",
   name: "Radarr Queue",
+  preferredSize: "tall",
+  minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Radarr",
     defaultIconUrl: "https://cdn.simpleicons.org/radarr/ffc230",

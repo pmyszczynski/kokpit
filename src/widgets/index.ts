@@ -1,5 +1,6 @@
 import type React from "react";
 import type { z } from "zod";
+import type { Size } from "@/config/schema";
 
 export interface WidgetProps<TData = unknown> {
   data: TData | null;
@@ -40,6 +41,13 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   configFields?: WidgetConfigField[];
   /** When set, this widget appears as a tile type in the service editor. */
   serviceEditorPreset?: ServiceEditorPreset;
+  /**
+   * Suggested tile size when a service attaches this widget and sets no
+   * explicit `size`. Consumed by resolveServiceSize (src/config/resolve.ts).
+   */
+  preferredSize?: Size;
+  /** Smallest size the widget renders usefully at; the size picker greys out anything below. */
+  minSize?: Size;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,6 +79,24 @@ export function getWidgetsWithServiceEditorPreset(): AnyWidgetDefinition[] {
   return getAllWidgets()
     .filter((w) => w.serviceEditorPreset != null)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Size hints of a registered widget, safe to pass to client components. */
+export interface WidgetSizeHints {
+  preferredSize?: Size;
+  minSize?: Size;
+}
+
+/**
+ * Looks up a widget's size hints by type id. Server-safe: contains no client
+ * code, so the server-rendered grid can call it directly — callers must have
+ * populated the registry first (`import "@/integrations"`). Returns undefined
+ * for unknown widget types.
+ */
+export function getWidgetSizeHints(id: string): WidgetSizeHints | undefined {
+  const def = widgetRegistry.get(id);
+  if (!def) return undefined;
+  return { preferredSize: def.preferredSize, minSize: def.minSize };
 }
 
 /** Removes all registered widgets. Intended for use in tests only. */

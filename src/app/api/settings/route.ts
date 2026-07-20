@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
 import { getConfig, writeConfig } from "@/config";
+import { BookmarkGroupsSchema, GroupsSchema, SizeEnum } from "@/config/schema";
 
 const PatchBodySchema = z.object({
   appearance: z
@@ -14,6 +15,7 @@ const PatchBodySchema = z.object({
     .object({
       columns: z.number().int().positive(),
       row_height: z.number().int().positive(),
+      ungrouped: z.enum(["first", "last"]).optional(),
       tablet: z
         .object({
           columns: z.number().int().positive().optional(),
@@ -42,6 +44,7 @@ const PatchBodySchema = z.object({
         icon: z.string().optional(),
         description: z.string().optional(),
         group: z.string().optional(),
+        size: SizeEnum.optional(),
         widget: z
           .object({
             type: z.string(),
@@ -53,6 +56,8 @@ const PatchBodySchema = z.object({
       })
     )
     .optional(),
+  groups: GroupsSchema.optional(),
+  bookmarks: BookmarkGroupsSchema.optional(),
 });
 
 export async function GET() {
@@ -88,6 +93,9 @@ export async function PATCH(request: NextRequest) {
   if (result.data.auth !== undefined) updates.auth = result.data.auth;
   if (result.data.services !== undefined)
     updates.services = result.data.services;
+  if (result.data.groups !== undefined) updates.groups = result.data.groups;
+  if (result.data.bookmarks !== undefined)
+    updates.bookmarks = result.data.bookmarks;
 
   try {
     writeConfig(updates as Parameters<typeof writeConfig>[0]);

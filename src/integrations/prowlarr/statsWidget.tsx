@@ -60,6 +60,7 @@ export function ProwlarrStatsWidget({
 registerWidget<ProwlarrConfig, ProwlarrStats>({
   id: "prowlarr-stats",
   name: "Prowlarr Stats",
+  preferredSize: "wide",
   serviceEditorPreset: {
     defaultName: "Prowlarr",
     defaultIconUrl: "https://cdn.simpleicons.org/prowlarr",

@@ -117,6 +117,7 @@ export function UnraidStatsWidget({
 registerWidget<UnraidConfig, UnraidStats>({
   id: "unraid-stats",
   name: "Unraid Stats",
+  preferredSize: "large",
   serviceEditorPreset: {
     defaultName: "Unraid",
     defaultIconUrl: "https://cdn.simpleicons.org/unraid",

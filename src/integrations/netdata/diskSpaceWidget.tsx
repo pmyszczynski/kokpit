@@ -74,6 +74,7 @@ export function NetdataDiskSpaceWidget({
 registerWidget<DiskSpaceConfig, DiskSpaceData>({
   id: "netdata-disk-space",
   name: "Netdata Disk Space",
+  preferredSize: "normal",
   configSchema: DiskSpaceConfigSchema,
   fetchData: fetchDiskSpaceData,
   refreshInterval: 60_000,

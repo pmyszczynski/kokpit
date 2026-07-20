@@ -26,6 +26,20 @@ appearance:
 layout:
   columns: 4
   row_height: 120 # pixels
+  # ungrouped: last       # Where the implicit "ungrouped" section renders:
+  #                       # first | last (default: last)
+
+# ─── Groups (optional) ────────────────────────────────────────
+# Ordered group declarations — array order is display order.
+# Groups referenced by services but not listed here are appended
+# automatically (alphabetically), so this block is optional.
+# ─────────────────────────────────────────────────────────────
+# groups:
+#   - name: Media
+#     collapsed: false    # default expanded; live state is per-browser
+#     columns: 4          # optional per-group column override
+#   - name: Downloads
+#   - name: Infrastructure
 
 # ─── Services (app tiles + optional inline widgets) ───────────
 # Each service is a dashboard tile. Attach a widget: block to
@@ -35,10 +49,19 @@ layout:
 # ─────────────────────────────────────────────────────────────
 services: []
 
+# Tile sizing: every service accepts an optional size preset —
+#   size: normal | wide | tall | large   (normal = 1×1, wide = 2×1,
+#   tall = 1×2, large = 2×2). When omitted, the widget's preferred
+#   size applies (e.g. queue/list widgets suggest "tall"), falling
+#   back to "normal". The legacy position: field is DEPRECATED —
+#   use size: plus array order instead.
+#
 # Example entries (uncomment and fill in your values):
 # services:
 #   - name: Plex
 #     url: http://192.168.1.x:32400
+#     group: Media
+#     size: large
 #     widget:
 #       type: plex
 #       config:
@@ -98,6 +121,27 @@ services: []
 #
 #   - name: System Stats
 #     description: CPU, RAM, disk usage
-#     position: { col: 1, row: 1, width: 2, height: 1 }
+#     size: wide
 #     widget:
 #       type: system-stats
+
+# ─── Bookmarks (optional) ─────────────────────────────────────
+# A bookmark group is a single grid tile holding plain links —
+# far cheaper than one service tile per link. Placement is
+# optional; by default bookmark tiles render at the end.
+# ─────────────────────────────────────────────────────────────
+# bookmarks:
+#   - name: Dev
+#     accent: "#7aa2f7"           # group accent (header + link markers)
+#     style: list                 # list | icon-grid | compact (default: list)
+#     placement:
+#       group: Infrastructure     # optional: render inside this group
+#       size: tall                # optional: tile size preset
+#     links:
+#       - name: GitHub
+#         url: https://github.com
+#         icon: sh-github         # optional; falls back to favicon, then abbr
+#       - name: Grafana docs
+#         url: https://grafana.com/docs
+#         abbr: GD                # 2-letter fallback when there is no icon
+#         description: Panels & alerting reference # shown in list style only

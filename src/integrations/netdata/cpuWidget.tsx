@@ -67,6 +67,7 @@ export function NetdataCpuWidget({
 registerWidget<NetdataBaseConfig, CpuData>({
   id: "netdata-cpu",
   name: "Netdata CPU",
+  preferredSize: "normal",
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchCpuData,
   refreshInterval: 10_000,

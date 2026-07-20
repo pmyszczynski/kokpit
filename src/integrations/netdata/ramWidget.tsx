@@ -83,6 +83,7 @@ export function NetdataRamWidget({
 registerWidget<NetdataBaseConfig, RamData>({
   id: "netdata-ram",
   name: "Netdata RAM",
+  preferredSize: "normal",
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchRamData,
   refreshInterval: 10_000,

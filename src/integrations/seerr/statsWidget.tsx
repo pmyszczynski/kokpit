@@ -55,6 +55,7 @@ export function SeerrStatsWidget({
 registerWidget<SeerrConfig, SeerrStats>({
   id: "seerr-stats",
   name: "Seerr Stats",
+  preferredSize: "wide",
   configSchema: SeerrConfigSchema,
   fetchData: fetchStats,
   refreshInterval: 60_000,

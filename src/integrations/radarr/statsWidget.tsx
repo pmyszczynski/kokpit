@@ -64,6 +64,7 @@ export function RadarrStatsWidget({
 registerWidget<RadarrConfig, RadarrStats>({
   id: "radarr-stats",
   name: "Radarr Stats",
+  preferredSize: "wide",
   serviceEditorPreset: {
     defaultName: "Radarr",
     defaultIconUrl: "https://cdn.simpleicons.org/radarr/ffc230",

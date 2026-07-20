@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { z } from "zod";
-import { registerWidget, getWidget, getAllWidgets, clearRegistry } from "@/widgets";
+import {
+  registerWidget,
+  getWidget,
+  getAllWidgets,
+  getWidgetSizeHints,
+  clearRegistry,
+} from "@/widgets";
 import type { WidgetDefinition } from "@/widgets";
 
 function makeWidget(id: string): WidgetDefinition {
@@ -47,5 +53,29 @@ describe("widgetRegistry", () => {
     const def: WidgetDefinition = { ...makeWidget("with-interval"), refreshInterval: 10_000 };
     registerWidget(def);
     expect(getWidget("with-interval")?.refreshInterval).toBe(10_000);
+  });
+
+  it("getWidgetSizeHints returns the registered size hints", () => {
+    registerWidget({
+      ...makeWidget("sized"),
+      preferredSize: "tall",
+      minSize: "tall",
+    });
+    expect(getWidgetSizeHints("sized")).toEqual({
+      preferredSize: "tall",
+      minSize: "tall",
+    });
+  });
+
+  it("getWidgetSizeHints returns empty hints for a widget without them", () => {
+    registerWidget(makeWidget("unsized"));
+    expect(getWidgetSizeHints("unsized")).toEqual({
+      preferredSize: undefined,
+      minSize: undefined,
+    });
+  });
+
+  it("getWidgetSizeHints returns undefined for an unknown widget", () => {
+    expect(getWidgetSizeHints("does-not-exist")).toBeUndefined();
   });
 });

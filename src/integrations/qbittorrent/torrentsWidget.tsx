@@ -92,6 +92,8 @@ export function QbittorrentTorrentsWidget({
 registerWidget<QbittorrentConfig, Torrent[]>({
   id: "qbittorrent-torrents",
   name: "qBittorrent Torrents",
+  preferredSize: "tall",
+  minSize: "tall",
   serviceEditorPreset: {
     defaultName: "qBittorrent",
     defaultIconUrl: "https://cdn.simpleicons.org/qbittorrent/2f67b2",

@@ -142,6 +142,8 @@ export function SeerrRequestsWidget({
 registerWidget<SeerrConfig, SeerrRequest[]>({
   id: "seerr-requests",
   name: "Seerr Requests",
+  preferredSize: "tall",
+  minSize: "tall",
   configSchema: SeerrConfigSchema,
   fetchData: fetchRequests,
   refreshInterval: 60_000,

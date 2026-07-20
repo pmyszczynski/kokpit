@@ -64,6 +64,7 @@ export function SabnzbdWidget({
 registerWidget<SabnzbdConfig, SabnzbdQueueData>({
   id: "sabnzbd",
   name: "SABnzbd",
+  preferredSize: "wide",
   serviceEditorPreset: {
     defaultName: "SABnzbd",
     defaultIconUrl: "https://cdn.simpleicons.org/sabnzbd",

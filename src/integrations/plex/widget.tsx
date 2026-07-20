@@ -89,6 +89,7 @@ export function PlexWidget({ data, loading, error }: WidgetProps<PlexData>) {
 registerWidget<PlexConfig, PlexData>({
   id: "plex",
   name: "Plex",
+  preferredSize: "wide",
   serviceEditorPreset: {
     defaultName: "Plex",
     defaultIconUrl: "https://cdn.simpleicons.org/plex/e5a00d",

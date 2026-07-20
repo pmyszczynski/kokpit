@@ -96,6 +96,7 @@ export function NetdataSensorWidget({
 registerWidget<SensorConfig, SensorData>({
   id: "netdata-sensor",
   name: "Netdata Sensor",
+  preferredSize: "normal",
   configSchema: SensorConfigSchema,
   fetchData: fetchSensorData,
   refreshInterval: 10_000,

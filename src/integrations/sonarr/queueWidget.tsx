@@ -92,6 +92,8 @@ export function SonarrQueueWidget({
 registerWidget<SonarrConfig, SonarrQueueItem[]>({
   id: "sonarr-queue",
   name: "Sonarr Queue",
+  preferredSize: "tall",
+  minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Sonarr",
     defaultIconUrl: "https://cdn.simpleicons.org/sonarr/35c5f4",

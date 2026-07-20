@@ -11,6 +11,25 @@ const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 1 })
 
 let cachedConfig: KokpitConfig | null = null;
 
+// Services already warned about their deprecated `position` field, so each
+// service is named at most once per process (loadConfig re-runs on every
+// cache invalidation).
+const warnedPositionServices = new Set<string>();
+
+function warnDeprecatedPositions(config: KokpitConfig): void {
+  for (const service of config.services) {
+    if (!service.position) continue;
+    const key = service.name.trim().toLowerCase();
+    if (warnedPositionServices.has(key)) continue;
+    warnedPositionServices.add(key);
+    console.warn(
+      `[kokpit] Service "${service.name}" uses the deprecated "position" field; ` +
+        `use "size" (normal|wide|tall|large) and array order instead. ` +
+        `"position" will be removed in a future schema version.`
+    );
+  }
+}
+
 export function getConfigPath(): string {
   return CONFIG_PATH;
 }
@@ -30,6 +49,8 @@ export function loadConfig(): KokpitConfig {
       .join("\n");
     throw new Error(`Invalid settings.yaml:\n${messages}`);
   }
+
+  warnDeprecatedPositions(result.data);
 
   cachedConfig = result.data;
   return cachedConfig;
