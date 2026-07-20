@@ -529,6 +529,10 @@ describe("SettingsPanel - groups tab", () => {
           placement: { group: "Media" },
           links: [{ name: "GH", url: "https://github.com" }],
         },
+        {
+          name: "Ops",
+          links: [{ name: "Grafana", url: "https://grafana.com" }],
+        },
       ],
     });
   }
@@ -644,6 +648,82 @@ describe("SettingsPanel - groups tab", () => {
     });
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.groups[0]).toEqual({ name: "Media", collapsed: true, columns: 3 });
+  });
+
+  it("does not leak an unsaved group rename into a Services-tab save", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={groupsConfig()} />);
+    // Rename Media -> Movies on the Groups tab but DON'T save the Groups tab.
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const input = screen.getByLabelText("Group name for Media");
+    fireEvent.change(input, { target: { value: "Movies" } });
+    fireEvent.blur(input);
+    // Switch to Services and trigger a services save (delete a service).
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    const looseRow = screen.getByText("Loose").closest("tr")!;
+    await act(async () => {
+      fireEvent.click(within(looseRow).getByRole("button", { name: "Delete" }));
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string
+    );
+    // The Services PATCH must carry the ORIGINAL group name; the rename is still
+    // an unsaved Groups draft. (Old eager-cascade behavior would leak "Movies".)
+    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
+    expect(jelly.group).toBe("Media");
+    expect(body.groups).toBeUndefined();
+  });
+
+  it("does not leak an unsaved group delete into a Bookmarks-tab save", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={groupsConfig()} />);
+    // Delete Media on the Groups tab but DON'T save the Groups tab.
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const mediaRow = screen
+      .getByLabelText("Group name for Media")
+      .closest<HTMLElement>(".groups-row")!;
+    fireEvent.click(within(mediaRow).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(mediaRow).getByRole("button", { name: "Confirm" }));
+    // Trigger a bookmarks save by reordering (there's a single "Dev" so add one).
+    fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
+    const devRow = screen.getByText("Dev").closest<HTMLElement>(".groups-row")!;
+    await act(async () => {
+      fireEvent.click(within(devRow).getByRole("button", { name: "Move Dev down" }));
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string
+    );
+    // The bookmark placement must NOT be cleared — the delete is unsaved.
+    const dev = body.bookmarks.find((b: { name: string }) => b.name === "Dev");
+    expect(dev.placement.group).toBe("Media");
+    expect(body.groups).toBeUndefined();
+    expect(body.services).toBeUndefined();
+  });
+
+  it("applies a staged rename only once the Groups tab is saved, even after tab switches", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={groupsConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const input = screen.getByLabelText("Group name for Media");
+    fireEvent.change(input, { target: { value: "Movies" } });
+    fireEvent.blur(input);
+    // Wander to another tab and back — the staged op must survive.
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string
+    );
+    expect(body.groups[0].name).toBe("Movies");
+    expect(
+      body.services.find((s: Service) => s.name === "Jellyfin").group
+    ).toBe("Movies");
+    expect(body.bookmarks[0].placement.group).toBe("Movies");
   });
 });
 

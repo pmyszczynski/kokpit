@@ -34,6 +34,63 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 
+/** A staged group edit whose effect on services/bookmarks is applied at save. */
+type GroupCascadeOp =
+  | { type: "rename"; from: string; to: string }
+  | { type: "delete"; name: string };
+
+/**
+ * Applies staged group ops (in order) to the current services and bookmarks,
+ * producing cascaded copies. A rename rewrites every matching `service.group`
+ * and `bookmark.placement.group`; a delete clears those references (dropping an
+ * emptied placement). Pure — used both for the display projection and to build
+ * the Groups-save PATCH, so shared state is only mutated on a successful save.
+ */
+function applyGroupCascades(
+  services: Service[],
+  bookmarks: BookmarkGroup[],
+  ops: GroupCascadeOp[]
+): {
+  services: Service[];
+  bookmarks: BookmarkGroup[];
+  servicesChanged: boolean;
+  bookmarksChanged: boolean;
+} {
+  let svc = services;
+  let bm = bookmarks;
+  let servicesChanged = false;
+  let bookmarksChanged = false;
+
+  for (const op of ops) {
+    const key = serviceNameUniquenessKey(
+      op.type === "rename" ? op.from : op.name
+    );
+
+    svc = svc.map((s) => {
+      if (!s.group || serviceNameUniquenessKey(s.group) !== key) return s;
+      servicesChanged = true;
+      if (op.type === "rename") return { ...s, group: op.to };
+      const { group: _group, ...rest } = s;
+      return rest;
+    });
+
+    bm = bm.map((b) => {
+      if (!b.placement?.group || serviceNameUniquenessKey(b.placement.group) !== key)
+        return b;
+      bookmarksChanged = true;
+      if (op.type === "rename") {
+        return { ...b, placement: { ...b.placement, group: op.to } };
+      }
+      const { group: _group, ...restPlacement } = b.placement;
+      const placement =
+        Object.keys(restPlacement).length > 0 ? restPlacement : undefined;
+      return { ...b, placement };
+    });
+  }
+
+  return { services: svc, bookmarks: bm, servicesChanged, bookmarksChanged };
+}
+
 function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
   return (
     <button
@@ -87,10 +144,12 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [ungrouped, setUngrouped] = useState<"first" | "last">(
     config.layout.ungrouped ?? "last"
   );
-  // A group rename/delete cascades into services and/or bookmarks; these flags
-  // tell the Groups save which of those top-level keys to include in the PATCH.
-  const [servicesTouchedByGroups, setServicesTouchedByGroups] = useState(false);
-  const [bookmarksTouchedByGroups, setBookmarksTouchedByGroups] = useState(false);
+  // A group rename/delete must cascade into services and bookmark placements.
+  // These edits are staged as ordered ops and only applied to the shared
+  // services/bookmarks state when the Groups tab is saved — so a save on the
+  // Services or Bookmarks tab can never persist a half-applied cascade (services
+  // pointing at a renamed group whose `groups` entry was never committed).
+  const [pendingGroupOps, setPendingGroupOps] = useState<GroupCascadeOp[]>([]);
 
   // Bookmarks
   const [bookmarks, setBookmarks] = useState<BookmarkGroup[]>(
@@ -314,12 +373,25 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     [groups]
   );
 
+  // Services/bookmarks as they WILL look once the staged group ops are applied.
+  // Drives the undeclared-group detection so a group pending rename/delete
+  // doesn't spuriously reappear as "undeclared" while its cascade is unsaved.
+  const projectedCascade = useMemo(
+    () => applyGroupCascades(services, bookmarks, pendingGroupOps),
+    [services, bookmarks, pendingGroupOps]
+  );
+
   const undeclaredGroups = useMemo(
     () =>
-      resolveGroupOrder({ layout: config.layout, services, groups, bookmarks })
+      resolveGroupOrder({
+        layout: config.layout,
+        services: projectedCascade.services,
+        groups,
+        bookmarks: projectedCascade.bookmarks,
+      })
         .filter((g) => g.name !== null && !g.declared)
         .map((g) => g.name as string),
-    [config.layout, services, groups, bookmarks]
+    [config.layout, projectedCascade, groups]
   );
 
   const knownGroupNames = useMemo(() => {
@@ -358,34 +430,11 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
         serviceNameUniquenessKey(g.name) === oldKey ? { ...g, name: newName } : g
       )
     );
-    // Cascade the rename into every referencing service and bookmark placement.
-    setServices((prev) => {
-      let changed = false;
-      const next = prev.map((s) => {
-        if (s.group && serviceNameUniquenessKey(s.group) === oldKey) {
-          changed = true;
-          return { ...s, group: newName };
-        }
-        return s;
-      });
-      if (changed) setServicesTouchedByGroups(true);
-      return changed ? next : prev;
-    });
-    setBookmarks((prev) => {
-      let changed = false;
-      const next = prev.map((b) => {
-        if (
-          b.placement?.group &&
-          serviceNameUniquenessKey(b.placement.group) === oldKey
-        ) {
-          changed = true;
-          return { ...b, placement: { ...b.placement, group: newName } };
-        }
-        return b;
-      });
-      if (changed) setBookmarksTouchedByGroups(true);
-      return changed ? next : prev;
-    });
+    // Stage the cascade; it's applied to services/bookmarks only on Groups save.
+    setPendingGroupOps((prev) => [
+      ...prev,
+      { type: "rename", from: oldName, to: newName },
+    ]);
   }
 
   function handleGroupToggleCollapsed(index: number) {
@@ -404,40 +453,10 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
 
   function handleGroupDelete(index: number) {
     const removed = groups[index];
-    const removedKey = serviceNameUniquenessKey(removed.name);
     setGroups((prev) => prev.filter((_, i) => i !== index));
-    // Members become ungrouped; bookmark placements referencing it are cleared.
-    setServices((prev) => {
-      let changed = false;
-      const next = prev.map((s) => {
-        if (s.group && serviceNameUniquenessKey(s.group) === removedKey) {
-          changed = true;
-          const { group: _g, ...rest } = s;
-          return rest;
-        }
-        return s;
-      });
-      if (changed) setServicesTouchedByGroups(true);
-      return changed ? next : prev;
-    });
-    setBookmarks((prev) => {
-      let changed = false;
-      const next = prev.map((b) => {
-        if (
-          b.placement?.group &&
-          serviceNameUniquenessKey(b.placement.group) === removedKey
-        ) {
-          changed = true;
-          const { group: _g, ...restPlacement } = b.placement;
-          const placement =
-            Object.keys(restPlacement).length > 0 ? restPlacement : undefined;
-          return { ...b, placement };
-        }
-        return b;
-      });
-      if (changed) setBookmarksTouchedByGroups(true);
-      return changed ? next : prev;
-    });
+    // Members become ungrouped and bookmark placements are cleared — but only
+    // once the Groups tab is saved (staged as an op, applied at save time).
+    setPendingGroupOps((prev) => [...prev, { type: "delete", name: removed.name }]);
   }
 
   async function handleSaveGroups() {
@@ -447,16 +466,21 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       ...(g.collapsed ? { collapsed: true } : {}),
       ...(g.columns ? { columns: g.columns } : {}),
     }));
+    // Apply the staged cascade to the CURRENT services/bookmarks so the PATCH
+    // carries the renamed/cleared references atomically with the `groups` write.
+    const cascade = applyGroupCascades(services, bookmarks, pendingGroupOps);
     const payload: Record<string, unknown> = {
       groups: cleanGroups,
       layout: buildLayoutPayload(),
     };
-    if (servicesTouchedByGroups) payload.services = services;
-    if (bookmarksTouchedByGroups) payload.bookmarks = bookmarks;
+    if (cascade.servicesChanged) payload.services = cascade.services;
+    if (cascade.bookmarksChanged) payload.bookmarks = cascade.bookmarks;
     const ok = await saveRaw("groups", payload);
     if (ok) {
-      setServicesTouchedByGroups(false);
-      setBookmarksTouchedByGroups(false);
+      // Now — and only now — reflect the cascade in shared state and clear ops.
+      if (cascade.servicesChanged) setServices(cascade.services);
+      if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
+      setPendingGroupOps([]);
     }
   }
 
