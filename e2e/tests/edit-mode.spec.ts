@@ -79,7 +79,14 @@ test.describe("edit mode", () => {
 
   test("enter edit mode via Mod+E", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".service-tile").first()).toBeVisible();
+    // Wait for the client-side edit toggle to hydrate before firing the global
+    // Mod+E hotkey: the keydown listener is attached on mount, so pressing the
+    // key before hydration completes would be a lost no-op. A visible
+    // server-rendered tile does not prove the provider has mounted, which made
+    // this flaky in CI; the "Edit dashboard" button only renders once hydrated.
+    await expect(
+      page.getByRole("button", { name: "Edit dashboard" })
+    ).toBeVisible();
 
     await page.keyboard.press("Control+e");
     await expect(page.locator(".edit-bar")).toBeVisible();
