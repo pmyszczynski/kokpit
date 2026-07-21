@@ -199,6 +199,20 @@ auth:
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
 
+## Edit Mode
+
+Click the pencil icon in the navbar (or press `Mod+E` — Cmd+E on macOS, Ctrl+E on Windows/Linux) to edit the dashboard in place. Edit mode follows the same access as `/settings` — any authenticated user, or everyone if `auth.enabled: false`. Outside edit mode the dashboard is unchanged and read-only, exactly as it renders today.
+
+While editing:
+
+- **Reorder tiles** by dragging them — within a group, or across groups (dropping a tile into another group's grid reassigns it there). Drag a group's header to reorder whole groups. Dragging uses an 8px pointer-activation threshold so taps and scrolling don't start a drag, which is also what makes it work on touch. Full keyboard support too: Tab to a tile's drag handle, press Space to pick it up, arrow keys to move it, Space again to drop.
+- **Configure a tile** from its kebab menu: **Edit** opens the same service/bookmark form used elsewhere, **Size** switches between `normal` / `wide` / `tall` / `large` (sizes below a widget's minimum are greyed out), plus **Duplicate** and **Remove**.
+- **Add a tile** with the **+ Add** button — a blank service, one of the widget presets, or a bookmark group, dropped into whichever group you opened it from.
+- **Manage a group** from its header kebab: rename (cascades to every member service and bookmark, and carries over the collapse state), set or clear a per-group column override, or delete it (members become ungrouped). A group that exists only because a service referenced its name gets a **Declare group** action first — that's what makes it orderable.
+- **Save or discard** from the persistent edit bar. It tracks how many top-level sections changed; **Save & exit** writes everything in a single atomic request to `settings.yaml`, **Discard** drops the staged changes and returns to the live dashboard.
+
+**Conflict safety:** edit mode captures the config revision when you enter. If `settings.yaml` changes on disk while you're editing — a hand edit, another tab saving first — Save is rejected instead of silently overwriting, and the edit bar shows a "changed on disk" notice with a **Reload** action to pull the new version before you try again.
+
 ## Account Recovery
 
 Kokpit doesn't collect an email address or phone number, so password recovery works differently than most apps.
