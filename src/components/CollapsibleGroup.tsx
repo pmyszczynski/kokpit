@@ -8,6 +8,21 @@ import { useEffect, useState } from "react";
  */
 export const GROUP_COLLAPSE_STORAGE_PREFIX = "kokpit.group-collapsed:";
 
+/**
+ * Edit-mode group-reorder wiring (B2). When present the whole section becomes a
+ * sortable node and the header grows a `.group-drag-handle` — rendered as a
+ * SIBLING of the collapse toggle button (never nested inside it, which would be
+ * invalid HTML). Omitted in view mode, so the header is unchanged there.
+ */
+export interface GroupDragHandle {
+  nodeRef?: (el: HTMLElement | null) => void;
+  style?: React.CSSProperties;
+  handleRef?: (el: HTMLElement | null) => void;
+  attributes?: Record<string, unknown>;
+  listeners?: Record<string, unknown>;
+  dragging?: boolean;
+}
+
 export interface CollapsibleGroupProps {
   /** Group display name — also namespaces the localStorage key. */
   name: string;
@@ -16,6 +31,8 @@ export interface CollapsibleGroupProps {
    * no per-device preference is stored yet.
    */
   defaultCollapsed?: boolean;
+  /** Edit-mode drag-reorder wiring for declared groups. Absent in view mode. */
+  drag?: GroupDragHandle;
   /** Server-rendered tile grid; stays an RSC subtree passed through as children. */
   children: React.ReactNode;
 }
@@ -37,6 +54,7 @@ export interface CollapsibleGroupProps {
 export default function CollapsibleGroup({
   name,
   defaultCollapsed = false,
+  drag,
   children,
 }: CollapsibleGroupProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -70,9 +88,39 @@ export default function CollapsibleGroup({
 
   return (
     <section
-      className={`service-group${collapsed ? " service-group--collapsed" : ""}`}
+      ref={drag?.nodeRef}
+      style={drag?.style}
+      className={
+        `service-group${collapsed ? " service-group--collapsed" : ""}` +
+        (drag ? " service-group--editable" : "") +
+        (drag?.dragging ? " service-group--dragging" : "")
+      }
     >
       <h2 className="service-group__header">
+        {drag && (
+          <span
+            ref={drag.handleRef}
+            className="group-drag-handle"
+            aria-label={`Reorder group ${name}`}
+            {...drag.attributes}
+            {...drag.listeners}
+          >
+            <svg
+              className="group-drag-handle__grip"
+              aria-hidden="true"
+              width="10"
+              height="16"
+              viewBox="0 0 10 16"
+            >
+              <circle cx="2.5" cy="3" r="1.3" fill="currentColor" />
+              <circle cx="7.5" cy="3" r="1.3" fill="currentColor" />
+              <circle cx="2.5" cy="8" r="1.3" fill="currentColor" />
+              <circle cx="7.5" cy="8" r="1.3" fill="currentColor" />
+              <circle cx="2.5" cy="13" r="1.3" fill="currentColor" />
+              <circle cx="7.5" cy="13" r="1.3" fill="currentColor" />
+            </svg>
+          </span>
+        )}
         <button
           type="button"
           className="service-group__toggle"

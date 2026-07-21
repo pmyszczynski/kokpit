@@ -11,6 +11,47 @@ export interface TileWidget {
   refresh_interval_ms?: number;
 }
 
+/**
+ * Optional dnd-kit wiring for edit mode (B2). When present, the tile becomes a
+ * sortable node: `ref`/`style` come from `useSortable`, and an additive
+ * `.tile-drag-handle` child carries the drag listeners. Omitted in view mode,
+ * so the tile renders byte-for-byte identically outside edit mode.
+ */
+export interface TileDragHandle {
+  /** `setNodeRef` for the sortable/movable element (the tile root). */
+  nodeRef?: (el: HTMLElement | null) => void;
+  /** Transform/transition style from `useSortable`. */
+  style?: React.CSSProperties;
+  /** `setActivatorNodeRef` for the handle element. */
+  handleRef?: (el: HTMLElement | null) => void;
+  attributes?: Record<string, unknown>;
+  listeners?: Record<string, unknown>;
+  /** Accessible label for the handle. */
+  label?: string;
+  /** True while this tile is the active drag source (dims the placeholder). */
+  dragging?: boolean;
+}
+
+/** The grip glyph shared by service and bookmark drag handles. */
+export function DragGrip() {
+  return (
+    <svg
+      className="tile-drag-handle__grip"
+      aria-hidden="true"
+      width="10"
+      height="16"
+      viewBox="0 0 10 16"
+    >
+      <circle cx="2.5" cy="3" r="1.3" fill="currentColor" />
+      <circle cx="7.5" cy="3" r="1.3" fill="currentColor" />
+      <circle cx="2.5" cy="8" r="1.3" fill="currentColor" />
+      <circle cx="7.5" cy="8" r="1.3" fill="currentColor" />
+      <circle cx="2.5" cy="13" r="1.3" fill="currentColor" />
+      <circle cx="7.5" cy="13" r="1.3" fill="currentColor" />
+    </svg>
+  );
+}
+
 interface ServiceTileProps {
   name: string;
   url?: string;
@@ -32,6 +73,8 @@ interface ServiceTileProps {
    * fetches. Absent (the default) keeps behavior byte-for-byte identical.
    */
   preview?: boolean;
+  /** Edit-mode drag wiring (B2). Absent in view mode. */
+  drag?: TileDragHandle;
 }
 
 type PingStatus = "pending" | "ok" | "error";
@@ -111,11 +154,27 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false }: ServiceTileProps) {
-  const className = `service-tile service-tile--${size}`;
+export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false, drag }: ServiceTileProps) {
+  const className =
+    `service-tile service-tile--${size}` +
+    (drag ? " service-tile--editable" : "") +
+    (drag?.dragging ? " service-tile--dragging" : "");
+
+  const handle = drag ? (
+    <span
+      ref={drag.handleRef}
+      className="tile-drag-handle"
+      aria-label={drag.label ?? `Reorder ${name}`}
+      {...drag.attributes}
+      {...drag.listeners}
+    >
+      <DragGrip />
+    </span>
+  ) : null;
 
   const inner = (
     <>
+      {handle}
       {url && <StatusDot url={url} preview={preview} />}
       <ServiceIcon icon={icon} url={url} name={name} />
       <span className="service-tile__name">{name}</span>
@@ -143,15 +202,24 @@ export default function ServiceTile({ name, url, icon, description, widget, size
   if (url) {
     return (
       <a
+        ref={drag?.nodeRef}
+        style={drag?.style}
         href={url}
         target="_blank"
         rel="noopener noreferrer"
         className={className}
+        // In edit mode the tile is a drag surface, not a link: suppress
+        // navigation so a click/drag never leaves the page and drops the draft.
+        onClick={drag ? (e) => e.preventDefault() : undefined}
       >
         {inner}
       </a>
     );
   }
 
-  return <div className={className}>{inner}</div>;
+  return (
+    <div ref={drag?.nodeRef} style={drag?.style} className={className}>
+      {inner}
+    </div>
+  );
 }

@@ -6,6 +6,7 @@
 // plain serializable data; nothing sensitive crosses the boundary.
 import { useState } from "react";
 import type { BookmarkLink, Size } from "@/config/schema";
+import { DragGrip, type TileDragHandle } from "./ServiceTile";
 
 export type BookmarkTileVariant = "list" | "icon-grid" | "compact";
 
@@ -25,6 +26,8 @@ export interface BookmarkTileProps {
   /** Tile size preset — same presets as service tiles (SIZE_SPANS). */
   size: Size;
   links: BookmarkLink[];
+  /** Edit-mode drag wiring (B2). Absent in view mode. */
+  drag?: TileDragHandle;
 }
 
 function BookmarkIcon({
@@ -86,16 +89,36 @@ export default function BookmarkTile({
   variant,
   size,
   links,
+  drag,
 }: BookmarkTileProps) {
-  const style = accent
-    ? ({ "--bookmark-accent": accent } as React.CSSProperties)
-    : undefined;
+  const style: React.CSSProperties | undefined =
+    accent || drag?.style
+      ? {
+          ...(accent
+            ? ({ "--bookmark-accent": accent } as React.CSSProperties)
+            : {}),
+          ...(drag?.style ?? {}),
+        }
+      : undefined;
+
+  const className =
+    `bookmark-tile bookmark-tile--${variant} bookmark-tile--${size}` +
+    (drag ? " bookmark-tile--editable" : "") +
+    (drag?.dragging ? " bookmark-tile--dragging" : "");
 
   return (
-    <div
-      className={`bookmark-tile bookmark-tile--${variant} bookmark-tile--${size}`}
-      style={style}
-    >
+    <div ref={drag?.nodeRef} className={className} style={style}>
+      {drag && (
+        <span
+          ref={drag.handleRef}
+          className="tile-drag-handle"
+          aria-label={drag.label ?? `Reorder ${name}`}
+          {...drag.attributes}
+          {...drag.listeners}
+        >
+          <DragGrip />
+        </span>
+      )}
       <h3 className="bookmark-tile__header">{name}</h3>
       <div className="bookmark-tile__links">
         {links.map((link) =>
