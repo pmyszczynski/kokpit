@@ -9,6 +9,29 @@ import { useEffect, useState } from "react";
 export const GROUP_COLLAPSE_STORAGE_PREFIX = "kokpit.group-collapsed:";
 
 /**
+ * Move a group's per-device collapse preference from `oldName` to `newName`
+ * when a group is renamed in edit mode, so the state isn't orphaned under the
+ * old key. No-op when nothing is stored, when the names are equal, or when
+ * localStorage is unavailable.
+ */
+export function migrateGroupCollapseKey(oldName: string, newName: string): void {
+  if (oldName === newName) return;
+  try {
+    const stored = window.localStorage.getItem(
+      GROUP_COLLAPSE_STORAGE_PREFIX + oldName
+    );
+    if (stored === null) return;
+    window.localStorage.setItem(
+      GROUP_COLLAPSE_STORAGE_PREFIX + newName,
+      stored
+    );
+    window.localStorage.removeItem(GROUP_COLLAPSE_STORAGE_PREFIX + oldName);
+  } catch {
+    // Storage unavailable (private mode, etc.) — nothing to migrate.
+  }
+}
+
+/**
  * Edit-mode group-reorder wiring (B2). When present the whole section becomes a
  * sortable node and the header grows a `.group-drag-handle` — rendered as a
  * SIBLING of the collapse toggle button (never nested inside it, which would be
@@ -33,6 +56,12 @@ export interface CollapsibleGroupProps {
   defaultCollapsed?: boolean;
   /** Edit-mode drag-reorder wiring for declared groups. Absent in view mode. */
   drag?: GroupDragHandle;
+  /**
+   * Edit-mode management controls (the group kebab), rendered as a SIBLING of
+   * the collapse toggle inside the `<h2>` header — never nested in the toggle
+   * button. Absent in view mode, so the header markup is unchanged there.
+   */
+  headerActions?: React.ReactNode;
   /** Server-rendered tile grid; stays an RSC subtree passed through as children. */
   children: React.ReactNode;
 }
@@ -55,6 +84,7 @@ export default function CollapsibleGroup({
   name,
   defaultCollapsed = false,
   drag,
+  headerActions,
   children,
 }: CollapsibleGroupProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -145,6 +175,7 @@ export default function CollapsibleGroup({
           </svg>
           <span>{name}</span>
         </button>
+        {headerActions}
       </h2>
       <div className="service-group__body">
         <div className="service-group__body-inner">{children}</div>

@@ -22,6 +22,14 @@ interface ServiceFormProps {
   existingGroups: string[];
   /** Service names already in use (excluding the row being edited). */
   takenNames?: string[];
+  /** Prefill the group field for a new service (edit-mode "add here"). */
+  initialGroup?: string;
+  /**
+   * Prefill the tile type (and its default name/icon) for a new service added
+   * from the edit-mode widget-preset picker. Ignored when editing an existing
+   * service.
+   */
+  initialPreset?: string;
   onSave: (service: Service) => void;
   onClose: () => void;
 }
@@ -318,16 +326,25 @@ export default function ServiceForm({
   service,
   existingGroups,
   takenNames = [],
+  initialGroup,
+  initialPreset,
   onSave,
   onClose,
 }: ServiceFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const initial = initFromService(service);
-  const [name, setName] = useState(initial.name);
+  // For a NEW service opened from the edit-mode preset picker, seed the tile
+  // type + its default name/icon exactly as picking it in the dropdown would.
+  const presetDef =
+    !service && initialPreset ? getWidget(initialPreset) : undefined;
+  const presetEditor = presetDef?.serviceEditorPreset;
+  const [name, setName] = useState(initial.name || presetEditor?.defaultName || "");
   const [url, setUrl] = useState(initial.url);
-  const [icon, setIcon] = useState(initial.icon);
+  const [icon, setIcon] = useState(
+    initial.icon || presetEditor?.defaultIconUrl || ""
+  );
   const [description, setDescription] = useState(initial.description);
-  const [group, setGroup] = useState(initial.group);
+  const [group, setGroup] = useState(initial.group || initialGroup || "");
   // Migrate a legacy `position`-only service to an explicit `size`: seed the
   // select with the size derived from `position` (clamped to the widget floor)
   // so saving writes an equivalent `size` and the effective size survives the
@@ -344,7 +361,9 @@ export default function ServiceForm({
   });
   const [nameError, setNameError] = useState<string | null>(null);
 
-  const [tileType, setTileType] = useState(initial.tileType);
+  const [tileType, setTileType] = useState(
+    initial.tileType || (presetEditor ? initialPreset ?? "" : "")
+  );
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);

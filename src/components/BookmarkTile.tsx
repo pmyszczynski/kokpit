@@ -28,6 +28,11 @@ export interface BookmarkTileProps {
   links: BookmarkLink[];
   /** Edit-mode drag wiring (B2). Absent in view mode. */
   drag?: TileDragHandle;
+  /**
+   * Edit-mode per-tile menu (B3): an additive `.tile-kebab` child that does not
+   * alter the `.bookmark-tile` root or its class list. Absent in view mode.
+   */
+  kebab?: React.ReactNode;
 }
 
 function BookmarkIcon({
@@ -90,6 +95,7 @@ export default function BookmarkTile({
   size,
   links,
   drag,
+  kebab,
 }: BookmarkTileProps) {
   const style: React.CSSProperties | undefined =
     accent || drag?.style
@@ -119,6 +125,7 @@ export default function BookmarkTile({
           <DragGrip />
         </span>
       )}
+      {kebab}
       <h3 className="bookmark-tile__header">{name}</h3>
       <div className="bookmark-tile__links">
         {links.map((link) =>

@@ -75,6 +75,13 @@ interface ServiceTileProps {
   preview?: boolean;
   /** Edit-mode drag wiring (B2). Absent in view mode. */
   drag?: TileDragHandle;
+  /**
+   * Edit-mode per-tile menu (B3), rendered as an ADDITIVE child of the tile
+   * (new `.tile-kebab` class) without touching the `.service-tile` root or its
+   * class list. The tile root is often an `<a>`, so the kebab's own trigger
+   * guards event propagation/navigation. Absent in view mode.
+   */
+  kebab?: React.ReactNode;
 }
 
 type PingStatus = "pending" | "ok" | "error";
@@ -154,7 +161,7 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false, drag }: ServiceTileProps) {
+export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
   const className =
     `service-tile service-tile--${size}` +
     (drag ? " service-tile--editable" : "") +
@@ -175,6 +182,7 @@ export default function ServiceTile({ name, url, icon, description, widget, size
   const inner = (
     <>
       {handle}
+      {kebab}
       {url && <StatusDot url={url} preview={preview} />}
       <ServiceIcon icon={icon} url={url} name={name} />
       <span className="service-tile__name">{name}</span>
