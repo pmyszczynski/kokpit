@@ -32,5 +32,6 @@ export {
   sizeSatisfies,
   resolveServiceSize,
   resolveGroupOrder,
+  migrateLegacyServiceSizes,
 } from "./resolve";
 export type { ResolvedGroup } from "./resolve";

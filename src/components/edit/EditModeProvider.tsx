@@ -24,6 +24,7 @@ import type {
 } from "@/config/schema";
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
+import { migrateLegacyServiceSizes } from "@/config/resolve";
 import EditBar from "./EditBar";
 
 export type EditModeStatus =
@@ -77,7 +78,7 @@ export type EditModeAction =
   | { type: "SAVE_START" }
   | { type: "SAVE_SUCCESS"; revision: string | null }
   | { type: "SAVE_ERROR"; error: string }
-  | { type: "CONFLICT"; revision: string | null; error: string }
+  | { type: "CONFLICT"; error: string }
   | { type: "RELOAD_SUCCESS"; config: KokpitConfig; revision: string | null };
 
 export function editModeReducer(
@@ -117,13 +118,16 @@ export function editModeReducer(
     case "SAVE_ERROR":
       return { ...state, status: "error", error: action.error };
     case "CONFLICT":
-      // Keep the draft so the user can Reload (discard) deliberately.
+      // Keep the draft AND the original baseRevision. Advancing baseRevision to
+      // the server's value here would let a re-save send the stale draft with a
+      // fresh valid If-Match, silently overwriting the external change. By
+      // keeping the stale baseRevision, any re-save re-conflicts (409s) until
+      // the user explicitly Reloads (re-fetches a fresh revision) or Discards.
       return {
         ...state,
         status: "error",
         conflict: true,
         error: action.error,
-        baseRevision: action.revision ?? state.baseRevision,
       };
     case "RELOAD_SUCCESS":
       return {
@@ -235,6 +239,10 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
 
   const save = useCallback(async () => {
     if (!state.draft || !state.baseline) return;
+    // Refuse to save while conflicted: the draft is based on a now-stale
+    // revision, so committing it would overwrite the external change. The user
+    // must Reload (re-fetch) or Discard first.
+    if (state.conflict) return;
     const keys = changedKeys(state.draft, state.baseline);
     const draft = state.draft;
     // Nothing changed → just exit without a write.
@@ -244,6 +252,13 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     }
     const body: Partial<KokpitConfig> = {};
     for (const key of keys) {
+      // PATCH's schema strips the deprecated `position` field, so a plain
+      // pass-through would silently drop a legacy service's position-derived
+      // size. Migrate position→size before sending so the size is preserved.
+      if (key === "services") {
+        body.services = migrateLegacyServiceSizes(draft.services);
+        continue;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (body as any)[key] = draft[key];
     }
@@ -260,7 +275,6 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
       if (res.status === 409) {
         dispatch({
           type: "CONFLICT",
-          revision: readRevision(res),
           error:
             "settings.yaml changed on disk. Reload to review before saving.",
         });
@@ -275,7 +289,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
         error: err instanceof Error ? err.message : "Save failed",
       });
     }
-  }, [state.draft, state.baseline, state.baseRevision, router]);
+  }, [state.draft, state.baseline, state.baseRevision, state.conflict, router]);
 
   const reload = useCallback(async () => {
     dispatch({ type: "ENTER_START" });

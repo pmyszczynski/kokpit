@@ -86,16 +86,16 @@ describe("editModeReducer", () => {
     expect(next.error).toBe("boom");
   });
 
-  it("CONFLICT flags a conflict but preserves the draft", () => {
+  it("CONFLICT flags a conflict, preserves the draft, and does NOT advance baseRevision", () => {
     const next = editModeReducer(active, {
       type: "CONFLICT",
-      revision: "rev-server",
       error: "changed on disk",
     });
     expect(next.conflict).toBe(true);
     expect(next.active).toBe(true);
     expect(next.draft).not.toBeNull();
-    expect(next.baseRevision).toBe("rev-server");
+    // Stale revision is kept so any re-save re-conflicts instead of overwriting.
+    expect(next.baseRevision).toBe("rev-1");
   });
 
   it("RELOAD_SUCCESS refreshes the draft and clears the conflict, staying active", () => {
@@ -152,8 +152,22 @@ function Harness() {
       <span data-testid="conflict">{String(em.conflict)}</span>
       <span data-testid="dirty">{String(em.dirty)}</span>
       <span data-testid="services">{em.draft?.services.length ?? "none"}</span>
+      <span data-testid="baseRevision">{em.baseRevision ?? "none"}</span>
       <button onClick={() => void em.enter()}>enter</button>
       <button onClick={() => em.setServices([])}>clear-services</button>
+      <button
+        onClick={() =>
+          em.setServices([
+            {
+              name: "Legacy",
+              url: "https://legacy.local",
+              position: { col: 1, row: 1, width: 2, height: 2 },
+            },
+          ])
+        }
+      >
+        add-legacy
+      </button>
       <button onClick={() => void em.save()}>save</button>
       <button onClick={() => void em.reload()}>reload</button>
     </div>
@@ -263,5 +277,70 @@ describe("EditModeProvider (hook flows)", () => {
     });
     expect(screen.getByTestId("conflict").textContent).toBe("false");
     expect(screen.getByTestId("services").textContent).toBe("0");
+  });
+
+  it("after a 409, a re-save is refused (no PATCH fired) and baseRevision is unchanged", async () => {
+    const fetchMock = vi
+      .fn()
+      // enter (GET)
+      .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-1" }))
+      // first save → 409 (server moved to rev-server)
+      .mockResolvedValueOnce(
+        fakeResponse(
+          { code: "revision_mismatch" },
+          { status: 409, revision: "rev-server" }
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await setup();
+    await act(async () => {
+      fireEvent.click(screen.getByText("enter"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("clear-services"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("save"));
+    });
+    expect(screen.getByTestId("conflict").textContent).toBe("true");
+    // GET + first PATCH = 2 fetches so far.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // baseRevision NOT advanced to the server's value — still the original.
+    expect(screen.getByTestId("baseRevision").textContent).toBe("rev-1");
+
+    // A second save while conflicted must be a no-op: no third fetch fires,
+    // so the external change cannot be overwritten.
+    await act(async () => {
+      fireEvent.click(screen.getByText("save"));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("conflict").textContent).toBe("true");
+    expect(screen.getByTestId("active").textContent).toBe("true");
+  });
+
+  it("migrates a legacy service's position→size in the save payload (no position sent)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-1" }))
+      .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-2" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await setup();
+    await act(async () => {
+      fireEvent.click(screen.getByText("enter"));
+    });
+    // Stage a legacy service (position, no explicit size) → services is dirty.
+    await act(async () => {
+      fireEvent.click(screen.getByText("add-legacy"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("save"));
+    });
+    const patchCall = fetchMock.mock.calls.find((c) => c[1]?.method === "PATCH");
+    expect(patchCall).toBeTruthy();
+    const sentBody = JSON.parse(patchCall![1].body as string);
+    expect(sentBody.services).toHaveLength(1);
+    // 2×2 position → "large", and position is dropped.
+    expect(sentBody.services[0].size).toBe("large");
+    expect(sentBody.services[0].position).toBeUndefined();
   });
 });

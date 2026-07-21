@@ -68,6 +68,28 @@ export function resolveServiceSize(
   return base;
 }
 
+/**
+ * Migrate deprecated `position` to an explicit `size` for a services array,
+ * ready to PATCH. For each service that has a legacy `position` but no explicit
+ * `size`, set `size` to its position-derived preset (the position branch of
+ * resolveServiceSize is independent of widget hints, so no registry lookup is
+ * needed) and drop `position`. Services with an explicit `size` keep it (and
+ * shed the now-redundant `position`); services without `position` are returned
+ * untouched.
+ *
+ * Without this, PATCH's schema silently strips `position`, so saving any
+ * unrelated edit in a legacy config would rewrite those services without their
+ * position-derived size — a visual regression on the next render.
+ */
+export function migrateLegacyServiceSizes(services: Service[]): Service[] {
+  return services.map((service) => {
+    if (!service.position) return service;
+    const { position: _position, ...rest } = service;
+    if (service.size) return rest;
+    return { ...rest, size: resolveServiceSize(service) };
+  });
+}
+
 /** One entry in the resolved display order of dashboard sections. */
 export interface ResolvedGroup {
   /** Group name (declared spelling wins); `null` for the implicit ungrouped section. */

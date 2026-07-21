@@ -68,7 +68,14 @@ export default function EditBar() {
             type="button"
             className="edit-bar__btn edit-bar__btn--primary"
             onClick={() => void save()}
-            disabled={saving}
+            // Blocked while conflicted: saving a stale draft would overwrite the
+            // external change. Reload (or Discard) is the only way forward.
+            disabled={saving || conflict}
+            title={
+              conflict
+                ? "Reload before saving — settings.yaml changed on disk"
+                : undefined
+            }
           >
             {saving ? "Saving…" : "Save & exit"}
           </button>
