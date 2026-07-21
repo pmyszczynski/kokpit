@@ -14,7 +14,7 @@ describe("Navbar", () => {
     expect(screen.getByRole("link", { name: "kokpit" })).toBeInTheDocument();
     expect(screen.getByRole("img", { hidden: true })).toHaveAttribute(
       "src",
-      expect.stringContaining("kokpit-mark-navbar.svg"),
+      expect.stringContaining("kokpit-mark-navbar-64.png"),
     );
   });
 

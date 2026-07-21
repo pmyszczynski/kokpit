@@ -9,7 +9,7 @@ export default function KokpitLogo() {
         height={28}
         priority
         role="img"
-        src="/brand/kokpit/kokpit-mark-navbar.svg"
+        src="/brand/kokpit/png/kokpit-mark-navbar-64.png"
         width={28}
       />
       <span className="kokpit-logo__wordmark">kokpit</span>

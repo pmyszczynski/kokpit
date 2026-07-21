@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Your self-hosted personal dashboard",
   manifest: "/site.webmanifest",
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    icon: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
