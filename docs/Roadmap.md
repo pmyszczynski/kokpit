@@ -98,10 +98,10 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Read-only Docker Engine API client over the unix socket; socket path configurable per widget or via `KOKPIT_DOCKER_SOCKET`
   - Deferred to backlog: label-based tile auto-discovery (auto-populate service tiles from container labels)
 
-- [ ] `P2` **Bookmarks & groups**
+- [x] `P2` **Bookmarks & groups**
   - [x] Bookmark links separate from service tiles
   - [x] Grouped into named sections/tabs
-  - [ ] Drag-to-reorder within groups — coming with the drag-and-drop layout editor (Phase 3 `P0`); reordering today is via up/down controls in the settings panel
+  - [x] Drag-to-reorder within groups — shipped with dashboard edit mode (Phase 3 `P0`, UX redesign Phase B)
 
 ---
 
@@ -115,13 +115,13 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - [x] All colors as CSS variables, overridable via `appearance.custom_css`
   - [ ] Theme schema documented so community themes are possible
 
-- [ ] `P0` **Drag-and-drop layout editor** *(UX redesign Phase B — see `docs/plans/2026-07-20-dashboard-ux-redesign.md` §6.3–6.4)*
+- [x] `P0` **Drag-and-drop layout editor** *(UX redesign Phase B — see `docs/plans/2026-07-20-dashboard-ux-redesign.md` §6.3–6.4)*
   - [x] Non-drag foundation: tile size presets (normal/wide/tall/large) and group/service/bookmark ordering via settings-panel up/down controls *(shipped v0.5.0)*
-  - [ ] Edit mode: navbar toggle + `Mod+E`, staged changes, atomic save/discard, revision conflict check against external YAML edits
-  - [ ] Drag-to-reorder tiles within and across groups, and drag group headers to reorder groups (dnd-kit)
-  - [ ] Per-tile kebab menu: edit (reuses ServiceForm), size picker, duplicate, remove; "+ Add" picker for services/widget presets/bookmark groups
-  - [ ] Touch fallback: up/down + move-to-group controls instead of drag on touch devices
-  - [ ] Layout saved back to `settings.yaml` on save; lock layout outside edit mode (prevents accidental changes)
+  - [x] Edit mode: navbar pencil toggle + `Mod+E`, staged changes, atomic save/discard, revision conflict check against external YAML edits (409 + reload banner)
+  - [x] Drag-to-reorder tiles within and across groups, and drag group headers to reorder declared groups (dnd-kit)
+  - [x] Per-tile kebab menu: edit (reuses ServiceForm), size picker, duplicate, remove; "+ Add" picker for blank services/widget presets/bookmark groups; group-header kebab for rename/columns/delete/declare
+  - [x] Touch & keyboard support: pointer sensor with 8px activation distance (taps/scroll don't start a drag) covers touch; full keyboard drag (focus handle, Space to pick up, arrows to move, Space to drop)
+  - [x] Layout saved back to `settings.yaml` on save; view mode stays read-only and unchanged outside edit mode (prevents accidental changes)
 
 - [ ] `P1` **Icon library & custom icons** *(part of UX redesign Phase C)*
   - Bundle Walkxcode / Dashboard Icons set (7000+ homelab icons)
