@@ -12,6 +12,26 @@ describe("Navbar", () => {
   it("renders the site brand link", () => {
     render(Navbar({ showLogout: false }));
     expect(screen.getByRole("link", { name: "kokpit" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { hidden: true })).toHaveAttribute(
+      "src",
+      expect.stringContaining("kokpit-mark-navbar-64.png"),
+    );
+  });
+
+  it("nests the Kokpit mark and wordmark inside the brand link", () => {
+    render(Navbar({ showLogout: false }));
+    const brandLink = screen.getByRole("link", { name: "kokpit" });
+    expect(brandLink.querySelector("img")).toHaveAttribute(
+      "src",
+      expect.stringContaining("kokpit-mark-navbar-64.png"),
+    );
+  });
+
+  it("renders the brand mark as decorative for assistive technology", () => {
+    render(Navbar({ showLogout: false }));
+    const img = screen.getByRole("img", { hidden: true });
+    expect(img).toHaveAttribute("alt", "");
+    expect(img).toHaveAttribute("aria-hidden", "true");
   });
 
   it("hides logout when showLogout is false", () => {
