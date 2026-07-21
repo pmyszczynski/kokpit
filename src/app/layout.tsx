@@ -9,8 +9,20 @@ export const metadata: Metadata = {
   description: "Your self-hosted personal dashboard",
   manifest: "/site.webmanifest",
   icons: {
-    icon: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
-    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    icon: [
+      {
+        url: "/brand/kokpit/png/kokpit-icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+    apple: [
+      {
+        url: "/brand/kokpit/png/kokpit-apple-touch-icon-180.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
 };
 
