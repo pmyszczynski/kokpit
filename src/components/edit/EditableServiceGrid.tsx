@@ -49,6 +49,8 @@ import {
 } from "@/config/resolve";
 import {
   BOOKMARKS_CONTAINER_ID,
+  BOOKMARK_TILE_PREFIX,
+  SERVICE_TILE_PREFIX,
   UNGROUPED_CONTAINER_ID,
   bookmarkTileId,
   groupContainerId,
@@ -403,11 +405,10 @@ export default function EditableServiceGrid({
   );
 
   const handleServiceAddSave = useCallback(
-    (targetGroup: string | null, created: Service) => {
-      const svc =
-        created.group || !targetGroup ? created : { ...created, group: targetGroup };
-      setServices([...services, svc]);
-    },
+    // The form seeds the launch section via `initialGroup` and returns the
+    // user's final choice as `created.group` (undefined when they cleared it),
+    // so append as-is — never re-impose the launch group over a cleared field.
+    (created: Service) => setServices([...services, created]),
     [services, setServices]
   );
 
@@ -438,13 +439,10 @@ export default function EditableServiceGrid({
   );
 
   const handleBookmarkAddSave = useCallback(
-    (targetGroup: string | null, created: BookmarkGroup) => {
-      const bm =
-        targetGroup && !created.placement?.group
-          ? { ...created, placement: { ...(created.placement ?? {}), group: targetGroup } }
-          : created;
-      setBookmarks([...bookmarks, bm]);
-    },
+    // Same contract as handleServiceAddSave: respect the form's returned
+    // `placement.group` (including a cleared/undefined one), don't re-impose
+    // the launch group.
+    (created: BookmarkGroup) => setBookmarks([...bookmarks, created]),
     [bookmarks, setBookmarks]
   );
 
@@ -606,7 +604,8 @@ export default function EditableServiceGrid({
 
   const activeIsTile =
     activeId != null &&
-    (activeId.startsWith("service:") || activeId.startsWith("bookmark:"));
+    (activeId.startsWith(SERVICE_TILE_PREFIX) ||
+      activeId.startsWith(BOOKMARK_TILE_PREFIX));
 
   const onDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -687,14 +686,14 @@ export default function EditableServiceGrid({
   // Overlay ghost for the active tile (groups reorder in place, no overlay).
   const overlay = useMemo(() => {
     if (!activeId) return null;
-    if (activeId.startsWith("service:")) {
-      const name = activeId.slice("service:".length);
+    if (activeId.startsWith(SERVICE_TILE_PREFIX)) {
+      const name = activeId.slice(SERVICE_TILE_PREFIX.length);
       const service = services.find((s) => keyEq(s.name, name));
       if (!service) return null;
       return <ServiceTile {...serviceTileProps(service)} preview />;
     }
-    if (activeId.startsWith("bookmark:")) {
-      const name = activeId.slice("bookmark:".length);
+    if (activeId.startsWith(BOOKMARK_TILE_PREFIX)) {
+      const name = activeId.slice(BOOKMARK_TILE_PREFIX.length);
       const bookmark = bookmarks.find((b) => keyEq(b.name, name));
       if (!bookmark) return null;
       return (
@@ -953,7 +952,7 @@ export default function EditableServiceGrid({
           initialGroup={dialog.group ?? undefined}
           initialPreset={dialog.preset}
           onSave={(created) => {
-            handleServiceAddSave(dialog.group, created);
+            handleServiceAddSave(created);
             close();
           }}
           onClose={close}
@@ -988,7 +987,7 @@ export default function EditableServiceGrid({
           takenNames={bookmarks.map((b) => b.name)}
           initialGroup={dialog.group ?? undefined}
           onSave={(created) => {
-            handleBookmarkAddSave(dialog.group, created);
+            handleBookmarkAddSave(created);
             close();
           }}
           onClose={close}

@@ -27,7 +27,15 @@ export default function Kebab({ label, triggerClassName, children }: KebabProps)
   const triggerRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const close = useCallback(() => setOpen(false), []);
+  // Close and, when focus is currently inside the (about-to-be-removed) portal
+  // menu, return it to the trigger so it's never orphaned on the detached node.
+  // Used by item-selection and the outside-click handler; Escape restores
+  // unconditionally below.
+  const close = useCallback(() => {
+    const menuHadFocus = menuRef.current?.contains(document.activeElement);
+    setOpen(false);
+    if (menuHadFocus) triggerRef.current?.focus();
+  }, []);
 
   const guard = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -57,6 +65,17 @@ export default function Kebab({ label, triggerClassName, children }: KebabProps)
     };
   }, [open]);
 
+  // Move focus into the menu once it's rendered (coords set), so keyboard users
+  // land on the first interactive control (the rename field for a group kebab,
+  // "Edit" for a tile kebab) instead of being stranded on the trigger.
+  useEffect(() => {
+    if (!open || !coords) return;
+    const first = menuRef.current?.querySelector<HTMLElement>(
+      '[role="menuitem"], input, button, select, textarea, a[href]'
+    );
+    first?.focus();
+  }, [open, coords]);
+
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: PointerEvent) {
@@ -67,7 +86,7 @@ export default function Kebab({ label, triggerClassName, children }: KebabProps)
       ) {
         return;
       }
-      setOpen(false);
+      close();
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -82,7 +101,7 @@ export default function Kebab({ label, triggerClassName, children }: KebabProps)
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, close]);
 
   return (
     <span

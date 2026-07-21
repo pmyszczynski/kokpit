@@ -47,7 +47,19 @@ describe("duplicateService", () => {
     ];
     const next = duplicateService(withWidget, "Plex");
     expect(next[1].widget).not.toBe(withWidget[0].widget);
+    // Nested config is a distinct object (not shared by reference).
+    expect(next[1].widget?.config).not.toBe(withWidget[0].widget?.config);
+    expect(next[1].widget?.config).toEqual({ url: "x" });
     expect(next[1].widget?.type).toBe("plex");
+  });
+
+  it("deep-clones widget fields array", () => {
+    const withFields: Service[] = [
+      { name: "Plex", widget: { type: "plex", fields: ["a", "b"] } },
+    ];
+    const next = duplicateService(withFields, "Plex");
+    expect(next[1].widget?.fields).not.toBe(withFields[0].widget?.fields);
+    expect(next[1].widget?.fields).toEqual(["a", "b"]);
   });
 
   it("no-ops on an unknown name", () => {

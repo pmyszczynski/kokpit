@@ -39,7 +39,21 @@ export function duplicateService(services: Service[], name: string): Service[] {
   const clone: Service = {
     ...original,
     name: uniqueCopyName(original.name, services.map((s) => s.name)),
-    ...(original.widget ? { widget: { ...original.widget } } : {}),
+    // Deep-clone the widget so the copy can never mutate the original's
+    // nested `config`/`fields` (same guarantee duplicateBookmark gives links).
+    ...(original.widget
+      ? {
+          widget: {
+            ...original.widget,
+            ...(original.widget.config
+              ? { config: { ...original.widget.config } }
+              : {}),
+            ...(original.widget.fields
+              ? { fields: [...original.widget.fields] }
+              : {}),
+          },
+        }
+      : {}),
   };
   const next = [...services];
   next.splice(idx + 1, 0, clone);
