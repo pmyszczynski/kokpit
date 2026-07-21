@@ -10,6 +10,8 @@ interface BookmarkGroupFormProps {
   knownGroups: string[];
   /** Bookmark-group names already in use (excluding the one being edited). */
   takenNames?: string[];
+  /** Prefill the placement group for a new bookmark (edit-mode "add here"). */
+  initialGroup?: string;
   onSave: (bookmark: BookmarkGroup) => void;
   onClose: () => void;
 }
@@ -50,6 +52,7 @@ export default function BookmarkGroupForm({
   bookmark,
   knownGroups,
   takenNames = [],
+  initialGroup,
   onSave,
   onClose,
 }: BookmarkGroupFormProps) {
@@ -61,7 +64,7 @@ export default function BookmarkGroupForm({
     bookmark?.style ?? "list"
   );
   const [placementGroup, setPlacementGroup] = useState(
-    bookmark?.placement?.group ?? ""
+    bookmark?.placement?.group ?? initialGroup ?? ""
   );
   const [placementSize, setPlacementSize] = useState<Size | "">(
     bookmark?.placement?.size ?? ""

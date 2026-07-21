@@ -2,9 +2,30 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import CollapsibleGroup, {
   GROUP_COLLAPSE_STORAGE_PREFIX,
+  migrateGroupCollapseKey,
 } from "@/components/CollapsibleGroup";
 
 const storageKey = (name: string) => GROUP_COLLAPSE_STORAGE_PREFIX + name;
+
+describe("migrateGroupCollapseKey", () => {
+  afterEach(() => window.localStorage.clear());
+
+  it("moves a stored preference to the new key", () => {
+    window.localStorage.setItem(storageKey("Media"), "true");
+    migrateGroupCollapseKey("Media", "Streaming");
+    expect(window.localStorage.getItem(storageKey("Media"))).toBeNull();
+    expect(window.localStorage.getItem(storageKey("Streaming"))).toBe("true");
+  });
+
+  it("no-ops when nothing is stored or the names are equal", () => {
+    migrateGroupCollapseKey("Media", "Streaming");
+    expect(window.localStorage.getItem(storageKey("Streaming"))).toBeNull();
+
+    window.localStorage.setItem(storageKey("Media"), "false");
+    migrateGroupCollapseKey("Media", "Media");
+    expect(window.localStorage.getItem(storageKey("Media"))).toBe("false");
+  });
+});
 
 describe("CollapsibleGroup", () => {
   afterEach(() => {

@@ -66,11 +66,22 @@ import {
   type ServiceWidget,
   type Size,
 } from "@/config/schema";
+import {
+  declareGroup,
+  deleteGroupPatch,
+  renameGroupPatch,
+  setGroupColumns,
+} from "@/config/groupCascade";
+import { duplicateBookmark, duplicateService } from "@/config/duplicate";
 import { useEditMode } from "./EditModeProvider";
 import { getWidget, getWidgetSizeHints } from "@/widgets";
 import BookmarkTile from "../BookmarkTile";
-import CollapsibleGroup from "../CollapsibleGroup";
+import CollapsibleGroup, { migrateGroupCollapseKey } from "../CollapsibleGroup";
 import ServiceTile, { type TileWidget } from "../ServiceTile";
+import ServiceForm from "../ServiceForm";
+import BookmarkGroupForm from "../BookmarkGroupForm";
+import AddTilePicker, { type AddChoice } from "./AddTilePicker";
+import { BookmarkTileMenu, GroupKebab, ServiceTileMenu } from "./tileMenus";
 
 // Mirrors ServiceGrid.resolveTileWidget: unknown types pass through so the typo
 // still surfaces; known-but-invalid config downgrades to a plain link.
@@ -133,9 +144,11 @@ interface ContainerInfo {
 function SortableServiceTile({
   service,
   containerId,
+  kebab,
 }: {
   service: Service;
   containerId: string;
+  kebab?: React.ReactNode;
 }) {
   const {
     setNodeRef,
@@ -158,6 +171,7 @@ function SortableServiceTile({
     <ServiceTile
       {...serviceTileProps(service)}
       preview
+      kebab={kebab}
       drag={{
         nodeRef: setNodeRef,
         handleRef: setActivatorNodeRef,
@@ -174,9 +188,11 @@ function SortableServiceTile({
 function SortableBookmarkTile({
   bookmark,
   containerId,
+  kebab,
 }: {
   bookmark: BookmarkGroup;
   containerId: string;
+  kebab?: React.ReactNode;
 }) {
   const {
     setNodeRef,
@@ -202,6 +218,7 @@ function SortableBookmarkTile({
       variant={bookmark.style ?? DEFAULT_BOOKMARK_STYLE}
       size={resolveBookmarkSize(bookmark)}
       links={bookmark.links}
+      kebab={kebab}
       drag={{
         nodeRef: setNodeRef,
         handleRef: setActivatorNodeRef,
@@ -251,10 +268,12 @@ function DroppableTileGrid({
 function SortableGroupSection({
   name,
   collapsed,
+  headerActions,
   children,
 }: {
   name: string;
   collapsed?: boolean;
+  headerActions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const {
@@ -273,6 +292,7 @@ function SortableGroupSection({
     <CollapsibleGroup
       name={name}
       defaultCollapsed={collapsed}
+      headerActions={headerActions}
       drag={{
         nodeRef: setNodeRef,
         handleRef: setActivatorNodeRef,
@@ -335,17 +355,170 @@ const collisionDetection: CollisionDetection = (args) => {
   return closestCenter({ ...args, droppableContainers: filtered });
 };
 
+// Which edit dialog (if any) is mounted. `group` is the target section an
+// add-flow was launched from (null = ungrouped / no placement).
+type ActiveDialog =
+  | { kind: "service-edit"; name: string }
+  | { kind: "service-add"; group: string | null; preset?: string }
+  | { kind: "bookmark-edit"; name: string }
+  | { kind: "bookmark-add"; group: string | null }
+  | { kind: "add-picker"; group: string | null }
+  | null;
+
 export default function EditableServiceGrid({
   config,
 }: {
   config: KokpitConfig;
 }) {
-  const { setServices, setGroups, setBookmarks } = useEditMode();
+  const { setServices, setGroups, setBookmarks, updateDraft } = useEditMode();
   const services = config.services;
   const bookmarks = useMemo(() => config.bookmarks ?? [], [config.bookmarks]);
   const declaredGroups = useMemo(() => config.groups ?? [], [config.groups]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<ActiveDialog>(null);
+
+  // Group names (declared + auto-appended), de-duped, for the forms' pickers.
+  const knownGroupNames = useMemo(() => {
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const g of resolveGroupOrder(config)) {
+      if (g.name === null) continue;
+      const k = serviceNameUniquenessKey(g.name);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      names.push(g.name);
+    }
+    return names;
+  }, [config]);
+
+  // ---- B3 staged mutations (all via the B1 setters / updateDraft) ----
+
+  const handleServiceEditSave = useCallback(
+    (originalName: string, updated: Service) =>
+      setServices(
+        services.map((s) => (keyEq(s.name, originalName) ? updated : s))
+      ),
+    [services, setServices]
+  );
+
+  const handleServiceAddSave = useCallback(
+    (targetGroup: string | null, created: Service) => {
+      const svc =
+        created.group || !targetGroup ? created : { ...created, group: targetGroup };
+      setServices([...services, svc]);
+    },
+    [services, setServices]
+  );
+
+  const handleServiceDuplicate = useCallback(
+    (name: string) => setServices(duplicateService(services, name)),
+    [services, setServices]
+  );
+
+  const handleServiceRemove = useCallback(
+    (name: string) => setServices(services.filter((s) => !keyEq(s.name, name))),
+    [services, setServices]
+  );
+
+  const handleServiceSize = useCallback(
+    (name: string, size: Size) =>
+      setServices(
+        services.map((s) => (keyEq(s.name, name) ? { ...s, size } : s))
+      ),
+    [services, setServices]
+  );
+
+  const handleBookmarkEditSave = useCallback(
+    (originalName: string, updated: BookmarkGroup) =>
+      setBookmarks(
+        bookmarks.map((b) => (keyEq(b.name, originalName) ? updated : b))
+      ),
+    [bookmarks, setBookmarks]
+  );
+
+  const handleBookmarkAddSave = useCallback(
+    (targetGroup: string | null, created: BookmarkGroup) => {
+      const bm =
+        targetGroup && !created.placement?.group
+          ? { ...created, placement: { ...(created.placement ?? {}), group: targetGroup } }
+          : created;
+      setBookmarks([...bookmarks, bm]);
+    },
+    [bookmarks, setBookmarks]
+  );
+
+  const handleBookmarkDuplicate = useCallback(
+    (name: string) => setBookmarks(duplicateBookmark(bookmarks, name)),
+    [bookmarks, setBookmarks]
+  );
+
+  const handleBookmarkRemove = useCallback(
+    (name: string) => setBookmarks(bookmarks.filter((b) => !keyEq(b.name, name))),
+    [bookmarks, setBookmarks]
+  );
+
+  const handleGroupRename = useCallback(
+    (oldName: string, newName: string): boolean => {
+      const oldKey = serviceNameUniquenessKey(oldName);
+      const newKey = serviceNameUniquenessKey(newName);
+      if (newKey === "") return false;
+      // Reject a collision with ANOTHER declared group (case-insensitive).
+      if (
+        newKey !== oldKey &&
+        declaredGroups.some((g) => serviceNameUniquenessKey(g.name) === newKey)
+      ) {
+        return false;
+      }
+      const patch = renameGroupPatch(
+        { groups: declaredGroups, services, bookmarks },
+        oldName,
+        newName
+      );
+      if (Object.keys(patch).length > 0) updateDraft(patch);
+      migrateGroupCollapseKey(oldName, newName);
+      return true;
+    },
+    [declaredGroups, services, bookmarks, updateDraft]
+  );
+
+  const handleGroupColumns = useCallback(
+    (name: string, columns: number | undefined) =>
+      setGroups(setGroupColumns(declaredGroups, name, columns)),
+    [declaredGroups, setGroups]
+  );
+
+  const handleGroupDelete = useCallback(
+    (name: string) => {
+      const patch = deleteGroupPatch(
+        { groups: declaredGroups, services, bookmarks },
+        name
+      );
+      if (Object.keys(patch).length > 0) updateDraft(patch);
+    },
+    [declaredGroups, services, bookmarks, updateDraft]
+  );
+
+  const handleGroupDeclare = useCallback(
+    (name: string) => setGroups(declareGroup(declaredGroups, name)),
+    [declaredGroups, setGroups]
+  );
+
+  const buildGroupKebab = useCallback(
+    (name: string, declared: boolean, columns?: number) => (
+      <GroupKebab
+        name={name}
+        declared={declared}
+        columns={columns}
+        onRename={handleGroupRename}
+        onColumns={(cols) => handleGroupColumns(name, cols)}
+        onDelete={() => handleGroupDelete(name)}
+        onAddService={() => setDialog({ kind: "service-add", group: name })}
+        onDeclare={() => handleGroupDeclare(name)}
+      />
+    ),
+    [handleGroupRename, handleGroupColumns, handleGroupDelete, handleGroupDeclare]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -537,10 +710,37 @@ export default function EditableServiceGrid({
     return null;
   }, [activeId, services, bookmarks]);
 
+  const serviceKebab = (service: Service) => {
+    const hints = service.widget
+      ? getWidgetSizeHints(service.widget.type)
+      : undefined;
+    return (
+      <ServiceTileMenu
+        name={service.name}
+        size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
+        minSize={hints?.minSize}
+        onEdit={() => setDialog({ kind: "service-edit", name: service.name })}
+        onSize={(size) => handleServiceSize(service.name, size)}
+        onDuplicate={() => handleServiceDuplicate(service.name)}
+        onRemove={() => handleServiceRemove(service.name)}
+      />
+    );
+  };
+
+  const bookmarkKebab = (bookmark: BookmarkGroup) => (
+    <BookmarkTileMenu
+      name={bookmark.name}
+      onEdit={() => setDialog({ kind: "bookmark-edit", name: bookmark.name })}
+      onDuplicate={() => handleBookmarkDuplicate(bookmark.name)}
+      onRemove={() => handleBookmarkRemove(bookmark.name)}
+    />
+  );
+
   const renderSectionTiles = (
     containerId: string,
     sectionServices: Service[],
-    sectionBookmarks: BookmarkGroup[]
+    sectionBookmarks: BookmarkGroup[],
+    addTarget: string | null
   ) => (
     <>
       {sectionServices.map((service) => (
@@ -548,6 +748,7 @@ export default function EditableServiceGrid({
           key={`service:${service.name}`}
           service={service}
           containerId={containerId}
+          kebab={serviceKebab(service)}
         />
       ))}
       {sectionBookmarks.map((bookmark) => (
@@ -555,8 +756,20 @@ export default function EditableServiceGrid({
           key={`bookmark:${bookmark.name}`}
           bookmark={bookmark}
           containerId={containerId}
+          kebab={bookmarkKebab(bookmark)}
         />
       ))}
+      <button
+        type="button"
+        className="dashboard-add-tile"
+        aria-label={addTarget ? `Add tile to ${addTarget}` : "Add tile"}
+        onClick={() => setDialog({ kind: "add-picker", group: addTarget })}
+      >
+        <span className="dashboard-add-tile__plus" aria-hidden="true">
+          +
+        </span>
+        <span className="dashboard-add-tile__label">Add tile</span>
+      </button>
     </>
   );
 
@@ -589,7 +802,12 @@ export default function EditableServiceGrid({
                 itemIds={sectionItemIds(layout.ungrouped, [])}
                 activeIsTile={activeIsTile}
               >
-                {renderSectionTiles(UNGROUPED_CONTAINER_ID, layout.ungrouped, [])}
+                {renderSectionTiles(
+                  UNGROUPED_CONTAINER_ID,
+                  layout.ungrouped,
+                  [],
+                  null
+                )}
               </DroppableTileGrid>
             );
           }
@@ -598,6 +816,7 @@ export default function EditableServiceGrid({
           const sectionServices = layout.servicesByGroup.get(key) ?? [];
           const sectionBookmarks = layout.bookmarksByGroup.get(key) ?? [];
           const containerId = groupContainerId(section.name);
+          const declared = layout.declaredKeys.has(key);
           const grid = (
             <DroppableTileGrid
               containerId={containerId}
@@ -605,18 +824,26 @@ export default function EditableServiceGrid({
               itemIds={sectionItemIds(sectionServices, sectionBookmarks)}
               activeIsTile={activeIsTile}
             >
-              {renderSectionTiles(containerId, sectionServices, sectionBookmarks)}
+              {renderSectionTiles(
+                containerId,
+                sectionServices,
+                sectionBookmarks,
+                section.name
+              )}
             </DroppableTileGrid>
           );
 
+          const kebab = buildGroupKebab(section.name, declared, section.columns);
+
           // Only declared groups are drag-reorderable; auto-appended groups
-          // render as pinned (non-draggable) sections.
-          if (layout.declaredKeys.has(key)) {
+          // render as pinned (non-draggable) sections. Both get a group kebab.
+          if (declared) {
             return (
               <SortableGroupSection
                 key={section.name}
                 name={section.name}
                 collapsed={section.collapsed}
+                headerActions={kebab}
               >
                 {grid}
               </SortableGroupSection>
@@ -627,6 +854,7 @@ export default function EditableServiceGrid({
               key={section.name}
               name={section.name}
               defaultCollapsed={section.collapsed}
+              headerActions={kebab}
             >
               {grid}
             </CollapsibleGroup>
@@ -640,13 +868,134 @@ export default function EditableServiceGrid({
               itemIds={sectionItemIds([], layout.looseBookmarks)}
               activeIsTile={activeIsTile}
             >
-              {renderSectionTiles(BOOKMARKS_CONTAINER_ID, [], layout.looseBookmarks)}
+              {renderSectionTiles(
+                BOOKMARKS_CONTAINER_ID,
+                [],
+                layout.looseBookmarks,
+                null
+              )}
             </DroppableTileGrid>
           </CollapsibleGroup>
         )}
+
+        {/* Always-available add affordance (also covers an empty dashboard). */}
+        <div className="dashboard-tile-grid dashboard-tile-grid--add-row">
+          <button
+            type="button"
+            className="dashboard-add-tile dashboard-add-tile--standalone"
+            onClick={() => setDialog({ kind: "add-picker", group: null })}
+          >
+            <span className="dashboard-add-tile__plus" aria-hidden="true">
+              +
+            </span>
+            <span className="dashboard-add-tile__label">Add tile</span>
+          </button>
+        </div>
       </SortableContext>
 
       <DragOverlay className="tile-drag-overlay">{overlay}</DragOverlay>
+
+      {renderDialog()}
     </DndContext>
   );
+
+  function renderDialog() {
+    if (!dialog) return null;
+    const close = () => setDialog(null);
+
+    if (dialog.kind === "add-picker") {
+      return (
+        <AddTilePicker
+          targetGroup={dialog.group}
+          onClose={close}
+          onPick={(choice: AddChoice) => {
+            if (choice.kind === "service") {
+              setDialog({ kind: "service-add", group: dialog.group });
+            } else if (choice.kind === "preset") {
+              setDialog({
+                kind: "service-add",
+                group: dialog.group,
+                preset: choice.preset,
+              });
+            } else {
+              setDialog({ kind: "bookmark-add", group: dialog.group });
+            }
+          }}
+        />
+      );
+    }
+
+    if (dialog.kind === "service-edit") {
+      const service = services.find((s) => keyEq(s.name, dialog.name));
+      if (!service) return null;
+      return (
+        <ServiceForm
+          service={service}
+          existingGroups={knownGroupNames}
+          takenNames={services
+            .filter((s) => !keyEq(s.name, dialog.name))
+            .map((s) => s.name)}
+          onSave={(updated) => {
+            handleServiceEditSave(dialog.name, updated);
+            close();
+          }}
+          onClose={close}
+        />
+      );
+    }
+
+    if (dialog.kind === "service-add") {
+      return (
+        <ServiceForm
+          service={null}
+          existingGroups={knownGroupNames}
+          takenNames={services.map((s) => s.name)}
+          initialGroup={dialog.group ?? undefined}
+          initialPreset={dialog.preset}
+          onSave={(created) => {
+            handleServiceAddSave(dialog.group, created);
+            close();
+          }}
+          onClose={close}
+        />
+      );
+    }
+
+    if (dialog.kind === "bookmark-edit") {
+      const bookmark = bookmarks.find((b) => keyEq(b.name, dialog.name));
+      if (!bookmark) return null;
+      return (
+        <BookmarkGroupForm
+          bookmark={bookmark}
+          knownGroups={knownGroupNames}
+          takenNames={bookmarks
+            .filter((b) => !keyEq(b.name, dialog.name))
+            .map((b) => b.name)}
+          onSave={(updated) => {
+            handleBookmarkEditSave(dialog.name, updated);
+            close();
+          }}
+          onClose={close}
+        />
+      );
+    }
+
+    if (dialog.kind === "bookmark-add") {
+      return (
+        <BookmarkGroupForm
+          bookmark={null}
+          knownGroups={knownGroupNames}
+          takenNames={bookmarks.map((b) => b.name)}
+          initialGroup={dialog.group ?? undefined}
+          onSave={(created) => {
+            handleBookmarkAddSave(dialog.group, created);
+            close();
+          }}
+          onClose={close}
+        />
+      );
+    }
+
+    return null;
+  }
 }

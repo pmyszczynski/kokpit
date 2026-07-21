@@ -11,6 +11,10 @@ import {
   serviceNameUniquenessKey,
 } from "@/config";
 import { getWidgetSizeHints } from "@/widgets";
+import {
+  applyGroupCascades,
+  type GroupCascadeOp,
+} from "@/config/groupCascade";
 import ServiceForm from "./ServiceForm";
 import GroupsTab from "./GroupsTab";
 import BookmarksTab from "./BookmarksTab";
@@ -33,63 +37,6 @@ type TotpState =
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
-
-/** A staged group edit whose effect on services/bookmarks is applied at save. */
-type GroupCascadeOp =
-  | { type: "rename"; from: string; to: string }
-  | { type: "delete"; name: string };
-
-/**
- * Applies staged group ops (in order) to the current services and bookmarks,
- * producing cascaded copies. A rename rewrites every matching `service.group`
- * and `bookmark.placement.group`; a delete clears those references (dropping an
- * emptied placement). Pure — used both for the display projection and to build
- * the Groups-save PATCH, so shared state is only mutated on a successful save.
- */
-function applyGroupCascades(
-  services: Service[],
-  bookmarks: BookmarkGroup[],
-  ops: GroupCascadeOp[]
-): {
-  services: Service[];
-  bookmarks: BookmarkGroup[];
-  servicesChanged: boolean;
-  bookmarksChanged: boolean;
-} {
-  let svc = services;
-  let bm = bookmarks;
-  let servicesChanged = false;
-  let bookmarksChanged = false;
-
-  for (const op of ops) {
-    const key = serviceNameUniquenessKey(
-      op.type === "rename" ? op.from : op.name
-    );
-
-    svc = svc.map((s) => {
-      if (!s.group || serviceNameUniquenessKey(s.group) !== key) return s;
-      servicesChanged = true;
-      if (op.type === "rename") return { ...s, group: op.to };
-      const { group: _group, ...rest } = s;
-      return rest;
-    });
-
-    bm = bm.map((b) => {
-      if (!b.placement?.group || serviceNameUniquenessKey(b.placement.group) !== key)
-        return b;
-      bookmarksChanged = true;
-      if (op.type === "rename") {
-        return { ...b, placement: { ...b.placement, group: op.to } };
-      }
-      const { group: _group, ...restPlacement } = b.placement;
-      const placement =
-        Object.keys(restPlacement).length > 0 ? restPlacement : undefined;
-      return { ...b, placement };
-    });
-  }
-
-  return { services: svc, bookmarks: bm, servicesChanged, bookmarksChanged };
-}
 
 function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
   return (
