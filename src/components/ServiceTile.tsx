@@ -25,14 +25,22 @@ interface ServiceTileProps {
    * simply gets the extra room on wide/tall/large.
    */
   size?: Size;
+  /**
+   * Preview/edit rendering: suppress all background polling (status ping and
+   * widget data). The tile still shows icon/name/description and a static
+   * widget-type placeholder, so edit mode can render N tiles without N live
+   * fetches. Absent (the default) keeps behavior byte-for-byte identical.
+   */
+  preview?: boolean;
 }
 
 type PingStatus = "pending" | "ok" | "error";
 
-function StatusDot({ url }: { url: string }) {
+function StatusDot({ url, preview }: { url: string; preview?: boolean }) {
   const [status, setStatus] = useState<PingStatus>("pending");
 
   useEffect(() => {
+    if (preview) return; // no live probing while editing
     const check = async () => {
       try {
         const res = await fetch(
@@ -48,7 +56,7 @@ function StatusDot({ url }: { url: string }) {
     check();
     const interval = setInterval(check, 30_000);
     return () => clearInterval(interval);
-  }, [url]);
+  }, [url, preview]);
 
   return (
     <div
@@ -103,12 +111,12 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ name, url, icon, description, widget, size = "normal" }: ServiceTileProps) {
+export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false }: ServiceTileProps) {
   const className = `service-tile service-tile--${size}`;
 
   const inner = (
     <>
-      {url && <StatusDot url={url} />}
+      {url && <StatusDot url={url} preview={preview} />}
       <ServiceIcon icon={icon} url={url} name={name} />
       <span className="service-tile__name">{name}</span>
       {description && (
@@ -116,11 +124,17 @@ export default function ServiceTile({ name, url, icon, description, widget, size
       )}
       {widget && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
-          <WidgetRenderer
-            type={widget.type}
-            serviceName={name}
-            refreshInterval={widget.refresh_interval_ms}
-          />
+          {preview ? (
+            <span className="service-tile__widget-preview" aria-hidden="true">
+              {widget.type}
+            </span>
+          ) : (
+            <WidgetRenderer
+              type={widget.type}
+              serviceName={name}
+              refreshInterval={widget.refresh_interval_ms}
+            />
+          )}
         </div>
       )}
     </>

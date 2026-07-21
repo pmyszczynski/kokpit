@@ -1,5 +1,6 @@
 import { getConfig } from "@/config";
 import ServiceGrid from "@/components/ServiceGrid";
+import DashboardSurface from "@/components/edit/DashboardSurface";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,9 @@ export default async function Home() {
       className="dashboard-grid"
       style={cssVars as React.CSSProperties}
     >
-      <ServiceGrid />
+      <DashboardSurface>
+        <ServiceGrid />
+      </DashboardSurface>
     </div>
   );
 }

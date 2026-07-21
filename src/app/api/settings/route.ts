@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
 import { getConfig, writeConfig } from "@/config";
 import { BookmarkGroupsSchema, GroupsSchema, SizeEnum } from "@/config/schema";
+import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 
 const PatchBodySchema = z.object({
   appearance: z
@@ -66,7 +67,11 @@ export async function GET() {
   }
 
   const config = getConfig();
-  return NextResponse.json(config);
+  // Body shape is unchanged (other consumers/e2e depend on it); the revision
+  // rides along as a response header for the edit-mode conflict check.
+  return NextResponse.json(config, {
+    headers: { [CONFIG_REVISION_HEADER]: configRevision(config) },
+  });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -97,10 +102,34 @@ export async function PATCH(request: NextRequest) {
   if (result.data.bookmarks !== undefined)
     updates.bookmarks = result.data.bookmarks;
 
+  // Optimistic-concurrency check: if the caller sent the base revision it
+  // captured on entry (`If-Match`), reject the write when the on-disk config
+  // has changed since (e.g. a hand-edit picked up by the file watcher). Absent
+  // header → back-compat, proceed as before.
+  const ifMatch = request.headers.get("If-Match");
+  if (ifMatch !== null) {
+    const currentRevision = configRevision(getConfig());
+    if (ifMatch !== currentRevision) {
+      return NextResponse.json(
+        {
+          error:
+            "settings.yaml changed since you started editing; reload before saving.",
+          code: "revision_mismatch",
+        },
+        {
+          status: 409,
+          headers: { [CONFIG_REVISION_HEADER]: currentRevision },
+        }
+      );
+    }
+  }
+
   try {
     writeConfig(updates as Parameters<typeof writeConfig>[0]);
     const updated = getConfig();
-    return NextResponse.json(updated);
+    return NextResponse.json(updated, {
+      headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
+    });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

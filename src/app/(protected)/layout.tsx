@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfig } from "@/config";
 import Navbar from "@/components/Navbar";
+import { EditModeProvider } from "@/components/edit/EditModeProvider";
 
 export const dynamic = 'force-dynamic';
 
@@ -33,10 +34,17 @@ export default async function ProtectedLayout({
     showLogout = true;
   }
 
+  // Reaching this render means the viewer is allowed (unauthed users are
+  // redirected above), so editing is permitted — mirrors the /api/settings
+  // guard intent without a second round-trip.
+  const canEdit = !authEnabled || showLogout;
+
   return (
     <div className="shell">
-      <Navbar showLogout={showLogout} />
-      <main className="shell-main">{children}</main>
+      <Navbar showLogout={showLogout} canEdit={canEdit} />
+      <EditModeProvider canEdit={canEdit}>
+        <main className="shell-main">{children}</main>
+      </EditModeProvider>
     </div>
   );
 }
