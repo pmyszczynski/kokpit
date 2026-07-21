@@ -6,8 +6,13 @@ import {
   SIZE_SPANS,
   DEFAULT_SIZE,
   DEFAULT_BOOKMARK_STYLE,
+  migrateLegacyServiceSizes,
 } from "@/config/resolve";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import {
+  KokpitConfigSchema,
+  type KokpitConfig,
+  type Service,
+} from "@/config/schema";
 
 function makeConfig(partial: Record<string, unknown>): KokpitConfig {
   const r = KokpitConfigSchema.safeParse({ schema_version: 1, ...partial });
@@ -81,6 +86,67 @@ describe("resolveServiceSize", () => {
 
   it("does not clamp when no minSize is declared (unchanged behavior)", () => {
     expect(resolveServiceSize({ size: "normal" }, "large")).toBe("normal");
+  });
+});
+
+describe("migrateLegacyServiceSizes", () => {
+  const svc = (overrides: Partial<Service>): Service => ({
+    name: "S",
+    ...overrides,
+  });
+
+  it("maps a 2×2 position to size=large and drops position", () => {
+    const [out] = migrateLegacyServiceSizes([
+      svc({ position: { col: 1, row: 1, width: 2, height: 2 } }),
+    ]);
+    expect(out.size).toBe("large");
+    expect(out.position).toBeUndefined();
+  });
+
+  it("maps a 2×1 position to size=wide", () => {
+    const [out] = migrateLegacyServiceSizes([
+      svc({ position: { col: 1, row: 1, width: 2, height: 1 } }),
+    ]);
+    expect(out.size).toBe("wide");
+    expect(out.position).toBeUndefined();
+  });
+
+  it("maps a 1×2 position to size=tall", () => {
+    const [out] = migrateLegacyServiceSizes([
+      svc({ position: { col: 1, row: 1, width: 1, height: 2 } }),
+    ]);
+    expect(out.size).toBe("tall");
+  });
+
+  it("maps a 1×1 position to size=normal", () => {
+    const [out] = migrateLegacyServiceSizes([
+      svc({ position: { col: 1, row: 1, width: 1, height: 1 } }),
+    ]);
+    expect(out.size).toBe("normal");
+  });
+
+  it("keeps an explicit size and drops the redundant position", () => {
+    const [out] = migrateLegacyServiceSizes([
+      svc({ size: "wide", position: { col: 1, row: 1, width: 2, height: 2 } }),
+    ]);
+    expect(out.size).toBe("wide");
+    expect(out.position).toBeUndefined();
+  });
+
+  it("returns services without a position untouched (same reference)", () => {
+    const s = svc({ size: "tall" });
+    const [out] = migrateLegacyServiceSizes([s]);
+    expect(out).toBe(s);
+  });
+
+  it("migrates each service independently", () => {
+    const out = migrateLegacyServiceSizes([
+      svc({ name: "A", position: { col: 1, row: 1, width: 2, height: 1 } }),
+      svc({ name: "B", size: "normal" }),
+      svc({ name: "C", position: { col: 1, row: 1, width: 1, height: 2 } }),
+    ]);
+    expect(out.map((s) => s.size)).toEqual(["wide", "normal", "tall"]);
+    expect(out.every((s) => s.position === undefined)).toBe(true);
   });
 });
 
