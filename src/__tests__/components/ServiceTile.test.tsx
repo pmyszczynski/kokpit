@@ -161,6 +161,54 @@ describe("ServiceTile", () => {
     }
   );
 
+  it("preview mode suppresses status ping polling", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", mockFetch);
+
+    await act(async () => {
+      render(
+        <ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" preview />
+      );
+    });
+    // No probe on mount…
+    expect(mockFetch).not.toHaveBeenCalled();
+    // …and none after the interval window either.
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+    // Status dot still renders (static pending), root classes unchanged.
+    expect(screen.getByRole("link")).toHaveClass("service-tile");
+  });
+
+  it("preview mode renders a static widget placeholder instead of polling the widget", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", mockFetch);
+
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://192.168.1.10:8989"
+          widget={{ type: "sonarr-queue" }}
+          preview
+        />
+      ));
+    });
+    const widget = container.querySelector(".service-tile__widget");
+    expect(widget).not.toBeNull();
+    expect(widget).toHaveAttribute("data-widget-type", "sonarr-queue");
+    expect(
+      container.querySelector(".service-tile__widget-preview")
+    ).not.toBeNull();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("polls ping again after 30 seconds", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),

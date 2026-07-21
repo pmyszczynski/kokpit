@@ -21,6 +21,8 @@
     "reset-password": "node scripts/reset-password.js"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
     "@testing-library/dom": "^10.4.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",

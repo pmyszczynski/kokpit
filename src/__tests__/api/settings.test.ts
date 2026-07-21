@@ -54,10 +54,10 @@ layout:
 services: []
 `.trim();
 
-function patch(body: unknown) {
+function patch(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/settings", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -360,5 +360,52 @@ describe("GET /api/settings", () => {
     expect(json.layout.tablet?.columns).toBe(2);
     expect(json.layout.mobile?.columns).toBe(1);
     expect(json.layout.mobile?.row_height).toBe(80);
+  });
+
+  it("returns a stable X-Config-Revision header (sha256 hex)", async () => {
+    const { GET } = await import("../../app/api/settings/route");
+    const res = await GET();
+    const rev = res.headers.get("X-Config-Revision");
+    expect(rev).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("PATCH /api/settings – revision conflict (If-Match)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
+    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+  });
+
+  it("proceeds (200) when no If-Match header is sent (back-compat)", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+    expect(res.status).toBe(200);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("proceeds (200) when If-Match matches the current revision", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const revision = (await GET()).headers.get("X-Config-Revision")!;
+    const res = await PATCH(
+      patch({ appearance: { theme: "light" } }, { "If-Match": revision })
+    );
+    expect(res.status).toBe(200);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("responds 409 and writes nothing when If-Match is stale", async () => {
+    const { PATCH } = await import("../../app/api/settings/route");
+    const res = await PATCH(
+      patch({ appearance: { theme: "light" } }, { "If-Match": "deadbeef" })
+    );
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.code).toBe("revision_mismatch");
+    expect(writeFileSync).not.toHaveBeenCalled();
+    // The 409 carries the true current revision for the client's Reload path.
+    expect(res.headers.get("X-Config-Revision")).toMatch(/^[0-9a-f]{64}$/);
   });
 });
