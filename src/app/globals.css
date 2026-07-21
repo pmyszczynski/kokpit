@@ -3100,6 +3100,117 @@ button {
   min-width: 0;
 }
 
+/* === EDIT MODE: DRAG & DROP (B2) === */
+/* Additive, tokenized, theme-aware. Only rendered in edit mode (the drag
+   handles + modifier classes are absent in view mode), so view-mode snapshots
+   stay byte-for-byte unchanged. Tile/group roots keep their existing
+   selectors — these rules only add affordances. */
+
+/* Editable tiles get a dashed outline + grab cursor to signal drag mode. */
+.service-tile--editable,
+.bookmark-tile--editable {
+  outline: 1px dashed color-mix(in srgb, var(--color-border) 80%, transparent);
+  outline-offset: -1px;
+  /* Extra top padding leaves room for the handle without shifting content. */
+  padding-top: calc(var(--gap) + 4px);
+}
+
+.bookmark-tile--editable {
+  padding-top: calc(var(--gap) * 0.75 + 4px);
+}
+
+/* The active drag source is dimmed while its overlay ghost follows the pointer.
+   dnd-kit keeps it in the layout as a placeholder. */
+.service-tile--dragging,
+.bookmark-tile--dragging {
+  opacity: 0.4;
+}
+
+.service-group--dragging {
+  opacity: 0.6;
+}
+
+/* Drop-target highlight on the section a tile is hovering over. */
+.dashboard-tile-grid--drop-active {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+}
+
+/* Tile drag handle: an additive child, top-right corner. */
+.tile-drag-handle {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: grab;
+  /* Pointer sensor needs the handle to own the gesture on touch. */
+  touch-action: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.tile-drag-handle:hover,
+.tile-drag-handle:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  outline: none;
+}
+
+.tile-drag-handle:active {
+  cursor: grabbing;
+}
+
+.tile-drag-handle__grip,
+.group-drag-handle__grip {
+  display: block;
+}
+
+/* Group reorder handle: sibling of the collapse toggle inside the header. */
+.group-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.375rem;
+  padding: 0 2px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: grab;
+  touch-action: none;
+  vertical-align: middle;
+  transition: color 150ms ease;
+}
+
+.group-drag-handle:hover,
+.group-drag-handle:focus-visible {
+  color: var(--color-text);
+  outline: none;
+}
+
+.group-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* The overlay ghost that tracks the pointer during a tile drag. */
+.tile-drag-overlay {
+  cursor: grabbing;
+}
+
+.tile-drag-overlay .service-tile,
+.tile-drag-overlay .bookmark-tile {
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.35));
+  opacity: 0.95;
+  cursor: grabbing;
+}
+
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
 @layer user-custom;
