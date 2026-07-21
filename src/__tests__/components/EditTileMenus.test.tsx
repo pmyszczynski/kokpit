@@ -77,6 +77,14 @@ describe("service tile kebab", () => {
     expect(next[0].group).toBe("Media");
   });
 
+  it("moves focus to the first menu item on open", async () => {
+    await renderGrid(cfg());
+    fireEvent.click(screen.getByRole("button", { name: "Plex options" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("menuitem", { name: "Edit" })
+    );
+  });
+
   it("Duplicate stages a copy after the original", async () => {
     await renderGrid(cfg());
     fireEvent.click(screen.getByRole("button", { name: "Plex options" }));
@@ -181,6 +189,26 @@ describe("add flow", () => {
     expect(screen.getByText("Add Service")).toBeInTheDocument();
     const tileType = screen.getByLabelText("Tile type") as HTMLSelectElement;
     expect(tileType.value).toBe("sonarr-queue");
+  });
+
+  it("respects the form when the user clears the prefilled group", async () => {
+    await renderGrid(cfg());
+    fireEvent.click(screen.getByRole("button", { name: "Add tile to Media" }));
+    fireEvent.click(screen.getByText("Blank service"));
+
+    // Group is prefilled to the launch section, then cleared by the user.
+    const groupInput = screen.getByLabelText("Group") as HTMLInputElement;
+    expect(groupInput.value).toBe("Media");
+    fireEvent.change(groupInput, { target: { value: "" } });
+
+    const nameInput = screen.getByLabelText("Name *") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Overseerr" } });
+    fireEvent.submit(nameInput.closest("form")!);
+
+    const next = setServices.mock.calls[0][0];
+    // Ungrouped — NOT forced back into the launch group "Media".
+    expect(next[1].name).toBe("Overseerr");
+    expect(next[1].group).toBeUndefined();
   });
 });
 
