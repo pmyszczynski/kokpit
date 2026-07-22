@@ -142,10 +142,11 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
-// Rejects non-http(s) URL schemes (e.g. "javascript:") before a value
-// reaches an <img src>. Browsers already refuse to execute those as image
-// sources, so this doesn't close a real exploit — it's a belt-and-suspenders
-// check with no behavior cost for legitimate icon URLs.
+// Rejects non-http(s) URL schemes (e.g. "javascript:") before a value reaches
+// an <img src>. Browsers already refuse to execute those as image sources, so
+// this doesn't close a real exploit — it's a belt-and-suspenders check with no
+// behavior cost for legitimate icon URLs. Used as a guard on the same variable
+// that feeds the <img src> so the check and the use stay a single expression.
 function isSafeImagePreviewUrl(value: string): boolean {
   const trimmed = value.trim();
   if (trimmed === "") return false;
@@ -662,6 +663,7 @@ export default function ServiceForm({
   }
 
   const orphanConfig = (orphanWidget?.config as Record<string, unknown>) ?? {};
+  const iconPreviewUrl = resolveIconRef(icon).url;
 
   return (
     <dialog ref={dialogRef} className="service-form-dialog" onClose={onClose}>
@@ -749,10 +751,10 @@ export default function ServiceForm({
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>
           <div className="service-form__icon-row">
-            {isSafeImagePreviewUrl(resolveIconRef(icon).url) && !iconPreviewError && (
+            {isSafeImagePreviewUrl(iconPreviewUrl) && !iconPreviewError && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={resolveIconRef(icon).url}
+                src={iconPreviewUrl}
                 alt=""
                 className="service-form__icon-preview"
                 onError={() => setIconPreviewError(true)}
