@@ -175,12 +175,44 @@ bookmarks:
 
 A bookmark group renders as a single grid tile holding plain links — useful for links that don't warrant a full service tile. Without `placement`, bookmarks render in an implicit "Bookmarks" section at the end. The Bookmarks tab in the settings panel covers full CRUD, including link ordering.
 
+**Set a tile icon:**
+
+The `icon:` field on a service or bookmark link accepts a full image URL, or a shorthand that resolves to an icon from a public set at render time:
+
+```yaml
+services:
+  - name: Sonarr
+    icon: di-sonarr        # dashboard-icons
+  - name: GitHub
+    icon: sh-github        # selfh.st icons
+  - name: Home
+    icon: mdi-home         # Material Design Icons
+```
+
+- `di-<name>` → [dashboard-icons](https://github.com/homarr-labs/dashboard-icons), `sh-<name>` → [selfh.st](https://selfh.st/icons/), `mdi-<name>` → Material Design Icons.
+- Anything else (a `http(s)://` URL or an uploaded path) is used as-is. When no icon resolves, tiles fall back to the site favicon, then a letter abbreviation.
+- In the service editor, **Browse icons** searches these sets, and **Upload icon** stores a custom image (PNG/JPG/WebP/SVG, up to 2 MB; SVGs are sanitized) in the persisted `data/uploads/` volume.
+
 **Change the theme:**
 
 ```yaml
 appearance:
   theme: light  # dark | light | oled | high-contrast
 ```
+
+**Customize the background:**
+
+```yaml
+appearance:
+  card_blur: 8             # frosted-glass blur (px) on tiles; opaque when unset
+  background:
+    image: /api/backgrounds/user/abc123.jpg  # uploaded path, or any image URL
+    blur: 12               # blur-behind radius (px)
+    brightness: 0.7        # 0–1, dims the image
+    opacity: 0.4           # 0–1, theme-tinted overlay on top
+```
+
+Use `color:` or `gradient:` instead of `image:` for a solid or CSS-gradient background (if more than one is set, `image` wins over `gradient` over `color`). Setting `card_blur` above `0` makes tiles translucent so the background shows through — otherwise cards stay fully opaque, exactly as before. All of this is also editable from the Appearance tab in the settings panel, including background image upload.
 
 **Inject custom CSS:**
 

@@ -23,6 +23,17 @@ auth:
 # ─── Appearance ───────────────────────────────────────────────
 appearance:
   theme: dark
+  # card_blur: 8            # optional; frosted-glass blur (px) on tiles.
+  #                         # Cards stay opaque unless this is set (> 0).
+  # background:             # optional dashboard background. All keys optional.
+  #   color: "#0b0d12"      # solid color, OR
+  #   gradient: "linear-gradient(135deg, #0b0d12, #1a2233)"  # OR
+  #   image: /api/backgrounds/user/<hash>.jpg  # uploaded path or any image URL
+  #                         # (last-wins if more than one of the three is set:
+  #                         #  image > gradient > color)
+  #   blur: 12              # blur-behind radius (px)
+  #   brightness: 0.7       # 0–1, dims the image
+  #   opacity: 0.4          # 0–1, theme-tinted overlay on top of the background
 layout:
   columns: 4
   row_height: 120 # pixels
