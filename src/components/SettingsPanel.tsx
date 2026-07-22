@@ -58,6 +58,28 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   // Appearance
   const [theme, setTheme] = useState(config.appearance.theme);
   const [customCss, setCustomCss] = useState(config.appearance.custom_css ?? "");
+  const [cardBlur, setCardBlur] = useState(
+    config.appearance.card_blur?.toString() ?? ""
+  );
+  const [bgColor, setBgColor] = useState(config.appearance.background?.color ?? "");
+  const [bgGradient, setBgGradient] = useState(
+    config.appearance.background?.gradient ?? ""
+  );
+  const [bgImage, setBgImage] = useState(config.appearance.background?.image ?? "");
+  const [bgBlur, setBgBlur] = useState(
+    config.appearance.background?.blur?.toString() ?? ""
+  );
+  const [bgBrightness, setBgBrightness] = useState(
+    config.appearance.background?.brightness?.toString() ?? ""
+  );
+  const [bgOpacity, setBgOpacity] = useState(
+    config.appearance.background?.opacity?.toString() ?? ""
+  );
+  const [bgUploadStatus, setBgUploadStatus] = useState<{
+    state: "idle" | "uploading" | "error";
+    message?: string;
+  }>({ state: "idle" });
+  const bgFileInputRef = useRef<HTMLInputElement>(null);
 
   // Layout
   const [columns, setColumns] = useState(config.layout.columns);
@@ -266,8 +288,53 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     document.documentElement.dataset.theme = t;
   }
 
+  function buildBackgroundPayload() {
+    const obj: Record<string, unknown> = {};
+    if (bgColor.trim()) obj.color = bgColor.trim();
+    if (bgGradient.trim()) obj.gradient = bgGradient.trim();
+    if (bgImage.trim()) obj.image = bgImage.trim();
+    const num = (s: string) => {
+      const n = parseFloat(s);
+      return isNaN(n) ? undefined : n;
+    };
+    const blur = num(bgBlur);
+    if (blur !== undefined) obj.blur = blur;
+    const brightness = num(bgBrightness);
+    if (brightness !== undefined) obj.brightness = brightness;
+    const opacity = num(bgOpacity);
+    if (opacity !== undefined) obj.opacity = opacity;
+    return Object.keys(obj).length > 0 ? obj : undefined;
+  }
+
   function handleSaveAppearance() {
-    save("appearance", { theme, custom_css: customCss || undefined });
+    const cb = parseFloat(cardBlur);
+    save("appearance", {
+      theme,
+      custom_css: customCss || undefined,
+      card_blur: !isNaN(cb) && cb > 0 ? cb : undefined,
+      background: buildBackgroundPayload(),
+    });
+  }
+
+  async function handleBackgroundUpload(file: File) {
+    setBgUploadStatus({ state: "uploading" });
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/backgrounds/upload", { method: "POST", body });
+      const json = (await res.json()) as { path?: string; error?: string };
+      if (!res.ok || !json.path) {
+        setBgUploadStatus({ state: "error", message: json.error ?? "Upload failed" });
+        return;
+      }
+      setBgImage(json.path);
+      setBgUploadStatus({ state: "idle" });
+    } catch (err) {
+      setBgUploadStatus({
+        state: "error",
+        message: err instanceof Error ? err.message : "Upload failed",
+      });
+    }
   }
 
   function handleSaveLayout() {
@@ -551,6 +618,136 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
               <span className="settings-hint">
                 Injected last — no !important needed.
               </span>
+            </div>
+
+            <div className="settings-form-row">
+              <label htmlFor="card-blur">Card blur (px)</label>
+              <input
+                id="card-blur"
+                type="number"
+                min={0}
+                max={40}
+                value={cardBlur}
+                onChange={(e) => setCardBlur(e.target.value)}
+                className="settings-input settings-input--narrow"
+                placeholder="0"
+              />
+            </div>
+            <span className="settings-hint">
+              Frosted-glass effect on cards. 0 or blank keeps cards opaque.
+            </span>
+
+            <div className="settings-form-row settings-form-row--column">
+              <label>Background</label>
+              <span className="settings-hint">
+                Set a color, gradient, or image. If more than one is set, image
+                wins, then gradient, then color.
+              </span>
+            </div>
+
+            <div className="settings-form-row">
+              <label htmlFor="bg-color">Color</label>
+              <input
+                id="bg-color"
+                type="text"
+                value={bgColor}
+                onChange={(e) => setBgColor(e.target.value)}
+                className="settings-input"
+                placeholder="#0b0d12"
+              />
+            </div>
+
+            <div className="settings-form-row">
+              <label htmlFor="bg-gradient">Gradient</label>
+              <input
+                id="bg-gradient"
+                type="text"
+                value={bgGradient}
+                onChange={(e) => setBgGradient(e.target.value)}
+                className="settings-input"
+                placeholder="linear-gradient(135deg, #1e3a8a, #0f172a)"
+              />
+            </div>
+
+            <div className="settings-form-row">
+              <label htmlFor="bg-image">Image URL / path</label>
+              <input
+                id="bg-image"
+                type="text"
+                value={bgImage}
+                onChange={(e) => setBgImage(e.target.value)}
+                className="settings-input"
+                placeholder="/api/backgrounds/user/… or https://…"
+              />
+            </div>
+
+            <div className="settings-actions settings-actions--spaced">
+              <button
+                type="button"
+                className="settings-btn"
+                onClick={() => bgFileInputRef.current?.click()}
+                disabled={bgUploadStatus.state === "uploading"}
+              >
+                {bgUploadStatus.state === "uploading" ? "Uploading…" : "Upload image"}
+              </button>
+              <input
+                ref={bgFileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleBackgroundUpload(f);
+                  e.target.value = "";
+                }}
+              />
+              {bgUploadStatus.state === "error" && (
+                <span className="settings-save-feedback settings-save-feedback--error">
+                  {bgUploadStatus.message}
+                </span>
+              )}
+            </div>
+
+            <div className="settings-form-row">
+              <label htmlFor="bg-blur">Image blur (px)</label>
+              <input
+                id="bg-blur"
+                type="number"
+                min={0}
+                max={100}
+                value={bgBlur}
+                onChange={(e) => setBgBlur(e.target.value)}
+                className="settings-input settings-input--narrow"
+                placeholder="0"
+              />
+            </div>
+            <div className="settings-form-row">
+              <label htmlFor="bg-brightness">Brightness (0–1)</label>
+              <input
+                id="bg-brightness"
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={bgBrightness}
+                onChange={(e) => setBgBrightness(e.target.value)}
+                className="settings-input settings-input--narrow"
+                placeholder="1"
+              />
+            </div>
+            <div className="settings-form-row">
+              <label htmlFor="bg-opacity">Overlay opacity (0–1)</label>
+              <input
+                id="bg-opacity"
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={bgOpacity}
+                onChange={(e) => setBgOpacity(e.target.value)}
+                className="settings-input settings-input--narrow"
+                placeholder="0"
+              />
             </div>
 
             <div className="settings-actions">
