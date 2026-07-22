@@ -6,6 +6,7 @@
 // plain serializable data; nothing sensitive crosses the boundary.
 import { useState } from "react";
 import type { BookmarkLink, Size } from "@/config/schema";
+import { resolveIconRef } from "@/config/iconRef";
 import { DragGrip, type TileDragHandle } from "./ServiceTile";
 
 export type BookmarkTileVariant = "list" | "icon-grid" | "compact";
@@ -57,7 +58,7 @@ function BookmarkIcon({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={icon}
+        src={resolveIconRef(icon).url}
         alt=""
         className="bookmark-tile__icon"
         onError={() => setIconError(true)}
