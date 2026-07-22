@@ -9,6 +9,7 @@ import {
   serviceNameUniquenessKey,
 } from "@/config/schema";
 import { resolveServiceSize, sizeSatisfies } from "@/config";
+import { resolveIconRef } from "@/config/iconRef";
 import "@/integrations";
 import {
   getWidget,
@@ -110,6 +111,26 @@ type IconDetectStatus =
   | { state: "idle" }
   | { state: "detecting" }
   | { state: "not-found" }
+  | { state: "error"; message: string };
+
+// Client-side mirror of the /api/icons/search result shape. Declared locally
+// rather than imported from the server-only iconLibraries module so no
+// server-only code is pulled into this client bundle.
+interface IconSearchResult {
+  ref: string;
+  name: string;
+  url: string;
+  source: string;
+}
+
+type IconSearchStatus =
+  | { state: "idle" }
+  | { state: "searching" }
+  | { state: "error" };
+
+type IconUploadStatus =
+  | { state: "idle" }
+  | { state: "uploading" }
   | { state: "error"; message: string };
 
 function isValidHttpUrl(value: string): boolean {
@@ -371,6 +392,14 @@ export default function ServiceForm({
   const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
   const [iconPreviewError, setIconPreviewError] = useState(false);
 
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [iconQuery, setIconQuery] = useState("");
+  const [iconResults, setIconResults] = useState<IconSearchResult[]>([]);
+  const [iconSearchStatus, setIconSearchStatus] = useState<IconSearchStatus>({ state: "idle" });
+  const [iconUploadStatus, setIconUploadStatus] = useState<IconUploadStatus>({ state: "idle" });
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
+  const iconSearchRequestId = useRef(0);
+
   const presetWidgets = getWidgetsWithServiceEditorPreset();
 
   const selectedWidgetDef =
@@ -509,6 +538,69 @@ export default function ServiceForm({
       setIconDetectStatus({
         state: "error",
         message: err instanceof Error ? err.message : "Icon detection failed",
+      });
+    }
+  }
+
+  // Debounced icon-library search while the picker is open. Guarded by a
+  // request id so a slow response can't overwrite results from a later query.
+  useEffect(() => {
+    if (!iconPickerOpen) return;
+    const q = iconQuery.trim();
+    if (q === "") {
+      setIconResults([]);
+      setIconSearchStatus({ state: "idle" });
+      return;
+    }
+    const requestId = ++iconSearchRequestId.current;
+    setIconSearchStatus({ state: "searching" });
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/icons/search?q=${encodeURIComponent(q)}`);
+        if (iconSearchRequestId.current !== requestId) return;
+        if (!res.ok) {
+          setIconSearchStatus({ state: "error" });
+          return;
+        }
+        const json = (await res.json()) as { results?: IconSearchResult[] };
+        if (iconSearchRequestId.current !== requestId) return;
+        setIconResults(json.results ?? []);
+        setIconSearchStatus({ state: "idle" });
+      } catch {
+        if (iconSearchRequestId.current !== requestId) return;
+        setIconSearchStatus({ state: "error" });
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [iconQuery, iconPickerOpen]);
+
+  function selectIconResult(result: IconSearchResult) {
+    updateIcon(result.ref);
+    iconDetectRequestId.current++;
+    setIconPickerOpen(false);
+  }
+
+  async function handleIconUpload(file: File) {
+    setIconUploadStatus({ state: "uploading" });
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/icons/upload", { method: "POST", body });
+      const json = (await res.json()) as { path?: string; error?: string };
+      if (!res.ok || !json.path) {
+        setIconUploadStatus({
+          state: "error",
+          message: json.error ?? "Upload failed",
+        });
+        return;
+      }
+      updateIcon(json.path);
+      iconDetectRequestId.current++;
+      setIconUploadStatus({ state: "idle" });
+    } catch (err) {
+      setIconUploadStatus({
+        state: "error",
+        message: err instanceof Error ? err.message : "Upload failed",
       });
     }
   }
@@ -655,12 +747,12 @@ export default function ServiceForm({
           />
         </div>
         <div className="settings-form-row">
-          <label htmlFor="sf-icon">Icon URL</label>
+          <label htmlFor="sf-icon">Icon</label>
           <div className="service-form__icon-row">
-            {isSafeImagePreviewUrl(icon) && !iconPreviewError && (
+            {isSafeImagePreviewUrl(resolveIconRef(icon).url) && !iconPreviewError && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={icon}
+                src={resolveIconRef(icon).url}
                 alt=""
                 className="service-form__icon-preview"
                 onError={() => setIconPreviewError(true)}
@@ -675,7 +767,7 @@ export default function ServiceForm({
                 updateIcon(e.target.value);
                 iconDetectRequestId.current++;
               }}
-              placeholder="https://example.com/icon.png"
+              placeholder="URL, or a shorthand like di-jellyfin"
             />
             <button
               type="button"
@@ -688,6 +780,87 @@ export default function ServiceForm({
               {iconDetectStatus.state === "detecting" ? "Detecting…" : "Detect icon"}
             </button>
           </div>
+          <div className="service-form__icon-actions">
+            <button
+              type="button"
+              className="settings-btn"
+              onClick={() => setIconPickerOpen((open) => !open)}
+              aria-expanded={iconPickerOpen}
+            >
+              {iconPickerOpen ? "Hide icon browser" : "Browse icons"}
+            </button>
+            <button
+              type="button"
+              className="settings-btn"
+              onClick={() => iconFileInputRef.current?.click()}
+              disabled={iconUploadStatus.state === "uploading"}
+            >
+              {iconUploadStatus.state === "uploading" ? "Uploading…" : "Upload icon"}
+            </button>
+            <input
+              ref={iconFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="service-form__icon-file-input"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleIconUpload(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+          {iconUploadStatus.state === "error" && (
+            <p className="settings-form-hint settings-form-hint--error" role="alert">
+              {iconUploadStatus.message}
+            </p>
+          )}
+          {iconPickerOpen && (
+            <div className="service-form__icon-picker">
+              <input
+                type="text"
+                className="settings-input"
+                value={iconQuery}
+                onChange={(e) => setIconQuery(e.target.value)}
+                placeholder="Search icons (e.g. Sonarr)"
+                aria-label="Search icons"
+              />
+              {iconSearchStatus.state === "searching" && (
+                <p className="settings-form-hint">Searching…</p>
+              )}
+              {iconSearchStatus.state === "error" && (
+                <p className="settings-form-hint settings-form-hint--error" role="alert">
+                  Icon search failed — try again.
+                </p>
+              )}
+              {iconSearchStatus.state === "idle" &&
+                iconQuery.trim() !== "" &&
+                iconResults.length === 0 && (
+                  <p className="settings-form-hint">No icons found.</p>
+                )}
+              {iconResults.length > 0 && (
+                <ul className="service-form__icon-grid" role="listbox" aria-label="Icon results">
+                  {iconResults.map((result) => (
+                    <li key={`${result.source}:${result.ref}`}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={icon === result.ref}
+                        className="service-form__icon-option"
+                        onClick={() => selectIconResult(result)}
+                        title={`${result.name} (${result.source})`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={result.url} alt="" loading="lazy" />
+                        <span className="service-form__icon-option-name">
+                          {result.name}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {iconDetectStatus.state === "not-found" && (
             <p className="settings-form-hint">
               No icon found — enter a URL manually.
