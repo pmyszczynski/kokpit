@@ -71,6 +71,19 @@ describe("ServiceTile", () => {
     expect(img).toHaveAttribute("src", "/icons/jellyfin.png");
   });
 
+  it("resolves a shorthand icon ref to its CDN URL", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" icon="di-jellyfin" />
+      ));
+    });
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg"
+    );
+  });
+
   it("falls back to favicon URL when no icon prop is given", async () => {
     let container!: HTMLElement;
     await act(async () => {

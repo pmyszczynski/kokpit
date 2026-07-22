@@ -747,7 +747,7 @@ export default function ServiceForm({
           />
         </div>
         <div className="settings-form-row">
-          <label htmlFor="sf-icon">Icon</label>
+          <label htmlFor="sf-icon">Icon URL</label>
           <div className="service-form__icon-row">
             {isSafeImagePreviewUrl(resolveIconRef(icon).url) && !iconPreviewError && (
               // eslint-disable-next-line @next/next/no-img-element
