@@ -74,6 +74,16 @@
   --shadow-md: none;
 }
 
+/* Translucent surface tokens, derived from each theme's surface colors via
+   color-mix (recomputes per theme because --color-surface is redefined per
+   theme on the same element). Consumed ONLY when frosted glass is enabled
+   (appearance.card_blur > 0); defining them here unused does not change the
+   default opaque card rendering in any theme. */
+:root {
+  --color-surface-translucent: color-mix(in srgb, var(--color-surface) 68%, transparent);
+  --color-surface-2-translucent: color-mix(in srgb, var(--color-surface-2) 68%, transparent);
+}
+
 *,
 *::before,
 *::after {
@@ -87,6 +97,43 @@ body {
   color: var(--color-text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* === DASHBOARD BACKGROUND (appearance.background) ===
+   Two fixed, non-interactive layers behind all content, driven entirely by CSS
+   custom properties set inline on <body> by resolveAppearance. When no
+   background is configured, --app-bg-display / --app-bg-overlay-display fall
+   back to `none` and neither layer paints — byte-identical to today. Both are
+   position:fixed so they never contribute to document scrollWidth (no
+   horizontal overflow on mobile). */
+body::before {
+  content: "";
+  display: var(--app-bg-display, none);
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-color: var(--app-bg-color, transparent);
+  background-image: var(--app-bg-image, none);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  /* Slight scale hides the transparent edge-bleed that blur() would otherwise
+     reveal on a cover image; harmless for color/gradient/unblurred layers. */
+  transform: scale(1.06);
+  filter: blur(var(--app-bg-blur, 0px)) brightness(var(--app-bg-brightness, 1));
+}
+
+/* Theme-tinted overlay on top of the paint layer, below content. */
+body::after {
+  content: "";
+  display: var(--app-bg-overlay-display, none);
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--color-bg);
+  opacity: var(--app-bg-overlay-opacity, 0);
 }
 
 /* Global backstop (defense-in-depth, RC1): belt-and-suspenders against any
@@ -294,7 +341,13 @@ button {
   flex-direction: column;
   gap: 8px;
   padding: var(--gap);
-  background: var(--color-surface);
+  /* Frosted glass indirection: --card-surface / --card-backdrop are unset by
+     default, so these resolve to the opaque surface + no backdrop-filter
+     (byte-identical to before). resolveAppearance sets them only when
+     appearance.card_blur > 0. */
+  background: var(--card-surface, var(--color-surface));
+  backdrop-filter: var(--card-backdrop, none);
+  -webkit-backdrop-filter: var(--card-backdrop, none);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   text-decoration: none;
@@ -309,7 +362,7 @@ button {
 /* Hover lift: subtle translate + existing shadow token. High-contrast theme
    sets --shadow-sm to none, so the lift degrades to translate-only there. */
 .service-tile:hover {
-  background: var(--color-surface-2);
+  background: var(--card-surface-hover, var(--color-surface-2));
   border-color: var(--color-accent);
   transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
@@ -545,7 +598,10 @@ button {
   flex-direction: column;
   gap: 8px;
   padding: calc(var(--gap) * 0.75);
-  background: var(--color-surface);
+  /* Same frosted-glass indirection as .service-tile; opaque by default. */
+  background: var(--card-surface, var(--color-surface));
+  backdrop-filter: var(--card-backdrop, none);
+  -webkit-backdrop-filter: var(--card-backdrop, none);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   min-width: 0;

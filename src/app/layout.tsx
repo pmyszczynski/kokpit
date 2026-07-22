@@ -42,11 +42,11 @@ export default function RootLayout({
     );
   }
 
-  const { theme, customCss } = resolveAppearance(config!);
+  const { theme, customCss, bgStyle } = resolveAppearance(config!);
 
   return (
     <html lang="en" data-theme={theme}>
-      <body>
+      <body style={bgStyle as React.CSSProperties}>
         {customCss && (
           <style
             dangerouslySetInnerHTML={{
