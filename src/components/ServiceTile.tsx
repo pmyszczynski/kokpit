@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Size } from "@/config/schema";
+import { resolveIconRef } from "@/config/iconRef";
 import { WidgetRenderer } from "./WidgetRenderer";
 
 // Client-safe slice of ServiceWidget: the config (credentials) stays on the
@@ -134,7 +135,7 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={icon}
+        src={resolveIconRef(icon).url}
         alt=""
         className="service-tile__icon"
         onError={() => setIconError(true)}

@@ -35,3 +35,5 @@ export {
   migrateLegacyServiceSizes,
 } from "./resolve";
 export type { ResolvedGroup } from "./resolve";
+export { resolveIconRef } from "./iconRef";
+export type { ResolvedIconRef } from "./iconRef";
