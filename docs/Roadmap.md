@@ -123,17 +123,17 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - [x] Touch & keyboard support: pointer sensor with 8px activation distance (taps/scroll don't start a drag) covers touch; full keyboard drag (focus handle, Space to pick up, arrows to move, Space to drop)
   - [x] Layout saved back to `settings.yaml` on save; view mode stays read-only and unchanged outside edit mode (prevents accidental changes)
 
-- [ ] `P1` **Icon library & custom icons** *(part of UX redesign Phase C)*
-  - Bundle Walkxcode / Dashboard Icons set (7000+ homelab icons)
-  - Simple Icons fallback
-  - Icon shorthand prefixes resolved at render (`sh-` selfh.st, `di-` dashboard-icons, `mdi-` Material Design) + `/api/icons/search`
-  - User icon upload per service tile
-  - Icon search in the service editor
+- [x] `P1` **Icon library & custom icons** *(UX redesign Phase C — shipped v0.7.0)*
+  - [x] Icon shorthand prefixes resolved at render (`sh-` selfh.st, `di-` dashboard-icons, `mdi-` Material Design) + `/api/icons/search` — resolved from the jsDelivr CDN layer (with cache + SSRF guard), not a bundled set
+  - [x] Simple Icons included as a search source (alongside dashboard-icons + selfh.st)
+  - [x] User icon upload per tile (PNG/JPG/WebP/SVG ≤ 2 MB, SVG sanitized, stored in the persisted `data/uploads/` volume)
+  - [x] Icon search + upload in the service editor
+  - [ ] *Deferred:* offline/air-gapped bundling of the full icon set (CDN resolution chosen instead)
 
-- [ ] `P1` **Background customization** *(part of UX redesign Phase C)*
-  - Options: solid color, gradient, custom image URL, local upload
-  - Blur-behind effect toggle + frosted-glass card blur (`appearance.card_blur`)
-  - Opacity overlay (configurable in UI and YAML)
+- [x] `P1` **Background customization** *(UX redesign Phase C — shipped v0.7.0)*
+  - [x] Options: solid color, gradient, custom image URL, local upload (raster ≤ 8 MB)
+  - [x] Blur-behind effect + opt-in frosted-glass card blur (`appearance.card_blur`; cards stay opaque unless set)
+  - [x] Brightness + opacity overlay (configurable in UI and YAML)
 
 - [ ] `P1` **Status indicator upgrades** *(part of UX redesign Phase C)*
   - Hover tooltip with response time + HTTP status; optional `statusStyle: dot | badge`
