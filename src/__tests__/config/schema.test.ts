@@ -92,6 +92,71 @@ describe("KokpitConfigSchema – service size", () => {
   });
 });
 
+describe("KokpitConfigSchema – appearance.background & card_blur", () => {
+  it("accepts and round-trips a full background + card_blur", () => {
+    const appearance = {
+      theme: "dark" as const,
+      card_blur: 8,
+      background: {
+        color: "#0b0d12",
+        gradient: "linear-gradient(135deg, #1e3a8a, #0f172a)",
+        image: "/api/backgrounds/user/bg.jpg",
+        blur: 12,
+        brightness: 0.7,
+        opacity: 0.4,
+      },
+    };
+    const r = KokpitConfigSchema.safeParse({ ...minimalValid, appearance });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.appearance.card_blur).toBe(8);
+      expect(r.data.appearance.background).toEqual(appearance.background);
+    }
+  });
+
+  it("accepts an appearance with neither key (default, opaque)", () => {
+    const r = KokpitConfigSchema.safeParse({
+      ...minimalValid,
+      appearance: { theme: "dark" as const },
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.appearance.card_blur).toBeUndefined();
+      expect(r.data.appearance.background).toBeUndefined();
+    }
+  });
+
+  it("rejects card_blur outside 0–40", () => {
+    expect(
+      KokpitConfigSchema.safeParse({
+        ...minimalValid,
+        appearance: { theme: "dark", card_blur: 80 },
+      }).success
+    ).toBe(false);
+    expect(
+      KokpitConfigSchema.safeParse({
+        ...minimalValid,
+        appearance: { theme: "dark", card_blur: -1 },
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects brightness/opacity outside 0–1", () => {
+    expect(
+      KokpitConfigSchema.safeParse({
+        ...minimalValid,
+        appearance: { theme: "dark", background: { brightness: 2 } },
+      }).success
+    ).toBe(false);
+    expect(
+      KokpitConfigSchema.safeParse({
+        ...minimalValid,
+        appearance: { theme: "dark", background: { opacity: -0.5 } },
+      }).success
+    ).toBe(false);
+  });
+});
+
 describe("KokpitConfigSchema – layout.ungrouped", () => {
   it.each(["first", "last"] as const)("accepts %s", (ungrouped) => {
     const r = KokpitConfigSchema.safeParse({

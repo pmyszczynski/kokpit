@@ -79,6 +79,28 @@ export const BookmarkGroupSchema = z.object({
   links: z.array(BookmarkLinkSchema),
 });
 
+/**
+ * Dashboard background. All keys optional. `color`/`gradient`/`image` are the
+ * paint source and are last-wins if more than one is set (see resolveBackgroundVars
+ * in ./theme: image beats gradient beats color, matching this key order). `blur`
+ * and `brightness` filter the paint layer; `opacity` drives a separate theme-tinted
+ * overlay on top of it.
+ */
+export const BackgroundSchema = z.object({
+  /** Solid background color (any CSS color). */
+  color: z.string().min(1).optional(),
+  /** CSS gradient value, e.g. "linear-gradient(...)". */
+  gradient: z.string().min(1).optional(),
+  /** Image URL or uploaded `/api/backgrounds/user/...` path. */
+  image: z.string().min(1).optional(),
+  /** Blur-behind radius in px. */
+  blur: z.number().min(0).max(100).optional(),
+  /** Brightness multiplier 0–1 (dims the image). */
+  brightness: z.number().min(0).max(1).optional(),
+  /** Theme-tinted overlay opacity 0–1 on top of the background. */
+  opacity: z.number().min(0).max(1).optional(),
+});
+
 /** Normalized key for comparing service names (trim + lowercase). */
 export function serviceNameUniquenessKey(name: string): string {
   return name.trim().toLowerCase();
@@ -136,6 +158,11 @@ export const KokpitConfigSchema = z
           .enum(["dark", "light", "oled", "high-contrast"])
           .default("dark"),
         custom_css: z.string().optional(),
+        // Frosted-glass backdrop-filter radius on cards (px). Omitted/0 keeps
+        // cards fully opaque (no default appearance change); >0 opts in to
+        // translucency. See resolveBackgroundVars in ./theme.
+        card_blur: z.number().min(0).max(40).optional(),
+        background: BackgroundSchema.optional(),
       })
       .default({ theme: "dark" }),
     layout: z
@@ -198,5 +225,6 @@ export type ServiceWidget = z.infer<typeof ServiceWidgetSchema>;
 /** @deprecated See WidgetPositionSchema. */
 export type WidgetPosition = z.infer<typeof WidgetPositionSchema>;
 export type Group = z.infer<typeof GroupSchema>;
+export type Background = z.infer<typeof BackgroundSchema>;
 export type BookmarkGroup = z.infer<typeof BookmarkGroupSchema>;
 export type BookmarkLink = z.infer<typeof BookmarkLinkSchema>;

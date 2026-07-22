@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
 import { getConfig, writeConfig } from "@/config";
-import { BookmarkGroupsSchema, GroupsSchema, SizeEnum } from "@/config/schema";
+import {
+  BackgroundSchema,
+  BookmarkGroupsSchema,
+  GroupsSchema,
+  SizeEnum,
+} from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 
 const PatchBodySchema = z.object({
@@ -10,6 +15,8 @@ const PatchBodySchema = z.object({
     .object({
       theme: z.enum(["dark", "light", "oled", "high-contrast"]),
       custom_css: z.string().optional(),
+      card_blur: z.number().min(0).max(40).optional(),
+      background: BackgroundSchema.optional(),
     })
     .optional(),
   layout: z
