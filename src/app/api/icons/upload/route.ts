@@ -15,6 +15,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Reject an oversized body up front from the Content-Length header, before
+  // buffering the multipart body into memory. The 1024-byte allowance covers
+  // multipart boundary/field overhead around the actual file bytes; the
+  // post-buffer check below (against the real decoded file size) remains the
+  // authoritative cap.
+  const contentLengthHeader = request.headers.get("content-length");
+  const contentLength = contentLengthHeader === null ? NaN : Number(contentLengthHeader);
+  if (Number.isFinite(contentLength) && contentLength > MAX_ICON_UPLOAD_BYTES + 1024) {
+    return NextResponse.json({ error: "File exceeds the 2 MB limit" }, { status: 413 });
+  }
+
   let form: FormData;
   try {
     form = await request.formData();

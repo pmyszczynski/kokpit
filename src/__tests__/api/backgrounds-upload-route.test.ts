@@ -75,6 +75,23 @@ describe("POST /api/backgrounds/upload", () => {
     expect(getRes.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(getRes.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
   });
+
+  it("rejects an oversized Content-Length up front, without parsing the body", async () => {
+    authMock.mockResolvedValue(true);
+    const { POST } = await import("../../app/api/backgrounds/upload/route");
+    const req = new Request("http://localhost/api/backgrounds/upload", {
+      method: "POST",
+      headers: { "content-length": String(20 * 1024 * 1024) }, // well over the 8 MB cap
+      body: "irrelevant",
+    });
+    const formDataSpy = vi.spyOn(req, "formData");
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+    expect((await res.json()) as { error: string }).toEqual({
+      error: "File exceeds the 8 MB limit",
+    });
+    expect(formDataSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/backgrounds/user/[file]", () => {

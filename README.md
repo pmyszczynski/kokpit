@@ -212,7 +212,7 @@ appearance:
     opacity: 0.4           # 0–1, theme-tinted overlay on top
 ```
 
-Use `color:` or `gradient:` instead of `image:` for a solid or CSS-gradient background (if more than one is set, `image` wins over `gradient` over `color`). Setting `card_blur` above `0` makes tiles translucent so the background shows through — otherwise cards stay fully opaque, exactly as before. All of this is also editable from the Appearance tab in the settings panel, including background image upload.
+Use `color:` or `gradient:` instead of `image:` for a solid or CSS-gradient background (if more than one is set, `image` wins over `gradient` over `color`). Setting `card_blur` above `0` makes tiles translucent, so the background shows through — otherwise cards stay fully opaque, exactly as before. All of this is also editable from the Appearance tab in the settings panel, including background image upload.
 
 **Inject custom CSS:**
 

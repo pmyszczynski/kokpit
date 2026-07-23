@@ -68,4 +68,19 @@ describe("resolveIconRef", () => {
     const raw = "  https://example.com/foo.png  ";
     expect(resolveIconRef(raw).url).toBe(raw);
   });
+
+  it("does not crash on a prototype-polluting prefix (__proto__)", () => {
+    const raw = "__proto__-x";
+    expect(resolveIconRef(raw)).toEqual({ kind: "url", url: raw });
+  });
+
+  it("does not crash on a prototype-polluting prefix (constructor)", () => {
+    const raw = "constructor-x";
+    expect(resolveIconRef(raw)).toEqual({ kind: "url", url: raw });
+  });
+
+  it("does not crash on a prototype-polluting prefix (hasOwnProperty)", () => {
+    const raw = "hasOwnProperty-x";
+    expect(resolveIconRef(raw)).toEqual({ kind: "url", url: raw });
+  });
 });
