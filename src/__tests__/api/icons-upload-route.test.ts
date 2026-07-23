@@ -79,6 +79,23 @@ describe("POST /api/icons/upload", () => {
     expect(text).not.toContain("onload");
     expect(text).toContain("<rect");
   });
+
+  it("rejects an oversized Content-Length up front, without parsing the body", async () => {
+    authMock.mockResolvedValue(true);
+    const { POST } = await import("../../app/api/icons/upload/route");
+    const req = new Request("http://localhost/api/icons/upload", {
+      method: "POST",
+      headers: { "content-length": String(10 * 1024 * 1024) }, // well over the 2 MB cap
+      body: "irrelevant",
+    });
+    const formDataSpy = vi.spyOn(req, "formData");
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+    expect((await res.json()) as { error: string }).toEqual({
+      error: "File exceeds the 2 MB limit",
+    });
+    expect(formDataSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/icons/user/[file]", () => {

@@ -17,11 +17,11 @@ export interface ResolvedIconRef {
 // jsDelivr; the same CDN + SSRF-guarded cache layer already used by
 // iconLibraries.ts. Adding a prefix here is the only change needed to support
 // a new shorthand source.
-const SHORTHAND_BUILDERS: Record<string, (slug: string) => string> = {
-  sh: (slug) => `https://cdn.jsdelivr.net/gh/selfhst/icons/svg/${slug}.svg`,
-  di: (slug) => `https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${slug}.svg`,
-  mdi: (slug) => `https://cdn.jsdelivr.net/npm/@mdi/svg/svg/${slug}.svg`,
-};
+const SHORTHAND_BUILDERS = new Map<string, (slug: string) => string>([
+  ["sh", (slug) => `https://cdn.jsdelivr.net/gh/selfhst/icons/svg/${slug}.svg`],
+  ["di", (slug) => `https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${slug}.svg`],
+  ["mdi", (slug) => `https://cdn.jsdelivr.net/npm/@mdi/svg/svg/${slug}.svg`],
+]);
 
 // A shorthand slug is a single icon name segment. Restricting it to this set
 // (no slashes, no dots, no colons) keeps an expanded shorthand from smuggling
@@ -52,7 +52,7 @@ export function resolveIconRef(icon: string): ResolvedIconRef {
   if (dash > 0) {
     const prefix = trimmed.slice(0, dash);
     const slug = trimmed.slice(dash + 1);
-    const build = SHORTHAND_BUILDERS[prefix];
+    const build = SHORTHAND_BUILDERS.get(prefix);
     if (build && SLUG_PATTERN.test(slug)) {
       return { kind: "shorthand", url: build(slug) };
     }

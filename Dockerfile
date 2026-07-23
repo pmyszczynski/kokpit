@@ -52,6 +52,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV KOKPIT_CONFIG_PATH=/data/settings.yaml
 ENV KOKPIT_DB_PATH=/data/users.db
+ENV KOKPIT_UPLOADS_PATH=/data/uploads
 
 # OCI image metadata
 LABEL org.opencontainers.image.title="Kokpit"
