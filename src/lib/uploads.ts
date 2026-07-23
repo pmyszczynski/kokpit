@@ -6,7 +6,7 @@
 // `data/` volume (not build-baked `public/`, which isn't writable in the
 // standalone Docker output).
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { JSDOM } from "jsdom";
 import createDOMPurify from "dompurify";
@@ -197,4 +197,57 @@ export async function readUpload(
   } catch {
     return null;
   }
+}
+
+/**
+ * Grace window for {@link pruneUploads}: a file whose mtime is newer than this
+ * is never deleted, even if unreferenced. Protects an upload that's been stored
+ * but isn't yet referenced in a saved config (e.g. the user uploaded a
+ * background, then saved an unrelated setting before wiring the image in).
+ */
+export const UPLOAD_GC_GRACE_MS = 5 * 60 * 1000;
+
+/**
+ * Best-effort garbage collection of a profile's storage dir: deletes stored
+ * `<hash>.<ext>` files that are NOT in `keep` and whose mtime is older than
+ * `graceMs`. Returns the number of files actually deleted.
+ *
+ * - A missing directory (ENOENT) is not an error — nothing to prune, returns 0.
+ * - Entries that don't match {@link UPLOAD_FILENAME_PATTERN} are left untouched
+ *   (never our storage, never delete).
+ * - Per-file stat/unlink errors are swallowed so one undeletable file can't
+ *   abort the sweep; only successful deletes are counted.
+ */
+export async function pruneUploads(
+  profile: UploadProfile,
+  keep: ReadonlySet<string>,
+  graceMs: number
+): Promise<number> {
+  const dir = uploadsDir(profile.subdir);
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
+
+  const now = Date.now();
+  let deleted = 0;
+  for (const name of entries) {
+    if (!UPLOAD_FILENAME_PATTERN.test(name)) continue;
+    if (keep.has(name)) continue;
+    const full = path.join(dir, name);
+    try {
+      const info = await stat(full);
+      // Within the grace window → likely an in-flight upload not yet referenced
+      // in a saved config; leave it alone.
+      if (now - info.mtimeMs < graceMs) continue;
+      await unlink(full);
+      deleted++;
+    } catch {
+      // Best-effort: skip anything we can't stat or unlink.
+    }
+  }
+  return deleted;
 }

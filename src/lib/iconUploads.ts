@@ -24,7 +24,10 @@ export const ICON_FILENAME_PATTERN = UPLOAD_FILENAME_PATTERN;
 export type ProcessedIcon = ProcessedUpload;
 export type StoredIcon = StoredUpload;
 
-const ICON_PROFILE: UploadProfile = {
+// Exported so the upload GC (src/lib/uploadGc.ts) can prune this profile's dir
+// without redefining the profile — single source of truth for the icons
+// contract (subdir, cap, allowlist).
+export const ICON_PROFILE: UploadProfile = {
   subdir: "icons",
   maxBytes: MAX_ICON_UPLOAD_BYTES,
   maxLabel: "2 MB",
