@@ -15,7 +15,10 @@ import {
 
 export const MAX_BACKGROUND_UPLOAD_BYTES = 8 * 1024 * 1024;
 
-const BACKGROUND_PROFILE: UploadProfile = {
+// Exported so the upload GC (src/lib/uploadGc.ts) can prune this profile's dir
+// without redefining the profile — single source of truth for the backgrounds
+// contract (subdir, cap, allowlist).
+export const BACKGROUND_PROFILE: UploadProfile = {
   subdir: "backgrounds",
   maxBytes: MAX_BACKGROUND_UPLOAD_BYTES,
   maxLabel: "8 MB",

@@ -38,6 +38,21 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 
+// Parse a numeric text field and clamp it into [min, max]. Returns undefined for
+// an empty/non-numeric field so "blank" still means "unset" (not 0). The browser
+// doesn't enforce input min/max on typed/pasted values, so an out-of-range entry
+// would otherwise be sent and rejected by the server's Zod schema with an opaque
+// 400 — clamping here guarantees a valid request instead.
+function clampNumericField(
+  raw: string,
+  min: number,
+  max: number
+): number | undefined {
+  const n = parseFloat(raw);
+  if (isNaN(n)) return undefined;
+  return Math.min(max, Math.max(min, n));
+}
+
 function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
   return (
     <button
@@ -293,25 +308,25 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     if (bgColor.trim()) obj.color = bgColor.trim();
     if (bgGradient.trim()) obj.gradient = bgGradient.trim();
     if (bgImage.trim()) obj.image = bgImage.trim();
-    const num = (s: string) => {
-      const n = parseFloat(s);
-      return isNaN(n) ? undefined : n;
-    };
-    const blur = num(bgBlur);
+    // Clamp each numeric to its documented range so a typed/pasted out-of-range
+    // value is corrected rather than rejected by the server. Empty stays unset.
+    const blur = clampNumericField(bgBlur, 0, 100);
     if (blur !== undefined) obj.blur = blur;
-    const brightness = num(bgBrightness);
+    const brightness = clampNumericField(bgBrightness, 0, 1);
     if (brightness !== undefined) obj.brightness = brightness;
-    const opacity = num(bgOpacity);
+    const opacity = clampNumericField(bgOpacity, 0, 1);
     if (opacity !== undefined) obj.opacity = opacity;
     return Object.keys(obj).length > 0 ? obj : undefined;
   }
 
   function handleSaveAppearance() {
-    const cb = parseFloat(cardBlur);
+    // Clamp to the documented 0–40 range; 0/blank still means "unset" (cards
+    // stay opaque), matching the pre-clamp behavior.
+    const cb = clampNumericField(cardBlur, 0, 40);
     save("appearance", {
       theme,
       custom_css: customCss || undefined,
-      card_blur: !isNaN(cb) && cb > 0 ? cb : undefined,
+      card_blur: cb !== undefined && cb > 0 ? cb : undefined,
       background: buildBackgroundPayload(),
     });
   }

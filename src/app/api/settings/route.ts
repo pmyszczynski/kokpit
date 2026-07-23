@@ -9,6 +9,7 @@ import {
   SizeEnum,
 } from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
+import { pruneOrphanedUploads } from "@/lib/uploadGc";
 
 const PatchBodySchema = z.object({
   appearance: z
@@ -134,6 +135,9 @@ export async function PATCH(request: NextRequest) {
   try {
     writeConfig(updates as Parameters<typeof writeConfig>[0]);
     const updated = getConfig();
+    // Best-effort GC of now-orphaned uploads against the FULL merged config.
+    // Never throws, so it can't affect the 200 response below.
+    await pruneOrphanedUploads(updated);
     return NextResponse.json(updated, {
       headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
     });

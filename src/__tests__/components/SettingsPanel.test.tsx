@@ -140,6 +140,28 @@ describe("SettingsPanel - appearance tab", () => {
     });
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
+
+  it("clamps out-of-range appearance numerics into their documented ranges before saving", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+
+    // Typed/pasted values the browser doesn't enforce against min/max.
+    fireEvent.change(screen.getByLabelText("Card blur (px)"), { target: { value: "999" } });
+    fireEvent.change(screen.getByLabelText("Image blur (px)"), { target: { value: "250" } });
+    fireEvent.change(screen.getByLabelText("Brightness (0–1)"), { target: { value: "9" } });
+    fireEvent.change(screen.getByLabelText("Overlay opacity (0–1)"), { target: { value: "-3" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.appearance.card_blur).toBe(40); // 0–40
+    expect(body.appearance.background.blur).toBe(100); // 0–100
+    expect(body.appearance.background.brightness).toBe(1); // 0–1
+    expect(body.appearance.background.opacity).toBe(0); // 0–1 (clamped up from -3)
+  });
 });
 
 describe("SettingsPanel - layout tab", () => {
