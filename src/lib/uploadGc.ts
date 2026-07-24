@@ -75,8 +75,11 @@ export function collectReferencedUploads(config: KokpitConfig): {
 export async function pruneOrphanedUploads(config: KokpitConfig): Promise<void> {
   try {
     const refs = collectReferencedUploads(config);
-    await pruneUploads(ICON_PROFILE, refs.icons, UPLOAD_GC_GRACE_MS);
-    await pruneUploads(BACKGROUND_PROFILE, refs.backgrounds, UPLOAD_GC_GRACE_MS);
+    // Independent storage dirs — prune both concurrently.
+    await Promise.all([
+      pruneUploads(ICON_PROFILE, refs.icons, UPLOAD_GC_GRACE_MS),
+      pruneUploads(BACKGROUND_PROFILE, refs.backgrounds, UPLOAD_GC_GRACE_MS),
+    ]);
   } catch {
     // Best-effort cleanup — swallow everything.
   }

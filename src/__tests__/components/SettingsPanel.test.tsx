@@ -162,6 +162,27 @@ describe("SettingsPanel - appearance tab", () => {
     expect(body.appearance.background.brightness).toBe(1); // 0–1
     expect(body.appearance.background.opacity).toBe(0); // 0–1 (clamped up from -3)
   });
+
+  it("omits blank/zero card_blur as unset but preserves a genuine background 0", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+
+    // card_blur 0 means "opaque cards" (unset), NOT a sent numeric 0.
+    fireEvent.change(screen.getByLabelText("Card blur (px)"), { target: { value: "0" } });
+    // A background field of 0, by contrast, is a real value and must survive
+    // as numeric 0 rather than being dropped as empty.
+    fireEvent.change(screen.getByLabelText("Overlay opacity (0–1)"), { target: { value: "0" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.appearance).not.toHaveProperty("card_blur"); // 0 → unset (opaque)
+    expect(body.appearance.background.opacity).toBe(0); // genuine 0 preserved
+    expect(body.appearance.background).not.toHaveProperty("blur"); // blank → omitted
+  });
 });
 
 describe("SettingsPanel - layout tab", () => {
