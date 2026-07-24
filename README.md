@@ -813,6 +813,50 @@ services:
 
 ---
 
+### Tdarr
+
+Displays transcoding queue status, worker activity, and storage savings from Tdarr.
+
+**Prerequisites:** Access to the Tdarr Server API. No API key is required by default on a local network; the optional `apikey` is only needed if you have enabled it in Tdarr settings.
+
+#### `tdarr-stats`
+
+Shows a six-stat grid: transcode queue count, health checks in queue, errored item count, space saved, active workers, and current frames per second.
+
+```yaml
+services:
+  - name: Tdarr
+    url: http://192.168.1.10:8265
+    icon: tdarr
+    widget:
+      type: tdarr-stats
+      config:
+        url: http://192.168.1.10:8265
+        apikey: YOUR_API_KEY_IF_ENABLED
+```
+
+
+| Field    | Required | Description                                                      |
+| -------- | -------- | ---------------------------------------------------------------- |
+| `url`    | Yes      | Base URL of your Tdarr Server (default port 8265)                |
+| `apikey` | No       | API key from Tdarr, if enabled; omit if no auth is configured    |
+
+
+**Displayed stats:**
+
+
+| Stat                | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| Transcode Queue     | Number of items in the transcode queue                  |
+| Health Checks       | Number of items in the health checks queue              |
+| Errored             | Number of items that encountered errors                 |
+| Space Saved         | Total storage saved through transcoding, reported in GB and formatted for display |
+| Workers (active)    | Number of active transcode workers currently running    |
+| FPS                 | Current frames per second across all active transcoders |
+
+
+---
+
 ### Docker
 
 Lists the containers running on the Docker host: a colored state dot, container name, image, and uptime per row, plus a "running / total" summary.

@@ -75,7 +75,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 - [x] `P0` **Immich integration** — stats widget (photo/video count, storage usage)
 - [x] `P0` **Unraid integration** — stats widget (array status, disk health, parity)
 - [x] `P0` **Netdata integration** — live system metrics via Netdata API (7 composable widgets: CPU, RAM, Network, Disk I/O, Disk Space, Load Average, Sensor; shared bulk fetch with caching)
-- [ ] `P0` **Tdarr integration** — stats widget (queue, speed, disk usage)
+- [x] `P0` **Tdarr integration** — stats widget (transcode & health-check queue, active workers/FPS, space saved) via the Tdarr Server API
 - [x] `P0` **Tile type picker in service editor (UI only)**
   - When adding/editing a tile, user selects a known service type (e.g. Plex, qBittorrent, Radarr) instead of configuring widget type separately
   - Selecting a tile type pre-fills the default icon URL and name — both remain editable

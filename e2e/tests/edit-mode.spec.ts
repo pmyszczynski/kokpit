@@ -79,14 +79,16 @@ test.describe("edit mode", () => {
 
   test("enter edit mode via Mod+E", async ({ page }) => {
     await page.goto("/");
-    // Wait for the client-side edit toggle to hydrate before firing the global
-    // Mod+E hotkey: the keydown listener is attached on mount, so pressing the
-    // key before hydration completes would be a lost no-op. A visible
-    // server-rendered tile does not prove the provider has mounted, which made
-    // this flaky in CI; the "Edit dashboard" button only renders once hydrated.
-    await expect(
-      page.getByRole("button", { name: "Edit dashboard" })
-    ).toBeVisible();
+    // Wait for the exact hydration edge where the Mod+E keydown listener is
+    // attached. The listener lives in a passive effect (EditModeProvider) that
+    // runs after paint, so a visible tile or "Edit dashboard" button does NOT
+    // prove the hotkey is live — pressing before then is a lost no-op, which is
+    // what made this flaky in CI. The provider sets this marker in the same
+    // effect that attaches the listener, so it can never race the keypress.
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-edit-hotkey-ready",
+      "true"
+    );
 
     await page.keyboard.press("Control+e");
     await expect(page.locator(".edit-bar")).toBeVisible();
