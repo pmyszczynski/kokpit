@@ -674,6 +674,62 @@ Native TCP Docker host support is on the backlog.
 
 ---
 
+### System Stats
+
+Shows live host metrics — CPU usage, RAM, disk usage, and network I/O — read directly from the machine Kokpit runs on via `/proc` (and `statfs` for disk), plus an optional Docker container running/total summary. Unlike the Netdata widget, it needs no external monitoring service.
+
+**Prerequisites:** By default it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket read-only exactly as described in the Docker widget section above. Example compose volumes/env:
+
+```yaml
+services:
+  kokpit:
+    volumes:
+      - ./data:/data
+      - /proc:/host/proc:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      KOKPIT_PROC_PATH: /host/proc
+```
+
+**YAML example:**
+
+```yaml
+services:
+  - name: System
+    icon: mdi-server
+    widget:
+      type: system-stats
+      config:
+        proc_path: /host/proc   # optional; defaults to /proc (or KOKPIT_PROC_PATH)
+        disk_path: /             # optional; filesystem to report disk usage for
+        fields:
+          - cpu
+          - memory
+          - disk
+          - network
+          - load
+          - docker
+        docker_socket_path: /var/run/docker.sock   # only used when "docker" is in fields
+```
+
+**Config fields:**
+
+
+| Field                | Required | Description                                                                                                              |
+| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `proc_path`          | No       | Path to procfs. Defaults to the `KOKPIT_PROC_PATH` env var, then `/proc`. Bind-mount the host's `/proc` and set this for host-wide metrics in Docker. |
+| `disk_path`          | No       | Filesystem mount to report disk usage for (default `/`).                                                                |
+| `interface`          | No       | Network interface to measure. Leave empty to sum all non-loopback interfaces.                                           |
+| `docker_socket_path` | No       | Docker socket for the container overview. Defaults to `KOKPIT_DOCKER_SOCKET`, then `/var/run/docker.sock`. Only used when `docker` is listed in `fields`. |
+| `fields`             | No       | Which stats to display: any of `cpu`, `memory`, `disk`, `network`, `load`, `docker` (default: `cpu, memory, disk, network`). |
+
+
+CPU and network rates come from two `/proc` samples taken a fraction of a second apart per refresh. If the Docker socket is unavailable, the container line is quietly omitted (as "Docker unavailable") without affecting the other stats.
+
+**Security note:** All reads are local and read-only — procfs files and a `statfs` disk call, plus (optionally) the same read-only Docker socket calls the Docker widget makes. `proc_path`, `disk_path`, and `docker_socket_path` come from trusted admin config in `settings.yaml`, not from end users. No network requests are made to read the system metrics, so the widget stays fully air-gappable.
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please open an issue first to discuss significant changes before sending a pull request.

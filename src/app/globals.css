@@ -2793,6 +2793,116 @@ button {
   gap: 1px;
 }
 
+/* ── System stats widget ─────────────────────────────────────────────────── */
+
+.system-stats-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden auto;
+}
+
+.system-stats-widget__row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.system-stats-widget__row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.system-stats-widget__row-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.system-stats-widget__row-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.system-stats-widget__row-sub {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.system-stats-widget__bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.system-stats-widget__bar-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.system-stats-widget__net-rates {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.system-stats-widget__net-rate {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.system-stats-widget__load-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.system-stats-widget__load-cell {
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.system-stats-widget__stale-error {
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.system-stats-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.system-stats-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.system-stats-widget__hint--error {
+  color: var(--color-error);
+}
+
 /* === AUTH PAGES (login / first-run setup) === */
 .auth-page {
   display: flex;

@@ -8,7 +8,7 @@ import { sizeSatisfies } from "@/config/resolve";
 describe("integration widget size hints", () => {
   it("every registered widget declares a preferredSize", () => {
     const widgets = getAllWidgets();
-    expect(widgets.length).toBeGreaterThanOrEqual(21);
+    expect(widgets.length).toBeGreaterThanOrEqual(22);
     for (const w of widgets) {
       expect(w.preferredSize, `widget "${w.id}" is missing preferredSize`).toBeDefined();
     }

@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Remaining Phase 2 P0s: Tdarr integration, System stats widget
+**Current task:** Remaining Phase 2 P0s: Tdarr integration
 
 ---
 

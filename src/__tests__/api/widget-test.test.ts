@@ -105,6 +105,12 @@ describe("POST /api/widget/test", () => {
       // a unix socket. Point it at a guaranteed-missing socket so its attempt
       // fails deterministically regardless of the host running the tests.
       vi.stubEnv("KOKPIT_DOCKER_SOCKET", "/nonexistent/docker.sock");
+      // Likewise, system-stats reads real /proc via process.getBuiltinModule,
+      // which bypasses this file's vi.mock("node:fs"). On a Linux CI host an
+      // empty config would happily read the real /proc and succeed (200),
+      // breaking the 500 assertion below. Point it at a guaranteed-missing
+      // proc dir so every read fails deterministically instead.
+      vi.stubEnv("KOKPIT_PROC_PATH", "/nonexistent/proc");
       const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
       vi.stubGlobal("fetch", fetchMock);
       const { POST } = await import("../../app/api/widget/test/route");
@@ -112,7 +118,7 @@ describe("POST /api/widget/test", () => {
       if (emptyConfigValid) {
         // Schema accepts an empty config — the endpoint attempts the fetch.
         expect(res.status).toBe(500);
-        if (id !== "docker") {
+        if (id !== "docker" && id !== "system-stats") {
           expect(fetchMock).toHaveBeenCalled();
         }
       } else {
