@@ -17,7 +17,7 @@
 | `src/integrations/tdarr/api.ts` | Create | Types, API helper (`fetchTdarrStats`), optional API key header support |
 | `src/integrations/tdarr/statsWidget.tsx` | Create | Registers `tdarr-stats`, renders 6-stat grid (queue, health checks, errors, space saved, workers, FPS) |
 | `src/integrations/index.ts` | Modify | Add single new integration import |
-| `settings.yaml` | Modify | Add example Tdarr service entry |
+| `settings.example.yaml` | Modify | Add example Tdarr service entry |
 | `src/__tests__/integrations/tdarr.test.ts` | Create | Node-env tests: API helpers, optional API key handling |
 | `src/__tests__/integrations/TdarrStatsWidget.test.tsx` | Create | React component tests for stats widget |
 
@@ -166,7 +166,7 @@ git commit -m "feat: add tdarr-stats widget with transcode queue and worker metr
 
 **Files:**
 - Modify: `src/integrations/index.ts`
-- Modify: `settings.yaml`
+- Modify: `settings.example.yaml`
 
 - [x] **Step 1: Add integration to the barrel**
 
@@ -176,9 +176,9 @@ Edit `src/integrations/index.ts` — add one line after the plex import:
 import "./tdarr/statsWidget";
 ```
 
-- [x] **Step 2: Add example entry to `settings.yaml`**
+- [x] **Step 2: Add example entry to `settings.example.yaml`**
 
-Add the following under the existing integrations in `settings.yaml`:
+Add the following under the existing integrations in `settings.example.yaml`:
 
 ```yaml
   - name: Tdarr
