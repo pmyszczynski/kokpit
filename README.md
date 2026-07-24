@@ -515,6 +515,87 @@ services:
 
 ---
 
+### qBittorrent
+
+Two widgets are available for qBittorrent: a transfer stats overview and a live torrent list.
+
+**Prerequisites:** WebUI enabled (Options → Web UI) with a username and password — the widget authenticates via qBittorrent's `auth/login` endpoint, so "Bypass authentication for clients on localhost" alone is not enough.
+
+#### `qbittorrent-stats`
+
+Displays current download/upload speed and session totals.
+
+```yaml
+services:
+  - name: qBittorrent
+    url: http://192.168.1.10:8080
+    icon: qbittorrent
+    widget:
+      type: qbittorrent-stats
+      config:
+        url: http://192.168.1.10:8080
+        username: admin
+        password: YOUR_PASSWORD
+```
+
+
+| Field      | Required | Description                     |
+| ---------- | -------- | -------------------------------- |
+| `url`      | Yes      | Base URL of your qBittorrent WebUI |
+| `username` | Yes      | WebUI username                   |
+| `password` | Yes      | WebUI password                   |
+
+
+**Displayed stats:** download speed, upload speed, total downloaded, total uploaded.
+
+#### `qbittorrent-torrents`
+
+Shows a scrollable list of all torrents with a progress bar and per-torrent download/upload speed.
+
+```yaml
+services:
+  - name: qBittorrent Torrents
+    widget:
+      type: qbittorrent-torrents
+      config:
+        url: http://192.168.1.10:8080
+        username: admin
+        password: YOUR_PASSWORD
+```
+
+Takes the same `url` / `username` / `password` fields as `qbittorrent-stats`.
+
+---
+
+### SABnzbd
+
+Displays download queue speed, item count, and total queue size.
+
+**Prerequisites:** An API key from SABnzbd → Config → General → Security.
+
+```yaml
+services:
+  - name: SABnzbd
+    url: http://192.168.1.10:8080
+    icon: sabnzbd
+    widget:
+      type: sabnzbd
+      config:
+        url: http://192.168.1.10:8080
+        apikey: YOUR_API_KEY
+```
+
+
+| Field    | Required | Description                        |
+| -------- | -------- | ----------------------------------- |
+| `url`    | Yes      | Base URL of your SABnzbd instance   |
+| `apikey` | Yes      | API key from Config → General → Security |
+
+
+**Displayed stats:** download speed, queue item count, total queue size.
+
+---
+
 ### Seerr
 
 Two widgets are available for Seerr. Both are also compatible with Jellyseerr and Overseerr, which share the same API.
@@ -617,6 +698,117 @@ services:
 | Storage    | Total storage usage across all media |
 | Photo Size | Storage used by photos               |
 | Video Size | Storage used by videos               |
+
+
+---
+
+### Netdata
+
+Seven composable widgets showing live system metrics from a [Netdata](https://www.netdata.cloud/) agent. Each is a separate tile, so pick the ones you want. All share the same underlying `allmetrics` fetch per Netdata instance (cached briefly server-side), so adding several doesn't multiply requests to Netdata.
+
+**Prerequisites:** A running Netdata agent (default port `19999`), reachable from the Kokpit container. If the agent is secured, generate an API token in Netdata's `netdata.conf`.
+
+**Common config fields** (all seven widgets):
+
+
+| Field             | Required | Description                                                              |
+| ----------------- | -------- | -------------------------------------------------------------------------- |
+| `url`             | Yes      | Base URL of your Netdata agent, e.g. `http://192.168.1.10:19999`         |
+| `api_token`       | No       | Bearer token, if the agent requires auth                                 |
+| `history_minutes` | No       | Sparkline lookback window, 1–60 (default: 10) — CPU, RAM, Network, Disk I/O, and Sensor only |
+
+
+| Widget type          | Name              | Shows                                                        |
+| --------------------- | ----------------- | ------------------------------------------------------------- |
+| `netdata-cpu`         | Netdata CPU       | Total CPU utilization, with a sparkline                       |
+| `netdata-ram`         | Netdata RAM       | Used / total RAM, with a sparkline                            |
+| `netdata-net`         | Netdata Network   | Inbound and outbound throughput, each with a sparkline        |
+| `netdata-disk-io`     | Netdata Disk I/O  | Read and write throughput, each with a sparkline              |
+| `netdata-disk-space`  | Netdata Disk Space | Used / total space for a mount point (no sparkline)          |
+| `netdata-load`        | Netdata Load      | 1/5/15-minute load averages (no sparkline)                    |
+| `netdata-sensor`      | Netdata Sensor    | A single sensor chart's average value, with a sparkline       |
+
+```yaml
+services:
+  - name: CPU
+    widget:
+      type: netdata-cpu
+      config:
+        url: http://192.168.1.10:19999
+
+  - name: RAM
+    widget:
+      type: netdata-ram
+      config:
+        url: http://192.168.1.10:19999
+```
+
+`netdata-disk-space` additionally accepts an optional `chart_id` (default `disk_space._`, the root filesystem) to target another mounted volume:
+
+```yaml
+services:
+  - name: Disk Space
+    widget:
+      type: netdata-disk-space
+      config:
+        url: http://192.168.1.10:19999
+        chart_id: disk_space._mnt_storage
+```
+
+`netdata-sensor` requires a `chart_id` (no default — sensors vary per host) and accepts an optional `label` to override the tile's display name:
+
+```yaml
+services:
+  - name: CPU Temp
+    widget:
+      type: netdata-sensor
+      config:
+        url: http://192.168.1.10:19999
+        chart_id: sensors.coretemp_isa_0000
+        label: CPU Temp
+```
+
+Find available chart IDs at `<netdata-url>/api/v1/charts` — look for `disk_space.*` mount points or `sensors.*` charts with units like Celsius, Fahrenheit, or RPM.
+
+---
+
+### Unraid
+
+Displays array state, used/total storage, disk count, disk errors, and parity check status from an Unraid server.
+
+**Prerequisites:** An API key from Unraid → Settings → Management Access → API Keys. Unraid's GraphQL API must be reachable from the Kokpit container.
+
+#### `unraid-stats`
+
+```yaml
+services:
+  - name: Unraid
+    url: http://192.168.1.10
+    icon: unraid
+    widget:
+      type: unraid-stats
+      config:
+        url: http://192.168.1.10
+        api_key: YOUR_API_KEY
+```
+
+
+| Field     | Required | Description                                              |
+| --------- | -------- | ---------------------------------------------------------- |
+| `url`     | Yes      | Base URL of your Unraid server                            |
+| `api_key` | Yes      | API key from Settings → Management Access → API Keys      |
+
+
+**Displayed stats:**
+
+
+| Stat   | Description                                                  |
+| ------ | -------------------------------------------------------------- |
+| Array  | Current array state (started, stopped, etc.)                  |
+| Used   | Used / total array storage, with percentage                   |
+| Disks  | Number of data disks in the array                              |
+| Errors | Disks reporting an error status                                |
+| Parity | Parity check status and error count, if configured (shown only when parity data is available) |
 
 
 ---
