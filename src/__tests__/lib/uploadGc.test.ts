@@ -56,15 +56,18 @@ describe("collectReferencedUploads", () => {
     const refs = collectReferencedUploads(makeConfig());
     expect(refs.icons.has("passwd")).toBe(false);
     expect(refs.icons.has("short.png")).toBe(false);
-    // A background ref pointing under the icons prefix must not leak either.
+    // Cross-prefix isolation: a background image pointing under the ICONS
+    // prefix must not leak into either set — background.image is only matched
+    // against the backgrounds prefix, so the value is ignored entirely.
     const refs2 = collectReferencedUploads({
       schema_version: 1,
       auth: { enabled: false, session_ttl_hours: 24 },
-      appearance: { theme: "dark", background: { image: "https://cdn.example/bg.jpg" } },
+      appearance: { theme: "dark", background: { image: `/api/icons/user/${BG_C}` } },
       layout: { columns: 4, row_height: 120 },
       services: [],
     } as unknown as KokpitConfig);
     expect(refs2.backgrounds.size).toBe(0);
+    expect(refs2.icons.size).toBe(0);
   });
 
   it("is defensive about absent optional arrays/fields", () => {
