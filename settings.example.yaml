@@ -108,6 +108,14 @@ services: []
 #         url: http://192.168.1.x:8080
 #         apikey: <your-api-key>
 #
+#   - name: Tdarr
+#     url: http://192.168.1.x:8265
+#     widget:
+#       type: tdarr-stats
+#       config:
+#         url: http://192.168.1.x:8265
+#         # apikey: <optional-api-key>
+#
 #   - name: Jellyfin
 #     url: http://192.168.1.x:8096
 #     widget:
