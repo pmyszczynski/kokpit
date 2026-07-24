@@ -6,7 +6,7 @@ export interface TdarrConfig {
 }
 
 export const TdarrConfigSchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
   apikey: z.string().optional(),
 });
 
@@ -63,6 +63,15 @@ function buildHeaders(config: TdarrConfig): Record<string, string> {
   return headers;
 }
 
+function buildGetHeaders(config: TdarrConfig): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (config.apikey) {
+    headers["x-api-key"] = config.apikey;
+  }
+  return headers;
+}
+
+/** Fetches and normalizes Tdarr queue, worker, and throughput stats for the widget. */
 export async function fetchTdarrStats(
   config: TdarrConfig,
   signal?: AbortSignal
@@ -71,18 +80,30 @@ export async function fetchTdarrStats(
   const cruddbUrl = new URL("api/v2/cruddb", base).toString();
   const headers = buildHeaders(config);
 
-  const response = await fetch(cruddbUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      data: {
-        collection: "StatisticsJSONDB",
-        mode: "getById",
-        docID: "statistics",
-      },
+  // The nodes/workers endpoint is independent of cruddb and best-effort, so
+  // it's kicked off concurrently. Any failure (network, non-2xx, unexpected
+  // shape) is swallowed here via .catch(() => null) so it can never reject
+  // this Promise.all or the overall function.
+  const nodesUrl = new URL("api/v2/get-nodes", base).toString();
+  const [response, nodesResponse] = await Promise.all([
+    fetch(cruddbUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        data: {
+          collection: "StatisticsJSONDB",
+          mode: "getById",
+          docID: "statistics",
+        },
+      }),
+      signal,
     }),
-    signal,
-  });
+    fetch(nodesUrl, {
+      method: "GET",
+      headers: buildGetHeaders(config),
+      signal,
+    }).catch(() => null),
+  ]);
 
   if (!response.ok) {
     throw new Error(`Tdarr responded with ${response.status}`);
@@ -119,15 +140,7 @@ export async function fetchTdarrStats(
   // stats, so any failure (network, non-2xx, unexpected shape) just leaves
   // activeWorkers/fps at their zero defaults.
   try {
-    const nodesUrl = new URL("api/v2/get-nodes", base).toString();
-    const nodesResponse = await fetch(nodesUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({}),
-      signal,
-    });
-
-    if (nodesResponse.ok) {
+    if (nodesResponse && nodesResponse.ok) {
       const nodesRaw = await nodesResponse.json();
       const nodes = TdarrNodesResponseSchema.parse(nodesRaw);
 

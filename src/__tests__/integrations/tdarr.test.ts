@@ -151,6 +151,28 @@ describe("fetchTdarrStats", () => {
     });
   });
 
+  it("builds the correct get-nodes GET request with headers and no body", async () => {
+    const mockFetch = makeFetchMock(
+      makeJsonResponse(MOCK_STATISTICS_RESPONSE),
+      makeJsonResponse(MOCK_NODES_RESPONSE)
+    );
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchTdarrStats(BASE_CONFIG);
+
+    const nodesCall = mockFetch.mock.calls.find((call) =>
+      (call[0] as string).includes("get-nodes")
+    );
+    expect(nodesCall).toBeDefined();
+    const [calledUrl, options] = nodesCall as [string, RequestInit];
+    expect(calledUrl).toBe("http://tdarr.local:8265/api/v2/get-nodes");
+    expect(options.method).toBe("GET");
+    expect(options.body).toBeUndefined();
+    expect((options.headers as Record<string, string>)["x-api-key"]).toBe(
+      "abc123def456"
+    );
+  });
+
   it("omits the x-api-key header when no apikey is configured", async () => {
     const mockFetch = makeFetchMock(
       makeJsonResponse(MOCK_STATISTICS_RESPONSE),
@@ -163,9 +185,17 @@ describe("fetchTdarrStats", () => {
     const cruddbCall = mockFetch.mock.calls.find((call) =>
       (call[0] as string).includes("cruddb")
     );
-    const [, options] = cruddbCall as [string, RequestInit];
+    const [, cruddbOptions] = cruddbCall as [string, RequestInit];
     expect(
-      (options.headers as Record<string, string>)["x-api-key"]
+      (cruddbOptions.headers as Record<string, string>)["x-api-key"]
+    ).toBeUndefined();
+
+    const nodesCall = mockFetch.mock.calls.find((call) =>
+      (call[0] as string).includes("get-nodes")
+    );
+    const [, nodesOptions] = nodesCall as [string, RequestInit];
+    expect(
+      (nodesOptions.headers as Record<string, string>)["x-api-key"]
     ).toBeUndefined();
   });
 
@@ -201,6 +231,23 @@ describe("fetchTdarrStats", () => {
       (call[0] as string).includes("cruddb")
     );
     const [, options] = cruddbCall as [string, RequestInit];
+    expect(options).toMatchObject({ signal: controller.signal });
+  });
+
+  it("forwards the AbortSignal to the get-nodes request", async () => {
+    const mockFetch = makeFetchMock(
+      makeJsonResponse(MOCK_STATISTICS_RESPONSE),
+      makeJsonResponse(MOCK_NODES_RESPONSE)
+    );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const controller = new AbortController();
+    await fetchTdarrStats(BASE_CONFIG, controller.signal);
+
+    const nodesCall = mockFetch.mock.calls.find((call) =>
+      (call[0] as string).includes("get-nodes")
+    );
+    const [, options] = nodesCall as [string, RequestInit];
     expect(options).toMatchObject({ signal: controller.signal });
   });
 
