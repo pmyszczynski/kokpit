@@ -108,19 +108,37 @@ services: []
 #         url: http://192.168.1.x:8080
 #         apikey: <your-api-key>
 #
-#   - name: Jellyfin
-#     url: http://192.168.1.x:8096
+#   - name: Sonarr
+#     url: http://192.168.1.x:8989
 #     widget:
-#       type: jellyfin
+#       type: sonarr-calendar   # or sonarr-queue
 #       config:
-#         key: <your-api-key>
+#         url: http://192.168.1.x:8989
+#         api_key: <your-api-key>
 #
-#   - name: Pi-hole
-#     url: http://192.168.1.x/admin
+#   - name: Radarr
+#     url: http://192.168.1.x:7878
 #     widget:
-#       type: pihole
+#       type: radarr-stats   # or radarr-queue
 #       config:
-#         key: <your-api-key>
+#         url: http://192.168.1.x:7878
+#         api_key: <your-api-key>
+#
+#   - name: Prowlarr
+#     url: http://192.168.1.x:9696
+#     widget:
+#       type: prowlarr-stats
+#       config:
+#         url: http://192.168.1.x:9696
+#         api_key: <your-api-key>
+#
+#   - name: Seerr
+#     url: http://192.168.1.x:5055
+#     widget:
+#       type: seerr-stats   # or seerr-requests
+#       config:
+#         url: http://192.168.1.x:5055
+#         api_key: <your-api-key>
 #
 #   - name: Immich
 #     url: http://192.168.1.x:2283
@@ -130,11 +148,27 @@ services: []
 #         url: http://192.168.1.x:2283/api
 #         api_key: <your-api-key>
 #
-#   - name: System Stats
-#     description: CPU, RAM, disk usage
-#     size: wide
+#   - name: Unraid
+#     url: http://192.168.1.x
 #     widget:
-#       type: system-stats
+#       type: unraid-stats
+#       config:
+#         url: http://192.168.1.x
+#         api_key: <your-api-key>
+#
+#   - name: CPU
+#     widget:
+#       type: netdata-cpu   # + netdata-ram, netdata-net, netdata-disk-io,
+#                           # netdata-disk-space, netdata-load, netdata-sensor
+#       config:
+#         url: http://192.168.1.x:19999
+#
+#   - name: Docker
+#     widget:
+#       type: docker
+#       config: {}
+#
+# See README.md § Widgets for the full field reference for every widget type.
 
 # ─── Bookmarks (optional) ─────────────────────────────────────
 # A bookmark group is a single grid tile holding plain links —

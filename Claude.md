@@ -65,9 +65,9 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 │   ├── auth/               ← auth system (users, JWT, sessions, bcrypt)
 │   ├── components/         ← shared React components (Navbar, etc.)
 │   ├── config/             ← YAML parser, schema, validator, theme helper
-│   ├── integrations/       ← per-service integration modules (stub)
+│   ├── integrations/       ← per-service integration modules (Plex, *arr apps, qBittorrent, SABnzbd, Seerr, Immich, Netdata, Unraid, Docker)
 │   ├── test/               ← Vitest setup
-│   └── widgets/            ← widget plugin system (stub)
+│   └── widgets/            ← widget plugin system (registry + shared widget types)
 └── public/
     └── icons/              ← bundled icon sets
 ```
@@ -94,7 +94,7 @@ If `release.yml`'s "Verify package.json version matches input" step fails, it me
 
 - **Full roadmap & task list:** [`docs/Roadmap.md`](docs/Roadmap.md)
 - **Architecture decisions:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) *(not yet created)*
-- **Widget/integration specs:** [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) *(create in Phase 2)*
+- **Widget/integration specs:** documented per-widget in [`README.md § Widgets`](README.md#widgets) rather than a separate file — add new widgets there
 
 ---
 
