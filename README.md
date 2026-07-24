@@ -658,7 +658,7 @@ services:
 | Transcode Queue     | Number of items in the transcode queue                  |
 | Health Checks       | Number of items in the health checks queue              |
 | Errored             | Number of items that encountered errors                 |
-| Space Saved         | Total storage saved through transcoding (in bytes)      |
+| Space Saved         | Total storage saved through transcoding, reported in GB and formatted for display |
 | Workers (active)    | Number of active transcode workers currently running    |
 | FPS                 | Current frames per second across all active transcoders |
 
