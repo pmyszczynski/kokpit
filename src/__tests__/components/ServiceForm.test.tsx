@@ -543,6 +543,130 @@ describe("ServiceForm – optional widget config", () => {
     expect(screen.getByText(/widget configured/i)).toBeInTheDocument();
     expect(screen.queryByText(/widget not configured/i)).not.toBeInTheDocument();
   });
+
+  it("keeps the friendly not-configured hint (no error list) while the config is entirely empty", () => {
+    const { container } = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    expect(
+      screen.getByText(
+        "Widget not configured — the tile will render as a plain link until the required fields are filled."
+      )
+    ).toBeInTheDocument();
+    // No per-field Zod error list yet — that would be a wall of red text on
+    // a freshly-selected widget type nobody has touched.
+    expect(container.querySelector(".service-form__widget-issues")).not.toBeInTheDocument();
+  });
+
+  it("lists the specific Zod issues once the user has entered something but the config is still invalid", () => {
+    const { container } = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    // Fill only the URL — Token is still required, so the config remains
+    // invalid, but it's no longer empty.
+    fireEvent.change(screen.getByLabelText(/Server URL/), {
+      target: { value: "http://plex.local:32400" },
+    });
+
+    expect(screen.queryByText(/widget not configured/i)).not.toBeInTheDocument();
+    const issues = Array.from(
+      container.querySelectorAll(".service-form__widget-issues li")
+    ).map((el) => el.textContent);
+    expect(issues).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^token: /)])
+    );
+  });
+
+  it("still shows the positive line once a valid config is entered", () => {
+    const { container } = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    fireEvent.change(screen.getByLabelText(/Server URL/), {
+      target: { value: "http://plex.local:32400" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Token/), {
+      target: { value: "secret" },
+    });
+    expect(
+      screen.getByText("Widget configured — it will render on the dashboard tile.")
+    ).toBeInTheDocument();
+    expect(container.querySelector(".service-form__widget-issues")).not.toBeInTheDocument();
+  });
+});
+
+describe("ServiceForm – focusWidget", () => {
+  it("focuses the first invalid widget config field on mount", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: { type: "plex", config: { url: "http://plex.local:32400" } },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+        focusWidget
+      />
+    );
+    expect(screen.getByLabelText(/^Token/)).toHaveFocus();
+  });
+
+  it("shows the specific issues immediately (even with an empty config) when opened from the badge", () => {
+    const { container } = render(
+      <ServiceForm
+        service={{ name: "My Plex", widget: { type: "plex" } }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+        focusWidget
+      />
+    );
+    expect(container.querySelector(".service-form__widget-issues")).toBeInTheDocument();
+    expect(screen.queryByText(/widget not configured/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to focusing the tile-type selector when nothing is specifically invalid", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: {
+            type: "plex",
+            config: { url: "http://plex.local:32400", token: "secret" },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+        focusWidget
+      />
+    );
+    expect(screen.getByLabelText("Tile type")).toHaveFocus();
+  });
+
+  it("does not move focus when focusWidget is not set", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: { type: "plex", config: { url: "http://plex.local:32400" } },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+    expect(screen.getByLabelText(/^Token/)).not.toHaveFocus();
+  });
 });
 
 describe("ServiceForm – test connection", () => {

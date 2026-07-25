@@ -143,7 +143,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Welcome card with "Add your first service" when the dashboard is empty (today: blank page)
   - Ghost "+" tile in empty groups while editing; first-edit coach marks
 
-- [ ] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
+- [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
   - Warning badge on tiles whose widget config fails validation, instead of today's silent downgrade to a plain link
   - Badge links to the edit dialog with the validation error shown
 

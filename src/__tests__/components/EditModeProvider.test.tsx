@@ -30,6 +30,7 @@ const active: EditModeState = {
   status: "idle",
   error: null,
   conflict: false,
+  pendingEditService: null,
 };
 
 describe("editModeReducer", () => {
@@ -96,6 +97,69 @@ describe("editModeReducer", () => {
     expect(next.draft).not.toBeNull();
     // Stale revision is kept so any re-save re-conflicts instead of overwriting.
     expect(next.baseRevision).toBe("rev-1");
+  });
+
+  it("REQUEST_SERVICE_EDIT sets pendingEditService", () => {
+    const next = editModeReducer(initialEditModeState, {
+      type: "REQUEST_SERVICE_EDIT",
+      name: "Plex",
+    });
+    expect(next.pendingEditService).toBe("Plex");
+  });
+
+  it("CLEAR_PENDING_EDIT clears pendingEditService", () => {
+    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    const next = editModeReducer(pending, { type: "CLEAR_PENDING_EDIT" });
+    expect(next.pendingEditService).toBeNull();
+  });
+
+  it("CLEAR_PENDING_EDIT is a no-op (same reference) when already null", () => {
+    expect(editModeReducer(active, { type: "CLEAR_PENDING_EDIT" })).toBe(active);
+  });
+
+  it("pendingEditService survives ENTER_START (regression: fresh state objects)", () => {
+    const pending: EditModeState = {
+      ...initialEditModeState,
+      pendingEditService: "Plex",
+    };
+    const next = editModeReducer(pending, { type: "ENTER_START" });
+    expect(next.pendingEditService).toBe("Plex");
+  });
+
+  it("pendingEditService survives ENTER_SUCCESS (regression: fresh state objects)", () => {
+    const pending: EditModeState = {
+      ...initialEditModeState,
+      pendingEditService: "Plex",
+      status: "loading",
+    };
+    const config = cfg();
+    const next = editModeReducer(pending, {
+      type: "ENTER_SUCCESS",
+      config,
+      revision: "rev-1",
+    });
+    expect(next.pendingEditService).toBe("Plex");
+    expect(next.active).toBe(true);
+  });
+
+  it("pendingEditService is dropped by DISCARD", () => {
+    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    expect(
+      editModeReducer(pending, { type: "DISCARD" }).pendingEditService
+    ).toBeNull();
+  });
+
+  it("pendingEditService is dropped by ENTER_ERROR", () => {
+    const pending: EditModeState = {
+      ...initialEditModeState,
+      pendingEditService: "Plex",
+      status: "loading",
+    };
+    const next = editModeReducer(pending, {
+      type: "ENTER_ERROR",
+      error: "boom",
+    });
+    expect(next.pendingEditService).toBeNull();
   });
 
   it("RELOAD_SUCCESS refreshes the draft and clears the conflict, staying active", () => {

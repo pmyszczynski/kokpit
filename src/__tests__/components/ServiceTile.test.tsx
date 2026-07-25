@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import ServiceTile from "@/components/ServiceTile";
+import type { WidgetConfigIssue } from "@/widgets/tileWidget";
+
+// The broken-widget badge reads edit-mode availability via
+// useEditModeOptional(), independently of any wrapping <EditModeProvider> (it
+// must work with no provider at all — that's the whole point of the "Optional"
+// hook). Mocking it directly, with a mutable ref tests can point at whatever
+// they need, is far simpler than standing up a real provider (fetch/router
+// mocking) just to flip `canEdit`.
+const editModeOptional = vi.hoisted(() => ({
+  current: null as null | { canEdit: boolean; requestServiceEdit: (name: string) => void },
+}));
+vi.mock("@/components/edit/EditModeProvider", () => ({
+  useEditModeOptional: () => editModeOptional.current,
+}));
 
 describe("ServiceTile", () => {
   beforeEach(() => {
@@ -11,11 +25,13 @@ describe("ServiceTile", () => {
         json: () => Promise.resolve({ ok: true, status: 200 }),
       } as Response)
     );
+    editModeOptional.current = null;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    editModeOptional.current = null;
   });
 
   it("renders the service name", async () => {
@@ -239,5 +255,229 @@ describe("ServiceTile", () => {
       vi.advanceTimersByTime(30_000);
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ServiceTile broken-widget badge", () => {
+  const issues: WidgetConfigIssue[] = [
+    { path: "api_key", message: "Required" },
+    { path: "url", message: "Invalid url" },
+  ];
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true }),
+      } as Response)
+    );
+    editModeOptional.current = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    editModeOptional.current = null;
+  });
+
+  it("renders the badge (not the widget body) when widget.invalid is set", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge");
+    expect(badge).not.toBeNull();
+    expect(badge).toHaveAttribute("data-widget-config-invalid", "true");
+    expect(badge).toHaveAttribute(
+      "aria-label",
+      "Widget configuration error: Sonarr"
+    );
+    expect(badge).toHaveAttribute(
+      "title",
+      "api_key: Required\nurl: Invalid url"
+    );
+    expect(container.querySelector(".service-tile__widget")).toBeNull();
+  });
+
+  it("does not render a badge for a valid widget", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue" }}
+          preview
+        />
+      ));
+    });
+    expect(container.querySelector(".tile-widget-badge")).toBeNull();
+    expect(container.querySelector(".service-tile__widget")).not.toBeNull();
+  });
+
+  it("does not render a badge when there is no widget at all", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile name="Jellyfin" url="http://jellyfin.local" />
+      ));
+    });
+    expect(container.querySelector(".tile-widget-badge")).toBeNull();
+  });
+
+  it("is non-interactive (role=img, no tabIndex) with no edit-mode provider", async () => {
+    editModeOptional.current = null;
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge")!;
+    expect(badge).toHaveAttribute("role", "img");
+    expect(badge).not.toHaveAttribute("tabIndex");
+    expect(badge).not.toHaveClass("tile-widget-badge--interactive");
+  });
+
+  it("is non-interactive when edit mode is available but canEdit is false", async () => {
+    editModeOptional.current = { canEdit: false, requestServiceEdit: vi.fn() };
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge")!;
+    expect(badge).toHaveAttribute("role", "img");
+    expect(badge).not.toHaveClass("tile-widget-badge--interactive");
+  });
+
+  it("is interactive (role=button, tabIndex 0) when edit mode is available and canEdit", async () => {
+    editModeOptional.current = { canEdit: true, requestServiceEdit: vi.fn() };
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge")!;
+    expect(badge).toHaveAttribute("role", "button");
+    expect(badge).toHaveAttribute("tabIndex", "0");
+    expect(badge).toHaveClass("tile-widget-badge--interactive");
+  });
+
+  it("clicking the interactive badge calls requestServiceEdit and prevents the link navigation", async () => {
+    const requestServiceEdit = vi.fn();
+    editModeOptional.current = { canEdit: true, requestServiceEdit };
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const link = container.querySelector("a.service-tile")!;
+    let capturedEvent: Event | null = null;
+    // Capture phase fires (top-down) before the badge's own bubble-phase
+    // onClick runs, but it's the same event object throughout, so by the time
+    // the synchronous dispatch finishes, `defaultPrevented` reflects whatever
+    // the badge's handler did.
+    link.addEventListener("click", (e) => (capturedEvent = e), true);
+
+    const badge = container.querySelector(".tile-widget-badge")!;
+    fireEvent.click(badge);
+
+    expect(requestServiceEdit).toHaveBeenCalledWith("Sonarr");
+    expect(requestServiceEdit).toHaveBeenCalledTimes(1);
+    expect(capturedEvent).not.toBeNull();
+    expect((capturedEvent as unknown as Event).defaultPrevented).toBe(true);
+  });
+
+  it("clicking the interactive badge does not bubble the click to an ancestor handler", async () => {
+    const requestServiceEdit = vi.fn();
+    editModeOptional.current = { canEdit: true, requestServiceEdit };
+    const parentClick = vi.fn();
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <div onClick={parentClick}>
+          <ServiceTile
+            name="Sonarr"
+            url="http://sonarr.local"
+            widget={{ type: "sonarr-queue", invalid: issues }}
+          />
+        </div>
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge")!;
+    fireEvent.click(badge);
+    expect(requestServiceEdit).toHaveBeenCalledTimes(1);
+    // e.stopPropagation() in the badge's onClick must stop it here — a
+    // regression would let the click fall through to the grid/tile ancestor
+    // (e.g. starting a drag, or a future ancestor click handler) on top of
+    // opening the editor.
+    expect(parentClick).not.toHaveBeenCalled();
+  });
+
+  it("Enter and Space on the interactive badge call requestServiceEdit", async () => {
+    const requestServiceEdit = vi.fn();
+    editModeOptional.current = { canEdit: true, requestServiceEdit };
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge")!;
+
+    fireEvent.keyDown(badge, { key: "Enter" });
+    expect(requestServiceEdit).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(badge, { key: " " });
+    expect(requestServiceEdit).toHaveBeenCalledTimes(2);
+
+    // An unrelated key is a no-op.
+    fireEvent.keyDown(badge, { key: "a" });
+    expect(requestServiceEdit).toHaveBeenCalledTimes(2);
+  });
+
+  it("clicking the non-interactive badge does not throw and does not navigate", async () => {
+    editModeOptional.current = null;
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    const badge = container.querySelector(".tile-widget-badge")!;
+    expect(() => fireEvent.click(badge)).not.toThrow();
   });
 });

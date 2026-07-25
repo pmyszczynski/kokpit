@@ -16,6 +16,7 @@ import {
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
+import { widgetConfigIssues, type WidgetConfigIssue } from "@/widgets/tileWidget";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
@@ -31,6 +32,14 @@ interface ServiceFormProps {
    * service.
    */
   initialPreset?: string;
+  /**
+   * True when this dialog was opened by clicking a tile's broken-widget
+   * badge rather than the kebab menu's Edit item. On mount, scrolls the
+   * Widget section into view and moves focus to the first invalid config
+   * field (or the tile-type selector, if there isn't one), so the user lands
+   * where the fix is needed instead of having to hunt for it.
+   */
+  focusWidget?: boolean;
   onSave: (service: Service) => void;
   onClose: () => void;
 }
@@ -350,10 +359,12 @@ export default function ServiceForm({
   takenNames = [],
   initialGroup,
   initialPreset,
+  focusWidget = false,
   onSave,
   onClose,
 }: ServiceFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const widgetSectionRef = useRef<HTMLDivElement>(null);
   const initial = initFromService(service);
   // For a NEW service opened from the edit-mode preset picker, seed the tile
   // type + its default name/icon exactly as picking it in the dropdown would.
@@ -422,10 +433,23 @@ export default function ServiceForm({
       : ((orphanWidget?.config as Record<string, unknown>) ?? {})
   );
   // Mirrors the dashboard's rule: the widget renders only when its config
-  // passes the schema. Unknown types can't be validated client-side.
-  const widgetConfigValid = selectedWidgetDef
-    ? selectedWidgetDef.configSchema.safeParse(activeCleanedConfig).success
-    : null;
+  // passes the schema. Unknown types can't be validated client-side. Uses the
+  // same shared mapper as the tile badge (src/widgets/tileWidget.ts) so the
+  // dialog's error list always matches what the badge's tooltip says.
+  const configIssues: WidgetConfigIssue[] = selectedWidgetDef
+    ? widgetConfigIssues(selectedWidgetDef, activeCleanedConfig)
+    : [];
+  const widgetConfigValid = selectedWidgetDef ? configIssues.length === 0 : null;
+  const widgetConfigEmpty = Object.keys(activeCleanedConfig).length === 0;
+  // An entirely empty config right after picking a widget type is the
+  // expected starting point, not a mistake — listing every "Required" issue
+  // at that moment is a wall of red text for no benefit, so the friendly
+  // hint (below) stays for that case. Once the user has typed *something*
+  // and it's still invalid, or the dialog was opened from a broken-tile
+  // badge (an already-saved config that fails validation), show the actual
+  // Zod issues so they know exactly what to fix.
+  const showSpecificWidgetIssues =
+    configIssues.length > 0 && (!widgetConfigEmpty || focusWidget);
 
   function handleWidgetConfigChange(key: string, value: unknown) {
     setWidgetConfig((prev) => ({ ...prev, [key]: value }));
@@ -608,6 +632,30 @@ export default function ServiceForm({
 
   useEffect(() => {
     dialogRef.current?.showModal();
+  }, []);
+
+  // Opened from the broken-widget badge: scroll the Widget section into
+  // view and move focus to the first invalid config field, so the user
+  // lands right where the fix is needed. Runs once on mount, after the
+  // showModal() effect above so it wins over the dialog's default initial
+  // focus. Deliberately mount-only — this isn't meant to steal focus again
+  // on every keystroke as issues resolve.
+  useEffect(() => {
+    if (!focusWidget || !showWidgetSection) return;
+    widgetSectionRef.current?.scrollIntoView?.({ block: "nearest" });
+
+    const firstInvalidField = selectedWidgetDef?.configFields?.find((field) =>
+      configIssues.some(
+        (issue) => issue.path === field.key || issue.path.startsWith(`${field.key}.`)
+      )
+    );
+    const targetId = firstInvalidField
+      ? `sf-widget-${firstInvalidField.key}`
+      : "sf-tile-type";
+    dialogRef.current
+      ?.querySelector<HTMLElement>(`#${targetId}`)
+      ?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleSubmit(e: React.FormEvent) {
@@ -923,7 +971,7 @@ export default function ServiceForm({
 
         {showWidgetSection && (
           <>
-            <div className="service-form__section-divider">
+            <div className="service-form__section-divider" ref={widgetSectionRef}>
               <span>Widget</span>
             </div>
 
@@ -988,16 +1036,43 @@ export default function ServiceForm({
               />
             </div>
 
-            {selectedWidgetDef && (
+            {selectedWidgetDef && widgetConfigValid && (
               <p
                 role="status"
-                className={`settings-form-hint service-form__widget-status service-form__widget-status--${
-                  widgetConfigValid ? "active" : "inactive"
-                }`}
+                className="settings-form-hint service-form__widget-status service-form__widget-status--active"
               >
-                {widgetConfigValid
-                  ? "Widget configured — it will render on the dashboard tile."
-                  : "Widget not configured — the tile will render as a plain link until the required fields are filled."}
+                Widget configured — it will render on the dashboard tile.
+              </p>
+            )}
+
+            {selectedWidgetDef && !widgetConfigValid && showSpecificWidgetIssues && (
+              <div
+                className="service-form__widget-issues"
+                role="alert"
+              >
+                <p className="settings-form-hint settings-form-hint--error">
+                  Widget configuration doesn&rsquo;t match its schema — the tile
+                  will render as a plain link until these are fixed:
+                </p>
+                <ul>
+                  {configIssues.map((issue) => (
+                    <li
+                      key={`${issue.path}:${issue.message}`}
+                      className="settings-form-hint settings-form-hint--error"
+                    >
+                      {issue.path}: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selectedWidgetDef && !widgetConfigValid && !showSpecificWidgetIssues && (
+              <p
+                role="status"
+                className="settings-form-hint service-form__widget-status service-form__widget-status--inactive"
+              >
+                Widget not configured — the tile will render as a plain link until the required fields are filled.
               </p>
             )}
 

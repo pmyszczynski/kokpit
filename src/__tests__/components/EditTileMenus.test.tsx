@@ -9,8 +9,15 @@ const setServices = vi.fn();
 const setGroups = vi.fn();
 const setBookmarks = vi.fn();
 const updateDraft = vi.fn();
+const requestServiceEdit = vi.fn();
+// ServiceTile's broken-widget badge calls useEditModeOptional independently of
+// the useEditMode() stub above (it's meant to work standalone, outside any
+// provider too). This file exercises EditableServiceGrid, which only ever
+// mounts while edit mode is active, so canEdit: true keeps the badge in its
+// real (interactive) shape here — none of these tests assert on it directly.
 vi.mock("@/components/edit/EditModeProvider", () => ({
   useEditMode: () => ({ setServices, setGroups, setBookmarks, updateDraft }),
+  useEditModeOptional: () => ({ canEdit: true, requestServiceEdit }),
 }));
 
 import "@/integrations";

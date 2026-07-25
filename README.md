@@ -292,6 +292,8 @@ services:
 
 Credentials in `widget.config` are read server-side only and are never sent to the browser.
 
+**Troubleshooting widget configuration:** If a widget's config fails validation (e.g., a missing required field like `token` or a malformed URL), the tile displays a small warning badge in its corner. Hover or click the badge to see the specific validation errors. Users with edit permission can click the badge to open the service editor with the widget section focused, then fix the configuration and save.
+
 ---
 
 ### Plex

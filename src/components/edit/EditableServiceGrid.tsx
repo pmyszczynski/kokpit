@@ -19,7 +19,7 @@
 //  - Sensors: PointerSensor with an 8px activation distance (taps/scrolls on
 //    touch never start a drag) + KeyboardSensor (full keyboard DnD for free).
 import "@/integrations";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -65,7 +65,6 @@ import {
   type BookmarkGroup,
   type KokpitConfig,
   type Service,
-  type ServiceWidget,
   type Size,
 } from "@/config/schema";
 import {
@@ -76,25 +75,15 @@ import {
 } from "@/config/groupCascade";
 import { duplicateBookmark, duplicateService } from "@/config/duplicate";
 import { useEditMode } from "./EditModeProvider";
-import { getWidget, getWidgetSizeHints } from "@/widgets";
+import { getWidgetSizeHints } from "@/widgets";
+import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "../BookmarkTile";
 import CollapsibleGroup, { migrateGroupCollapseKey } from "../CollapsibleGroup";
-import ServiceTile, { type TileWidget } from "../ServiceTile";
+import ServiceTile from "../ServiceTile";
 import ServiceForm from "../ServiceForm";
 import BookmarkGroupForm from "../BookmarkGroupForm";
 import AddTilePicker, { type AddChoice } from "./AddTilePicker";
 import { BookmarkTileMenu, GroupKebab, ServiceTileMenu } from "./tileMenus";
-
-// Mirrors ServiceGrid.resolveTileWidget: unknown types pass through so the typo
-// still surfaces; known-but-invalid config downgrades to a plain link.
-function resolveTileWidget(widget?: ServiceWidget): TileWidget | undefined {
-  if (!widget) return undefined;
-  const def = getWidget(widget.type);
-  if (def && !def.configSchema.safeParse(widget.config ?? {}).success) {
-    return undefined;
-  }
-  return { type: widget.type, refresh_interval_ms: widget.refresh_interval_ms };
-}
 
 function resolveBookmarkSize(bookmark: BookmarkGroup): Size {
   if (bookmark.placement?.size) return bookmark.placement.size;
@@ -360,7 +349,7 @@ const collisionDetection: CollisionDetection = (args) => {
 // Which edit dialog (if any) is mounted. `group` is the target section an
 // add-flow was launched from (null = ungrouped / no placement).
 type ActiveDialog =
-  | { kind: "service-edit"; name: string }
+  | { kind: "service-edit"; name: string; focusWidget?: boolean }
   | { kind: "service-add"; group: string | null; preset?: string }
   | { kind: "bookmark-edit"; name: string }
   | { kind: "bookmark-add"; group: string | null }
@@ -372,13 +361,34 @@ export default function EditableServiceGrid({
 }: {
   config: KokpitConfig;
 }) {
-  const { setServices, setGroups, setBookmarks, updateDraft } = useEditMode();
+  const {
+    setServices,
+    setGroups,
+    setBookmarks,
+    updateDraft,
+    pendingEditService,
+    clearPendingEditService,
+  } = useEditMode();
   const services = config.services;
   const bookmarks = useMemo(() => config.bookmarks ?? [], [config.bookmarks]);
   const declaredGroups = useMemo(() => config.groups ?? [], [config.groups]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<ActiveDialog>(null);
+
+  // A view-mode affordance (the broken-widget badge) can ask for a service's
+  // edit dialog before this grid exists; the request waits in the provider
+  // until we mount. Honour it once, then clear it — including when it names a
+  // service that is no longer in the draft, so it can't linger.
+  useEffect(() => {
+    if (!pendingEditService) return;
+    const service = services.find((s) => keyEq(s.name, pendingEditService));
+    // Seeded from the broken-widget badge (not the kebab's Edit item): focus
+    // the Widget section so the Zod error is right where the user lands.
+    if (service)
+      setDialog({ kind: "service-edit", name: service.name, focusWidget: true });
+    clearPendingEditService();
+  }, [pendingEditService, services, clearPendingEditService]);
 
   // Group names (declared + auto-appended), de-duped, for the forms' pickers.
   const knownGroupNames = useMemo(() => {
@@ -934,6 +944,7 @@ export default function EditableServiceGrid({
           takenNames={services
             .filter((s) => !keyEq(s.name, dialog.name))
             .map((s) => s.name)}
+          focusWidget={dialog.focusWidget}
           onSave={(updated) => {
             handleServiceEditSave(dialog.name, updated);
             close();
