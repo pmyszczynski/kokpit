@@ -183,7 +183,9 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Home automation: Home Assistant
   - Files / cloud: Nextcloud
   - Security: Vaultwarden, CrowdSec
-  - Analytics: Tautulli, Grafana embed widget
+  - Analytics:
+    - [x] Tautulli — configurable current activity widget (summary, active sessions, or both)
+    - [ ] Grafana embed widget
   - Finance: Actual Budget, Firefly III
 
 - [ ] `P2` **Keyboard shortcuts & global search**
