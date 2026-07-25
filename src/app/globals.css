@@ -3607,8 +3607,9 @@ button {
 
 /* User-injected custom CSS from appearance.customCss in settings.yaml */
 /* This layer is loaded last and always wins without needing !important */
-@layer user-custom;
+@layer tautulli-widget, user-custom;
 
+@layer tautulli-widget {
 .tautulli-activity-widget {
   display: flex;
   flex: 1 1 0;
@@ -3725,7 +3726,7 @@ button {
 
 .tautulli-activity-widget__stale-error {
   flex-shrink: 0;
-  color: #f87171;
+  color: var(--color-error);
   font-size: 0.7rem;
   text-align: center;
 }
@@ -3742,5 +3743,6 @@ button {
 }
 
 .tautulli-activity-widget__hint--error {
-  color: #f87171;
+  color: var(--color-error);
+}
 }
