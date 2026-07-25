@@ -82,11 +82,13 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 2. **Bump the version on `main` via a PR** (Actions can't do this step, so do it directly):
    - Create a branch off `main`, run `npm version <version> --no-git-tag-version`, commit `package.json` + `package-lock.json`, push.
    - Open a PR into `main` (`mcp__github__create_pull_request`) and merge it (`mcp__github__merge_pull_request`, squash).
-3. **Trigger the release workflow**: `mcp__github__actions_run_trigger`, method `run_workflow`, `workflow_id: release.yml`, `ref: main`, `inputs: {"version": "<version>"}`. It runs the full test gate (lint, type-check, unit, E2E), checks `package.json` matches the input version, tags `vX.Y.Z`, and creates the GitHub Release.
-4. **Docker publish**: `release.yml`'s last step explicitly dispatches `.github/workflows/publish.yml` (`gh workflow run publish.yml -f tag=vX.Y.Z`) rather than relying on the `release: published` event — GitHub suppresses events authored by `GITHUB_TOKEN` to prevent recursive workflow runs, so the release `release.yml` creates would never auto-trigger `publish.yml` otherwise. (Releases made by an actual human via the GitHub UI still trigger it normally through the `release` event.)
-5. **Verify**: check the release workflow run, the new tag/release, and that the publish workflow run for the new tag succeeded (`mcp__github__actions_list`, `mcp__github__list_releases`). Then inspect GHCR and confirm `vX.Y.Z`, `X.Y.Z`, and `X.Y` exist; stable releases must also update `latest`.
+3. **Trigger the release workflow**: `mcp__github__actions_run_trigger`, method `run_workflow`, `workflow_id: release.yml`, `ref: main`, `inputs: {"version": "<version>"}`. It runs the full test gate (lint, type-check, unit, E2E), checks `package.json` matches the input version, tags `vX.Y.Z`, creates the GitHub Release, then calls the Docker workflow.
+4. **Docker publish and verification**: `release.yml` calls `.github/workflows/publish.yml` as a dependent reusable workflow. It pushes the image and verifies its GHCR manifests before the release run can succeed. GitHub UI releases still trigger `publish.yml` through `release: published`; the workflow remains manually runnable for recovery.
+5. **Verify**: a successful Create Release run already includes verified Docker publication. Check the new tag/release and inspect GHCR when needed: `vX.Y.Z`, `X.Y.Z`, and `X.Y` must exist; stable releases must also update `latest`.
 
 If `release.yml`'s "Verify package.json version matches input" step fails, it means step 2 was skipped or used the wrong version — fix the PR, then re-run.
+
+If Docker publication fails, the tag and GitHub Release remain but the release run is marked failed. Fix the cause, manually run `publish.yml` for the existing `vX.Y.Z` tag, then confirm its expected GHCR tags.
 
 ---
 

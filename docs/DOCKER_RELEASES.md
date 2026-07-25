@@ -10,20 +10,21 @@ Kokpit publishes pre-built Docker images to [GitHub Container Registry](https://
 
 ## Publishing Workflow
 
-The release process is driven by two workflows and a `workflow_dispatch` trigger — not by manually creating a release through the GitHub UI:
+The normal release process is driven by two workflows and a `workflow_dispatch` trigger. Releases created through the GitHub UI remain supported and use the same publish-and-verify workflow.
 
 1. **Bump `package.json`/`package-lock.json` on `main` via a merged PR.** `main` requires a PR for every change (GitHub Actions can't open/merge its own PRs in this repo, so this step can't happen inside CI).
 2. **Run `release.yml`** (`workflow_dispatch`, input: `version`, e.g. `0.2.6`). It:
    - Runs the full test gate (lint, type-check, unit tests, E2E, auth E2E)
    - Verifies `package.json` on `main` matches the input version (fails otherwise — go back to step 1)
    - Tags `vX.Y.Z` and creates the GitHub Release (`gh release create --generate-notes`)
-   - Explicitly dispatches `publish.yml` for that tag
+   - Calls `publish.yml` as a dependent reusable workflow for that tag
 3. **`publish.yml` builds and pushes the Docker image:**
    - Builds the Docker image (using the `runner` stage)
    - Pushes to GHCR with appropriate tags
    - Creates metadata labels (version, source, docs)
+   - Verifies every expected GHCR image manifest before it completes
 
-Releases created by `release.yml` are authored by `GITHUB_TOKEN`, and GitHub suppresses the `release: published` event for token-authored releases (loop prevention) — so `release.yml`'s last step dispatches `publish.yml` directly (`gh workflow run publish.yml -f tag=vX.Y.Z`) instead of relying on that event. A release made by an actual human through the GitHub UI still triggers `publish.yml` normally via the `release: published` event, since `workflow_dispatch` is only the fallback path for token-authored releases.
+Releases created by `release.yml` are authored by `GITHUB_TOKEN`, and GitHub suppresses the `release: published` event for token-authored releases (loop prevention). Instead of dispatching a detached run, `release.yml` calls `publish.yml` as a reusable workflow and waits for it. A release made by an actual human through the GitHub UI still triggers `publish.yml` through the normal `release: published` event and receives the same manifest verification.
 
 ## Versioning Strategy
 
@@ -38,7 +39,7 @@ Kokpit uses **semantic versioning**: `MAJOR.MINOR.PATCH`
 
 **Pre-releases** (e.g., `v0.2.0-beta.1`, `v0.2.0-rc.1`):
 - Use when features are still being tested
-- Mark as "Pre-release" on GitHub
+- The release workflow automatically marks versions with a suffix as "Pre-release" on GitHub
 - Only produce version-specific tags: `v0.2.0-beta.1` and `0.2.0-beta.1`
 - **Do NOT** get the `latest` tag (users avoid pre-releases by default)
 
@@ -91,26 +92,26 @@ Commit `package.json` + `package-lock.json`, push, open a PR into `main`, and me
 
 ### Step 2: Run the release workflow
 
-Go to **Actions → Create Release → Run workflow**, select `main`, and enter the version (no `v` prefix, e.g. `0.2.6`). This runs the full test gate first, then — only if it passes — verifies the version, tags `v0.2.6`, creates the GitHub Release, and dispatches `publish.yml`.
+Go to **Actions → Create Release → Run workflow**, select `main`, and enter the version (no `v` prefix, e.g. `0.2.6`). This runs the full test gate first, then — only if it passes — verifies the version, tags `v0.2.6`, creates the GitHub Release, and waits for `publish.yml` to publish and verify the image.
 
 If the "Verify package.json version matches input" step fails, Step 1 was skipped or used the wrong version — fix the PR and re-run.
 
 ### Step 3: Verify in GHCR
 
-Once `release.yml` completes and the `publish.yml` run it triggers finishes (check **Actions**):
+Once `release.yml` succeeds, GHCR manifest verification has completed as part of that run. As an additional check:
 1. Go to [Container Registry](https://github.com/pmyszczynski/kokpit/pkgs/container/kokpit)
 2. Confirm all expected tags appear: `v0.2.6`, `0.2.6`, and `0.2`; stable releases must also have `latest`
 3. Check the tag details for image size and build info
 
 ### Alternative: publishing a pre-existing manual release
 
-A release created directly through the GitHub UI (rather than via `release.yml`) still triggers `publish.yml` automatically through the normal `release: published` event — the `workflow_dispatch` trigger on `publish.yml` exists only as a fallback for `release.yml`'s token-authored releases, not as the primary path.
+A release created directly through the GitHub UI (rather than via `release.yml`) still triggers `publish.yml` automatically through the normal `release: published` event. `publish.yml` is also reusable by `release.yml` and can be manually dispatched with its `tag` input to recover a failed publication.
 
 ## Workflow Details
 
 **File:** `.github/workflows/publish.yml`
 
-**Trigger:** `release` event (published), or `workflow_dispatch` with a `tag` input — the latter is what `release.yml` uses, since token-authored releases don't fire the `release` event.
+**Trigger:** `release` event (published), `workflow_call` with a `tag` input (used by `release.yml`), or `workflow_dispatch` with a `tag` input (for recovery).
 
 **Steps:**
 1. Checkout code
@@ -121,7 +122,8 @@ A release created directly through the GitHub UI (rather than via `release.yml`)
    - `type=raw` → the exact release tag (for example, `v0.2.0`)
    - `type=raw,value=latest` → only if not a pre-release
 5. Build and push only the `runner` stage (minimal production image)
-6. Cache build layers in GitHub Actions cache (faster next build)
+6. Verify each expected GHCR manifest with bounded retries, allowing for registry propagation
+7. Cache build layers in GitHub Actions cache (faster next build)
 
 **Output tags for `v0.2.0` (stable):**
 ```
@@ -186,26 +188,31 @@ docker compose up kokpit  # Update docker-compose.yml to pull instead of build
 
 ## Troubleshooting
 
-### Workflow failed to push image
+### Release or Docker publish workflow failed
 
 **Check:**
 1. Go to [Actions tab](https://github.com/pmyszczynski/kokpit/actions)
-2. Find the failed run under "Publish Docker Image"
-3. Click to see error logs
+2. Open the failed "Create Release" run or "Publish Docker Image" run
+3. Read the failed job's logs, including `Verify published image tags`
 
 **Common causes:**
 - Release was marked as pre-release (check via Edit Release)
 - Tag doesn't follow semver (use `v0.2.0` not `0.2.0` or `release-0.2.0`)
 - GitHub token issue (shouldn't happen with standard setup)
+- GHCR propagation did not complete before the bounded verification retry limit
+
+The tag and GitHub Release are intentionally preserved after a publish failure,
+but the release is incomplete. Correct the cause, run **Actions → Publish Docker
+Image → Run workflow** with the existing release tag (for example, `v0.2.6`),
+then confirm all expected tags in GHCR.
 
 ### Image not appearing in GHCR
 
-1. Workflow may still be running (check Actions)
-2. Check if release was published (not in draft)
-3. Try re-running the workflow:
-   - Go to Actions → Publish Docker Image
-   - Find the run
-   - Click "Re-run all jobs"
+1. Check whether the release or publish workflow failed (a successful release run
+   has already verified the manifests)
+2. Check if the GitHub Release was published (not a draft)
+3. Correct the reported cause and manually run `publish.yml` for the existing
+   release tag, as described above
 
 ### Want to test the workflow without a public release
 
