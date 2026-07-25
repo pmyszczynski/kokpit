@@ -59,9 +59,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=tag
+            type=semver,pattern={{version}},value=${{ github.event.release.tag_name || inputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name || inputs.tag }}
+            type=raw,value=${{ github.event.release.tag_name || inputs.tag }}
             type=raw,value=latest,enable=${{ steps.release_info.outputs.prerelease != 'true' }}
 
       - name: Build and push Docker image

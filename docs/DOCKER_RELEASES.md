@@ -39,13 +39,14 @@ Kokpit uses **semantic versioning**: `MAJOR.MINOR.PATCH`
 **Pre-releases** (e.g., `v0.2.0-beta.1`, `v0.2.0-rc.1`):
 - Use when features are still being tested
 - Mark as "Pre-release" on GitHub
-- Only produce version-specific tags: `0.2.0-beta.1`
+- Only produce version-specific tags: `v0.2.0-beta.1` and `0.2.0-beta.1`
 - **Do NOT** get the `latest` tag (users avoid pre-releases by default)
 
 **Stable releases** (e.g., `v0.2.0`):
 - Thoroughly tested and ready for production
 - Mark as regular release (not pre-release)
 - Produce multiple tags:
+  - `v0.2.0` (the GitHub release tag)
   - `0.2.0` (exact version)
   - `0.2` (minor version, tracks latest patch)
   - `latest` (current stable release)
@@ -98,7 +99,7 @@ If the "Verify package.json version matches input" step fails, Step 1 was skippe
 
 Once `release.yml` completes and the `publish.yml` run it triggers finishes (check **Actions**):
 1. Go to [Container Registry](https://github.com/pmyszczynski/kokpit/pkgs/container/kokpit)
-2. Confirm new tags appear (e.g., `0.2.6`, `0.2`, `latest`)
+2. Confirm all expected tags appear: `v0.2.6`, `0.2.6`, and `0.2`; stable releases must also have `latest`
 3. Check the tag details for image size and build info
 
 ### Alternative: publishing a pre-existing manual release
@@ -116,13 +117,15 @@ A release created directly through the GitHub UI (rather than via `release.yml`)
 2. Setup Docker Buildx (for efficient building)
 3. Log in to GHCR (using GitHub's token, no credentials needed)
 4. Extract metadata and tags:
-   - `type=semver` → `0.2.0`, `0.2`, etc.
+   - `type=semver` → `0.2.0`, `0.2`, etc., using the release tag for both release events and manual dispatches
+   - `type=raw` → the exact release tag (for example, `v0.2.0`)
    - `type=raw,value=latest` → only if not a pre-release
 5. Build and push only the `runner` stage (minimal production image)
 6. Cache build layers in GitHub Actions cache (faster next build)
 
 **Output tags for `v0.2.0` (stable):**
 ```
+ghcr.io/pmyszczynski/kokpit:v0.2.0
 ghcr.io/pmyszczynski/kokpit:0.2.0
 ghcr.io/pmyszczynski/kokpit:0.2
 ghcr.io/pmyszczynski/kokpit:latest
@@ -130,6 +133,7 @@ ghcr.io/pmyszczynski/kokpit:latest
 
 **Output tags for `v0.2.0-beta.1` (pre-release):**
 ```
+ghcr.io/pmyszczynski/kokpit:v0.2.0-beta.1
 ghcr.io/pmyszczynski/kokpit:0.2.0-beta.1
 ```
 
