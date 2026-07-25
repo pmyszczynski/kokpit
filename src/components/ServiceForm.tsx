@@ -400,6 +400,24 @@ export default function ServiceForm({
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
+  // True once the user has actively edited the widget config (or switched
+  // tile type) in this dialog session. Distinguishes "showing the saved
+  // config's problems" from "showing live edit feedback" below.
+  const [widgetConfigTouched, setWidgetConfigTouched] = useState(false);
+  // The issues the RAW saved config (settings.yaml, pre-`cleanWidgetConfig`)
+  // fails against its widget schema — i.e. exactly what made the tile show
+  // its warning badge. Computed once on mount (not recomputed as the user
+  // types) since its whole purpose is to describe the state the dialog was
+  // opened in. Guarded at the point of use below: it only applies while the
+  // selected widget type still matches what was actually saved, and while
+  // the user hasn't touched anything yet.
+  const [savedConfigIssues] = useState<WidgetConfigIssue[]>(() => {
+    const w = service?.widget;
+    if (!w) return [];
+    const def = getWidget(w.type);
+    if (!def) return [];
+    return widgetConfigIssues(def, w.config);
+  });
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
   const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
   const [iconPreviewError, setIconPreviewError] = useState(false);
@@ -450,9 +468,23 @@ export default function ServiceForm({
   // Zod issues so they know exactly what to fix.
   const showSpecificWidgetIssues =
     configIssues.length > 0 && (!widgetConfigEmpty || focusWidget);
+  // The saved-config issues only describe reality while (a) the user hasn't
+  // edited the widget config yet in this session, and (b) the widget type
+  // selected right now is still the one that was actually saved — switching
+  // types (or clearing back to Generic) makes the old issue list meaningless.
+  const showSavedConfigIssues =
+    !widgetConfigTouched &&
+    savedConfigIssues.length > 0 &&
+    service?.widget?.type === activeWidgetType;
+  // Whichever issue set is actually on screen right now — used to pick the
+  // field the focusWidget mount effect should focus.
+  const displayedWidgetIssues: WidgetConfigIssue[] = showSavedConfigIssues
+    ? savedConfigIssues
+    : configIssues;
 
   function handleWidgetConfigChange(key: string, value: unknown) {
     setWidgetConfig((prev) => ({ ...prev, [key]: value }));
+    setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
   }
 
@@ -462,10 +494,12 @@ export default function ServiceForm({
       const cfg = { ...((prev.config as Record<string, unknown>) ?? {}), [key]: value };
       return { ...prev, config: cfg };
     });
+    setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
   }
 
   function handleTileTypeChange(newTile: string) {
+    setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
     if (newTile === "") {
       if (tileType !== "") {
@@ -645,7 +679,7 @@ export default function ServiceForm({
     widgetSectionRef.current?.scrollIntoView?.({ block: "nearest" });
 
     const firstInvalidField = selectedWidgetDef?.configFields?.find((field) =>
-      configIssues.some(
+      displayedWidgetIssues.some(
         (issue) => issue.path === field.key || issue.path.startsWith(`${field.key}.`)
       )
     );
@@ -1036,7 +1070,34 @@ export default function ServiceForm({
               />
             </div>
 
-            {selectedWidgetDef && widgetConfigValid && (
+            {selectedWidgetDef && showSavedConfigIssues && (
+              <div
+                className="service-form__widget-issues"
+                role="alert"
+              >
+                <p className="settings-form-hint settings-form-hint--error">
+                  This is the saved configuration, and it&rsquo;s why the tile
+                  shows a warning badge — it doesn&rsquo;t match the
+                  widget&rsquo;s schema:
+                </p>
+                <ul>
+                  {savedConfigIssues.map((issue) => (
+                    <li
+                      key={`${issue.path}:${issue.message}`}
+                      className="settings-form-hint settings-form-hint--error"
+                    >
+                      {issue.path}: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+                <p className="settings-form-hint">
+                  Saving from here will normalize it (any field you leave
+                  empty falls back to its default).
+                </p>
+              </div>
+            )}
+
+            {selectedWidgetDef && !showSavedConfigIssues && widgetConfigValid && (
               <p
                 role="status"
                 className="settings-form-hint service-form__widget-status service-form__widget-status--active"
@@ -1045,7 +1106,7 @@ export default function ServiceForm({
               </p>
             )}
 
-            {selectedWidgetDef && !widgetConfigValid && showSpecificWidgetIssues && (
+            {selectedWidgetDef && !showSavedConfigIssues && !widgetConfigValid && showSpecificWidgetIssues && (
               <div
                 className="service-form__widget-issues"
                 role="alert"
@@ -1067,7 +1128,7 @@ export default function ServiceForm({
               </div>
             )}
 
-            {selectedWidgetDef && !widgetConfigValid && !showSpecificWidgetIssues && (
+            {selectedWidgetDef && !showSavedConfigIssues && !widgetConfigValid && !showSpecificWidgetIssues && (
               <p
                 role="status"
                 className="settings-form-hint service-form__widget-status service-form__widget-status--inactive"

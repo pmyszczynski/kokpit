@@ -603,6 +603,115 @@ describe("ServiceForm – optional widget config", () => {
   });
 });
 
+describe("ServiceForm – saved config vs. live edits", () => {
+  // Regression test for the "broken widget feedback" bug: the tile validates
+  // the RAW saved config (fields: [] fails Plex's `.min(1)`, hence the
+  // warning badge), but the dialog used to validate the config AFTER
+  // cleanWidgetConfig() strips the empty array — at which point the schema's
+  // `.default([...])` kicks in and the config passes. The dialog then told
+  // the user everything was fine, contradicting the badge that sent them
+  // there. token is deliberately left valid so only `fields` trips the raw
+  // schema; that isolates the stripping-reveals-a-default case from a
+  // genuinely-broken field, which stripping would not fix.
+  it("shows the saved-config issue (not the positive line) for a saved config that only validates after cleaning strips a field down to its default", () => {
+    const { container } = render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: {
+            type: "plex",
+            config: {
+              url: "http://plex.local:32400",
+              token: "secret",
+              fields: [],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(
+      screen.queryByText("Widget configured — it will render on the dashboard tile.")
+    ).not.toBeInTheDocument();
+    const issues = Array.from(
+      container.querySelectorAll(".service-form__widget-issues li")
+    ).map((el) => el.textContent);
+    expect(issues).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^fields: /)])
+    );
+    // The saved config fails validation, but the LIVE cleaned config (what
+    // Test Connection actually sends) is valid — url and token are fine, and
+    // stripping the empty `fields` array lets the schema default apply. The
+    // saved-config warning must not block that legitimately-working action.
+    expect(screen.getByText("Test connection")).toBeEnabled();
+  });
+
+  it("hands the display over to live validation once the user edits the widget config", () => {
+    const { container } = render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: {
+            type: "plex",
+            config: {
+              url: "http://plex.local:32400",
+              token: "secret",
+              fields: [],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(container.querySelector(".service-form__widget-issues")).toBeInTheDocument();
+
+    // Touch the widget config (token still ends up non-empty) — the saved
+    // config's issue list should no longer be authoritative.
+    fireEvent.change(screen.getByLabelText(/^Token/), {
+      target: { value: "secret2" },
+    });
+
+    // Live validation takes over: url + token are filled and the still-empty
+    // `fields` array cleans down to its default, so the config is valid.
+    expect(
+      screen.getByText("Widget configured — it will render on the dashboard tile.")
+    ).toBeInTheDocument();
+    expect(container.querySelector(".service-form__widget-issues")).not.toBeInTheDocument();
+  });
+
+  it("shows the positive line (no false alarm) for a saved config that is already valid", () => {
+    const { container } = render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: {
+            type: "plex",
+            config: {
+              url: "http://plex.local:32400",
+              token: "secret",
+              fields: ["streams"],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(
+      screen.getByText("Widget configured — it will render on the dashboard tile.")
+    ).toBeInTheDocument();
+    expect(container.querySelector(".service-form__widget-issues")).not.toBeInTheDocument();
+  });
+});
+
 describe("ServiceForm – focusWidget", () => {
   it("focuses the first invalid widget config field on mount", () => {
     render(
