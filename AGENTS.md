@@ -76,9 +76,9 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 ## CI on Pull Requests
 
-`.github/workflows/ci.yml` (Lint, Type-check, Unit tests, E2E) triggers on a bare
-`pull_request:`, which means the default activity types — `opened`, `synchronize`,
-`reopened`. Two consequences bite in practice:
+`.github/workflows/ci.yml` (Lint, Type-check, Unit tests, E2E) triggers on
+`pull_request` with an explicit `types:` list: the three defaults (`opened`,
+`synchronize`, `reopened`) plus `ready_for_review`. What that means in practice:
 
 **Draft status is *not* why CI is missing.** GitHub runs Actions on draft PRs by
 default; there is no repository setting to disable it, and `ci.yml` has no
@@ -87,9 +87,10 @@ draft PR, draft status is not the cause — look for one of the reasons below.
 ([events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
 [community #25722](https://github.com/orgs/community/discussions/25722))
 
-**Un-drafting alone never starts CI.** `ready_for_review` is not one of the
-default activity types and is not listed in `ci.yml`, so marking a PR "Ready for
-review" fires an event no workflow listens for. Don't wait on it.
+**Marking a PR "Ready for review" starts CI — but only because `ready_for_review`
+is listed explicitly.** It is *not* a default activity type, so if that entry is
+ever dropped from `ci.yml`, un-drafting will silently go back to triggering
+nothing. Keep it; it is the intended recovery path for the case below.
 
 **A PR opened via the API/MCP may produce no run at all.** Events authored by
 `GITHUB_TOKEN` do not create workflow runs (the same anti-recursion rule already
@@ -106,8 +107,8 @@ and the full suite ran green.
 Check `mcp__github__pull_request_read` with `method: get_check_runs` against the
 PR — that is the authoritative view. (`list_workflow_runs` filtered by branch has
 returned `total_count: 0` for runs that existed; don't diagnose from it.) If the
-`ci.yml` jobs are absent, push a commit to trigger `synchronize` rather than
-toggling draft state. Local `npm run lint && npm run type-check && npm test`
+`ci.yml` jobs are absent, either mark the PR ready for review or push a commit
+(`synchronize`). Local `npm run lint && npm run type-check && npm test`
 covers three of the four jobs, but **not E2E** — only CI runs Playwright, so a
 green local gate is not a substitute for a CI run.
 

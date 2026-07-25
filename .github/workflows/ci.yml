@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
-    # The first three are the defaults for `pull_request`. `ready_for_review` is
-    # not, and without it marking a PR "Ready for review" fires an event nothing
-    # listens for. That matters because a PR opened through the API/MCP does not
-    # start a run at all (GitHub suppresses workflow events authored by
-    # GITHUB_TOKEN to prevent recursive runs), so an automation-opened draft
-    # would otherwise sit with no CI until someone happened to push a commit.
+    # The first three are the defaults for `pull_request`; `ready_for_review` is
+    # not, and is listed deliberately — do not drop it. A PR opened through the
+    # API/MCP starts no run at all (GitHub suppresses workflow events authored by
+    # GITHUB_TOKEN to prevent recursive runs), so without this entry an
+    # automation-opened draft sits with no CI until someone happens to push a
+    # commit. With it, flipping the PR out of draft starts the suite.
     # See "CI on Pull Requests" in AGENTS.md.
     types: [opened, synchronize, reopened, ready_for_review]
 

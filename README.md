@@ -870,7 +870,7 @@ Native TCP Docker host support is on the backlog.
 
 Shows live host metrics — CPU usage, RAM, disk usage, and network I/O — read directly from the machine Kokpit runs on via `/proc` (and `statfs` for disk), plus an optional Docker container running/total summary. Unlike the Netdata widget, it needs no external monitoring service.
 
-**Prerequisites:** By default it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket as described in the Docker widget section above (note its security caveats). Example compose volumes/env:
+**Prerequisites:** By default, it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket as described in the Docker widget section above (note its security caveats). Example compose volumes/env:
 
 ```yaml
 services:
