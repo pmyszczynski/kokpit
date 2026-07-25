@@ -870,7 +870,7 @@ Native TCP Docker host support is on the backlog.
 
 Shows live host metrics — CPU usage, RAM, disk usage, and network I/O — read directly from the machine Kokpit runs on via `/proc` (and `statfs` for disk), plus an optional Docker container running/total summary. Unlike the Netdata widget, it needs no external monitoring service.
 
-**Prerequisites:** By default it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket read-only exactly as described in the Docker widget section above. Example compose volumes/env:
+**Prerequisites:** By default it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket as described in the Docker widget section above (note its security caveats). Example compose volumes/env:
 
 ```yaml
 services:
@@ -918,7 +918,7 @@ services:
 
 CPU and network rates come from two `/proc` samples taken a fraction of a second apart per refresh. If the Docker socket is unavailable, the container line is quietly omitted (as "Docker unavailable") without affecting the other stats.
 
-**Security note:** All reads are local and read-only — procfs files and a `statfs` disk call, plus (optionally) the same read-only Docker socket calls the Docker widget makes. `proc_path`, `disk_path`, and `docker_socket_path` come from trusted admin config in `settings.yaml`, not from end users. No network requests are made to read the system metrics, so the widget stays fully air-gappable.
+**Security note:** The `/proc` and `statfs` reads are local and read-only, full stop. The Docker field is different: Kokpit itself only ever *issues* read-only API calls (`GET /_ping`, `GET /containers/json`), but access to the socket is effectively root-equivalent on the host — the `:ro` mount flag only makes the socket file node read-only, it does not restrict what the Docker Engine API will do for anyone who can reach it. See the hardening guidance (filtered socket proxy) in the Docker widget section above if that matters for your threat model. `proc_path`, `disk_path`, and `docker_socket_path` come from trusted admin config in `settings.yaml`, not from end users. No network requests are made to read the system metrics, so the widget stays fully air-gappable.
 
 ---
 

@@ -43,6 +43,7 @@ export const SAMPLE_INTERVAL_MS = 250;
 // node:fs is looked up at call time instead of statically imported: integration
 // modules are also bundled for the browser (WidgetRenderer registers them
 // client-side), where fetchData is never invoked.
+/** Lazily resolves the server-side `node:fs` module; throws in a browser bundle. */
 function getFs(): typeof import("node:fs") {
   if (typeof process === "undefined" || typeof process.getBuiltinModule !== "function") {
     throw new Error("System stats can only be read server-side");
@@ -71,14 +72,17 @@ export function delay(ms: number, signal?: AbortSignal): Promise<void> {
 
 // --- Config resolution ---
 
+/** Resolves the procfs path: config, then `KOKPIT_PROC_PATH`, then `/proc`. */
 export function resolveProcPath(config: SystemStatsConfig): string {
   return config.proc_path ?? process.env.KOKPIT_PROC_PATH ?? "/proc";
 }
 
+/** Resolves the filesystem path to report disk usage for, defaulting to `/`. */
 export function resolveDiskPath(config: SystemStatsConfig): string {
   return config.disk_path ?? "/";
 }
 
+/** Resolves the deduped list of fields to display, defaulting to DEFAULT_FIELDS. */
 export function resolveFields(config: SystemStatsConfig): SystemStatsField[] {
   const fields: readonly SystemStatsField[] = config.fields ?? DEFAULT_FIELDS;
   return [...new Set(fields)];
@@ -107,7 +111,9 @@ export function parseProcStat(text: string): CpuSample {
     .map(Number)
     .filter((n) => Number.isFinite(n));
   const idle = (nums[3] ?? 0) + (nums[4] ?? 0);
-  const total = nums.reduce((sum, n) => sum + n, 0);
+  // guest (index 8) and guest_nice (index 9) are already counted within
+  // user/nice; including them again would double-count virtualised CPU time.
+  const total = nums.slice(0, 8).reduce((sum, n) => sum + n, 0);
   return { total, idle };
 }
 
@@ -208,28 +214,23 @@ export function netRatesFromSamples(
   iface?: string
 ): { rxBytesPerSec: number; txBytesPerSec: number; interfaces: string[] } {
   const interfaces: string[] = [];
-  let prevRx = 0;
-  let prevTx = 0;
-  let curRx = 0;
-  let curTx = 0;
+  const rate = (later: number, earlier: number): number =>
+    elapsedSeconds > 0 ? Math.max(0, (later - earlier) / elapsedSeconds) : 0;
+  let rxBytesPerSec = 0;
+  let txBytesPerSec = 0;
   for (const name of Object.keys(cur)) {
     if (name === "lo") continue;
     if (iface && name !== iface) continue;
     if (!(name in prev)) continue; // only measure interfaces present in both samples
     interfaces.push(name);
-    prevRx += prev[name].rx;
-    prevTx += prev[name].tx;
-    curRx += cur[name].rx;
-    curTx += cur[name].tx;
+    // Clamp each interface individually: if one interface's counter resets
+    // (e.g. a VPN/tunnel restarts), its negative delta must not cancel out
+    // real traffic on the other interfaces.
+    rxBytesPerSec += rate(cur[name].rx, prev[name].rx);
+    txBytesPerSec += rate(cur[name].tx, prev[name].tx);
   }
   interfaces.sort();
-  const rate = (later: number, earlier: number): number =>
-    elapsedSeconds > 0 ? Math.max(0, (later - earlier) / elapsedSeconds) : 0;
-  return {
-    rxBytesPerSec: rate(curRx, prevRx),
-    txBytesPerSec: rate(curTx, prevTx),
-    interfaces,
-  };
+  return { rxBytesPerSec, txBytesPerSec, interfaces };
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -238,10 +239,12 @@ function clamp(value: number, min: number, max: number): number {
 
 // --- fs-backed reads ---
 
+/** Joins a procfs root and a relative file name, tolerating a trailing slash. */
 function joinProc(procPath: string, name: string): string {
   return `${procPath.replace(/\/+$/, "")}/${name}`;
 }
 
+/** Reads a file under `procPath`, throwing an actionable error on failure. */
 async function readProcFile(
   procPath: string,
   name: string,
@@ -258,6 +261,7 @@ async function readProcFile(
   }
 }
 
+/** Reads filesystem block stats for `diskPath` via `statfs`. */
 async function readDiskStats(diskPath: string): Promise<import("node:fs").StatsFs> {
   try {
     return await getFs().promises.statfs(diskPath);
@@ -270,6 +274,7 @@ async function readDiskStats(diskPath: string): Promise<import("node:fs").StatsF
 
 // --- Fetcher ---
 
+/** Fetches every requested system stats field, sampling cpu/network twice per call. */
 export async function fetchSystemStats(
   config: SystemStatsConfig,
   signal?: AbortSignal

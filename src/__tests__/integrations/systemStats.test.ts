@@ -158,6 +158,14 @@ describe("parseProcStat", () => {
   it("throws when there is no aggregate cpu line", () => {
     expect(() => parseProcStat("intr 1 2 3\nctxt 4\n")).toThrow(/cpu line/i);
   });
+
+  it("excludes guest/guest_nice from total (already counted in user/nice)", () => {
+    // user=100 nice=0 system=100 idle=800 iowait=0 irq=0 softirq=0 steal=0 guest=50 guest_nice=20
+    const sample = parseProcStat("cpu  100 0 100 800 0 0 0 0 50 20\n");
+    // total must be 1000 (first 8 columns only), not 1070 (all 10 columns).
+    expect(sample.total).toBe(1000);
+    expect(sample.idle).toBe(800);
+  });
 });
 
 describe("countCores", () => {
@@ -291,6 +299,25 @@ describe("netRatesFromSamples", () => {
     const rates = netRatesFromSamples(prev, cur, 0);
     expect(rates.rxBytesPerSec).toBe(0);
     expect(rates.txBytesPerSec).toBe(0);
+  });
+
+  it("clamps a reset interface individually without zeroing out a healthy one", () => {
+    // tun0's counters reset (e.g. a VPN restart) while eth0 keeps gaining traffic.
+    // The aggregate delta would go negative if summed before clamping, wiping
+    // out eth0's real traffic — each interface must be clamped on its own.
+    const twoIfacePrev: Record<string, NetCounters> = {
+      eth0: { rx: 1000, tx: 500 },
+      tun0: { rx: 5000, tx: 5000 },
+    };
+    const twoIfaceCur: Record<string, NetCounters> = {
+      eth0: { rx: 3000, tx: 1500 },
+      tun0: { rx: 10, tx: 10 }, // reset: counters dropped back to near-zero
+    };
+    const rates = netRatesFromSamples(twoIfacePrev, twoIfaceCur, 2);
+    expect(rates.interfaces).toEqual(["eth0", "tun0"]);
+    // eth0 alone: (3000-1000)/2 = 1000, (1500-500)/2 = 500; tun0 contributes 0.
+    expect(rates.rxBytesPerSec).toBe(1000);
+    expect(rates.txBytesPerSec).toBe(500);
   });
 });
 

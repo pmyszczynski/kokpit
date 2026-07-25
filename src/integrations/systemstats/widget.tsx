@@ -6,11 +6,12 @@ import type { SystemStatsConfig, SystemStatsData } from "./api";
 // --- Local formatters (per-file duplication is the repo convention) ---
 
 const UNITS = [
-  { div: 1_073_741_824, suffix: "GB" },
-  { div: 1_048_576, suffix: "MB" },
-  { div: 1024, suffix: "KB" },
+  { div: 1_073_741_824, suffix: "GiB" },
+  { div: 1_048_576, suffix: "MiB" },
+  { div: 1024, suffix: "KiB" },
 ] as const;
 
+/** Picks the largest binary unit (GiB/MiB/KiB/B) `bytes` fits, for formatting. */
 function pickUnit(bytes: number): { div: number; suffix: string } {
   const abs = Math.abs(bytes);
   for (const unit of UNITS) {
@@ -19,17 +20,18 @@ function pickUnit(bytes: number): { div: number; suffix: string } {
   return { div: 1, suffix: "B" };
 }
 
+/** Strips a redundant `.0` from a fixed-precision number string, e.g. `"3.0"` → `"3"`. */
 function trimTrailingZero(s: string): string {
   return s.replace(/\.0$/, "");
 }
 
-/** Formats a single byte count, e.g. `1.2 GB`. */
+/** Formats a single byte count, e.g. `1.2 GiB`. */
 function fmtBytes(bytes: number): string {
   const { div, suffix } = pickUnit(bytes);
   return `${trimTrailingZero((bytes / div).toFixed(1))} ${suffix}`;
 }
 
-/** Formats `used / total` sharing one unit scaled off `total`, e.g. `3.2 / 16 GB`. */
+/** Formats `used / total` sharing one unit scaled off `total`, e.g. `3.2 / 16 GiB`. */
 function fmtBytesPair(used: number, total: number): string {
   const { div, suffix } = pickUnit(total);
   const usedStr = trimTrailingZero((used / div).toFixed(1));
@@ -49,12 +51,14 @@ function fmtRate(bytesPerSec: number): string {
   return `${Math.round(bytesPerSec)} B/s`;
 }
 
+/** Rounds a percentage for display. */
 function pct(n: number): number {
   return Math.round(n);
 }
 
 // --- Presentational helpers ---
 
+/** A horizontal fill bar clamped to 0-100. */
 function Bar({ value }: { value: number }) {
   const clamped = Math.min(100, Math.max(0, value));
   return (
@@ -67,6 +71,7 @@ function Bar({ value }: { value: number }) {
   );
 }
 
+/** A labeled stat line with an optional sub-value, percentage bar, and tooltip. */
 function StatRow({
   label,
   value,
@@ -96,6 +101,7 @@ function StatRow({
   );
 }
 
+/** Renders host CPU/memory/disk/network/load/Docker stats, or a loading/empty/error state. */
 export function SystemStatsWidget({
   data,
   loading,

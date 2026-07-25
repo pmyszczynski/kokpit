@@ -7,7 +7,7 @@ import type { SystemStatsData } from "@/integrations/systemstats/api";
 const noop = () => {};
 
 // Numbers chosen so the formatters produce the exact strings from the spec:
-// CPU 12%, Memory "3.2 / 16 GB (20%)", Disk "120 / 500 GB (24%)",
+// CPU 12%, Memory "3.2 / 16 GiB (20%)", Disk "120 / 500 GiB (24%)",
 // Network "↓ 1.2 MB/s" / "↑ 240 KB/s", Load "0.42 0.55 0.60", Docker "8 / 12 running".
 const FULL_DATA: SystemStatsData = {
   cpu: { usagePercent: 12.4, cores: 8 },
@@ -81,10 +81,10 @@ describe("SystemStatsWidget", () => {
     // CPU
     expect(screen.getByText("12%")).toBeInTheDocument();
     // Memory
-    expect(screen.getByText("3.2 / 16 GB")).toBeInTheDocument();
+    expect(screen.getByText("3.2 / 16 GiB")).toBeInTheDocument();
     expect(screen.getByText("(20%)")).toBeInTheDocument();
     // Disk
-    expect(screen.getByText("120 / 500 GB")).toBeInTheDocument();
+    expect(screen.getByText("120 / 500 GiB")).toBeInTheDocument();
     expect(screen.getByText("(24%)")).toBeInTheDocument();
     expect(screen.getByText("Disk (/)")).toBeInTheDocument();
     // Network
