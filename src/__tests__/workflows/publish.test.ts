@@ -86,4 +86,14 @@ describe("Create Release workflow", () => {
     expect((publishJob.with as Record<string, string>).tag).toBe("v${{ inputs.version }}");
     expect(JSON.stringify(releaseWorkflow)).not.toContain("gh workflow run publish.yml");
   });
+
+  it("marks suffixed versions as GitHub prereleases", () => {
+    const releaseWorkflow = readWorkflow(".github/workflows/release.yml");
+    const releaseSteps = releaseWorkflow.jobs.release.steps as WorkflowStep[];
+    const tagAndReleaseStep = findStep(releaseSteps, "Tag and release");
+
+    expect(tagAndReleaseStep.run).toContain('if [[ "$VERSION" == *-* ]]; then');
+    expect(tagAndReleaseStep.run).toContain("RELEASE_FLAGS+=(--prerelease)");
+    expect(tagAndReleaseStep.run).toContain('"${RELEASE_FLAGS[@]}"');
+  });
 });

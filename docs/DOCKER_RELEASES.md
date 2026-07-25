@@ -39,7 +39,7 @@ Kokpit uses **semantic versioning**: `MAJOR.MINOR.PATCH`
 
 **Pre-releases** (e.g., `v0.2.0-beta.1`, `v0.2.0-rc.1`):
 - Use when features are still being tested
-- Mark as "Pre-release" on GitHub
+- The release workflow automatically marks versions with a suffix as "Pre-release" on GitHub
 - Only produce version-specific tags: `v0.2.0-beta.1` and `0.2.0-beta.1`
 - **Do NOT** get the `latest` tag (users avoid pre-releases by default)
 
