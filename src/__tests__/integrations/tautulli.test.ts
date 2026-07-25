@@ -5,6 +5,8 @@ import {
   TautulliConfigSchema,
 } from "@/integrations/tautulli/api";
 import type { TautulliConfig } from "@/integrations/tautulli/api";
+import "@/integrations";
+import { getWidget } from "@/widgets";
 
 const BASE_CONFIG: TautulliConfig = {
   url: "http://tautulli.local:8181",
@@ -251,5 +253,28 @@ describe("TautulliConfigSchema", () => {
 
   it("rejects unknown section names", () => {
     expect(() => TautulliConfigSchema.parse({ ...BASE_CONFIG, sections: ["users"] })).toThrow();
+  });
+});
+
+describe("Tautulli activity widget registration", () => {
+  it("registers the configurable activity widget", () => {
+    const widget = getWidget("tautulli-activity");
+
+    expect(widget).toBeDefined();
+    expect(widget?.id).toBe("tautulli-activity");
+    expect(widget?.name).toBe("Tautulli Activity");
+    expect(widget?.refreshInterval).toBe(10_000);
+    expect(widget?.preferredSize).toBe("large");
+    expect(widget?.minSize).toBe("wide");
+    expect(widget?.serviceEditorPreset).toEqual({
+      defaultName: "Tautulli",
+      defaultIconUrl:
+        "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/svg/tautulli.svg",
+    });
+    expect(widget?.configFields?.map((field) => field.key)).toEqual([
+      "url",
+      "api_key",
+      "sections",
+    ]);
   });
 });

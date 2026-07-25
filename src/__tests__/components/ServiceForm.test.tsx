@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
-import { getWidgetsWithServiceEditorPreset } from "@/widgets";
+import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
 
 // Every selectable tile type, with what its schema says about an empty
 // config. Derived from the registry so new integrations are covered
@@ -542,6 +542,78 @@ describe("ServiceForm – optional widget config", () => {
     });
     expect(screen.getByText(/widget configured/i)).toBeInTheDocument();
     expect(screen.queryByText(/widget not configured/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ServiceForm – Tautulli defaults", () => {
+  function selectTautulli(onSave = vi.fn()) {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "tautulli-activity" },
+    });
+    return onSave;
+  }
+
+  function fillTautulliConfig() {
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://tautulli.local:8181" },
+    });
+    fireEvent.change(screen.getByLabelText(/^API Key \*$/), {
+      target: { value: "secret" },
+    });
+  }
+
+  it("pre-fills defaults and preserves the final required display section", () => {
+    const onSave = selectTautulli();
+
+    expect(screen.getByLabelText("Name *")).toHaveValue("Tautulli");
+    expect(screen.getByLabelText("Icon URL")).toHaveValue(
+      "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/svg/tautulli.svg"
+    );
+    expect(screen.getByLabelText("Summary")).toBeChecked();
+    expect(screen.getByLabelText("Active sessions")).toBeChecked();
+    fillTautulliConfig();
+    fireEvent.click(screen.getByLabelText("Summary"));
+    expect(screen.getByLabelText("Summary")).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText("Active sessions"));
+    expect(screen.getByLabelText("Active sessions")).toBeChecked();
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      widget: {
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.local:8181",
+          api_key: "secret",
+          sections: ["sessions"],
+        },
+        refresh_interval_ms: undefined,
+      },
+    }));
+  });
+
+  it("keeps untouched display defaults out of saved config and lets the schema apply them", () => {
+    const onSave = selectTautulli();
+    fillTautulliConfig();
+    fireEvent.click(screen.getByText("Save"));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.widget).toEqual({
+      type: "tautulli-activity",
+      config: {
+        url: "http://tautulli.local:8181",
+        api_key: "secret",
+      },
+      refresh_interval_ms: undefined,
+    });
+    const parsed = getWidget("tautulli-activity")!.configSchema.safeParse(
+      saved.widget!.config
+    );
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data.sections).toEqual(["summary", "sessions"]);
   });
 });
 

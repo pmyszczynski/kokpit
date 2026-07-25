@@ -289,7 +289,7 @@ function WidgetConfigFields({
   return (
     <>
       {fields.map((field) => {
-        const value = config[field.key];
+        const value = config[field.key] ?? field.defaultValue;
 
         if (field.type === "multiselect" && field.options) {
           const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -306,6 +306,7 @@ function WidgetConfigFields({
                         const next = e.target.checked
                           ? [...selected, opt.value]
                           : selected.filter((v) => v !== opt.value);
+                        if (field.required && next.length === 0) return;
                         onChange(field.key, next);
                       }}
                     />

@@ -18,6 +18,8 @@ export interface WidgetConfigField {
   placeholder?: string;
   description?: string;
   required?: boolean;
+  /** Initial editor value when the saved widget config omits this key. */
+  defaultValue?: string | number | string[];
   /** Options for multiselect fields. */
   options?: Array<{ value: string; label: string }>;
 }
