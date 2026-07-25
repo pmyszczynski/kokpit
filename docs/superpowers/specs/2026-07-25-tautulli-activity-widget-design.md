@@ -63,6 +63,16 @@ At least one section must be selected. Users can display the summary only, the
 session list only, or both. Existing YAML that omits `sections` receives the
 default of both sections at widget-validation time without rewriting the YAML.
 
+To make that schema default visible and editable before the user touches the
+form, the generic `WidgetConfigField` metadata gains an optional
+`defaultValue`. `WidgetConfigFields` reads that value only when the saved
+configuration has no value for the field. The Tautulli `sections` field sets
+`defaultValue: ["summary", "sessions"]`; this avoids service-specific form
+logic and keeps the displayed checkboxes aligned with the schema default.
+Because this multiselect is required, the editor does not allow the final
+selected option to be unchecked; users can choose either section or both, but
+never an empty selection that could be mistaken for an omitted default.
+
 ---
 
 ## Files and Registration
