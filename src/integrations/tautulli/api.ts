@@ -82,20 +82,6 @@ function nonBlank(value: string | null | undefined, fallback: string): string {
   return value?.trim() ? value : fallback;
 }
 
-function sanitizeApiMessage(
-  message: string | null | undefined,
-  apiKey: string
-): string {
-  const cleaned = (message ?? "")
-    .replaceAll(apiKey, "[redacted]")
-    .replace(/[\r\n]+/g, " ")
-    .trim()
-    .slice(0, 200);
-  return cleaned
-    ? `Tautulli API error: ${cleaned}`
-    : "Tautulli API request failed";
-}
-
 export async function fetchActivity(
   config: TautulliConfig,
   signal?: AbortSignal
@@ -121,9 +107,7 @@ export async function fetchActivity(
     throw new Error("Tautulli returned an invalid activity response");
   }
   if (envelope.data.response.result !== "success") {
-    throw new Error(
-      sanitizeApiMessage(envelope.data.response.message, config.api_key)
-    );
+    throw new Error("Tautulli API request failed");
   }
 
   const parsedData = ActivityDataSchema.safeParse(envelope.data.response.data);

@@ -204,13 +204,23 @@ describe("fetchActivity", () => {
   it("throws a status-only message for non-2xx responses", async () => {
     vi.stubGlobal("fetch", mockFetch({ response: { message: "leak" } }, false, 401));
 
-    await expect(fetchActivity(BASE_CONFIG)).rejects.toThrow("Tautulli responded with 401");
+    await expect(fetchActivity(BASE_CONFIG)).rejects.toThrow(/^Tautulli responded with 401$/);
   });
 
-  it("rejects an error envelope and redacts the configured API key", async () => {
-    vi.stubGlobal("fetch", mockFetch({ response: { result: "error", message: "Bad super-secret-key\nrequest", data: null } }));
+  it("rejects an error envelope without exposing upstream request details", async () => {
+    const upstreamMessage = "Request failed at http://tautulli.local:8181/api/v2?apikey=super-secret-key&cmd=get_activity";
+    vi.stubGlobal("fetch", mockFetch({
+      response: { result: "error", message: upstreamMessage, data: null },
+    }));
 
-    await expect(fetchActivity(BASE_CONFIG)).rejects.toThrow("Tautulli API error: Bad [redacted] request");
+    const error = await fetchActivity(BASE_CONFIG).catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.message).toBe("Tautulli API request failed");
+    expect(error.message).not.toContain(upstreamMessage);
+    expect(error.message).not.toContain("http://tautulli.local:8181");
+    expect(error.message).not.toContain("apikey=");
+    expect(error.message).not.toContain("super-secret-key");
   });
 
   it("rejects invalid JSON with a Tautulli-specific message", async () => {
