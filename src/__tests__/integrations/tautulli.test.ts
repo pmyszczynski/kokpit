@@ -168,6 +168,23 @@ describe("fetchActivity", () => {
     ]);
   });
 
+  it("uses unknown for missing session state, media type, and transcode decision", async () => {
+    const response = makeActivityResponse();
+    response.response.data.sessions = [{
+      ...ACTIVITY_RESPONSE.response.data.sessions[0],
+      state: " ",
+      media_type: null,
+      transcode_decision: undefined,
+    }];
+    vi.stubGlobal("fetch", mockFetch(response));
+
+    expect((await fetchActivity(BASE_CONFIG)).sessions?.[0]).toMatchObject({
+      state: "unknown",
+      mediaType: "unknown",
+      transcodeDecision: "unknown",
+    });
+  });
+
   it("clamps progress to zero through one hundred", async () => {
     const response = makeActivityResponse();
     response.response.data.sessions = [

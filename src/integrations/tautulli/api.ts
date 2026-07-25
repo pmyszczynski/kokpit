@@ -130,9 +130,9 @@ export async function fetchActivity(
     ),
     title: nonBlank(session.full_title, nonBlank(session.title, "Unknown title")),
     progressPercent: Math.min(100, Math.max(0, session.progress_percent)),
-    state: nonBlank(session.state, "Unknown state"),
-    mediaType: nonBlank(session.media_type, "Unknown media"),
-    transcodeDecision: nonBlank(session.transcode_decision, "Unknown decision"),
+    state: nonBlank(session.state, "unknown"),
+    mediaType: nonBlank(session.media_type, "unknown"),
+    transcodeDecision: nonBlank(session.transcode_decision, "unknown"),
   }));
 
   const selected = new Set(config.sections);
