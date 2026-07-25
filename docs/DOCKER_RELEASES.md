@@ -10,18 +10,20 @@ Kokpit publishes pre-built Docker images to [GitHub Container Registry](https://
 
 ## Publishing Workflow
 
-The release process is fully automated:
+The release process is driven by two workflows and a `workflow_dispatch` trigger — not by manually creating a release through the GitHub UI:
 
-1. **Create a release on GitHub** (via [Releases page](https://github.com/pmyszczynski/kokpit/releases))
-2. **Tag with semantic version** (e.g., `v0.2.0`, `v0.2.1-beta.1`)
-3. **Mark as pre-release or stable** (GitHub UI checkbox)
-4. **Publish the release**
-5. **GitHub Actions automatically:**
+1. **Bump `package.json`/`package-lock.json` on `main` via a merged PR.** `main` requires a PR for every change (GitHub Actions can't open/merge its own PRs in this repo, so this step can't happen inside CI).
+2. **Run `release.yml`** (`workflow_dispatch`, input: `version`, e.g. `0.2.6`). It:
+   - Runs the full test gate (lint, type-check, unit tests, E2E, auth E2E)
+   - Verifies `package.json` on `main` matches the input version (fails otherwise — go back to step 1)
+   - Tags `vX.Y.Z` and creates the GitHub Release (`gh release create --generate-notes`)
+   - Explicitly dispatches `publish.yml` for that tag
+3. **`publish.yml` builds and pushes the Docker image:**
    - Builds the Docker image (using the `runner` stage)
    - Pushes to GHCR with appropriate tags
    - Creates metadata labels (version, source, docs)
 
-No manual Docker commands needed — everything is handled by the `.github/workflows/publish.yml` workflow.
+Releases created by `release.yml` are authored by `GITHUB_TOKEN`, and GitHub suppresses the `release: published` event for token-authored releases (loop prevention) — so `release.yml`'s last step dispatches `publish.yml` directly (`gh workflow run publish.yml -f tag=vX.Y.Z`) instead of relying on that event. A release made by an actual human through the GitHub UI still triggers `publish.yml` normally via the `release: published` event, since `workflow_dispatch` is only the fallback path for token-authored releases.
 
 ## Versioning Strategy
 
@@ -76,55 +78,38 @@ Only updated for stable releases. Never gets pre-releases. Good for quick testin
 
 ## How to Create a Release
 
-### Step 1: Update version in `package.json`
+### Step 1: Bump the version on `main` via a PR
 
-```json
-{
-  "version": "0.2.0"
-}
-```
-
-Commit this change to `main` branch.
-
-### Step 2: Create a git tag
+`release.yml` will fail if `package.json` on `main` doesn't already match the version you're about to release, so this has to land first, as a normal reviewed PR (Actions can't merge its own PRs here):
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+npm version 0.2.6 --no-git-tag-version
 ```
 
-Or via GitHub's Release UI:
-1. Go to [Releases → New Release](https://github.com/pmyszczynski/kokpit/releases/new)
-2. Click "Choose a tag" and type `v0.2.0`
-3. Click "Create new tag on publish"
+Commit `package.json` + `package-lock.json`, push, open a PR into `main`, and merge it.
 
-### Step 3: Fill in release details
+### Step 2: Run the release workflow
 
-- **Title:** `v0.2.0` (or `Release 0.2.0`)
-- **Description:** Summary of changes (features, fixes, breaking changes)
-- **Pre-release checkbox:** 
-  - ✓ Check if this is a beta/RC
-  - ☐ Uncheck if this is stable
-- **Publish release**
+Go to **Actions → Create Release → Run workflow**, select `main`, and enter the version (no `v` prefix, e.g. `0.2.6`). This runs the full test gate first, then — only if it passes — verifies the version, tags `v0.2.6`, creates the GitHub Release, and dispatches `publish.yml`.
 
-The `.github/workflows/publish.yml` workflow will automatically:
-- Detect the release
-- Build the Docker image
-- Push to GHCR with appropriate tags
-- Take ~5-10 minutes
+If the "Verify package.json version matches input" step fails, Step 1 was skipped or used the wrong version — fix the PR and re-run.
 
-### Step 4: Verify in GHCR
+### Step 3: Verify in GHCR
 
-After the workflow completes:
+Once `release.yml` completes and the `publish.yml` run it triggers finishes (check **Actions**):
 1. Go to [Container Registry](https://github.com/pmyszczynski/kokpit/pkgs/container/kokpit)
-2. Confirm new tags appear (e.g., `0.2.0`, `0.2`, `latest`)
+2. Confirm new tags appear (e.g., `0.2.6`, `0.2`, `latest`)
 3. Check the tag details for image size and build info
+
+### Alternative: publishing a pre-existing manual release
+
+A release created directly through the GitHub UI (rather than via `release.yml`) still triggers `publish.yml` automatically through the normal `release: published` event — the `workflow_dispatch` trigger on `publish.yml` exists only as a fallback for `release.yml`'s token-authored releases, not as the primary path.
 
 ## Workflow Details
 
 **File:** `.github/workflows/publish.yml`
 
-**Trigger:** `release` event (published)
+**Trigger:** `release` event (published), or `workflow_dispatch` with a `tag` input — the latter is what `release.yml` uses, since token-authored releases don't fire the `release` event.
 
 **Steps:**
 1. Checkout code

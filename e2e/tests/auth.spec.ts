@@ -93,7 +93,9 @@ test.describe.serial("authentication flow", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
 
-    await goto(page, "/login");
+    // The redirect itself is the behavior under test. Waiting for the dashboard's
+    // full load can depend on unrelated resources and made this assertion flaky in CI.
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL("/");
   });
 
