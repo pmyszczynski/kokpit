@@ -534,6 +534,9 @@ describe("ServiceGrid", () => {
     // affordance to open a dialog that doesn't exist here).
     expect(badge).toHaveAttribute("role", "img");
     expect(badge).not.toHaveClass("tile-widget-badge--interactive");
+    // Plex has a url, so it would normally get a status dot — the badge
+    // takes that slot instead of stacking alongside it.
+    expect(container.querySelector(".status-dot")).toBeNull();
   });
 
   it("keeps the error box for an unknown widget type", async () => {

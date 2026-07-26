@@ -320,6 +320,49 @@ describe("ServiceTile broken-widget badge", () => {
     expect(container.querySelector(".service-tile__widget")).not.toBeNull();
   });
 
+  it("badge and status dot share one slot: an invalid config shows the badge and no status dot", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue", invalid: issues }}
+        />
+      ));
+    });
+    expect(container.querySelector(".tile-widget-badge")).not.toBeNull();
+    expect(container.querySelector(".status-dot")).toBeNull();
+  });
+
+  it("badge and status dot share one slot: a valid config shows the status dot and no badge", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Sonarr"
+          url="http://sonarr.local"
+          widget={{ type: "sonarr-queue" }}
+        />
+      ));
+    });
+    expect(container.querySelector(".status-dot")).not.toBeNull();
+    expect(container.querySelector(".tile-widget-badge")).toBeNull();
+  });
+
+  it("renders the badge even when the tile has no url (and so no status dot slot to begin with)", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile name="Sonarr" widget={{ type: "sonarr-queue", invalid: issues }} />
+      ));
+    });
+    expect(container.querySelector(".tile-widget-badge")).not.toBeNull();
+    expect(container.querySelector(".status-dot")).toBeNull();
+    // No url → renders as a div, not a link.
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("does not render a badge when there is no widget at all", async () => {
     let container!: HTMLElement;
     await act(async () => {

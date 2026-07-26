@@ -75,6 +75,15 @@ test.describe("broken-widget feedback", () => {
     await expect(tile.locator(".service-tile__widget")).toHaveCount(0);
     await expect(tile.locator(".widget-error")).toHaveCount(0);
 
+    // The badge and the status dot share one slot and are mutually exclusive:
+    // Sonarr's config is broken, so it gets the badge and no dot, while
+    // Prowlarr's config is valid, so it keeps its dot and gets no badge.
+    await expect(tile.locator(".status-dot")).toHaveCount(0);
+    const prowlarrDotTile = page
+      .locator(".service-tile")
+      .filter({ has: page.locator('.service-tile__name:text-is("Prowlarr")') });
+    await expect(prowlarrDotTile.locator(".status-dot")).toBeVisible();
+
     // A widget-less sibling keeps rendering as a plain link.
     const grafanaTile = page
       .locator(".service-tile")

@@ -281,14 +281,26 @@ export default function ServiceTile({ name, url, icon, description, widget, size
     <>
       {handle}
       {kebab}
-      {url && <StatusDot url={url} preview={preview} />}
+      {/*
+       * The status dot and the broken-widget badge share one slot (the
+       * top-right corner) and are mutually exclusive: a config that fails
+       * its schema is a more actionable signal than reachability, so the
+       * badge takes the dot's place instead of stacking alongside it. Do
+       * NOT "restore" `{url && <StatusDot ... />}` next to the badge — that
+       * was the old bottom-left layout and collided with the wrapped
+       * description on 1x1 tiles. The badge renders here even when there's
+       * no `url` (and so no dot today), since an invalid config still needs
+       * reporting.
+       */}
+      {invalidIssues ? (
+        <WidgetConfigBadge name={name} issues={invalidIssues} />
+      ) : (
+        url && <StatusDot url={url} preview={preview} />
+      )}
       <ServiceIcon icon={icon} url={url} name={name} />
       <span className="service-tile__name">{name}</span>
       {description && (
         <span className="service-tile__description">{description}</span>
-      )}
-      {invalidIssues && (
-        <WidgetConfigBadge name={name} issues={invalidIssues} />
       )}
       {widget && !invalidIssues && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
