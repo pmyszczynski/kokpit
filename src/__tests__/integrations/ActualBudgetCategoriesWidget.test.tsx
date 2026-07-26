@@ -407,6 +407,32 @@ describe("ActualBudgetCategoriesWidget", () => {
     expect(row).toHaveTextContent("50%");
   });
 
+  it("shows the available funds as the denominator, not the current month's budgeted amount", () => {
+    // The bar is derived from `balance + |spent|`, so the row must display the
+    // same denominator. Rendering `budgeted` here would put "50.00 / 0.00"
+    // next to a 50% bar for every category spending carried-over funds.
+    render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [CARRYOVER_PARTIAL],
+          hideIncome: true,
+          hideEmpty: true,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    const amounts = screen
+      .getByText("Carryover Fund")
+      .closest(".actualbudget-categories-widget__row")
+      ?.querySelector(".actualbudget-categories-widget__amounts");
+    // 5000 spent of 10000 available (0 budgeted this month + 10000 carried).
+    expect(amounts).toHaveTextContent("$50.00");
+    expect(amounts).toHaveTextContent("$100.00");
+    expect(amounts).not.toHaveTextContent("$0.00");
+  });
+
   it("does not apply the --over modifier to a carrying category with a positive balance", () => {
     const { container } = render(
       <ActualBudgetCategoriesWidget

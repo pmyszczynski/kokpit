@@ -900,7 +900,12 @@ Then pin the sidecar's image tag to match your Actual server's version line (e.g
 
 **Privacy mode (default on):** Amounts are blurred by default and reveal on hover or focus. Set `privacy_mode: false` in the widget config to always show amounts.
 
-**Two different URLs, on purpose:** each example below sets a service-level `url` (your Actual Budget server, e.g. `http://actual-server:5006`) — that's only where clicking the tile navigates — and a separate `widget.config.url` (the sidecar, e.g. `http://actual-http-api:5007`) — that's what the widget actually fetches from. Pointing both at the sidecar gives you a tile that opens raw JSON instead of your budget.
+**Two different URLs, on purpose**, and they are resolved by different things:
+
+- The service-level `url` is where **your browser** navigates when you click the tile, so it must be reachable from your machine — a LAN address or hostname like `http://192.168.1.x:5006`, pointing at your Actual Budget server. A Docker service name such as `actual-server` will *not* work here: it only resolves between containers, so the tile would fail to open even though the widget loads fine.
+- `widget.config.url` is fetched **server-side by Kokpit**, so it can use Docker DNS (`http://actual-http-api:5007`) and should point at the sidecar, never at Actual Budget itself.
+
+Pointing both at the sidecar gives you a tile that opens raw JSON instead of your budget.
 
 #### `actualbudget-summary`
 
@@ -909,7 +914,7 @@ Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of ove
 ```yaml
 services:
   - name: Actual Budget
-    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
     widget:
       type: actualbudget-summary
@@ -931,7 +936,7 @@ Shows per-category spending vs. budget as a sorted list with progress bars and c
 ```yaml
 services:
   - name: Budget Categories
-    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
     widget:
       type: actualbudget-categories
@@ -956,7 +961,7 @@ Lists all accounts with their current balance, filtered by closed/off-budget sta
 ```yaml
 services:
   - name: Budget Accounts
-    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
     widget:
       type: actualbudget-accounts
@@ -981,7 +986,7 @@ Shows upcoming bills and income rules, sorted by due date, with relative due dat
 ```yaml
 services:
   - name: Budget Schedule
-    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
     widget:
       type: actualbudget-schedules

@@ -63,9 +63,21 @@ async function fetchCategoriesData(
  * carried balance), the category is fully consumed: 100% if anything was
  * spent, 0% if nothing was budgeted, carried, or spent at all.
  */
+/**
+ * Funds this category had available before spending: `balance + |spent|`.
+ *
+ * This is the denominator the row displays as well as the one the bar is
+ * derived from — showing `budgeted` next to a bar computed from `available`
+ * contradicts itself for any carried-over category (50% spent rendered
+ * beside "50.00 / 0.00").
+ */
+function availableFor(category: ActualCategory): number {
+  return category.balance + Math.abs(category.spent);
+}
+
 function percentSpent(category: ActualCategory): number {
   const spent = Math.abs(category.spent);
-  const available = category.balance + spent;
+  const available = availableFor(category);
   if (available <= 0) {
     return spent > 0 ? 100 : 0;
   }
@@ -150,7 +162,7 @@ export function ActualBudgetCategoriesWidget({
                 />
                 {" / "}
                 <Amount
-                  cents={category.budgeted}
+                  cents={availableFor(category)}
                   currency={data.currency}
                   locale={data.locale}
                 />
