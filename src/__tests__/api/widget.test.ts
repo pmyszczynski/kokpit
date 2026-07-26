@@ -173,6 +173,49 @@ describe("GET /api/widget", () => {
     expect(res.status).toBe(504);
     expect((await res.json()).error).toMatch(/timed out/i);
   });
+
+  // The two tests above already prove that a widget with no fetchTimeoutMs
+  // (e.g. plex) times out at the global 5s default. This test proves the
+  // opposite side: a widget that sets fetchTimeoutMs overrides that default
+  // rather than merely extending it — the request must still be in flight
+  // once the global 5s default has passed, and only end once the widget's
+  // own timeout elapses.
+  it("uses widget.fetchTimeoutMs instead of the 5s default when set", async () => {
+    vi.useFakeTimers();
+    const { registerWidget } = await import("../../widgets");
+    const { z } = await import("zod");
+    registerWidget({
+      id: "__slow-sidecar__",
+      name: "Slow Sidecar (test only)",
+      configSchema: z.object({}),
+      // Never resolves — only the hard timeout can end this request.
+      fetchData: () => new Promise(() => {}),
+      component: () => null,
+      fetchTimeoutMs: 9000,
+    });
+    vi.mocked(readFileSync).mockReturnValue(
+      SERVICES_YAML +
+        "\n  - name: SlowSidecar\n    widget:\n      type: __slow-sidecar__\n"
+    );
+    const { GET } = await import("../../app/api/widget/route");
+    const resPromise = GET(get({ type: "__slow-sidecar__", service: "SlowSidecar" }));
+
+    let settled = false;
+    resPromise.then(() => {
+      settled = true;
+    });
+
+    // Past the global 5s default but still under the widget's own 9s
+    // override — must still be in flight.
+    await vi.advanceTimersByTimeAsync(5001);
+    expect(settled).toBe(false);
+
+    // Now past the 9s override.
+    await vi.advanceTimersByTimeAsync(4000);
+    const res = await resPromise;
+    expect(res.status).toBe(504);
+    expect((await res.json()).error).toMatch(/timed out/i);
+  });
 });
 
 describe("GET /api/widget – auth", () => {

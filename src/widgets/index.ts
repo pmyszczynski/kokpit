@@ -48,6 +48,12 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   preferredSize?: Size;
   /** Smallest size the widget renders usefully at; the size picker greys out anything below. */
   minSize?: Size;
+  /**
+   * Overrides the default 5s widget fetch timeout (WIDGET_FETCH_TIMEOUT_MS
+   * in src/lib/fetchTimeout.ts) for this widget's fetchData calls. Leave
+   * unset to use the default.
+   */
+  fetchTimeoutMs?: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
