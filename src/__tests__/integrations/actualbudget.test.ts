@@ -1,0 +1,1301 @@
+// @vitest-environment node
+import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+  ActualAccountsConfigSchema,
+  ActualCategoriesConfigSchema,
+  ActualSchedulesConfigSchema,
+  ActualSummaryConfigSchema,
+  currentMonth,
+  fetchAccounts,
+  fetchBudgetMonth,
+  fetchSchedules,
+  fetchSummary,
+} from "@/integrations/actualbudget/api";
+import {
+  centsToUnits,
+  daysUntil,
+  formatMoney,
+} from "@/integrations/actualbudget/format";
+
+const API_KEY = "sk-super-secret-api-key";
+const ENCRYPTION_PASSWORD = "correct-horse-battery-staple";
+
+const BASE_CONFIG = {
+  url: "http://actual-http-api:5007",
+  api_key: API_KEY,
+  budget_sync_id: "b1e2c3d4-sync",
+  currency: "USD",
+  privacy_mode: true,
+};
+
+const MOCK_ACCOUNTS = [
+  {
+    id: "acc-1",
+    name: "Current",
+    offbudget: false,
+    closed: false,
+    clearedBalance: 210412,
+    unclearedBalance: 0,
+    workingBalance: 210412,
+  },
+  {
+    id: "acc-2",
+    name: "Savings",
+    offbudget: true,
+    closed: false,
+    clearedBalance: 5000000,
+    unclearedBalance: 0,
+    workingBalance: 5000000,
+  },
+];
+
+const MOCK_MONTH = {
+  month: "2026-07",
+  toBudget: 41200,
+  incomeAvailable: 500000,
+  fromLastMonth: 1000,
+  lastMonthOverspent: 0,
+  forNextMonth: 0,
+  totalBudgeted: 120000,
+  totalIncome: 500000,
+  totalSpent: -93400,
+  totalBalance: 26600,
+  categoryGroups: [
+    {
+      id: "grp-1",
+      name: "Everyday",
+      is_income: false,
+      hidden: false,
+      budgeted: 120000,
+      spent: -93400,
+      balance: 26600,
+      categories: [
+        {
+          id: "cat-1",
+          name: "Groceries",
+          is_income: false,
+          hidden: false,
+          group_id: "grp-1",
+          budgeted: 40000,
+          spent: -31200,
+          balance: 8800,
+          carryover: false,
+        },
+        {
+          id: "cat-2",
+          name: "Dining",
+          is_income: false,
+          hidden: false,
+          group_id: "grp-1",
+          budgeted: 20000,
+          spent: -62200,
+          balance: -42200,
+          carryover: false,
+        },
+      ],
+    },
+    {
+      id: "grp-2",
+      name: "Income",
+      is_income: true,
+      hidden: false,
+      budgeted: 0,
+      received: 500000,
+      balance: 500000,
+      categories: [
+        {
+          id: "cat-3",
+          name: "Salary",
+          is_income: true,
+          hidden: false,
+          group_id: "grp-2",
+          budgeted: 0,
+          received: 500000,
+          balance: 500000,
+          carryover: false,
+        },
+      ],
+    },
+  ],
+};
+
+const MOCK_SCHEDULES = [
+  {
+    id: "sch-1",
+    name: "Mortgage",
+    next_date: "2026-08-01",
+    completed: false,
+    posts_transaction: false,
+    payee: "payee-1",
+    account: "acc-1",
+    amount: -124000,
+    amountOp: "is",
+    date: { frequency: "monthly", interval: 1 },
+  },
+  {
+    id: "sch-2",
+    name: "Electricity",
+    next_date: "2026-07-28",
+    completed: false,
+    posts_transaction: false,
+    payee: "payee-2",
+    account: "acc-1",
+    amount: { num1: -9000, num2: -7000 },
+    amountOp: "isbetween",
+    date: "2026-07-28",
+  },
+  {
+    id: "sch-3",
+    name: "Old subscription",
+    next_date: "2026-07-20",
+    completed: true,
+    posts_transaction: false,
+    payee: "payee-1",
+    account: "acc-1",
+    amount: -999,
+    amountOp: "is",
+    date: "2026-07-20",
+  },
+];
+
+const MOCK_PAYEES = [
+  { id: "payee-1", name: "Big Bank" },
+  { id: "payee-2", name: "Power Co" },
+];
+
+function makeJsonResponse(body: unknown) {
+  return { ok: true, status: 200, json: async () => ({ data: body }) };
+}
+
+/** Wraps a body verbatim — used to test envelope handling directly. */
+function makeRawResponse(body: unknown) {
+  return { ok: true, status: 200, json: async () => body };
+}
+
+/** `body === undefined` simulates a non-JSON error body (HTML from a proxy). */
+function makeErrorResponse(status: number, body?: unknown) {
+  return {
+    ok: false,
+    status,
+    json: async () => {
+      if (body === undefined) {
+        throw new SyntaxError("Unexpected token < in JSON at position 0");
+      }
+      return body;
+    },
+  };
+}
+
+/**
+ * Routes by URL fragment. A value that is an Error is thrown instead of
+ * returned, simulating a network-level failure for that endpoint.
+ */
+function makeFetchMock(
+  routes: Record<string, unknown>
+): ReturnType<typeof vi.fn> {
+  return vi.fn().mockImplementation(async (url: string) => {
+    for (const [fragment, response] of Object.entries(routes)) {
+      if (url.includes(fragment)) {
+        if (response instanceof Error) throw response;
+        return response;
+      }
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+}
+
+function firstCall(mock: ReturnType<typeof vi.fn>, fragment: string) {
+  const call = mock.mock.calls.find((c) => (c[0] as string).includes(fragment));
+  expect(call).toBeDefined();
+  return call as [string, RequestInit];
+}
+
+function headersOf(options: RequestInit): Record<string, string> {
+  return options.headers as Record<string, string>;
+}
+
+/** Runs `fn` with process.env.TZ pinned, restoring the previous value after. */
+function withTimeZone<T>(tz: string, fn: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = tz;
+  try {
+    return fn();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previous;
+    }
+  }
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+// ---------------------------------------------------------------------------
+// Request construction
+// ---------------------------------------------------------------------------
+
+describe("actual-http-api request construction", () => {
+  it("nests the budget sync id as a path segment under /v1/budgets", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts(BASE_CONFIG);
+
+    const [url] = firstCall(mockFetch, "/accounts");
+    expect(url).toContain(
+      "http://actual-http-api:5007/v1/budgets/b1e2c3d4-sync/accounts"
+    );
+  });
+
+  it("URL-encodes a sync id containing reserved characters", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts({ ...BASE_CONFIG, budget_sync_id: "a b/c?d" });
+
+    const [url] = firstCall(mockFetch, "/accounts");
+    expect(url).toContain("/v1/budgets/a%20b%2Fc%3Fd/accounts");
+  });
+
+  it("preserves a base path when the sidecar is behind a reverse-proxy subpath", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts({ ...BASE_CONFIG, url: "http://proxy.local/actual" });
+
+    const [url] = firstCall(mockFetch, "/accounts");
+    expect(url).toContain("http://proxy.local/actual/v1/budgets/");
+  });
+
+  it("always requests include_balances=true", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts(BASE_CONFIG);
+
+    const [url] = firstCall(mockFetch, "/accounts");
+    expect(url).toContain("include_balances=true");
+  });
+
+  it("sends exclude_closed and exclude_offbudget only when enabled", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts({
+      ...BASE_CONFIG,
+      exclude_closed: true,
+      exclude_offbudget: true,
+    });
+
+    const [withFilters] = firstCall(mockFetch, "/accounts");
+    expect(withFilters).toContain("exclude_closed=true");
+    expect(withFilters).toContain("exclude_offbudget=true");
+
+    mockFetch.mockClear();
+    await fetchAccounts({
+      ...BASE_CONFIG,
+      exclude_closed: false,
+      exclude_offbudget: false,
+    });
+
+    const [withoutFilters] = firstCall(mockFetch, "/accounts");
+    expect(withoutFilters).not.toContain("exclude_closed");
+    expect(withoutFilters).not.toContain("exclude_offbudget");
+  });
+
+  it("sends the x-api-key header", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts(BASE_CONFIG);
+
+    const [, options] = firstCall(mockFetch, "/accounts");
+    expect(headersOf(options)["x-api-key"]).toBe(API_KEY);
+  });
+
+  it("omits budget-encryption-password when no encryption password is configured", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts(BASE_CONFIG);
+
+    const [, options] = firstCall(mockFetch, "/accounts");
+    expect(headersOf(options)["budget-encryption-password"]).toBeUndefined();
+  });
+
+  it("sends budget-encryption-password when configured", async () => {
+    const mockFetch = makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchAccounts({
+      ...BASE_CONFIG,
+      encryption_password: ENCRYPTION_PASSWORD,
+    });
+
+    const [, options] = firstCall(mockFetch, "/accounts");
+    expect(headersOf(options)["budget-encryption-password"]).toBe(
+      ENCRYPTION_PASSWORD
+    );
+  });
+
+  it("forwards the AbortSignal instead of creating its own timeout", async () => {
+    const mockFetch = makeFetchMock({
+      "/months/": makeJsonResponse(MOCK_MONTH),
+      "/accounts": makeJsonResponse(MOCK_ACCOUNTS),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const controller = new AbortController();
+    await fetchSummary(BASE_CONFIG, controller.signal);
+
+    const [, monthOptions] = firstCall(mockFetch, "/months/");
+    expect(monthOptions).toMatchObject({ signal: controller.signal });
+    const [, accountsOptions] = firstCall(mockFetch, "/accounts");
+    expect(accountsOptions).toMatchObject({ signal: controller.signal });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Envelope and error handling
+// ---------------------------------------------------------------------------
+
+describe("actual-http-api response handling", () => {
+  it("unwraps the {data: …} success envelope", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) })
+    );
+
+    const accounts = await fetchAccounts(BASE_CONFIG);
+
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0].id).toBe("acc-1");
+  });
+
+  it("throws when the success envelope has no data key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/accounts": makeRawResponse(MOCK_ACCOUNTS) })
+    );
+
+    await expect(fetchAccounts(BASE_CONFIG)).rejects.toThrow(
+      /unexpected response/i
+    );
+  });
+
+  it("keeps unknown upstream fields from breaking parsing", async () => {
+    const withNewFields = [
+      {
+        ...MOCK_ACCOUNTS[0],
+        someFutureSidecarField: { nested: true },
+        anotherOne: 42,
+      },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/accounts": makeJsonResponse(withNewFields) })
+    );
+
+    const accounts = await fetchAccounts(BASE_CONFIG);
+
+    expect(accounts[0].balance).toBe(210412);
+  });
+
+  it("surfaces the {error: …} message on a non-2xx response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/accounts": makeErrorResponse(404, { error: "Budget not found" }),
+      })
+    );
+
+    await expect(fetchAccounts(BASE_CONFIG)).rejects.toThrow(
+      "Actual Budget responded with 404: Budget not found"
+    );
+  });
+
+  it("reports 403 Forbidden from a bad or missing API key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/accounts": makeErrorResponse(403, { error: "Forbidden" }) })
+    );
+
+    await expect(fetchAccounts(BASE_CONFIG)).rejects.toThrow(
+      "Actual Budget responded with 403: Forbidden"
+    );
+  });
+
+  it("falls back to a status-only message when the error body is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/accounts": makeErrorResponse(502) })
+    );
+
+    await expect(fetchAccounts(BASE_CONFIG)).rejects.toThrow(
+      "Actual Budget responded with 502"
+    );
+  });
+
+  it("never leaks the API key or encryption password into a thrown message", async () => {
+    const config = {
+      ...BASE_CONFIG,
+      encryption_password: ENCRYPTION_PASSWORD,
+    };
+
+    for (const response of [
+      makeErrorResponse(403, { error: "Forbidden" }),
+      makeErrorResponse(500, { error: "upstream exploded" }),
+      makeErrorResponse(400),
+      makeRawResponse({ nope: true }),
+    ]) {
+      vi.stubGlobal("fetch", makeFetchMock({ "/accounts": response }));
+
+      const error = await fetchAccounts(config).then(
+        () => null,
+        (e: unknown) => e as Error
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      const text = `${error?.message} ${error?.stack ?? ""}`;
+      expect(text).not.toContain(API_KEY);
+      expect(text).not.toContain(ENCRYPTION_PASSWORD);
+      expect(text).not.toContain("x-api-key");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchAccounts
+// ---------------------------------------------------------------------------
+
+describe("fetchAccounts", () => {
+  it("normalizes accounts to the widget-facing shape", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/accounts": makeJsonResponse(MOCK_ACCOUNTS) })
+    );
+
+    const accounts = await fetchAccounts(BASE_CONFIG);
+
+    expect(accounts).toEqual([
+      {
+        id: "acc-1",
+        name: "Current",
+        offbudget: false,
+        closed: false,
+        balance: 210412,
+      },
+      {
+        id: "acc-2",
+        name: "Savings",
+        offbudget: true,
+        closed: false,
+        balance: 5000000,
+      },
+    ]);
+  });
+
+  it("falls back from workingBalance to clearedBalance and then to 0", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/accounts": makeJsonResponse([
+          { id: "a", name: "Cleared only", clearedBalance: 1234 },
+          { id: "b", name: "No balances at all" },
+        ]),
+      })
+    );
+
+    const accounts = await fetchAccounts(BASE_CONFIG);
+
+    expect(accounts[0].balance).toBe(1234);
+    expect(accounts[1].balance).toBe(0);
+  });
+
+  it("coerces 0/1 integer flags to booleans", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/accounts": makeJsonResponse([
+          { id: "a", name: "Legacy", offbudget: 1, closed: 0, workingBalance: 10 },
+        ]),
+      })
+    );
+
+    const accounts = await fetchAccounts(BASE_CONFIG);
+
+    expect(accounts[0].offbudget).toBe(true);
+    expect(accounts[0].closed).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchBudgetMonth
+// ---------------------------------------------------------------------------
+
+describe("fetchBudgetMonth", () => {
+  it("requests the given month", async () => {
+    const mockFetch = makeFetchMock({ "/months/": makeJsonResponse(MOCK_MONTH) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+
+    const [url] = firstCall(mockFetch, "/months/");
+    expect(url).toContain("/v1/budgets/b1e2c3d4-sync/months/2026-07");
+  });
+
+  it("returns the month totals unchanged, keeping totalSpent negative", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/months/": makeJsonResponse(MOCK_MONTH) })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+
+    expect(month.month).toBe("2026-07");
+    expect(month.toBudget).toBe(41200);
+    expect(month.totalBudgeted).toBe(120000);
+    expect(month.totalIncome).toBe(500000);
+    expect(month.totalBalance).toBe(26600);
+    expect(month.totalSpent).toBe(-93400);
+    expect(month.totalSpent).toBeLessThan(0);
+  });
+
+  it("flattens categories out of categoryGroups with the group name attached", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/months/": makeJsonResponse(MOCK_MONTH) })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+
+    expect(month.categories.map((c) => c.id)).toEqual(["cat-1", "cat-2", "cat-3"]);
+    expect(month.categories[0]).toEqual({
+      id: "cat-1",
+      name: "Groceries",
+      groupName: "Everyday",
+      isIncome: false,
+      hidden: false,
+      budgeted: 40000,
+      spent: -31200,
+      balance: 8800,
+      carryover: false,
+    });
+  });
+
+  it("keeps category spent negative and marks overspend by a negative balance", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/months/": makeJsonResponse(MOCK_MONTH) })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+    const dining = month.categories.find((c) => c.id === "cat-2")!;
+
+    expect(dining.spent).toBe(-62200);
+    expect(dining.balance).toBeLessThan(0);
+    // The naive "spent > budgeted" test would be false here even though the
+    // category is overspent — balance is the only correct signal.
+    expect(dining.spent > dining.budgeted).toBe(false);
+  });
+
+  it("reads `received` for income categories that carry no `spent`", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/months/": makeJsonResponse(MOCK_MONTH) })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+    const salary = month.categories.find((c) => c.id === "cat-3")!;
+
+    expect(salary.isIncome).toBe(true);
+    expect(salary.spent).toBe(500000);
+    expect(Number.isNaN(salary.spent)).toBe(false);
+  });
+
+  it("inherits is_income and hidden from the parent group", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/months/": makeJsonResponse({
+          month: "2026-07",
+          categoryGroups: [
+            {
+              id: "g",
+              name: "Hidden group",
+              is_income: 1,
+              hidden: 1,
+              categories: [
+                { id: "c", name: "Child", is_income: false, hidden: false },
+              ],
+            },
+          ],
+        }),
+      })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+
+    expect(month.categories[0].isIncome).toBe(true);
+    expect(month.categories[0].hidden).toBe(true);
+  });
+
+  it("defaults missing amounts to 0 rather than NaN", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/months/": makeJsonResponse({
+          month: "2026-07",
+          categoryGroups: [
+            { id: "g", name: "G", categories: [{ id: "c", name: "C" }] },
+          ],
+        }),
+      })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+
+    expect(month.toBudget).toBe(0);
+    expect(month.totalSpent).toBe(0);
+    expect(month.categories[0]).toMatchObject({
+      budgeted: 0,
+      spent: 0,
+      balance: 0,
+      carryover: false,
+    });
+  });
+
+  it("tolerates a month with no category groups", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({ "/months/": makeJsonResponse({ month: "2026-07" }) })
+    );
+
+    const month = await fetchBudgetMonth(BASE_CONFIG, "2026-07");
+
+    expect(month.categories).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// currentMonth (local time, not UTC)
+// ---------------------------------------------------------------------------
+
+describe("currentMonth", () => {
+  it("formats the injected date as local-time YYYY-MM", () => {
+    expect(currentMonth(new Date(2026, 6, 15, 12, 0))).toBe("2026-07");
+  });
+
+  it("zero-pads single-digit months", () => {
+    expect(currentMonth(new Date(2026, 0, 1, 12, 0))).toBe("2026-01");
+  });
+
+  it("uses the local month, not the UTC month, east of UTC", () => {
+    withTimeZone("Pacific/Kiritimati", () => {
+      // Local 2026-08-01T00:30 is still 2026-07-31T10:30Z — toISOString()
+      // would report July for a date that is locally already August.
+      const localAugust = new Date(2026, 7, 1, 0, 30);
+      expect(localAugust.toISOString().slice(0, 7)).toBe("2026-07");
+      expect(currentMonth(localAugust)).toBe("2026-08");
+    });
+  });
+
+  it("uses the local month, not the UTC month, west of UTC", () => {
+    withTimeZone("Pacific/Midway", () => {
+      // Local 2026-07-31T23:30 is already 2026-08-01T10:30Z.
+      const localJuly = new Date(2026, 6, 31, 23, 30);
+      expect(localJuly.toISOString().slice(0, 7)).toBe("2026-08");
+      expect(currentMonth(localJuly)).toBe("2026-07");
+    });
+  });
+
+  it("defaults to now when no date is injected", () => {
+    const now = new Date();
+    const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    expect(currentMonth()).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchSummary
+// ---------------------------------------------------------------------------
+
+describe("fetchSummary", () => {
+  it("returns the current month plus accounts and a summed net worth", async () => {
+    const mockFetch = makeFetchMock({
+      "/months/": makeJsonResponse(MOCK_MONTH),
+      "/accounts": makeJsonResponse(MOCK_ACCOUNTS),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const summary = await fetchSummary(BASE_CONFIG);
+
+    expect(summary.month.toBudget).toBe(41200);
+    expect(summary.accounts).toHaveLength(2);
+    expect(summary.netWorth).toBe(210412 + 5000000);
+  });
+
+  it("requests the current local month", async () => {
+    const mockFetch = makeFetchMock({
+      "/months/": makeJsonResponse(MOCK_MONTH),
+      "/accounts": makeJsonResponse(MOCK_ACCOUNTS),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchSummary(BASE_CONFIG);
+
+    const [url] = firstCall(mockFetch, "/months/");
+    expect(url).toContain(`/months/${currentMonth()}`);
+  });
+
+  it("excludes closed accounts from the net-worth call", async () => {
+    const mockFetch = makeFetchMock({
+      "/months/": makeJsonResponse(MOCK_MONTH),
+      "/accounts": makeJsonResponse(MOCK_ACCOUNTS),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchSummary(BASE_CONFIG);
+
+    const [url] = firstCall(mockFetch, "/accounts");
+    expect(url).toContain("exclude_closed=true");
+  });
+
+  it("degrades to a null net worth when the accounts call fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/months/": makeJsonResponse(MOCK_MONTH),
+        "/accounts": makeErrorResponse(500, { error: "boom" }),
+      })
+    );
+
+    const summary = await fetchSummary(BASE_CONFIG);
+
+    expect(summary.accounts).toBeNull();
+    expect(summary.netWorth).toBeNull();
+    // The month data is untouched by the accounts failure.
+    expect(summary.month.toBudget).toBe(41200);
+  });
+
+  it("degrades to a null net worth when the accounts request rejects", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/months/": makeJsonResponse(MOCK_MONTH),
+        "/accounts": new Error("network error"),
+      })
+    );
+
+    const summary = await fetchSummary(BASE_CONFIG);
+
+    expect(summary.accounts).toBeNull();
+    expect(summary.netWorth).toBeNull();
+    expect(summary.month.categories).toHaveLength(3);
+  });
+
+  it("rejects when the required month call fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/months/": makeErrorResponse(500, { error: "Budget sync failed" }),
+        "/accounts": makeJsonResponse(MOCK_ACCOUNTS),
+      })
+    );
+
+    await expect(fetchSummary(BASE_CONFIG)).rejects.toThrow(
+      "Actual Budget responded with 500: Budget sync failed"
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchSchedules
+// ---------------------------------------------------------------------------
+
+describe("fetchSchedules", () => {
+  const SCHEDULES_CONFIG = { ...BASE_CONFIG, limit: 6, days_ahead: 30 };
+
+  function stubClock(iso: string) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  it("returns upcoming schedules sorted ascending by next_date", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules.map((s) => s.id)).toEqual(["sch-2", "sch-1"]);
+    expect(schedules[0].nextDate).toBe("2026-07-28");
+  });
+
+  it("resolves payee names via the payees endpoint", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules.find((s) => s.id === "sch-1")?.payeeName).toBe("Big Bank");
+    expect(schedules.find((s) => s.id === "sch-2")?.payeeName).toBe("Power Co");
+  });
+
+  it("falls back to the schedule name, then an em dash, when the payee is unknown", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse([
+          {
+            id: "s1",
+            name: "Named schedule",
+            next_date: "2026-07-27",
+            completed: false,
+            payee: "unknown-payee",
+            amount: -100,
+            amountOp: "is",
+          },
+          {
+            id: "s2",
+            name: null,
+            next_date: "2026-07-28",
+            completed: false,
+            payee: null,
+            amount: -100,
+            amountOp: "is",
+          },
+        ]),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules[0].payeeName).toBe("Named schedule");
+    expect(schedules[1].payeeName).toBe("—");
+  });
+
+  it("still returns schedules when the best-effort payees call fails", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": makeErrorResponse(500, { error: "boom" }),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules).toHaveLength(2);
+    expect(schedules.find((s) => s.id === "sch-1")?.payeeName).toBe("Mortgage");
+  });
+
+  it("still returns schedules when the payees request rejects", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": new Error("network error"),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules).toHaveLength(2);
+    expect(schedules[0].payeeName).toBe("Electricity");
+  });
+
+  it("rejects when the required schedules call fails", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeErrorResponse(403, { error: "Forbidden" }),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    await expect(fetchSchedules(SCHEDULES_CONFIG)).rejects.toThrow(
+      "Actual Budget responded with 403: Forbidden"
+    );
+  });
+
+  it("drops completed schedules", async () => {
+    stubClock("2026-07-19T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules.map((s) => s.id)).not.toContain("sch-3");
+  });
+
+  it("drops schedules beyond days_ahead but keeps overdue ones", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse([
+          {
+            id: "overdue",
+            name: "Overdue",
+            next_date: "2026-07-20",
+            completed: false,
+            amount: -100,
+          },
+          {
+            id: "soon",
+            name: "Soon",
+            next_date: "2026-07-30",
+            completed: false,
+            amount: -100,
+          },
+          {
+            id: "far",
+            name: "Far away",
+            next_date: "2026-10-01",
+            completed: false,
+            amount: -100,
+          },
+        ]),
+        "/payees": makeJsonResponse([]),
+      })
+    );
+
+    const schedules = await fetchSchedules({ ...SCHEDULES_CONFIG, days_ahead: 30 });
+
+    expect(schedules.map((s) => s.id)).toEqual(["overdue", "soon"]);
+    expect(schedules[0].daysUntil).toBe(-6);
+    expect(schedules[1].daysUntil).toBe(4);
+  });
+
+  it("slices the result to limit", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(
+          Array.from({ length: 10 }, (_, i) => ({
+            id: `s${i}`,
+            name: `Schedule ${i}`,
+            next_date: `2026-08-${String(i + 1).padStart(2, "0")}`,
+            completed: false,
+            amount: -100,
+          }))
+        ),
+        "/payees": makeJsonResponse([]),
+      })
+    );
+
+    const schedules = await fetchSchedules({ ...SCHEDULES_CONFIG, limit: 3 });
+
+    expect(schedules.map((s) => s.id)).toEqual(["s0", "s1", "s2"]);
+  });
+
+  it("collapses an isbetween amount to a midpoint and exposes the range", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+    const electricity = schedules.find((s) => s.id === "sch-2")!;
+
+    expect(electricity.amountOp).toBe("isbetween");
+    expect(electricity.amount).toBe(-8000);
+    expect(Number.isNaN(electricity.amount)).toBe(false);
+    expect(electricity.amountMin).toBe(-9000);
+    expect(electricity.amountMax).toBe(-7000);
+  });
+
+  it("leaves amountMin and amountMax null for a plain numeric amount", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse(MOCK_SCHEDULES),
+        "/payees": makeJsonResponse(MOCK_PAYEES),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+    const mortgage = schedules.find((s) => s.id === "sch-1")!;
+
+    expect(mortgage.amount).toBe(-124000);
+    expect(mortgage.amountMin).toBeNull();
+    expect(mortgage.amountMax).toBeNull();
+  });
+
+  it("never produces NaN for a missing or malformed amount", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse([
+          { id: "a", name: "No amount", next_date: "2026-07-27", completed: false },
+          {
+            id: "b",
+            name: "Null amount",
+            next_date: "2026-07-28",
+            completed: false,
+            amount: null,
+          },
+        ]),
+        "/payees": makeJsonResponse([]),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    for (const schedule of schedules) {
+      expect(Number.isNaN(schedule.amount)).toBe(false);
+      expect(schedule.amount).toBe(0);
+    }
+  });
+
+  it("ignores schedules with no next_date", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse([
+          { id: "a", name: "No date", next_date: null, completed: false, amount: -1 },
+          {
+            id: "b",
+            name: "Dated",
+            next_date: "2026-07-27",
+            completed: false,
+            amount: -1,
+          },
+        ]),
+        "/payees": makeJsonResponse([]),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules.map((s) => s.id)).toEqual(["b"]);
+  });
+
+  it("does not decode the recurrence config on the date field", async () => {
+    stubClock("2026-07-26T12:00:00");
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse([
+          {
+            id: "a",
+            name: "Recurring",
+            next_date: "2026-07-27",
+            completed: false,
+            amount: -1,
+            date: { frequency: "monthly", interval: 1, patterns: [{ type: "day" }] },
+          },
+        ]),
+        "/payees": makeJsonResponse([]),
+      })
+    );
+
+    const schedules = await fetchSchedules(SCHEDULES_CONFIG);
+
+    expect(schedules).toHaveLength(1);
+    expect(schedules[0].nextDate).toBe("2026-07-27");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// format.ts
+// ---------------------------------------------------------------------------
+
+describe("centsToUnits", () => {
+  it("converts integer minor units to major units", () => {
+    expect(centsToUnits(12030)).toBe(120.3);
+    expect(centsToUnits(-31200)).toBe(-312);
+    expect(centsToUnits(0)).toBe(0);
+  });
+});
+
+describe("formatMoney", () => {
+  it("formats cents as a currency amount", () => {
+    expect(formatMoney(12030, "USD", "en-US")).toBe("$120.30");
+  });
+
+  it("formats a negative amount", () => {
+    expect(formatMoney(-31200, "USD", "en-US")).toBe("-$312.00");
+  });
+
+  it("honours the configured currency", () => {
+    expect(formatMoney(12030, "EUR", "en-US")).toBe("€120.30");
+  });
+
+  it("falls back to a plain number when the currency code is invalid", () => {
+    const result = formatMoney(12030, "NOTACURRENCY", "en-US");
+    expect(result).toContain("120.30");
+    expect(result).not.toContain("NOTACURRENCY");
+  });
+
+  it("falls back to a plain number when the locale tag is invalid", () => {
+    const result = formatMoney(12030, "USD", "not a locale");
+    expect(result).toContain("120.30");
+  });
+
+  it("works with no locale supplied", () => {
+    expect(formatMoney(12030, "USD")).toContain("120.30");
+  });
+});
+
+describe("daysUntil", () => {
+  it("returns 0 for today", () => {
+    expect(daysUntil("2026-07-26", new Date(2026, 6, 26, 9, 0))).toBe(0);
+  });
+
+  it("returns a positive count for a future date", () => {
+    expect(daysUntil("2026-08-01", new Date(2026, 6, 26, 23, 59))).toBe(6);
+  });
+
+  it("returns a negative count for an overdue date", () => {
+    expect(daysUntil("2026-07-20", new Date(2026, 6, 26, 0, 1))).toBe(-6);
+  });
+
+  it("treats the ISO date as local, not UTC", () => {
+    withTimeZone("Pacific/Midway", () => {
+      // new Date("2026-08-01") is UTC midnight, which is 2026-07-31 locally
+      // here — a naive implementation would report 5 days instead of 6.
+      expect(daysUntil("2026-08-01", new Date(2026, 6, 26, 12, 0))).toBe(6);
+    });
+  });
+
+  it("survives a DST transition without an off-by-one", () => {
+    withTimeZone("America/New_York", () => {
+      // 2026-03-08 is the US spring-forward day (a 23-hour local day).
+      expect(daysUntil("2026-03-09", new Date(2026, 2, 7, 12, 0))).toBe(2);
+    });
+  });
+
+  it("returns 0 rather than NaN for an unparseable date", () => {
+    expect(daysUntil("not-a-date", new Date(2026, 6, 26))).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Config schemas
+// ---------------------------------------------------------------------------
+
+describe("actualbudget config schemas", () => {
+  const MINIMAL = {
+    url: "http://actual-http-api:5007",
+    api_key: "key",
+    budget_sync_id: "sync-id",
+  };
+
+  it("accepts a minimal config and applies the shared defaults", () => {
+    const result = ActualSummaryConfigSchema.safeParse(MINIMAL);
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      currency: "USD",
+      privacy_mode: true,
+    });
+  });
+
+  it("rejects a missing or invalid url", () => {
+    expect(
+      ActualSummaryConfigSchema.safeParse({ ...MINIMAL, url: undefined }).success
+    ).toBe(false);
+    expect(
+      ActualSummaryConfigSchema.safeParse({ ...MINIMAL, url: "not-a-url" }).success
+    ).toBe(false);
+  });
+
+  it("rejects a missing api_key or budget_sync_id", () => {
+    expect(
+      ActualSummaryConfigSchema.safeParse({ ...MINIMAL, api_key: "" }).success
+    ).toBe(false);
+    expect(
+      ActualSummaryConfigSchema.safeParse({ ...MINIMAL, budget_sync_id: "" })
+        .success
+    ).toBe(false);
+  });
+
+  it("rejects a currency code that is not three characters", () => {
+    expect(
+      ActualSummaryConfigSchema.safeParse({ ...MINIMAL, currency: "US" }).success
+    ).toBe(false);
+  });
+
+  it("accepts an optional encryption password and locale", () => {
+    const result = ActualSummaryConfigSchema.safeParse({
+      ...MINIMAL,
+      encryption_password: "hunter2",
+      locale: "de-DE",
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.encryption_password).toBe("hunter2");
+    expect(result.data?.locale).toBe("de-DE");
+  });
+
+  it("applies the categories widget defaults", () => {
+    const result = ActualCategoriesConfigSchema.safeParse(MINIMAL);
+    expect(result.data).toMatchObject({
+      limit: 8,
+      hide_income: true,
+      hide_empty: true,
+    });
+  });
+
+  it("applies the accounts widget defaults", () => {
+    const result = ActualAccountsConfigSchema.safeParse(MINIMAL);
+    expect(result.data).toMatchObject({
+      exclude_closed: true,
+      exclude_offbudget: false,
+    });
+  });
+
+  it("applies the schedules widget defaults", () => {
+    const result = ActualSchedulesConfigSchema.safeParse(MINIMAL);
+    expect(result.data).toMatchObject({ limit: 6, days_ahead: 30 });
+  });
+
+  it("coerces numeric options supplied as YAML strings", () => {
+    const result = ActualCategoriesConfigSchema.safeParse({
+      ...MINIMAL,
+      limit: "12",
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.limit).toBe(12);
+  });
+
+  it("rejects a non-positive limit", () => {
+    expect(
+      ActualCategoriesConfigSchema.safeParse({ ...MINIMAL, limit: 0 }).success
+    ).toBe(false);
+  });
+});
