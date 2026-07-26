@@ -8,6 +8,7 @@ import {
   resolveWidgetConfigSecrets,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
+import { publicWidgetFetchError } from "@/widgets/publicFetchError";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
     }
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Connection test failed" },
+      { ok: false, error: publicWidgetFetchError("connection-test") },
       { status: 500 }
     );
   }

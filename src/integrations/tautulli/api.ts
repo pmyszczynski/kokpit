@@ -88,6 +88,15 @@ function abortedRequestError(): Error {
   return error;
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
+}
+
 export async function fetchActivity(
   config: TautulliConfig,
   signal?: AbortSignal
@@ -99,8 +108,8 @@ export async function fetchActivity(
   let response: Response;
   try {
     response = await fetch(url.toString(), { signal });
-  } catch {
-    if (signal?.aborted) {
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
       throw abortedRequestError();
     }
     throw new Error("Tautulli network request failed");
@@ -112,8 +121,8 @@ export async function fetchActivity(
   let json: unknown;
   try {
     json = await response.json();
-  } catch {
-    if (signal?.aborted) {
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
       throw abortedRequestError();
     }
     throw new Error("Tautulli returned invalid JSON");

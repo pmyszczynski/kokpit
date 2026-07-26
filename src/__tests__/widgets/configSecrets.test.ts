@@ -37,7 +37,39 @@ describe("widget credential scope registry invariant", () => {
       widget.configFields?.some((field) => field.type === "password")
     );
 
-    expect(credentialed).toHaveLength(22);
+    expect(
+      Object.fromEntries(
+        credentialed
+          .map(
+            (widget) =>
+              [widget.id, widget.credentialScopeFields] as const
+          )
+          .sort((left, right) => left[0].localeCompare(right[0]))
+      )
+    ).toEqual({
+      "immich-stats": ["url"],
+      "netdata-cpu": ["url"],
+      "netdata-disk-io": ["url"],
+      "netdata-disk-space": ["url"],
+      "netdata-load": ["url"],
+      "netdata-net": ["url"],
+      "netdata-ram": ["url"],
+      "netdata-sensor": ["url"],
+      plex: ["url"],
+      "prowlarr-stats": ["url"],
+      "qbittorrent-stats": ["url", "username"],
+      "qbittorrent-torrents": ["url", "username"],
+      "radarr-queue": ["url"],
+      "radarr-stats": ["url"],
+      sabnzbd: ["url"],
+      "seerr-requests": ["url"],
+      "seerr-stats": ["url"],
+      "sonarr-calendar": ["url"],
+      "sonarr-queue": ["url"],
+      "tautulli-activity": ["url"],
+      "tdarr-stats": ["url"],
+      "unraid-stats": ["url"],
+    });
     for (const widget of credentialed) {
       expect(widget.credentialScopeFields?.length).toBeGreaterThan(0);
       for (const key of widget.credentialScopeFields ?? []) {

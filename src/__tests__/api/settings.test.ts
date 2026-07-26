@@ -396,7 +396,7 @@ describe("GET /api/settings", () => {
     expect(json.layout.mobile?.row_height).toBe(80);
   });
 
-  it("returns a stable X-Config-Revision header (sha256 hex)", async () => {
+  it("returns a stable X-Config-Revision header (HMAC-SHA256 hex)", async () => {
     const { GET } = await import("../../app/api/settings/route");
     const res = await GET();
     const rev = res.headers.get("X-Config-Revision");

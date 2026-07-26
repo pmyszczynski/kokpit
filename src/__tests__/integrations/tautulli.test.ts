@@ -269,6 +269,26 @@ describe("fetchActivity", () => {
     expect(error.message).not.toContain("super-secret-key");
   });
 
+  it("sanitizes a fetch rejection named AbortError without an aborted signal", async () => {
+    const rawMessage =
+      "aborted http://tautulli.local/api/v2?apikey=super-secret-key";
+    const abortError = new Error(rawMessage);
+    abortError.name = "AbortError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortError));
+
+    const error = await fetchActivity(BASE_CONFIG).catch(
+      (reason: unknown) => reason
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error).not.toBe(abortError);
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("Tautulli request aborted");
+    expect(error.message).not.toContain(rawMessage);
+    expect(error.message).not.toContain("super-secret-key");
+  });
+
   it("preserves externally-triggered abort semantics when reading the response body", async () => {
     const controller = new AbortController();
     const leakedUrl =
@@ -295,6 +315,35 @@ describe("fetchActivity", () => {
     expect(error.message).toBe("Tautulli request aborted");
     expect(error.message).not.toContain(leakedUrl);
     expect(error.message).not.toContain("apikey=");
+    expect(error.message).not.toContain("super-secret-key");
+  });
+
+  it("sanitizes a body-read rejection named AbortError without an aborted signal", async () => {
+    const rawMessage =
+      "body aborted http://tautulli.local/api/v2?apikey=super-secret-key";
+    const abortError = new Error(rawMessage);
+    abortError.name = "AbortError";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw abortError;
+        },
+      })
+    );
+
+    const error = await fetchActivity(BASE_CONFIG).catch(
+      (reason: unknown) => reason
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error).not.toBe(abortError);
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("Tautulli request aborted");
+    expect(error.message).not.toContain(rawMessage);
     expect(error.message).not.toContain("super-secret-key");
   });
 

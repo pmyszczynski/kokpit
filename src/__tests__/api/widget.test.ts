@@ -54,6 +54,12 @@ services:
       config:
         url: http://tautulli.test:8181
         api_key: tautulli-route-secret
+  - name: Unraid
+    widget:
+      type: unraid-stats
+      config:
+        url: http://unraid.test
+        api_key: saved-unraid-secret
 `.trim();
 
 const AUTH_ENABLED_YAML = SERVICES_YAML.replace("enabled: false", "enabled: true");
@@ -130,7 +136,7 @@ describe("GET /api/widget", () => {
     expect(json.data.streams).toBe(3);
   });
 
-  it("returns 500 with the error message when the widget fetch fails", async () => {
+  it("returns a bounded 500 when the widget fetch fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 502 } as Response)
@@ -138,7 +144,30 @@ describe("GET /api/widget", () => {
     const { GET } = await import("../../app/api/widget/route");
     const res = await GET(get({ type: "plex", service: "Plex" }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toMatch(/502/);
+    expect((await res.json()).error).toBe("Widget fetch failed");
+  });
+
+  it("does not reflect a saved secret from an upstream widget error", async () => {
+    const rawMessage =
+      "upstream rejected Authorization: Bearer saved-unraid-secret";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ errors: [{ message: rawMessage }] }),
+      } as Response)
+    );
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(get({ type: "unraid-stats", service: "Unraid" }));
+    const responseText = await res.text();
+
+    expect(res.status).toBe(500);
+    expect(responseText).toContain("Widget fetch failed");
+    expect(responseText).not.toContain(rawMessage);
+    expect(responseText).not.toContain("saved-unraid-secret");
   });
 
   it("does not return Tautulli network rejection details from the generic route", async () => {
@@ -156,7 +185,7 @@ describe("GET /api/widget", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(500);
-    expect(responseText).toContain("Tautulli network request failed");
+    expect(responseText).toContain("Widget fetch failed");
     expect(responseText).not.toContain(leakedUrl);
     expect(responseText).not.toContain("apikey=");
     expect(responseText).not.toContain("tautulli-route-secret");

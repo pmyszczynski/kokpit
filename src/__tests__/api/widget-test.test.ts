@@ -61,6 +61,17 @@ const TAUTULLI_SECRET_YAML = BASE_YAML.replace(
           - summary`
 );
 
+const UNRAID_SECRET_YAML = BASE_YAML.replace(
+  "services: []",
+  `services:
+  - name: Unraid
+    widget:
+      type: unraid-stats
+      config:
+        url: http://unraid.local
+        api_key: saved-unraid-secret`
+);
+
 function post(body: unknown) {
   return new Request("http://localhost/api/widget/test", {
     method: "POST",
@@ -355,7 +366,7 @@ describe("POST /api/widget/test", () => {
     expect(responseText).not.toContain("apikey=");
   });
 
-  it("returns 500 with the error message when the widget fetch fails", async () => {
+  it("returns a bounded 500 when the widget fetch fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 503 } as Response)
@@ -370,6 +381,38 @@ describe("POST /api/widget/test", () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.ok).toBe(false);
-    expect(json.error).toMatch(/503/);
+    expect(json.error).toBe("Connection test failed");
+  });
+
+  it("does not reflect a saved secret from an upstream connection-test error", async () => {
+    vi.mocked(readFileSync).mockReturnValue(UNRAID_SECRET_YAML);
+    const rawMessage =
+      "upstream rejected Authorization: Bearer saved-unraid-secret";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ errors: [{ message: rawMessage }] }),
+      } as Response)
+    );
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const redactedConfig = settings.services[0].widget.config;
+    expect(JSON.stringify(redactedConfig)).not.toContain(
+      "saved-unraid-secret"
+    );
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(
+      post({ type: "unraid-stats", config: redactedConfig })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(500);
+    expect(responseText).toContain("Connection test failed");
+    expect(responseText).not.toContain(rawMessage);
+    expect(responseText).not.toContain("saved-unraid-secret");
   });
 });
