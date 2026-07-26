@@ -23,5 +23,9 @@ import "./netdata/loadWidget";
 import "./netdata/sensorWidget";
 import "./docker/widget";
 import "./systemstats/widget";
+import "./actualbudget/summaryWidget";
+import "./actualbudget/categoriesWidget";
+import "./actualbudget/accountsWidget";
+import "./actualbudget/schedulesWidget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

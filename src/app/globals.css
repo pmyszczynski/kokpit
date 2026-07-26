@@ -1645,7 +1645,8 @@ button {
 .sabnzbd-widget,
 .prowlarr-stats-widget,
 .unraid-stats-widget,
-.tdarr-stats-widget {
+.tdarr-stats-widget,
+.actualbudget-summary-widget {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -1658,7 +1659,8 @@ button {
 .sabnzbd-widget__stat,
 .prowlarr-stats-widget__stat,
 .unraid-stats-widget__stat,
-.tdarr-stats-widget__stat {
+.tdarr-stats-widget__stat,
+.actualbudget-summary-widget__stat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1675,7 +1677,8 @@ button {
 .sabnzbd-widget__value,
 .prowlarr-stats-widget__value,
 .unraid-stats-widget__value,
-.tdarr-stats-widget__value {
+.tdarr-stats-widget__value,
+.actualbudget-summary-widget__value {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text);
@@ -1690,7 +1693,8 @@ button {
 .sabnzbd-widget__label,
 .prowlarr-stats-widget__label,
 .unraid-stats-widget__label,
-.tdarr-stats-widget__label {
+.tdarr-stats-widget__label,
+.actualbudget-summary-widget__label {
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--color-text-muted);
@@ -1715,7 +1719,8 @@ button {
 .sabnzbd-widget--empty,
 .prowlarr-stats-widget--empty,
 .unraid-stats-widget--empty,
-.tdarr-stats-widget--empty {
+.tdarr-stats-widget--empty,
+.actualbudget-summary-widget--empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1726,7 +1731,8 @@ button {
 .sabnzbd-widget__hint,
 .prowlarr-stats-widget__hint,
 .unraid-stats-widget__hint,
-.tdarr-stats-widget__hint {
+.tdarr-stats-widget__hint,
+.actualbudget-summary-widget__hint {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
@@ -2986,6 +2992,267 @@ button {
 
 .system-stats-widget__hint--error {
   color: var(--color-error);
+}
+
+/* ── Actual Budget widgets ────────────────────────────────────────────── */
+
+/* Summary widget's grid/__stat/__value/__label/--empty/__hint join the
+   shared stat-grid rule set above (qBittorrent/SABnzbd/Prowlarr/Unraid/
+   Tdarr). Only the two rules that block uses hardcoded hex are redeclared
+   here with theme variables instead. */
+
+.actualbudget-summary-widget__stale-error {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 2px 0;
+}
+
+.actualbudget-summary-widget__hint--error {
+  color: var(--color-error);
+}
+
+/* Privacy mode: figures blur at the widget root and clear on hover/focus of
+   the whole tile. Presentational only — never pair with aria-hidden, the
+   underlying text must stay in the accessibility tree. */
+.actualbudget-widget--private .actualbudget-amount {
+  filter: blur(0.35rem);
+  transition: filter 0.15s ease;
+}
+
+.actualbudget-widget--private:hover .actualbudget-amount,
+.actualbudget-widget--private:focus-within .actualbudget-amount {
+  filter: none;
+}
+
+.actualbudget-amount--negative {
+  color: var(--color-error);
+}
+
+/* Shared list-widget layout: categories / accounts / schedules all follow
+   the Radarr-queue pattern (header-less row list + footer + stale-error). */
+.actualbudget-categories-widget,
+.actualbudget-accounts-widget,
+.actualbudget-schedules-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.actualbudget-categories-widget__list,
+.actualbudget-accounts-widget__list,
+.actualbudget-schedules-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.actualbudget-categories-widget--empty,
+.actualbudget-accounts-widget--empty,
+.actualbudget-schedules-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.actualbudget-categories-widget__hint,
+.actualbudget-accounts-widget__hint,
+.actualbudget-schedules-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.actualbudget-categories-widget__hint--error,
+.actualbudget-accounts-widget__hint--error,
+.actualbudget-schedules-widget__hint--error {
+  color: var(--color-error);
+}
+
+.actualbudget-categories-widget__stale-error,
+.actualbudget-accounts-widget__stale-error,
+.actualbudget-schedules-widget__stale-error {
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.actualbudget-categories-widget__row,
+.actualbudget-accounts-widget__row,
+.actualbudget-schedules-widget__row {
+  display: grid;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.actualbudget-categories-widget__row:last-child,
+.actualbudget-accounts-widget__row:last-child,
+.actualbudget-schedules-widget__row:last-child {
+  border-bottom: none;
+}
+
+.actualbudget-categories-widget__name,
+.actualbudget-accounts-widget__name,
+.actualbudget-schedules-widget__name {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── Categories widget ────────────────────────────────────────────────── */
+
+.actualbudget-categories-widget__row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(60px, 96px);
+}
+
+.actualbudget-categories-widget__amounts {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.actualbudget-categories-widget__progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.actualbudget-categories-widget__progress-bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.actualbudget-categories-widget__progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.actualbudget-categories-widget__progress-text {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  line-height: 1;
+}
+
+.actualbudget-categories-widget__row--warn .actualbudget-categories-widget__progress-fill {
+  background: var(--color-warning);
+}
+
+.actualbudget-categories-widget__row--warn .actualbudget-categories-widget__name {
+  color: var(--color-warning);
+}
+
+.actualbudget-categories-widget__row--over .actualbudget-categories-widget__progress-fill {
+  background: var(--color-error);
+}
+
+.actualbudget-categories-widget__row--over .actualbudget-categories-widget__name {
+  color: var(--color-error);
+}
+
+/* ── Accounts widget ──────────────────────────────────────────────────── */
+
+.actualbudget-accounts-widget__row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.actualbudget-accounts-widget__badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.actualbudget-accounts-widget__balance {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actualbudget-accounts-widget__footer,
+.actualbudget-schedules-widget__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  margin-top: 2px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.actualbudget-accounts-widget__footer-label,
+.actualbudget-schedules-widget__footer-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.actualbudget-accounts-widget__footer-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.actualbudget-schedules-widget__footer-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ── Schedules widget ─────────────────────────────────────────────────── */
+
+.actualbudget-schedules-widget__row {
+  grid-template-columns: minmax(0, 1fr) auto 56px;
+}
+
+.actualbudget-schedules-widget__amount {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actualbudget-schedules-widget__due {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actualbudget-schedules-widget__due--overdue {
+  color: var(--color-error);
+  font-weight: 600;
 }
 
 /* === AUTH PAGES (login / first-run setup) === */
