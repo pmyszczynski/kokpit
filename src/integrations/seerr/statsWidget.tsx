@@ -60,6 +60,7 @@ registerWidget<SeerrConfig, SeerrStats>({
   fetchData: fetchStats,
   refreshInterval: 60_000,
   component: SeerrStatsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

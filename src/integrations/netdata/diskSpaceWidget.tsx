@@ -79,6 +79,7 @@ registerWidget<DiskSpaceConfig, DiskSpaceData>({
   fetchData: fetchDiskSpaceData,
   refreshInterval: 60_000,
   component: NetdataDiskSpaceWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

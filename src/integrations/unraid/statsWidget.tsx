@@ -126,6 +126,7 @@ registerWidget<UnraidConfig, UnraidStats>({
   fetchData: fetchStats,
   refreshInterval: 30_000,
   component: UnraidStatsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

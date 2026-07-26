@@ -72,6 +72,7 @@ registerWidget<NetdataBaseConfig, CpuData>({
   fetchData: fetchCpuData,
   refreshInterval: 10_000,
   component: NetdataCpuWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

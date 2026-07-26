@@ -210,6 +210,64 @@ describe("POST /api/widget/test", () => {
     expect(responseText).not.toContain("saved-tautulli-secret");
   });
 
+  it("rejects an endpoint-changed saved reference before fetch with a safe code", async () => {
+    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const redactedConfig = settings.services[0].widget.config;
+    redactedConfig.url = "http://attacker.invalid:8181";
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(
+      post({ type: "tautulli-activity", config: redactedConfig })
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body).toMatchObject({
+      ok: false,
+      code: "widget_secret_scope_changed",
+    });
+    expect(JSON.stringify(body)).not.toContain("attacker.invalid");
+    expect(JSON.stringify(body)).not.toContain("saved-tautulli-secret");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects forged and cross-widget references before fetch", async () => {
+    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const reference = settings.services[0].widget.config.api_key as string;
+    const forged =
+      reference.slice(0, -1) + (reference.endsWith("A") ? "B" : "A");
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    for (const [type, config] of [
+      [
+        "tautulli-activity",
+        { ...settings.services[0].widget.config, api_key: forged },
+      ],
+      [
+        "plex",
+        {
+          url: "http://tautulli.local:8181",
+          token: reference,
+        },
+      ],
+    ] as const) {
+      const res = await POST(post({ type, config }));
+      const body = await res.json();
+      expect(res.status).toBe(400);
+      expect(body.code).toBe("widget_secret_reference_invalid");
+      expect(JSON.stringify(body)).not.toContain("saved-tautulli-secret");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns 504 when the connection test exceeds the 5s timeout", async () => {
     vi.useFakeTimers();
     // A fetch that never settles until its signal aborts — the route's

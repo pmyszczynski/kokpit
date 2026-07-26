@@ -73,6 +73,7 @@ registerWidget<RadarrConfig, RadarrStats>({
   fetchData: fetchStats,
   refreshInterval: 60_000,
   component: RadarrStatsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

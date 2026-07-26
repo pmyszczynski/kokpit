@@ -5,16 +5,33 @@ import {
   type Service,
 } from "@/config/schema";
 import { getWidget } from "@/widgets";
+import { widgetCredentialScopesMatch } from "./credentialScope";
+import {
+  isWidgetSecretReference,
+} from "./secretReference";
 import {
   createWidgetSecretReference,
-  isWidgetSecretReference,
-  parseWidgetSecretReference,
-} from "./secretReference";
+  verifyWidgetSecretReference,
+} from "./secretReference.server";
+
+export type WidgetSecretResolutionErrorCode =
+  | "widget_secret_reference_invalid"
+  | "widget_secret_scope_changed";
+
+const ERROR_MESSAGES: Record<WidgetSecretResolutionErrorCode, string> = {
+  widget_secret_reference_invalid:
+    "Saved widget credential is no longer available. Re-enter the credential.",
+  widget_secret_scope_changed:
+    "Widget credential scope changed. Re-enter the credential.",
+};
 
 export class WidgetSecretResolutionError extends Error {
-  constructor() {
-    super("Saved widget secret could not be resolved");
+  readonly code: WidgetSecretResolutionErrorCode;
+
+  constructor(code: WidgetSecretResolutionErrorCode) {
+    super(ERROR_MESSAGES[code]);
     this.name = "WidgetSecretResolutionError";
+    this.code = code;
   }
 }
 
@@ -71,15 +88,18 @@ function resolveReference(
   referenceValue: unknown,
   expectedWidgetType: string,
   expectedFieldKey: string,
+  destinationConfig: Record<string, unknown>,
   savedServices: Service[]
 ): unknown {
-  const reference = parseWidgetSecretReference(referenceValue);
+  const reference = verifyWidgetSecretReference(referenceValue);
   if (
     !reference ||
     reference.widgetType !== expectedWidgetType ||
     reference.fieldKey !== expectedFieldKey
   ) {
-    throw new WidgetSecretResolutionError();
+    throw new WidgetSecretResolutionError(
+      "widget_secret_reference_invalid"
+    );
   }
 
   const source = savedServices.find(
@@ -88,7 +108,9 @@ function resolveReference(
       serviceNameUniquenessKey(reference.serviceName)
   );
   if (source?.widget?.type !== expectedWidgetType) {
-    throw new WidgetSecretResolutionError();
+    throw new WidgetSecretResolutionError(
+      "widget_secret_reference_invalid"
+    );
   }
 
   const sourceConfig = source.widget.config;
@@ -96,11 +118,27 @@ function resolveReference(
     !sourceConfig ||
     !Object.prototype.hasOwnProperty.call(sourceConfig, expectedFieldKey)
   ) {
-    throw new WidgetSecretResolutionError();
+    throw new WidgetSecretResolutionError(
+      "widget_secret_reference_invalid"
+    );
   }
   const savedValue = sourceConfig[expectedFieldKey];
-  if (isWidgetSecretReference(savedValue)) {
-    throw new WidgetSecretResolutionError();
+  if (
+    typeof savedValue !== "string" ||
+    isWidgetSecretReference(savedValue)
+  ) {
+    throw new WidgetSecretResolutionError(
+      "widget_secret_reference_invalid"
+    );
+  }
+  if (
+    !widgetCredentialScopesMatch(
+      expectedWidgetType,
+      sourceConfig,
+      destinationConfig
+    )
+  ) {
+    throw new WidgetSecretResolutionError("widget_secret_scope_changed");
   }
   return savedValue;
 }
@@ -120,7 +158,18 @@ export function resolveWidgetConfigSecrets(
 
   const rawConfig = config as Record<string, unknown>;
   let resolvedConfig: Record<string, unknown> | null = null;
-  for (const key of passwordFieldKeys(widgetType)) {
+  const passwordKeys = passwordFieldKeys(widgetType);
+  for (const [key, value] of Object.entries(rawConfig)) {
+    if (
+      isWidgetSecretReference(value) &&
+      !passwordKeys.includes(key)
+    ) {
+      throw new WidgetSecretResolutionError(
+        "widget_secret_reference_invalid"
+      );
+    }
+  }
+  for (const key of passwordKeys) {
     const value = rawConfig[key];
     if (!isWidgetSecretReference(value)) continue;
     resolvedConfig ??= { ...rawConfig };
@@ -128,6 +177,7 @@ export function resolveWidgetConfigSecrets(
       value,
       widgetType,
       key,
+      rawConfig,
       savedServices
     );
   }

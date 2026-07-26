@@ -113,6 +113,7 @@ registerWidget<SonarrConfig, SonarrEpisode[]>({
   fetchData: fetchCalendar,
   refreshInterval: 60_000,
   component: SonarrCalendarWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

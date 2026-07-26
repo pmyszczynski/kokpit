@@ -88,6 +88,7 @@ registerWidget<NetdataBaseConfig, RamData>({
   fetchData: fetchRamData,
   refreshInterval: 10_000,
   component: NetdataRamWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

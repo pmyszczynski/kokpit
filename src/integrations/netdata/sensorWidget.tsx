@@ -101,6 +101,7 @@ registerWidget<SensorConfig, SensorData>({
   fetchData: fetchSensorData,
   refreshInterval: 10_000,
   component: NetdataSensorWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

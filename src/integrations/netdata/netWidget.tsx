@@ -91,6 +91,7 @@ registerWidget<NetdataBaseConfig, NetData>({
   fetchData: fetchNetData,
   refreshInterval: 10_000,
   component: NetdataNetWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

@@ -69,6 +69,7 @@ registerWidget<ProwlarrConfig, ProwlarrStats>({
   fetchData: fetchStats,
   refreshInterval: 60_000,
   component: ProwlarrStatsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

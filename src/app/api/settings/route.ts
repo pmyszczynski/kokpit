@@ -145,7 +145,10 @@ export async function PATCH(request: NextRequest) {
       );
     } catch (error) {
       if (error instanceof WidgetSecretResolutionError) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: 400 }
+        );
       }
       throw error;
     }

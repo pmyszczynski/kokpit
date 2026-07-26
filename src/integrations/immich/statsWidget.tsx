@@ -80,6 +80,7 @@ registerWidget<ImmichConfig, ImmichStats>({
   fetchData: fetchStats,
   refreshInterval: 60_000,
   component: ImmichStatsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

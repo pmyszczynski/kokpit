@@ -41,6 +41,12 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   component: React.ComponentType<WidgetProps<TData>>;
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
+  /**
+   * Non-secret config fields that bind any password credential to its
+   * destination. Required and validated at registration when password fields
+   * exist.
+   */
+  credentialScopeFields?: string[];
   /** When set, this widget appears as a tile type in the service editor. */
   serviceEditorPreset?: ServiceEditorPreset;
   /**
@@ -60,6 +66,24 @@ const widgetRegistry = new Map<string, AnyWidgetDefinition>();
 export function registerWidget<TConfig = Record<string, unknown>, TData = unknown>(
   def: WidgetDefinition<TConfig, TData>
 ): void {
+  const fields = def.configFields ?? [];
+  const hasPassword = fields.some((field) => field.type === "password");
+  if (hasPassword) {
+    const scope = def.credentialScopeFields;
+    if (!scope || scope.length === 0) {
+      throw new Error(
+        `Widget "${def.id}" must declare a nonempty credential scope`
+      );
+    }
+    for (const key of scope) {
+      const field = fields.find((candidate) => candidate.key === key);
+      if (!field || field.type === "password") {
+        throw new Error(
+          `Widget "${def.id}" has an invalid credential scope field "${key}"`
+        );
+      }
+    }
+  }
   if (widgetRegistry.has(def.id)) {
     throw new Error(`Widget "${def.id}" is already registered`);
   }

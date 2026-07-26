@@ -117,6 +117,7 @@ registerWidget<TautulliConfig, TautulliActivityData>({
     defaultIconUrl:
       "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/svg/tautulli.svg",
   },
+  credentialScopeFields: ["url"],
   configFields: [
     { key: "url", label: "URL", type: "url", required: true, placeholder: "http://192.168.1.x:8181" },
     { key: "api_key", label: "API Key", type: "password", required: true },

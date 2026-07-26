@@ -102,6 +102,7 @@ registerWidget<RadarrConfig, RadarrQueueItem[]>({
   fetchData: fetchQueue,
   refreshInterval: 15_000,
   component: RadarrQueueWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

@@ -67,6 +67,7 @@ registerWidget<QbittorrentConfig, TransferInfo>({
   fetchData: fetchTransferInfo,
   refreshInterval: 10_000,
   component: QbittorrentStatsWidget,
+  credentialScopeFields: ["url", "username"],
   configFields: [
     {
       key: "url",

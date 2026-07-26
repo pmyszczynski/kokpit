@@ -148,6 +148,7 @@ registerWidget<SeerrConfig, SeerrRequest[]>({
   fetchData: fetchRequests,
   refreshInterval: 60_000,
   component: SeerrRequestsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

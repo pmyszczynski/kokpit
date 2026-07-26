@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof WidgetSecretResolutionError) {
       return NextResponse.json(
-        { ok: false, error: error.message },
+        { ok: false, error: error.message, code: error.code },
         { status: 400 }
       );
     }
