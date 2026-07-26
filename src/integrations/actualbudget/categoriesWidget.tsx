@@ -1,6 +1,11 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
-import { fetchBudgetMonth, currentMonth, ActualCategoriesConfigSchema } from "./api";
+import {
+  fetchBudgetMonth,
+  currentMonth,
+  ActualCategoriesConfigSchema,
+  BASE_CONFIG_FIELDS,
+} from "./api";
 import type { ActualCategoriesConfig, ActualBudgetMonth, ActualCategory } from "./api";
 import { calcProgress } from "@/integrations/shared/queue";
 import { Amount } from "./Amount";
@@ -178,61 +183,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
   fetchTimeoutMs: 15_000,
   component: ActualBudgetCategoriesWidget,
   configFields: [
-    {
-      key: "url",
-      label: "URL",
-      type: "url",
-      required: true,
-      placeholder: "http://actual-http-api:5007",
-      description:
-        "URL of your actual-http-api sidecar, not your Actual Budget server.",
-    },
-    {
-      key: "api_key",
-      label: "API Key",
-      type: "password",
-      required: true,
-      description: "The sidecar's own API_KEY, not your Actual server password.",
-    },
-    {
-      key: "budget_sync_id",
-      label: "Budget Sync ID",
-      type: "text",
-      required: true,
-      description: "Actual → Settings → Show advanced settings → Sync ID.",
-    },
-    {
-      key: "encryption_password",
-      label: "Encryption Password",
-      type: "password",
-      required: false,
-      description: "Only needed for end-to-end-encrypted budgets.",
-    },
-    {
-      key: "currency",
-      label: "Currency",
-      type: "text",
-      required: false,
-      placeholder: "USD",
-      description: "3-letter ISO currency code, e.g. USD, EUR, GBP.",
-    },
-    {
-      key: "locale",
-      label: "Locale",
-      type: "text",
-      required: false,
-      placeholder: "en-US",
-      description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
-    },
-    {
-      key: "timezone",
-      label: "Timezone",
-      type: "text",
-      required: false,
-      placeholder: "Europe/Warsaw",
-      description:
-        "Optional IANA timezone name (e.g. Europe/Warsaw) used to resolve the current budget month. Defaults to the server's timezone.",
-    },
+    ...BASE_CONFIG_FIELDS,
     {
       key: "limit",
       label: "Category limit",
@@ -240,14 +191,6 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
       required: false,
       placeholder: "8",
       description: "Maximum number of categories to display, sorted by percent spent.",
-    },
-    {
-      key: "privacy_mode",
-      label: "Blur amounts until hover",
-      type: "boolean",
-      required: false,
-      defaultValue: true,
-      description: "Blurs monetary amounts on the tile until you hover over it.",
     },
     {
       key: "hide_income",

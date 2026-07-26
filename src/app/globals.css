@@ -3198,12 +3198,19 @@ button {
 
 /* ── Accounts widget ──────────────────────────────────────────────────── */
 
+/* Third track for the off-budget badge: it used to live inside __name and
+   got clipped by that span's overflow:hidden/ellipsis whenever the account
+   name was long enough to truncate. It is now a grid sibling of __name, so
+   both __badge and __balance get an explicit grid-column — otherwise a row
+   with no badge (the common case) would auto-place __balance into the
+   middle track instead of the last one, misaligning it against rows that do
+   have a badge. */
 .actualbudget-accounts-widget__row {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .actualbudget-accounts-widget__badge {
-  margin-left: 6px;
+  grid-column: 2;
   padding: 1px 6px;
   font-size: 0.6rem;
   font-weight: 600;
@@ -3216,6 +3223,7 @@ button {
 }
 
 .actualbudget-accounts-widget__balance {
+  grid-column: 3;
   font-size: 0.8rem;
   color: var(--color-text);
   text-align: right;
@@ -3278,6 +3286,20 @@ button {
 .actualbudget-schedules-widget__due--overdue {
   color: var(--color-error);
   font-weight: 600;
+}
+
+/* Users who ask for less motion still get the privacy blur/reveal and the
+   category progress-bar fill, just as an instant state change rather than an
+   animated transition. Scoped to these two Actual Budget rules only — not a
+   global reduced-motion reset for the rest of the stylesheet. */
+@media (prefers-reduced-motion: reduce) {
+  .actualbudget-widget--private .actualbudget-amount {
+    transition: none;
+  }
+
+  .actualbudget-categories-widget__progress-fill {
+    transition: none;
+  }
 }
 
 /* === AUTH PAGES (login / first-run setup) === */

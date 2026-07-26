@@ -863,7 +863,7 @@ services:
 
 ### Actual Budget
 
-Displays budget summary, category spending, account balances, and upcoming bills from a self-hosted Actual Budget instance. Reading data requires a separate `jhonderson/actual-http-api` sidecar container — Actual Budget has no built-in read API, so the sidecar acts as a JSON bridge to your encrypted budget.
+Displays budget summary, category spending, account balances, and upcoming bills from a self-hosted Actual Budget instance. Reading data requires a separate `jhonderson/actual-http-api` sidecar container — Actual Budget has no built-in HTTP/REST read API (only a Node.js `@actual-app/api` package for programmatic access), so the sidecar acts as a JSON bridge to your encrypted budget.
 
 **Prerequisites:** A running Actual Budget server and an `actual-http-api` sidecar container with credentials configured. The sidecar's API key is what you configure in Kokpit; Kokpit never sees your Actual server password.
 
@@ -975,7 +975,7 @@ services:
 
 #### `actualbudget-schedules`
 
-Shows upcoming bills and income rules, sorted by due date, with relative due dates ("today", "3d", "overdue") and a footer showing how many are due within 7 days.
+Shows upcoming bills and income rules, sorted by due date, with relative due dates ("today", "3d", "overdue") and a footer showing how many are due within 7 days or already overdue.
 
 ```yaml
 services:
@@ -1027,9 +1027,9 @@ services:
 | Widget | Shows |
 |---|---|
 | `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of all account balances). |
-| `actualbudget-categories` | Category name, Spent / Budgeted amounts with progress bar, colour status (green ≥ 0%, yellow ≥ 85%, red overspent). Sorted by % spent descending. |
+| `actualbudget-categories` | Category name, Spent / Budgeted amounts with progress bar, colour status — mutually exclusive: green under 85% spent, yellow 85–100% spent, red when the category is overspent (balance below zero, which takes priority over the percentage). Sorted by % spent descending. |
 | `actualbudget-accounts` | Account name, off-budget marker, current balance. Footer shows Net worth total. |
-| `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within 7 days. |
+| `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within 7 days or overdue. |
 
 **Read-only:** This integration never modifies your budget — it only reads data from the sidecar.
 

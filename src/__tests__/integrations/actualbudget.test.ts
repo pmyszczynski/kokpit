@@ -2029,5 +2029,43 @@ describe("actualbudget widget registration", () => {
       expect(data.schedules).toHaveLength(3);
       expect(data.dueSoonCount).toBe(10);
     });
+
+    it("counts overdue schedules (negative daysUntil) in dueSoonCount rather than excluding them", async () => {
+      // Fix: dueSoonCount used to filter `daysUntil >= 0 && daysUntil <= 7`,
+      // so a tile listing only overdue bills reported 0 under a "due soon"
+      // label — an overdue bill is still due, more urgently, not less. The
+      // lower bound is gone; only the `daysUntil <= 7` upper bound remains.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-26T12:00:00"));
+      vi.stubGlobal(
+        "fetch",
+        makeFetchMock({
+          "/schedules": makeJsonResponse([
+            { id: "overdue-1", name: "Overdue 1", next_date: "2026-07-19", completed: false, amount: -100 },
+            { id: "overdue-2", name: "Overdue 2", next_date: "2026-07-23", completed: false, amount: -100 },
+            { id: "today", name: "Today", next_date: "2026-07-26", completed: false, amount: -100 },
+            { id: "soon", name: "Soon", next_date: "2026-07-30", completed: false, amount: -100 },
+            { id: "far", name: "Far", next_date: "2026-08-15", completed: false, amount: -100 },
+          ]),
+          "/payees": makeJsonResponse([]),
+        })
+      );
+
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const widget = getWidget("actualbudget-schedules")!;
+
+      const data = (await widget.fetchData({
+        ...MINIMAL_CONFIG,
+        currency: "USD",
+        privacy_mode: true,
+        limit: 6,
+        days_ahead: 30,
+      })) as { schedules: unknown[]; dueSoonCount: number };
+
+      // overdue-1 (-7d), overdue-2 (-3d), today (0d) and soon (4d) all
+      // qualify (<= 7); far (20d) does not.
+      expect(data.dueSoonCount).toBe(4);
+    });
   });
 });

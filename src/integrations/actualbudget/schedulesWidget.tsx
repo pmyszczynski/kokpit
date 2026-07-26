@@ -1,6 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
-import { fetchSchedules, ActualSchedulesConfigSchema } from "./api";
+import { fetchSchedules, ActualSchedulesConfigSchema, BASE_CONFIG_FIELDS } from "./api";
 import type { ActualSchedulesConfig, ActualSchedule } from "./api";
 import { Amount } from "./Amount";
 
@@ -14,7 +14,13 @@ import { Amount } from "./Amount";
 // returns, *before* truncating `schedules` to `config.limit` for display. If
 // the count were derived from the already-truncated array instead, the
 // footer would under-report whenever more than `limit` schedules fall within
-// 7 days — exactly the case a "due soon" count exists to surface.
+// the window — exactly the case this count exists to surface.
+//
+// The window has no lower bound: `daysUntil <= 7` counts overdue schedules
+// too (negative daysUntil), not just 0–7. An overdue bill is still due — more
+// urgently, not less — so excluding it from "how many need attention soon"
+// would be exactly backwards. The upper bound is already enforced by
+// fetchSchedules's own `days_ahead` filter.
 interface ActualSchedulesData {
   schedules: ActualSchedule[];
   dueSoonCount: number;
@@ -28,9 +34,7 @@ async function fetchSchedulesData(
   signal?: AbortSignal
 ): Promise<ActualSchedulesData> {
   const schedules = await fetchSchedules(config, signal);
-  const dueSoonCount = schedules.filter(
-    (schedule) => schedule.daysUntil >= 0 && schedule.daysUntil <= 7
-  ).length;
+  const dueSoonCount = schedules.filter((schedule) => schedule.daysUntil <= 7).length;
   return {
     schedules: schedules.slice(0, config.limit),
     dueSoonCount,
@@ -134,7 +138,9 @@ export function ActualBudgetSchedulesWidget({
         })}
       </div>
       <div className="actualbudget-schedules-widget__footer">
-        <span className="actualbudget-schedules-widget__footer-label">Due within 7 days</span>
+        <span className="actualbudget-schedules-widget__footer-label">
+          Due within 7 days or overdue
+        </span>
         <span className="actualbudget-schedules-widget__footer-value">{data.dueSoonCount}</span>
       </div>
       {error && (
@@ -161,61 +167,7 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
   fetchTimeoutMs: 15_000,
   component: ActualBudgetSchedulesWidget,
   configFields: [
-    {
-      key: "url",
-      label: "URL",
-      type: "url",
-      required: true,
-      placeholder: "http://actual-http-api:5007",
-      description:
-        "URL of your actual-http-api sidecar, not your Actual Budget server.",
-    },
-    {
-      key: "api_key",
-      label: "API Key",
-      type: "password",
-      required: true,
-      description: "The sidecar's own API_KEY, not your Actual server password.",
-    },
-    {
-      key: "budget_sync_id",
-      label: "Budget Sync ID",
-      type: "text",
-      required: true,
-      description: "Actual → Settings → Show advanced settings → Sync ID.",
-    },
-    {
-      key: "encryption_password",
-      label: "Encryption Password",
-      type: "password",
-      required: false,
-      description: "Only needed for end-to-end-encrypted budgets.",
-    },
-    {
-      key: "currency",
-      label: "Currency",
-      type: "text",
-      required: false,
-      placeholder: "USD",
-      description: "3-letter ISO currency code, e.g. USD, EUR, GBP.",
-    },
-    {
-      key: "locale",
-      label: "Locale",
-      type: "text",
-      required: false,
-      placeholder: "en-US",
-      description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
-    },
-    {
-      key: "timezone",
-      label: "Timezone",
-      type: "text",
-      required: false,
-      placeholder: "Europe/Warsaw",
-      description:
-        "Optional IANA timezone name (e.g. Europe/Warsaw) used to resolve due dates ('today', 'overdue'). Defaults to the server's timezone.",
-    },
+    ...BASE_CONFIG_FIELDS,
     {
       key: "limit",
       label: "Schedule limit",
@@ -231,14 +183,6 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
       required: false,
       placeholder: "30",
       description: "Only show schedules due within this many days.",
-    },
-    {
-      key: "privacy_mode",
-      label: "Blur amounts until hover",
-      type: "boolean",
-      required: false,
-      defaultValue: true,
-      description: "Blurs monetary amounts on the tile until you hover over it.",
     },
   ],
 });

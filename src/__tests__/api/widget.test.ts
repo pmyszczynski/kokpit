@@ -64,9 +64,16 @@ beforeEach(() => {
   vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML);
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  // The "uses widget.fetchTimeoutMs" test below registers a permanent
+  // `__slow-sidecar__` widget via registerWidget, which throws on a
+  // duplicate id. vi.resetModules() in the next beforeEach gives a fresh
+  // registry anyway, but clearing it here too means this doesn't depend on
+  // that ordering — a real fragility under different module-import orders.
+  const { clearRegistry } = await import("../../widgets");
+  clearRegistry();
 });
 
 describe("GET /api/widget", () => {

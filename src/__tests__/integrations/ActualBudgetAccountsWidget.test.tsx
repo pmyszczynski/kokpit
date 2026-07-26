@@ -103,6 +103,23 @@ describe("ActualBudgetAccountsWidget", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders the badge as a sibling of the name, not nested inside it", () => {
+    // Regression test: the badge used to live inside .__name, which is
+    // overflow:hidden/white-space:nowrap/text-overflow:ellipsis — a long
+    // account name would truncate the badge right out of the DOM's visible
+    // area, silently hiding the "Off-budget" marker. It must be a sibling of
+    // .__name, not a descendant, so the name's own overflow clipping can
+    // never clip it away.
+    const { container } = render(
+      <ActualBudgetAccountsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
+    );
+    const badge = container.querySelector(".actualbudget-accounts-widget__badge");
+    const name = container.querySelector(".actualbudget-accounts-widget__name");
+    expect(badge).toBeInTheDocument();
+    expect(name).toBeInTheDocument();
+    expect(name?.contains(badge)).toBe(false);
+  });
+
   it("marks negative balances with the negative amount class", () => {
     const { container } = render(
       <ActualBudgetAccountsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />

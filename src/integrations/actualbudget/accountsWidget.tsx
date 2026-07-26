@@ -1,6 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
-import { fetchAccounts, ActualAccountsConfigSchema } from "./api";
+import { fetchAccounts, ActualAccountsConfigSchema, BASE_CONFIG_FIELDS } from "./api";
 import type { ActualAccountsConfig, ActualAccount } from "./api";
 import { Amount } from "./Amount";
 
@@ -80,10 +80,10 @@ export function ActualBudgetAccountsWidget({
           <div key={account.id} className="actualbudget-accounts-widget__row">
             <span className="actualbudget-accounts-widget__name" title={account.name}>
               {account.name}
-              {account.offbudget && (
-                <span className="actualbudget-accounts-widget__badge">Off-budget</span>
-              )}
             </span>
+            {account.offbudget && (
+              <span className="actualbudget-accounts-widget__badge">Off-budget</span>
+            )}
             <span className="actualbudget-accounts-widget__balance">
               <Amount cents={account.balance} currency={data.currency} locale={data.locale} />
             </span>
@@ -120,69 +120,7 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
   fetchTimeoutMs: 15_000,
   component: ActualBudgetAccountsWidget,
   configFields: [
-    {
-      key: "url",
-      label: "URL",
-      type: "url",
-      required: true,
-      placeholder: "http://actual-http-api:5007",
-      description:
-        "URL of your actual-http-api sidecar, not your Actual Budget server.",
-    },
-    {
-      key: "api_key",
-      label: "API Key",
-      type: "password",
-      required: true,
-      description: "The sidecar's own API_KEY, not your Actual server password.",
-    },
-    {
-      key: "budget_sync_id",
-      label: "Budget Sync ID",
-      type: "text",
-      required: true,
-      description: "Actual → Settings → Show advanced settings → Sync ID.",
-    },
-    {
-      key: "encryption_password",
-      label: "Encryption Password",
-      type: "password",
-      required: false,
-      description: "Only needed for end-to-end-encrypted budgets.",
-    },
-    {
-      key: "currency",
-      label: "Currency",
-      type: "text",
-      required: false,
-      placeholder: "USD",
-      description: "3-letter ISO currency code, e.g. USD, EUR, GBP.",
-    },
-    {
-      key: "locale",
-      label: "Locale",
-      type: "text",
-      required: false,
-      placeholder: "en-US",
-      description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
-    },
-    {
-      key: "timezone",
-      label: "Timezone",
-      type: "text",
-      required: false,
-      placeholder: "Europe/Warsaw",
-      description:
-        "Optional IANA timezone name (e.g. Europe/Warsaw), shared across all four Actual Budget widgets. Defaults to the server's timezone.",
-    },
-    {
-      key: "privacy_mode",
-      label: "Blur amounts until hover",
-      type: "boolean",
-      required: false,
-      defaultValue: true,
-      description: "Blurs monetary amounts on the tile until you hover over it.",
-    },
+    ...BASE_CONFIG_FIELDS,
     {
       key: "exclude_closed",
       label: "Hide closed accounts",

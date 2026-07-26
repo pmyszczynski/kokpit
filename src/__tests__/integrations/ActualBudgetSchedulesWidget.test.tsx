@@ -206,7 +206,7 @@ describe("ActualBudgetSchedulesWidget", () => {
     );
     // sch-today (0) and sch-soon (2) qualify; sch-overdue (-6) and sch-far
     // (37) do not — matching SAMPLE_DATA.dueSoonCount, precomputed above.
-    expect(screen.getByText("Due within 7 days")).toBeInTheDocument();
+    expect(screen.getByText("Due within 7 days or overdue")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
@@ -226,7 +226,7 @@ describe("ActualBudgetSchedulesWidget", () => {
         refresh={noop}
       />
     );
-    expect(screen.getByText("Due within 7 days")).toBeInTheDocument();
+    expect(screen.getByText("Due within 7 days or overdue")).toBeInTheDocument();
     expect(screen.getByText("9")).toBeInTheDocument();
   });
 
@@ -287,6 +287,6 @@ describe("ActualBudgetSchedulesWidget", () => {
     expect(
       container.querySelector(".actualbudget-schedules-widget--empty")
     ).toBeInTheDocument();
-    expect(screen.queryByText("Due within 7 days")).not.toBeInTheDocument();
+    expect(screen.queryByText("Due within 7 days or overdue")).not.toBeInTheDocument();
   });
 });

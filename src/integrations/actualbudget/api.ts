@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { WidgetConfigField } from "@/widgets";
 import { daysUntil, formatInTimeZone } from "./format";
 
 // ── Config ───────────────────────────────────────────────────────────────────
@@ -74,6 +75,89 @@ export interface ActualSchedulesConfig extends ActualBudgetBaseConfig {
   limit: number;
   days_ahead: number;
 }
+
+// ── Shared config fields ─────────────────────────────────────────────────────
+
+/**
+ * The config fields every one of the four widgets exposes for
+ * `ActualBudgetBaseConfig`, in display order. Each widget's `configFields`
+ * spreads this array first and appends its own fields after — see
+ * accountsWidget.tsx, categoriesWidget.tsx, schedulesWidget.tsx and
+ * summaryWidget.tsx.
+ *
+ * Previously these ~8 definitions (label, placeholder, description, the lot)
+ * were copy-pasted verbatim into all four files, and had already drifted:
+ * `timezone`'s description differed across all four copies (accounts noted it
+ * was shared-but-unused there, schedules described due-date resolution,
+ * categories/summary described budget-month resolution). This single
+ * definition is normative now; a per-widget nuance belongs in that widget's
+ * own extra fields, not in a forked copy of a shared one.
+ */
+export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
+  {
+    key: "url",
+    label: "URL",
+    type: "url",
+    required: true,
+    placeholder: "http://actual-http-api:5007",
+    description:
+      "URL of your actual-http-api sidecar, not your Actual Budget server.",
+  },
+  {
+    key: "api_key",
+    label: "API Key",
+    type: "password",
+    required: true,
+    description: "The sidecar's own API_KEY, not your Actual server password.",
+  },
+  {
+    key: "budget_sync_id",
+    label: "Budget Sync ID",
+    type: "text",
+    required: true,
+    description: "Actual → Settings → Show advanced settings → Sync ID.",
+  },
+  {
+    key: "encryption_password",
+    label: "Encryption Password",
+    type: "password",
+    required: false,
+    description: "Only needed for end-to-end-encrypted budgets.",
+  },
+  {
+    key: "currency",
+    label: "Currency",
+    type: "text",
+    required: false,
+    placeholder: "USD",
+    description: "3-letter ISO currency code, e.g. USD, EUR, GBP.",
+  },
+  {
+    key: "locale",
+    label: "Locale",
+    type: "text",
+    required: false,
+    placeholder: "en-US",
+    description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
+  },
+  {
+    key: "timezone",
+    label: "Timezone",
+    type: "text",
+    required: false,
+    placeholder: "Europe/Warsaw",
+    description:
+      "Optional IANA timezone name (e.g. Europe/Warsaw) used to resolve the current budget month. Defaults to the server's timezone.",
+  },
+  {
+    key: "privacy_mode",
+    label: "Blur amounts until hover",
+    type: "boolean",
+    required: false,
+    defaultValue: true,
+    description: "Blurs monetary amounts on the tile until you hover over it.",
+  },
+];
 
 // ── Widget-facing shapes ─────────────────────────────────────────────────────
 
