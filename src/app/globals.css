@@ -12,6 +12,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #2e2e2e;
   --color-error: #ef4444;
+  --color-warning: #f59e0b;
   --radius: 8px;
   --gap: 16px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -28,6 +29,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #2e2e2e;
   --color-error: #ef4444;
+  --color-warning: #f59e0b;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
@@ -42,6 +44,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #dddddd;
   --color-error: #dc2626;
+  --color-warning: #d97706;
   --shadow-sm: 0 1px 3px rgba(17, 17, 17, 0.08);
   --shadow-md: 0 12px 32px rgba(17, 17, 17, 0.12);
 }
@@ -56,6 +59,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #1f1f1f;
   --color-error: #ef4444;
+  --color-warning: #f59e0b;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.7);
 }
@@ -70,6 +74,7 @@
   --color-accent-hover: #0000cc;
   --color-border: #000000;
   --color-error: #cc0000;
+  --color-warning: #8a4b00;
   --shadow-sm: none;
   --shadow-md: none;
 }
@@ -514,6 +519,55 @@ button {
 .status-dot--pending {
   background: var(--color-text-muted);
   opacity: 0.5;
+}
+
+/* Broken-widget badge: shown instead of the widget area when a service's
+   widget config fails the widget's schema. Modelled on .widget-error, but as
+   an absolutely-positioned corner affordance. It takes the .status-dot's
+   top-right slot rather than adding a new one — the two are mutually
+   exclusive (see ServiceTile.tsx), so there's never a collision to resolve.
+   Bottom-left was tried first but sat on top of the wrapped
+   .service-tile__description on 1x1 tiles; don't reintroduce that. */
+.tile-widget-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  line-height: 0;
+  /* No background fill: it occupies the status dot's slot and should read as
+     the same kind of bare indicator. Dropping the fill also removes the
+     optical mismatch of a bottom-heavy triangle inside a circle. */
+  color: var(--color-warning, #f59e0b);
+  z-index: 2;
+  transition: color 150ms ease, transform 150ms ease;
+}
+
+/* Only interactive when edit mode is available (span[role=button], so it can
+   live inside the anchor tile). */
+.tile-widget-badge--interactive {
+  cursor: pointer;
+}
+
+.tile-widget-badge--interactive:hover {
+  color: color-mix(in srgb, var(--color-warning, #f59e0b) 70%, var(--color-text));
+  transform: scale(1.12);
+}
+
+/* Keyboard focus needs its own indicator: with no background left to shift,
+   suppressing the outline would make focus invisible. */
+.tile-widget-badge--interactive:focus-visible {
+  outline: 2px solid var(--color-warning, #f59e0b);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.tile-widget-badge__glyph {
+  display: block;
 }
 
 /* === SERVICE GROUPS === */
@@ -1333,6 +1387,15 @@ button {
 
 .settings-form-hint--error {
   color: var(--color-error);
+}
+
+.service-form__widget-issues ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.service-form__widget-issues li {
+  margin: 0.15rem 0;
 }
 
 /* === GROUP COMBOBOX === */
@@ -3500,8 +3563,11 @@ button {
   display: block;
 }
 
-/* Keep the edit-mode status dot clear of the kebab in the same corner. */
-.service-tile--editable .status-dot {
+/* Keep the edit-mode status dot clear of the kebab in the same corner. The
+   badge shares the dot's slot (they're mutually exclusive), so it needs the
+   identical shift for the same reason. */
+.service-tile--editable .status-dot,
+.service-tile--editable .tile-widget-badge {
   right: 30px;
 }
 

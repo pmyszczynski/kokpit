@@ -51,7 +51,7 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyWidgetDefinition = WidgetDefinition<any, any>;
+export type AnyWidgetDefinition = WidgetDefinition<any, any>;
 
 const widgetRegistry = new Map<string, AnyWidgetDefinition>();
 

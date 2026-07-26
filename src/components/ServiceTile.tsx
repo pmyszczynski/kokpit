@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import type { Size } from "@/config/schema";
 import { resolveIconRef } from "@/config/iconRef";
+import type { TileWidget, WidgetConfigIssue } from "@/widgets/tileWidget";
+import { useEditModeOptional } from "./edit/EditModeProvider";
 import { WidgetRenderer } from "./WidgetRenderer";
 
-// Client-safe slice of ServiceWidget: the config (credentials) stays on the
-// server — the widget data API looks it up in settings.yaml by service name.
-export interface TileWidget {
-  type: string;
-  refresh_interval_ms?: number;
-}
+// The client-safe widget slice now lives next to the resolver that builds it
+// (src/widgets/tileWidget.ts); re-exported here so the long-standing
+// `import ServiceTile, { TileWidget } from "./ServiceTile"` keeps working.
+export type { TileWidget };
 
 /**
  * Optional dnd-kit wiring for edit mode (B2). When present, the tile becomes a
@@ -50,6 +50,97 @@ export function DragGrip() {
       <circle cx="2.5" cy="13" r="1.3" fill="currentColor" />
       <circle cx="7.5" cy="13" r="1.3" fill="currentColor" />
     </svg>
+  );
+}
+
+/** Warning glyph for the broken-widget badge (no icon library in this repo). */
+function WarningTriangle() {
+  return (
+    <svg
+      className="tile-widget-badge__glyph"
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="M8 1.8 15.1 14.2H0.9z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <rect x="7.3" y="6" width="1.4" height="4.1" rx="0.7" fill="currentColor" />
+      <circle cx="8" cy="11.9" r="0.85" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * Badge shown instead of the widget when a service's widget config fails the
+ * widget's own schema — the visible replacement for the old silent downgrade
+ * to a plain link. Clicking it jumps straight to the service's edit dialog
+ * (entering edit mode first if needed), which is where the config gets fixed.
+ *
+ * The tile root is often an `<a>`, so — like Kebab — the trigger is a
+ * `span[role=button]` that swallows the click rather than a nested `<button>`.
+ * Without an edit-mode provider (or without edit rights) it degrades to a
+ * plain, non-interactive badge that still carries the tooltip.
+ */
+function WidgetConfigBadge({
+  name,
+  issues,
+}: {
+  name: string;
+  issues: WidgetConfigIssue[];
+}) {
+  const editMode = useEditModeOptional();
+  const interactive = editMode != null && editMode.canEdit;
+
+  const label = `Widget configuration error: ${name}`;
+  const tooltip = issues.map((i) => `${i.path}: ${i.message}`).join("\n");
+
+  if (!interactive) {
+    return (
+      <span
+        className="tile-widget-badge"
+        data-widget-config-invalid="true"
+        role="img"
+        aria-label={label}
+        title={tooltip}
+      >
+        <WarningTriangle />
+      </span>
+    );
+  }
+
+  const openEditor = () => editMode.requestServiceEdit(name);
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      className="tile-widget-badge tile-widget-badge--interactive"
+      data-widget-config-invalid="true"
+      aria-label={label}
+      title={tooltip}
+      // Never start a tile drag, follow the tile's link, or bubble to the grid.
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openEditor();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          openEditor();
+        }
+      }}
+    >
+      <WarningTriangle />
+    </span>
   );
 }
 
@@ -168,6 +259,12 @@ export default function ServiceTile({ name, url, icon, description, widget, size
     (drag ? " service-tile--editable" : "") +
     (drag?.dragging ? " service-tile--dragging" : "");
 
+  // Known widget type whose config failed the widget's schema: show the badge
+  // and skip the widget area entirely, so the tile body stays the plain link it
+  // already was — the badge is purely additive on top of it.
+  const invalidIssues =
+    widget?.invalid && widget.invalid.length > 0 ? widget.invalid : undefined;
+
   const handle = drag ? (
     <span
       ref={drag.handleRef}
@@ -184,13 +281,28 @@ export default function ServiceTile({ name, url, icon, description, widget, size
     <>
       {handle}
       {kebab}
-      {url && <StatusDot url={url} preview={preview} />}
+      {/*
+       * The status dot and the broken-widget badge share one slot (the
+       * top-right corner) and are mutually exclusive: a config that fails
+       * its schema is a more actionable signal than reachability, so the
+       * badge takes the dot's place instead of stacking alongside it. Do
+       * NOT "restore" `{url && <StatusDot ... />}` next to the badge — that
+       * was the old bottom-left layout and collided with the wrapped
+       * description on 1x1 tiles. The badge renders here even when there's
+       * no `url` (and so no dot today), since an invalid config still needs
+       * reporting.
+       */}
+      {invalidIssues ? (
+        <WidgetConfigBadge name={name} issues={invalidIssues} />
+      ) : (
+        url && <StatusDot url={url} preview={preview} />
+      )}
       <ServiceIcon icon={icon} url={url} name={name} />
       <span className="service-tile__name">{name}</span>
       {description && (
         <span className="service-tile__description">{description}</span>
       )}
-      {widget && (
+      {widget && !invalidIssues && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
           {preview ? (
             <span className="service-tile__widget-preview" aria-hidden="true">

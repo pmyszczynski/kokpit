@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, act, screen } from "@testing-library/react";
 import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
 
 // EditableServiceGrid reads the B1 setters from useEditMode; stub the context so
@@ -8,8 +8,20 @@ import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
 const setServices = vi.fn();
 const setGroups = vi.fn();
 const setBookmarks = vi.fn();
+// Mutable so individual tests can seed a pending name before rendering — see
+// the "pendingEditService" describe block below.
+let pendingEditService: string | null = null;
+const clearPendingEditService = vi.fn(() => {
+  pendingEditService = null;
+});
 vi.mock("@/components/edit/EditModeProvider", () => ({
-  useEditMode: () => ({ setServices, setGroups, setBookmarks }),
+  useEditMode: () => ({
+    setServices,
+    setGroups,
+    setBookmarks,
+    pendingEditService,
+    clearPendingEditService,
+  }),
 }));
 
 import EditableServiceGrid from "@/components/edit/EditableServiceGrid";
@@ -83,6 +95,79 @@ describe("edit-mode drag handles", () => {
     // Implicit "Bookmarks" section renders but is pinned — no reorder handle.
     expect(container.querySelector(".service-group__header")).not.toBeNull();
     expect(container.querySelector(".group-drag-handle")).toBeNull();
+  });
+});
+
+// jsdom doesn't implement <dialog>'s showModal/close at all (neither method
+// exists on the prototype), so there's nothing for vi.spyOn to wrap until a
+// base implementation is installed once, here. Each test then spies on top
+// of this stub and vi.restoreAllMocks() reverts to it — unlike a direct
+// `HTMLDialogElement.prototype.showModal = vi.fn()` assignment, which
+// vi.clearAllMocks() (see afterEach below) does NOT undo, leaking the
+// patched prototype methods into later suites in this file.
+if (typeof HTMLDialogElement.prototype.showModal !== "function") {
+  HTMLDialogElement.prototype.showModal = function () {};
+}
+if (typeof HTMLDialogElement.prototype.close !== "function") {
+  HTMLDialogElement.prototype.close = function () {};
+}
+
+describe("pendingEditService (broken-widget badge → ServiceForm handoff)", () => {
+  let showModalSpy: ReturnType<typeof vi.spyOn>;
+  let closeSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    showModalSpy = vi
+      .spyOn(HTMLDialogElement.prototype, "showModal")
+      .mockImplementation(() => {});
+    closeSpy = vi
+      .spyOn(HTMLDialogElement.prototype, "close")
+      .mockImplementation(function (this: HTMLDialogElement) {
+        this.dispatchEvent(new Event("close"));
+      });
+  });
+
+  afterEach(() => {
+    // Clears call history for every mock in the file (module-scope
+    // setServices/setGroups/setBookmarks/clearPendingEditService included),
+    // same as before. mockRestore() on the two dialog spies additionally
+    // reverts HTMLDialogElement.prototype back to the plain stub installed
+    // above, so the next beforeEach spies on that stub fresh instead of
+    // stacking a spy on top of the previous test's spy.
+    vi.clearAllMocks();
+    showModalSpy.mockRestore();
+    closeSpy.mockRestore();
+    pendingEditService = null;
+  });
+
+  it("a pendingEditService naming a real service opens its ServiceForm dialog, then clears the pending name", async () => {
+    pendingEditService = "Plex";
+    await act(async () => {
+      render(<EditableServiceGrid config={cfg()} />);
+    });
+    expect(screen.getByText("Edit Service")).toBeInTheDocument();
+    const nameInput = screen.getByLabelText("Name *") as HTMLInputElement;
+    expect(nameInput.value).toBe("Plex");
+    expect(clearPendingEditService).toHaveBeenCalledTimes(1);
+  });
+
+  it("a pendingEditService naming no service just clears the pending name (no dialog)", async () => {
+    pendingEditService = "No Such Service";
+    await act(async () => {
+      render(<EditableServiceGrid config={cfg()} />);
+    });
+    expect(screen.queryByText("Edit Service")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(clearPendingEditService).toHaveBeenCalledTimes(1);
+  });
+
+  it("a null pendingEditService is left alone (no dialog, no clear)", async () => {
+    pendingEditService = null;
+    await act(async () => {
+      render(<EditableServiceGrid config={cfg()} />);
+    });
+    expect(screen.queryByText("Edit Service")).not.toBeInTheDocument();
+    expect(clearPendingEditService).not.toHaveBeenCalled();
   });
 });
 

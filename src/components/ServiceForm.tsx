@@ -16,6 +16,7 @@ import {
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
+import { widgetConfigIssues, type WidgetConfigIssue } from "@/widgets/tileWidget";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
@@ -31,6 +32,14 @@ interface ServiceFormProps {
    * service.
    */
   initialPreset?: string;
+  /**
+   * True when this dialog was opened by clicking a tile's broken-widget
+   * badge rather than the kebab menu's Edit item. On mount, scrolls the
+   * Widget section into view and moves focus to the first invalid config
+   * field (or the tile-type selector, if there isn't one), so the user lands
+   * where the fix is needed instead of having to hunt for it.
+   */
+  focusWidget?: boolean;
   onSave: (service: Service) => void;
   onClose: () => void;
 }
@@ -277,26 +286,73 @@ function GroupCombobox({
   );
 }
 
+// The two issue lists (saved-config vs. live) render in mutually-exclusive
+// branches but share the same field keys, so their <li> ids are namespaced by
+// `kind` to avoid collisions. `index` is folded in too since a schema can, in
+// principle, report more than one issue for the same path. `path` is
+// sanitized because it comes from a Zod path (dotted, can contain characters
+// that aren't valid in an id token) — this is only used to build a readable
+// id, not to look anything up, so a lossy sanitize is fine.
+function widgetIssueElementId(
+  kind: "saved" | "live",
+  path: string,
+  index: number
+): string {
+  const sanitizedPath = path.replace(/[^a-zA-Z0-9_-]+/g, "-") || "root";
+  return `sf-widget-issue-${kind}-${index}-${sanitizedPath}`;
+}
+
 function WidgetConfigFields({
   fields,
   config,
   onChange,
+  issues,
+  issueKind,
 }: {
   fields: WidgetConfigField[];
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  /** Whichever issue list is currently displayed on screen (saved or live), or empty when neither is shown. */
+  issues: WidgetConfigIssue[];
+  issueKind: "saved" | "live";
 }) {
+  // Same "does this issue belong to this field" rule as the focusWidget mount
+  // effect below: exact path match, or a nested path under `field.key.`.
+  function issueIdsFor(key: string): string[] {
+    return issues
+      .map((issue, i) => ({ issue, i }))
+      .filter(
+        ({ issue }) =>
+          issue.path === key || issue.path.startsWith(`${key}.`)
+      )
+      .map(({ i }) => widgetIssueElementId(issueKind, issues[i].path, i));
+  }
+
   return (
     <>
       {fields.map((field) => {
         const value = config[field.key];
+        const fieldIssueIds = issueIdsFor(field.key);
+        const hintId = field.description ? `sf-widget-${field.key}-hint` : undefined;
+        const describedBy =
+          [...fieldIssueIds, hintId].filter(Boolean).join(" ") || undefined;
 
         if (field.type === "multiselect" && field.options) {
           const selected = Array.isArray(value) ? (value as string[]) : [];
+          // There's no single input this label/description apply to — it's a
+          // group of checkboxes — so the group gets role="group" plus
+          // aria-labelledby/aria-describedby instead of an input's
+          // aria-invalid/aria-describedby pairing.
+          const labelId = `sf-widget-${field.key}-label`;
           return (
             <div key={field.key} className="settings-form-row settings-form-row--multiselect">
-              <label>{field.label}</label>
-              <div className="widget-multiselect">
+              <label id={labelId}>{field.label}</label>
+              <div
+                className="widget-multiselect"
+                role="group"
+                aria-labelledby={labelId}
+                aria-describedby={describedBy}
+              >
                 {field.options.map((opt) => (
                   <label key={opt.value} className="widget-multiselect__option">
                     <input
@@ -314,7 +370,7 @@ function WidgetConfigFields({
                 ))}
               </div>
               {field.description && (
-                <p className="settings-form-hint">{field.description}</p>
+                <p id={hintId} className="settings-form-hint">{field.description}</p>
               )}
             </div>
           );
@@ -333,9 +389,11 @@ function WidgetConfigFields({
                 onChange(field.key, field.type === "number" ? (raw === "" ? undefined : Number(raw)) : raw);
               }}
               placeholder={field.placeholder}
+              aria-invalid={fieldIssueIds.length > 0 ? true : undefined}
+              aria-describedby={describedBy}
             />
             {field.description && (
-              <p className="settings-form-hint">{field.description}</p>
+              <p id={hintId} className="settings-form-hint">{field.description}</p>
             )}
           </div>
         );
@@ -350,10 +408,12 @@ export default function ServiceForm({
   takenNames = [],
   initialGroup,
   initialPreset,
+  focusWidget = false,
   onSave,
   onClose,
 }: ServiceFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const widgetSectionRef = useRef<HTMLDivElement>(null);
   const initial = initFromService(service);
   // For a NEW service opened from the edit-mode preset picker, seed the tile
   // type + its default name/icon exactly as picking it in the dropdown would.
@@ -389,6 +449,24 @@ export default function ServiceForm({
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
+  // True once the user has actively edited the widget config (or switched
+  // tile type) in this dialog session. Distinguishes "showing the saved
+  // config's problems" from "showing live edit feedback" below.
+  const [widgetConfigTouched, setWidgetConfigTouched] = useState(false);
+  // The issues the RAW saved config (settings.yaml, pre-`cleanWidgetConfig`)
+  // fails against its widget schema — i.e. exactly what made the tile show
+  // its warning badge. Computed once on mount (not recomputed as the user
+  // types) since its whole purpose is to describe the state the dialog was
+  // opened in. Guarded at the point of use below: it only applies while the
+  // selected widget type still matches what was actually saved, and while
+  // the user hasn't touched anything yet.
+  const [savedConfigIssues] = useState<WidgetConfigIssue[]>(() => {
+    const w = service?.widget;
+    if (!w) return [];
+    const def = getWidget(w.type);
+    if (!def) return [];
+    return widgetConfigIssues(def, w.config);
+  });
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
   const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
   const [iconPreviewError, setIconPreviewError] = useState(false);
@@ -422,13 +500,52 @@ export default function ServiceForm({
       : ((orphanWidget?.config as Record<string, unknown>) ?? {})
   );
   // Mirrors the dashboard's rule: the widget renders only when its config
-  // passes the schema. Unknown types can't be validated client-side.
-  const widgetConfigValid = selectedWidgetDef
-    ? selectedWidgetDef.configSchema.safeParse(activeCleanedConfig).success
-    : null;
+  // passes the schema. Unknown types can't be validated client-side. Uses the
+  // same shared mapper as the tile badge (src/widgets/tileWidget.ts) so the
+  // dialog's error list always matches what the badge's tooltip says.
+  const configIssues: WidgetConfigIssue[] = selectedWidgetDef
+    ? widgetConfigIssues(selectedWidgetDef, activeCleanedConfig)
+    : [];
+  const widgetConfigValid = selectedWidgetDef ? configIssues.length === 0 : null;
+  const widgetConfigEmpty = Object.keys(activeCleanedConfig).length === 0;
+  // An entirely empty config right after picking a widget type is the
+  // expected starting point, not a mistake — listing every "Required" issue
+  // at that moment is a wall of red text for no benefit, so the friendly
+  // hint (below) stays for that case. Once the user has typed *something*
+  // and it's still invalid, or the dialog was opened from a broken-tile
+  // badge (an already-saved config that fails validation), show the actual
+  // Zod issues so they know exactly what to fix.
+  const showSpecificWidgetIssues =
+    configIssues.length > 0 && (!widgetConfigEmpty || focusWidget);
+  // The saved-config issues only describe reality while (a) the user hasn't
+  // edited the widget config yet in this session, and (b) the widget type
+  // selected right now is still the one that was actually saved — switching
+  // types (or clearing back to Generic) makes the old issue list meaningless.
+  const showSavedConfigIssues =
+    !widgetConfigTouched &&
+    savedConfigIssues.length > 0 &&
+    service?.widget?.type === activeWidgetType;
+  // Whichever issue set is actually on screen right now — used to pick the
+  // field the focusWidget mount effect should focus.
+  const displayedWidgetIssues: WidgetConfigIssue[] = showSavedConfigIssues
+    ? savedConfigIssues
+    : configIssues;
+  // Same "which list is on screen" question, but for the aria-invalid /
+  // aria-describedby wiring on the fields themselves: unlike the focus
+  // effect (only meaningful once, under focusWidget), the fields render on
+  // every pass, so this must also cover the "nothing shown yet" case (a
+  // freshly-picked widget type with an empty, untouched config) — otherwise
+  // required-field issues that aren't actually displayed would still mark
+  // fields invalid and point aria-describedby at ids that don't exist.
+  const showingWidgetIssuesList = showSavedConfigIssues || showSpecificWidgetIssues;
+  const fieldIssueKind: "saved" | "live" = showSavedConfigIssues ? "saved" : "live";
+  const fieldIssues: WidgetConfigIssue[] = showingWidgetIssuesList
+    ? displayedWidgetIssues
+    : [];
 
   function handleWidgetConfigChange(key: string, value: unknown) {
     setWidgetConfig((prev) => ({ ...prev, [key]: value }));
+    setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
   }
 
@@ -438,10 +555,12 @@ export default function ServiceForm({
       const cfg = { ...((prev.config as Record<string, unknown>) ?? {}), [key]: value };
       return { ...prev, config: cfg };
     });
+    setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
   }
 
   function handleTileTypeChange(newTile: string) {
+    setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
     if (newTile === "") {
       if (tileType !== "") {
@@ -608,6 +727,36 @@ export default function ServiceForm({
 
   useEffect(() => {
     dialogRef.current?.showModal();
+  }, []);
+
+  // Opened from the broken-widget badge: scroll the Widget section into
+  // view and move focus to the first invalid config field, so the user
+  // lands right where the fix is needed. Runs once on mount, after the
+  // showModal() effect above so it wins over the dialog's default initial
+  // focus. Deliberately mount-only — this isn't meant to steal focus again
+  // on every keystroke as issues resolve.
+  useEffect(() => {
+    if (!focusWidget || !showWidgetSection) return;
+    widgetSectionRef.current?.scrollIntoView?.({ block: "nearest" });
+
+    const firstInvalidField = selectedWidgetDef?.configFields?.find((field) =>
+      displayedWidgetIssues.some(
+        (issue) => issue.path === field.key || issue.path.startsWith(`${field.key}.`)
+      )
+    );
+    const targetId = firstInvalidField
+      ? `sf-widget-${firstInvalidField.key}`
+      : "sf-tile-type";
+    // getElementById (not querySelector) because targetId embeds a
+    // widget-defined field.key: interpolating it into a CSS selector throws
+    // a SyntaxError for a key with a CSS-special character (or a leading
+    // digit). getElementById takes a literal id, no selector parsing. Still
+    // scoped to the dialog, matching the previous querySelector's intent.
+    const target = document.getElementById(targetId);
+    if (target && dialogRef.current?.contains(target)) {
+      target.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleSubmit(e: React.FormEvent) {
@@ -923,7 +1072,7 @@ export default function ServiceForm({
 
         {showWidgetSection && (
           <>
-            <div className="service-form__section-divider">
+            <div className="service-form__section-divider" ref={widgetSectionRef}>
               <span>Widget</span>
             </div>
 
@@ -944,6 +1093,8 @@ export default function ServiceForm({
                       ? handleWidgetConfigChange
                       : handleOrphanWidgetConfigChange
                   }
+                  issues={fieldIssues}
+                  issueKind={fieldIssueKind}
                 />
               )}
 
@@ -988,16 +1139,82 @@ export default function ServiceForm({
               />
             </div>
 
-            {selectedWidgetDef && (
+            {selectedWidgetDef && showSavedConfigIssues && (
+              <div
+                className="service-form__widget-issues"
+                role="alert"
+              >
+                <p className="settings-form-hint settings-form-hint--error">
+                  This is the saved configuration, and it&rsquo;s why the tile
+                  shows a warning badge — it doesn&rsquo;t match the
+                  widget&rsquo;s schema:
+                </p>
+                <ul>
+                  {savedConfigIssues.map((issue, i) => (
+                    <li
+                      key={`${issue.path}:${issue.message}`}
+                      id={widgetIssueElementId("saved", issue.path, i)}
+                      className="settings-form-hint settings-form-hint--error"
+                    >
+                      {issue.path}: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+                {/*
+                  Only true when the current (cleaned) config actually
+                  validates — i.e. the saved YAML holds an empty value on a
+                  field that has a schema default, so saving strips it and the
+                  default takes over. For a genuinely missing required field
+                  like Plex's `token`, saving fixes nothing and promising
+                  otherwise would be a lie.
+                */}
+                {widgetConfigValid && (
+                  <p className="settings-form-hint">
+                    Saving from here will normalize it (the empty value falls
+                    back to this field&rsquo;s default).
+                  </p>
+                )}
+              </div>
+            )}
+
+            {selectedWidgetDef && !showSavedConfigIssues && widgetConfigValid && (
               <p
                 role="status"
-                className={`settings-form-hint service-form__widget-status service-form__widget-status--${
-                  widgetConfigValid ? "active" : "inactive"
-                }`}
+                className="settings-form-hint service-form__widget-status service-form__widget-status--active"
               >
-                {widgetConfigValid
-                  ? "Widget configured — it will render on the dashboard tile."
-                  : "Widget not configured — the tile will render as a plain link until the required fields are filled."}
+                Widget configured — it will render on the dashboard tile.
+              </p>
+            )}
+
+            {selectedWidgetDef && !showSavedConfigIssues && !widgetConfigValid && showSpecificWidgetIssues && (
+              <div
+                className="service-form__widget-issues"
+                role="alert"
+              >
+                <p className="settings-form-hint settings-form-hint--error">
+                  Widget configuration doesn&rsquo;t match its schema — the tile
+                  will render as a plain link until these are fixed:
+                </p>
+                <ul>
+                  {configIssues.map((issue, i) => (
+                    <li
+                      key={`${issue.path}:${issue.message}`}
+                      id={widgetIssueElementId("live", issue.path, i)}
+                      className="settings-form-hint settings-form-hint--error"
+                    >
+                      {issue.path}: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selectedWidgetDef && !showSavedConfigIssues && !widgetConfigValid && !showSpecificWidgetIssues && (
+              <p
+                role="status"
+                className="settings-form-hint service-form__widget-status service-form__widget-status--inactive"
+              >
+                Widget not configured — the tile will render as a plain link until the required fields are filled.
               </p>
             )}
 
