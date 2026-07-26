@@ -79,6 +79,37 @@ const SALARY: ActualCategory = {
   carryover: false,
 };
 
+// budgeted === 0, spent < 0: nothing budgeted but real spending happened.
+// hide_empty does NOT drop this (that only catches budgeted AND spent both
+// 0), so it must rank as 100% spent — not 0%, which would sort it last and
+// let `limit` cut exactly the category a user most needs to see.
+const UNBUDGETED_SPENT: ActualCategory = {
+  id: "cat-unbudgeted",
+  name: "Miscellaneous",
+  groupName: "Everyday",
+  isIncome: false,
+  hidden: false,
+  budgeted: 0,
+  spent: -5000,
+  balance: -5000,
+  carryover: false,
+};
+
+// hidden === true: archived in Actual. Never something to show, and not a
+// configurable option — must be dropped unconditionally, before it can
+// consume a `limit` slot ahead of a visible category.
+const ARCHIVED: ActualCategory = {
+  id: "cat-archived",
+  name: "Archived Category",
+  groupName: "Everyday",
+  isIncome: false,
+  hidden: true,
+  budgeted: 10000,
+  spent: -10000,
+  balance: 0,
+  carryover: false,
+};
+
 const ALL_CATEGORIES = [GROCERIES, RENT, SALARY, GIFTS, ENTERTAINMENT];
 
 function makeData(overrides: Partial<CategoriesData> = {}): CategoriesData {
@@ -240,6 +271,103 @@ describe("ActualBudgetCategoriesWidget", () => {
       container.querySelectorAll(".actualbudget-categories-widget__row")
     ).find((el) => el.textContent?.includes("Rent"));
     expect(row?.className).toContain("actualbudget-categories-widget__row--warn");
+  });
+
+  it("never renders a hidden (archived) category", () => {
+    render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [ARCHIVED, GROCERIES],
+          hideIncome: true,
+          hideEmpty: true,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    expect(screen.queryByText("Archived Category")).not.toBeInTheDocument();
+  });
+
+  it("does not let a hidden category consume a limit slot and displace a visible one", () => {
+    const { container } = render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [ARCHIVED, RENT, GROCERIES],
+          hideIncome: true,
+          hideEmpty: true,
+          limit: 2,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    // Unfiltered, Archived's 100% would rank #1 and, at limit 2, push
+    // Groceries out of the top two. Filtering hidden categories first
+    // restores the correct top two: Rent (95%), Groceries (78%).
+    expect(rowNames(container)).toEqual(["Rent", "Groceries"]);
+    expect(screen.queryByText("Archived Category")).not.toBeInTheDocument();
+  });
+
+  it("treats an unbudgeted category with real spending as 100% spent, not 0%", () => {
+    render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [UNBUDGETED_SPENT],
+          hideIncome: true,
+          hideEmpty: true,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    const row = screen
+      .getByText("Miscellaneous")
+      .closest(".actualbudget-categories-widget__row");
+    expect(row).toHaveTextContent("100%");
+  });
+
+  it("applies the --over modifier to an unbudgeted category with real spending", () => {
+    const { container } = render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [UNBUDGETED_SPENT],
+          hideIncome: true,
+          hideEmpty: true,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    const row = container.querySelector(".actualbudget-categories-widget__row");
+    // budgeted: 0, spent: -5000 -> balance -5000, which is < 0 -> --over. This
+    // pins that the overspent test (balance < 0) already gets this case right
+    // independent of the percent-spent fix.
+    expect(row?.className).toContain("actualbudget-categories-widget__row--over");
+  });
+
+  it("ranks an unbudgeted category with real spending above ordinary partially-spent categories instead of sorting it last", () => {
+    const { container } = render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [GROCERIES, UNBUDGETED_SPENT, RENT],
+          hideIncome: true,
+          hideEmpty: true,
+          limit: 2,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    // Before the fix, calcProgress(0, …) returned 0 for the unbudgeted
+    // category, sorting it last and letting `limit` cut it — exactly the
+    // category a user most needs to see. It must rank among the top spenders
+    // (100%, ahead of Rent's 95%), not get truncated behind Groceries (78%).
+    expect(rowNames(container)).toEqual(["Miscellaneous", "Rent"]);
   });
 
   it("shows the stale error alongside data when data is non-null and error is set", () => {

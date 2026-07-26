@@ -7,6 +7,7 @@ const noop = () => {};
 
 interface SchedulesData {
   schedules: ActualSchedule[];
+  dueSoonCount: number;
   currency: string;
   locale?: string;
   privacyMode: boolean;
@@ -62,6 +63,9 @@ const DUE_FAR = {
 
 const SAMPLE_DATA: SchedulesData = {
   schedules: [OVERDUE, DUE_TODAY, DUE_SOON, DUE_FAR],
+  // sch-today (0) and sch-soon (2) qualify; sch-overdue (-6) and sch-far (37)
+  // do not.
+  dueSoonCount: 2,
   currency: "USD",
   locale: "en-US",
   privacyMode: false,
@@ -191,7 +195,7 @@ describe("ActualBudgetSchedulesWidget", () => {
     expect(amount).toHaveTextContent("-$1,200.00");
   });
 
-  it("counts only schedules with daysUntil between 0 and 7 inclusive in the footer", () => {
+  it("shows data.dueSoonCount in the footer", () => {
     render(
       <ActualBudgetSchedulesWidget
         data={SAMPLE_DATA}
@@ -201,9 +205,29 @@ describe("ActualBudgetSchedulesWidget", () => {
       />
     );
     // sch-today (0) and sch-soon (2) qualify; sch-overdue (-6) and sch-far
-    // (37) do not.
+    // (37) do not — matching SAMPLE_DATA.dueSoonCount, precomputed above.
     expect(screen.getByText("Due within 7 days")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("reads the footer count from data.dueSoonCount rather than recomputing it from the (already limit-truncated) displayed list", () => {
+    // If the component recomputed the count from `data.schedules`, this would
+    // show 1 (only DUE_TODAY is in the truncated display list and due soon).
+    // The fetchData wrapper computes dueSoonCount from the full list before
+    // truncating for display, so a value that disagrees with the displayed
+    // list's own count proves the component defers to it rather than
+    // recomputing — the exact bug this fixes: more due-soon schedules than
+    // `limit` would otherwise under-report in the footer.
+    render(
+      <ActualBudgetSchedulesWidget
+        data={{ ...SAMPLE_DATA, schedules: [DUE_TODAY], dueSoonCount: 9 }}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    expect(screen.getByText("Due within 7 days")).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
   });
 
   it("shows the stale error alongside data when data is non-null and error is set", () => {
@@ -247,7 +271,13 @@ describe("ActualBudgetSchedulesWidget", () => {
   it("renders an empty schedule list without crashing", () => {
     const { container } = render(
       <ActualBudgetSchedulesWidget
-        data={{ schedules: [], currency: "USD", locale: "en-US", privacyMode: false }}
+        data={{
+          schedules: [],
+          dueSoonCount: 0,
+          currency: "USD",
+          locale: "en-US",
+          privacyMode: false,
+        }}
         loading={false}
         error={null}
         refresh={noop}

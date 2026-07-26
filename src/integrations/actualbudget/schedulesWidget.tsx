@@ -9,8 +9,15 @@ import { Amount } from "./Amount";
 // (currency/locale/privacy_mode) into the returned data, wrapped in an object
 // rather than stuck onto the array (JSON.stringify drops non-index
 // properties on an array — see accountsWidget.tsx).
+//
+// `dueSoonCount` is computed here, from the full (unsliced) list fetchSchedules
+// returns, *before* truncating `schedules` to `config.limit` for display. If
+// the count were derived from the already-truncated array instead, the
+// footer would under-report whenever more than `limit` schedules fall within
+// 7 days — exactly the case a "due soon" count exists to surface.
 interface ActualSchedulesData {
   schedules: ActualSchedule[];
+  dueSoonCount: number;
   currency: string;
   locale?: string;
   privacyMode: boolean;
@@ -21,8 +28,12 @@ async function fetchSchedulesData(
   signal?: AbortSignal
 ): Promise<ActualSchedulesData> {
   const schedules = await fetchSchedules(config, signal);
+  const dueSoonCount = schedules.filter(
+    (schedule) => schedule.daysUntil >= 0 && schedule.daysUntil <= 7
+  ).length;
   return {
-    schedules,
+    schedules: schedules.slice(0, config.limit),
+    dueSoonCount,
     currency: config.currency,
     locale: config.locale,
     privacyMode: config.privacy_mode,
@@ -74,10 +85,6 @@ export function ActualBudgetSchedulesWidget({
     );
   }
 
-  const dueSoonCount = data.schedules.filter(
-    (schedule) => schedule.daysUntil >= 0 && schedule.daysUntil <= 7
-  ).length;
-
   return (
     <div
       className={`actualbudget-schedules-widget${privateClass}`}
@@ -128,7 +135,7 @@ export function ActualBudgetSchedulesWidget({
       </div>
       <div className="actualbudget-schedules-widget__footer">
         <span className="actualbudget-schedules-widget__footer-label">Due within 7 days</span>
-        <span className="actualbudget-schedules-widget__footer-value">{dueSoonCount}</span>
+        <span className="actualbudget-schedules-widget__footer-value">{data.dueSoonCount}</span>
       </div>
       {error && (
         <span className="actualbudget-schedules-widget__stale-error" role="alert">
@@ -199,6 +206,15 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
       required: false,
       placeholder: "en-US",
       description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
+    },
+    {
+      key: "timezone",
+      label: "Timezone",
+      type: "text",
+      required: false,
+      placeholder: "Europe/Warsaw",
+      description:
+        "Optional IANA timezone name (e.g. Europe/Warsaw) used to resolve due dates ('today', 'overdue'). Defaults to the server's timezone.",
     },
     {
       key: "limit",

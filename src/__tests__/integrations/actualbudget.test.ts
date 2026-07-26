@@ -723,6 +723,32 @@ describe("currentMonth", () => {
 });
 
 // ---------------------------------------------------------------------------
+// currentMonth with an explicit `timezone` config field
+// ---------------------------------------------------------------------------
+
+describe("currentMonth with an explicit IANA time zone", () => {
+  it("resolves a boundary instant to a different month in Europe/Warsaw than in UTC", () => {
+    withTimeZone("UTC", () => {
+      // 2026-07-31T23:30:00Z is still July in UTC but already 2026-08-01T01:30
+      // local in Warsaw (UTC+2 in summer) — already August there.
+      const instant = new Date("2026-07-31T23:30:00Z");
+      expect(currentMonth(instant)).toBe("2026-07");
+      expect(currentMonth(instant, "Europe/Warsaw")).toBe("2026-08");
+    });
+  });
+
+  it("falls back to local time when the time zone string is invalid, instead of throwing", () => {
+    withTimeZone("UTC", () => {
+      // Intl.DateTimeFormat throws RangeError for an unknown IANA name; that
+      // must not take down the widget over a typo'd config field.
+      const instant = new Date("2026-07-31T23:30:00Z");
+      expect(() => currentMonth(instant, "Not/AZone")).not.toThrow();
+      expect(currentMonth(instant, "Not/AZone")).toBe("2026-07");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // fetchSummary
 // ---------------------------------------------------------------------------
 
@@ -812,6 +838,25 @@ describe("fetchSummary", () => {
     await expect(fetchSummary(BASE_CONFIG)).rejects.toThrow(
       "Actual Budget responded with 500: Budget sync failed"
     );
+  });
+
+  it("requests the config.timezone month, not the host-local month, at a boundary instant", async () => {
+    // At this instant, UTC (and this test runner, whatever its host TZ) would
+    // resolve to July, but Europe/Warsaw is already in August — proving
+    // config.timezone, not the container's local time, drives which month is
+    // requested.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-31T23:30:00Z"));
+    const mockFetch = makeFetchMock({
+      "/months/": makeJsonResponse(MOCK_MONTH),
+      "/accounts": makeJsonResponse(MOCK_ACCOUNTS),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchSummary({ ...BASE_CONFIG, timezone: "Europe/Warsaw" });
+
+    const [url] = firstCall(mockFetch, "/months/");
+    expect(url).toContain("/months/2026-08");
   });
 });
 
@@ -995,7 +1040,13 @@ describe("fetchSchedules", () => {
     expect(schedules[1].daysUntil).toBe(4);
   });
 
-  it("slices the result to limit", async () => {
+  it("does not truncate to limit — truncation for display is the widget's job, not the data layer's", async () => {
+    // This behaviour moved: fetchSchedules used to slice(0, config.limit),
+    // which meant a widget computing "due within 7 days" from this array
+    // under-reported whenever more than `limit` schedules qualified. The
+    // limit is now applied by the widget's fetchData wrapper after it has
+    // counted from the full list (see ActualBudgetSchedulesWidget tests and
+    // the "actualbudget-schedules fetchData wrapper" describe block below).
     stubClock("2026-07-26T12:00:00");
     vi.stubGlobal(
       "fetch",
@@ -1015,7 +1066,9 @@ describe("fetchSchedules", () => {
 
     const schedules = await fetchSchedules({ ...SCHEDULES_CONFIG, limit: 3 });
 
-    expect(schedules.map((s) => s.id)).toEqual(["s0", "s1", "s2"]);
+    expect(schedules.map((s) => s.id)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `s${i}`)
+    );
   });
 
   it("collapses an isbetween amount to a midpoint and exposes the range", async () => {
@@ -1131,6 +1184,37 @@ describe("fetchSchedules", () => {
     expect(schedules).toHaveLength(1);
     expect(schedules[0].nextDate).toBe("2026-07-27");
   });
+
+  it("resolves daysUntil in config.timezone, not host-local time, at a boundary instant", async () => {
+    // At this instant a schedule due 2026-08-01 is still a day away in UTC,
+    // but Europe/Warsaw is already past midnight into 2026-08-01 — so the
+    // same schedule is due "today" there. Proves config.timezone reaches
+    // daysUntil rather than being dropped on the way from fetchSchedules.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-31T23:30:00Z"));
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock({
+        "/schedules": makeJsonResponse([
+          {
+            id: "s1",
+            name: "Rent",
+            next_date: "2026-08-01",
+            completed: false,
+            amount: -100,
+          },
+        ]),
+        "/payees": makeJsonResponse([]),
+      })
+    );
+
+    const schedules = await fetchSchedules({
+      ...SCHEDULES_CONFIG,
+      timezone: "Europe/Warsaw",
+    });
+
+    expect(schedules[0].daysUntil).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1208,6 +1292,31 @@ describe("daysUntil", () => {
 });
 
 // ---------------------------------------------------------------------------
+// daysUntil with an explicit `timezone` config field
+// ---------------------------------------------------------------------------
+
+describe("daysUntil with an explicit IANA time zone", () => {
+  it("resolves a boundary instant to a different day-count in Europe/Warsaw than in UTC", () => {
+    withTimeZone("UTC", () => {
+      // 2026-07-31T23:30:00Z is still 2026-07-31 in UTC (a schedule due
+      // 2026-08-01 is a day away) but already 2026-08-01T01:30 local in
+      // Warsaw, where the same schedule is due "today".
+      const instant = new Date("2026-07-31T23:30:00Z");
+      expect(daysUntil("2026-08-01", instant)).toBe(1);
+      expect(daysUntil("2026-08-01", instant, "Europe/Warsaw")).toBe(0);
+    });
+  });
+
+  it("falls back to local time when the time zone string is invalid, instead of throwing", () => {
+    withTimeZone("UTC", () => {
+      const instant = new Date("2026-07-31T23:30:00Z");
+      expect(() => daysUntil("2026-08-01", instant, "Not/AZone")).not.toThrow();
+      expect(daysUntil("2026-08-01", instant, "Not/AZone")).toBe(1);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Config schemas
 // ---------------------------------------------------------------------------
 
@@ -1250,6 +1359,19 @@ describe("actualbudget config schemas", () => {
     expect(
       ActualSummaryConfigSchema.safeParse({ ...MINIMAL, currency: "US" }).success
     ).toBe(false);
+  });
+
+  it("accepts an optional timezone (IANA name), leaving it undefined by default", () => {
+    const withoutTz = ActualSummaryConfigSchema.safeParse(MINIMAL);
+    expect(withoutTz.success).toBe(true);
+    expect(withoutTz.data?.timezone).toBeUndefined();
+
+    const withTz = ActualSummaryConfigSchema.safeParse({
+      ...MINIMAL,
+      timezone: "Europe/Warsaw",
+    });
+    expect(withTz.success).toBe(true);
+    expect(withTz.data?.timezone).toBe("Europe/Warsaw");
   });
 
   it("accepts an optional encryption password and locale", () => {
@@ -1441,6 +1563,27 @@ describe("actualbudget widget registration", () => {
       });
     });
 
+    it("exposes timezone as an optional text field", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/summaryWidget"),
+        "actualbudget-summary"
+      );
+      expect(fieldByKey(def, "timezone")).toMatchObject({
+        type: "text",
+        required: false,
+      });
+    });
+
+    it("configSchema accepts an explicit timezone", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-summary")!.configSchema.safeParse({
+        ...MINIMAL_CONFIG,
+        timezone: "Europe/Warsaw",
+      });
+      expect(result.success).toBe(true);
+    });
+
     it("every boolean field's defaultValue matches the schema default", async () => {
       const def = await loadWidget(
         () => import("@/integrations/actualbudget/summaryWidget"),
@@ -1548,6 +1691,27 @@ describe("actualbudget widget registration", () => {
         type: "boolean",
         defaultValue: true,
       });
+    });
+
+    it("exposes timezone as an optional text field", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/categoriesWidget"),
+        "actualbudget-categories"
+      );
+      expect(fieldByKey(def, "timezone")).toMatchObject({
+        type: "text",
+        required: false,
+      });
+    });
+
+    it("configSchema accepts an explicit timezone", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-categories")!.configSchema.safeParse({
+        ...MINIMAL_CONFIG,
+        timezone: "Europe/Warsaw",
+      });
+      expect(result.success).toBe(true);
     });
 
     it("exposes limit as a number field", async () => {
@@ -1666,6 +1830,27 @@ describe("actualbudget widget registration", () => {
       });
     });
 
+    it("exposes timezone as an optional text field", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/accountsWidget"),
+        "actualbudget-accounts"
+      );
+      expect(fieldByKey(def, "timezone")).toMatchObject({
+        type: "text",
+        required: false,
+      });
+    });
+
+    it("configSchema accepts an explicit timezone", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-accounts")!.configSchema.safeParse({
+        ...MINIMAL_CONFIG,
+        timezone: "Europe/Warsaw",
+      });
+      expect(result.success).toBe(true);
+    });
+
     it("every boolean field's defaultValue matches the schema default", async () => {
       const def = await loadWidget(
         () => import("@/integrations/actualbudget/accountsWidget"),
@@ -1773,12 +1958,76 @@ describe("actualbudget widget registration", () => {
       expect(fieldByKey(def, "days_ahead")).toMatchObject({ type: "number" });
     });
 
+    it("exposes timezone as an optional text field", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/schedulesWidget"),
+        "actualbudget-schedules"
+      );
+      expect(fieldByKey(def, "timezone")).toMatchObject({
+        type: "text",
+        required: false,
+      });
+    });
+
+    it("configSchema accepts an explicit timezone", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-schedules")!.configSchema.safeParse({
+        ...MINIMAL_CONFIG,
+        timezone: "Europe/Warsaw",
+      });
+      expect(result.success).toBe(true);
+    });
+
     it("every boolean field's defaultValue matches the schema default", async () => {
       const def = await loadWidget(
         () => import("@/integrations/actualbudget/schedulesWidget"),
         "actualbudget-schedules"
       );
       expectBooleanFieldDefaultsMatchSchema(def);
+    });
+  });
+
+  describe("actualbudget-schedules fetchData wrapper", () => {
+    it("reports dueSoonCount from the full due-soon list, computed before truncating to limit for display", async () => {
+      // Fix: fetchSchedules used to slice(0, config.limit) itself, and the
+      // widget derived "due within 7 days" from that already-truncated
+      // array — under-reporting whenever more than `limit` schedules were
+      // due soon. fetchSchedules no longer truncates; this wrapper counts
+      // from the full list first, then slices `schedules` for display.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-26T12:00:00"));
+      vi.stubGlobal(
+        "fetch",
+        makeFetchMock({
+          "/schedules": makeJsonResponse(
+            Array.from({ length: 10 }, (_, i) => ({
+              id: `s${i}`,
+              name: `Schedule ${i}`,
+              // Every schedule is 1 day out — all 10 are "due soon".
+              next_date: "2026-07-27",
+              completed: false,
+              amount: -100,
+            }))
+          ),
+          "/payees": makeJsonResponse([]),
+        })
+      );
+
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const widget = getWidget("actualbudget-schedules")!;
+
+      const data = (await widget.fetchData({
+        ...MINIMAL_CONFIG,
+        currency: "USD",
+        privacy_mode: true,
+        limit: 3,
+        days_ahead: 30,
+      })) as { schedules: unknown[]; dueSoonCount: number };
+
+      expect(data.schedules).toHaveLength(3);
+      expect(data.dueSoonCount).toBe(10);
     });
   });
 });

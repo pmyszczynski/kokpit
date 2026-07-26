@@ -24,7 +24,11 @@ async function fetchCategoriesData(
   config: ActualCategoriesConfig,
   signal?: AbortSignal
 ): Promise<ActualCategoriesData> {
-  const month = await fetchBudgetMonth(config, currentMonth(), signal);
+  const month = await fetchBudgetMonth(
+    config,
+    currentMonth(new Date(), config.timezone),
+    signal
+  );
   return {
     ...month,
     currency: config.currency,
@@ -36,13 +40,30 @@ async function fetchCategoriesData(
   };
 }
 
-/** Percent of budgeted spent, 0–100. `spent` is negative, so abs it first. */
+/**
+ * Percent of budgeted spent, 0–100. `spent` is negative, so abs it first.
+ *
+ * `calcProgress` returns 0 whenever `budgeted` is 0 — correct for a category
+ * with nothing budgeted and nothing spent, but wrong for one with real
+ * spending and no budget at all. That is exactly the category a user most
+ * needs to see, and `hide_empty` doesn't catch it (it only drops categories
+ * where budgeted *and* spent are both 0), so without this it silently sorts
+ * to the bottom and gets cut by `limit`. Treat unbudgeted-but-spent as fully
+ * consumed instead.
+ */
 function percentSpent(category: ActualCategory): number {
+  if (category.budgeted === 0) {
+    return Math.abs(category.spent) > 0 ? 100 : 0;
+  }
   return calcProgress(category.budgeted, category.budgeted - Math.abs(category.spent));
 }
 
 function visibleCategories(data: ActualCategoriesData): ActualCategory[] {
   return data.categories
+    // "hidden" in Actual means archived — never something to show, and never
+    // configurable. Left unfiltered, an archived category still consumes a
+    // slot from `limit`, displacing an active one.
+    .filter((c) => !c.hidden)
     .filter((c) => !data.hideIncome || !c.isIncome)
     .filter((c) => !data.hideEmpty || !(c.budgeted === 0 && c.spent === 0))
     .slice()
@@ -202,6 +223,15 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
       required: false,
       placeholder: "en-US",
       description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
+    },
+    {
+      key: "timezone",
+      label: "Timezone",
+      type: "text",
+      required: false,
+      placeholder: "Europe/Warsaw",
+      description:
+        "Optional IANA timezone name (e.g. Europe/Warsaw) used to resolve the current budget month. Defaults to the server's timezone.",
     },
     {
       key: "limit",

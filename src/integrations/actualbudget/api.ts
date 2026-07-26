@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { daysUntil } from "./format";
+import { daysUntil, formatInTimeZone } from "./format";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -8,6 +8,12 @@ import { daysUntil } from "./format";
 // the sidecar's own key, and `encryption_password` is only needed for
 // end-to-end-encrypted budgets. The API carries no currency information, so
 // `currency`/`locale` are config rather than anything we can discover.
+//
+// `timezone` is an optional IANA name (e.g. "Europe/Warsaw") used to resolve
+// "current month" and "days until" boundaries. No Dockerfile or compose file
+// in this repo sets `TZ`, so the container runs UTC by default — without this,
+// a user outside UTC gets the wrong budget month for several hours around
+// every month boundary, and a schedule due today can read as "1d" away.
 const BaseConfigSchema = z.object({
   url: z.string().url(),
   api_key: z.string().min(1),
@@ -16,6 +22,7 @@ const BaseConfigSchema = z.object({
   currency: z.string().length(3).default("USD"),
   locale: z.string().optional(),
   privacy_mode: z.boolean().default(true),
+  timezone: z.string().optional(),
 });
 
 export const ActualSummaryConfigSchema = BaseConfigSchema;
@@ -44,6 +51,8 @@ export interface ActualBudgetBaseConfig {
   currency: string;
   locale?: string;
   privacy_mode: boolean;
+  /** IANA zone name (e.g. "Europe/Warsaw"). Omit to use the server's local time. */
+  timezone?: string;
 }
 
 export type ActualSummaryConfig = ActualBudgetBaseConfig;
@@ -306,10 +315,24 @@ async function actualFetch<T>(
 
 // ── Fetchers ─────────────────────────────────────────────────────────────────
 
-/** The current month as local-time `YYYY-MM`. */
-export function currentMonth(now: Date = new Date()): string {
-  // Deliberately not toISOString(): that is UTC and reports the wrong month for
-  // the first or last hours of a month anywhere outside UTC.
+/**
+ * The current month as `YYYY-MM`, resolved in `timeZone` when given (falling
+ * back to local time if the zone string is invalid — `Intl.DateTimeFormat`
+ * throws `RangeError` on an unknown IANA name, which must not take down the
+ * widget), and in local time otherwise.
+ *
+ * Deliberately not `toISOString()`: that is UTC and reports the wrong month
+ * for the first or last hours of a month anywhere outside UTC. Local time is
+ * itself only correct when the container's `TZ` matches the user — nothing in
+ * this repo sets one, so the container runs UTC — which is exactly why
+ * `timeZone` exists.
+ */
+export function currentMonth(now: Date = new Date(), timeZone?: string): string {
+  const formatted = timeZone
+    ? formatInTimeZone(now, timeZone, { year: "numeric", month: "2-digit" })
+    : null;
+  if (formatted) return formatted;
+
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -399,7 +422,7 @@ export async function fetchSummary(
   signal?: AbortSignal
 ): Promise<ActualSummary> {
   const [month, accounts] = await Promise.all([
-    fetchBudgetMonth(config, currentMonth(), signal),
+    fetchBudgetMonth(config, currentMonth(new Date(), config.timezone), signal),
     fetchAccounts({ ...config, exclude_closed: true }, signal).catch(() => null),
   ]);
 
@@ -438,7 +461,13 @@ function normalizeAmount(amount: number | { num1: number; num2: number } | null 
 
 /**
  * Fetches upcoming (and overdue) schedules within `days_ahead`, sorted by due
- * date and sliced to `limit`.
+ * date.
+ *
+ * Does **not** slice to `limit`: that is a display concern (how many rows a
+ * tile has room for), not a data-scoping one, and a widget footer that counts
+ * "due within 7 days" needs the full filtered list to count correctly — a
+ * caller that truncates here first would under-report whenever more than
+ * `limit` schedules are due soon. Callers slice for display themselves.
  *
  * `next_date` is the computed next due date for one-off and recurring
  * schedules alike, so the RecurConfig on `date` is never decoded. Payee names
@@ -473,13 +502,12 @@ export async function fetchSchedules(
           schedule.name ??
           "—",
         nextDate,
-        daysUntil: daysUntil(nextDate, now),
+        daysUntil: daysUntil(nextDate, now, config.timezone),
         ...normalizeAmount(schedule.amount),
         amountOp: schedule.amountOp ?? null,
       };
     })
     // Overdue schedules are kept: the widget renders them as such.
     .filter((schedule) => schedule.daysUntil <= config.days_ahead)
-    .sort((a, b) => a.nextDate.localeCompare(b.nextDate))
-    .slice(0, config.limit);
+    .sort((a, b) => a.nextDate.localeCompare(b.nextDate));
 }

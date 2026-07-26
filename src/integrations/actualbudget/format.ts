@@ -32,16 +32,47 @@ export function formatMoney(
 }
 
 /**
- * Whole days from today to a `YYYY-MM-DD` date, in local time. Negative when
- * the date is in the past.
+ * Formats `date` as `YYYY-MM-DD` (or `YYYY-MM`, depending on `options`) inside
+ * `timeZone`, using `en-CA` for its ISO-ordered parts. Returns null when
+ * `timeZone` is not a valid IANA zone name — the constructor throws
+ * `RangeError` for that, which must not take down a widget over a typo'd
+ * config field. Callers fall back to local time on a null result.
+ */
+export function formatInTimeZone(
+  date: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions
+): string | null {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { ...options, timeZone }).format(
+      date
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whole days from today to a `YYYY-MM-DD` date. Negative when the date is in
+ * the past.
  *
  * The date is split by hand rather than passed to `new Date(string)`, which
  * parses a bare `YYYY-MM-DD` as UTC midnight and lands on the previous day for
  * anyone west of UTC. Rounding (not truncating) the difference absorbs the 23-
  * and 25-hour days either side of a DST transition. Returns 0 for anything
  * that isn't a parseable date, so callers never see NaN.
+ *
+ * "Today" is resolved in `timeZone` when given (falling back to local time if
+ * the zone string is invalid), and in local time otherwise. Without this, a
+ * container that runs UTC (the default — no Dockerfile or compose file in
+ * this repo sets `TZ`) reports the wrong day for anyone outside UTC, which
+ * shows up as "1d" for a schedule that is actually due today.
  */
-export function daysUntil(isoDate: string, now: Date = new Date()): number {
+export function daysUntil(
+  isoDate: string,
+  now: Date = new Date(),
+  timeZone?: string
+): number {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
   if (!match) return 0;
 
@@ -50,7 +81,22 @@ export function daysUntil(isoDate: string, now: Date = new Date()): number {
     Number(match[2]) - 1,
     Number(match[3])
   );
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const formatted = timeZone
+    ? formatInTimeZone(now, timeZone, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+    : null;
+
+  let today: Date;
+  if (formatted) {
+    const [y, m, d] = formatted.split("-").map(Number);
+    today = new Date(y, m - 1, d);
+  } else {
+    today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
 
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }

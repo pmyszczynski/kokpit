@@ -167,6 +167,15 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
       description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
     },
     {
+      key: "timezone",
+      label: "Timezone",
+      type: "text",
+      required: false,
+      placeholder: "Europe/Warsaw",
+      description:
+        "Optional IANA timezone name (e.g. Europe/Warsaw), shared across all four Actual Budget widgets. Defaults to the server's timezone.",
+    },
+    {
       key: "privacy_mode",
       label: "Blur amounts until hover",
       type: "boolean",

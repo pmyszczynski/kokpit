@@ -900,6 +900,8 @@ Then pin the sidecar's image tag to match your Actual server's version line (e.g
 
 **Privacy mode (default on):** Amounts are blurred by default and reveal on hover or focus. Set `privacy_mode: false` in the widget config to always show amounts.
 
+**Two different URLs, on purpose:** each example below sets a service-level `url` (your Actual Budget server, e.g. `http://actual-server:5006`) — that's only where clicking the tile navigates — and a separate `widget.config.url` (the sidecar, e.g. `http://actual-http-api:5007`) — that's what the widget actually fetches from. Pointing both at the sidecar gives you a tile that opens raw JSON instead of your budget.
+
 #### `actualbudget-summary`
 
 Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of overspent categories, and Net Worth.
@@ -907,16 +909,17 @@ Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of ove
 ```yaml
 services:
   - name: Actual Budget
-    url: http://actual-http-api:5007
+    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
     icon: di-actual-budget
     widget:
       type: actualbudget-summary
       config:
-        url: http://actual-http-api:5007
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
         # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
@@ -928,12 +931,12 @@ Shows per-category spending vs. budget as a sorted list with progress bars and c
 ```yaml
 services:
   - name: Budget Categories
-    url: http://actual-http-api:5007
+    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
     icon: di-actual-budget
     widget:
       type: actualbudget-categories
       config:
-        url: http://actual-http-api:5007
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
         # limit: 8                    # optional; top N categories by spend (1–50, default: 8)
@@ -941,6 +944,7 @@ services:
         # hide_empty: true            # optional; exclude categories with no budget/spend (default: true)
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
         # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
@@ -952,18 +956,19 @@ Lists all accounts with their current balance, filtered by closed/off-budget sta
 ```yaml
 services:
   - name: Budget Accounts
-    url: http://actual-http-api:5007
+    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
     icon: di-actual-budget
     widget:
       type: actualbudget-accounts
       config:
-        url: http://actual-http-api:5007
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
         # exclude_closed: true        # optional; hide closed accounts (default: true)
         # exclude_offbudget: false    # optional; hide off-budget accounts (default: false)
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
         # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
@@ -975,18 +980,19 @@ Shows upcoming bills and income rules, sorted by due date, with relative due dat
 ```yaml
 services:
   - name: Budget Schedule
-    url: http://actual-http-api:5007
+    url: http://actual-server:5006   # your Actual Budget server — where the tile navigates
     icon: di-actual-budget
     widget:
       type: actualbudget-schedules
       config:
-        url: http://actual-http-api:5007
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
         # limit: 6                    # optional; top N schedules (1–50, default: 6)
         # days_ahead: 30              # optional; schedules due within N days (1–365, default: 30)
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
         # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
@@ -1001,6 +1007,7 @@ services:
 | `encryption_password` | No | Only required for end-to-end-encrypted budgets. |
 | `currency` | No | ISO 4217 code (default: `USD`). Controls amount formatting. |
 | `locale` | No | Locale identifier (e.g. `en-GB`, `de-DE`; default: server locale). |
+| `timezone` | No | IANA timezone name (e.g. `Europe/Warsaw`; default: the server's timezone). Used to resolve the current budget month and schedule due dates ("today"/"overdue") — Kokpit's own container runs UTC unless you set `TZ` on it, so set this if you're not in UTC and see month or due-date figures off by a few hours around midnight. |
 | `privacy_mode` | No | When `true` (default), amounts are blurred and reveal on hover/focus. Set to `false` to always show them. |
 
 **Per-widget extra fields:**
