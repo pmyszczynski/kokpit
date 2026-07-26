@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ActualAccountsConfigSchema,
   ActualCategoriesConfigSchema,
@@ -16,6 +16,7 @@ import {
   daysUntil,
   formatMoney,
 } from "@/integrations/actualbudget/format";
+import { clearRegistry } from "@/widgets";
 
 const API_KEY = "sk-super-secret-api-key";
 const ENCRYPTION_PASSWORD = "correct-horse-battery-staple";
@@ -1297,5 +1298,334 @@ describe("actualbudget config schemas", () => {
     expect(
       ActualCategoriesConfigSchema.safeParse({ ...MINIMAL, limit: 0 }).success
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Widget registration
+// ---------------------------------------------------------------------------
+
+const EXPECTED_PRESET = {
+  defaultName: "Actual Budget",
+  defaultIconUrl:
+    "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/actual-budget.svg",
+};
+
+describe("actualbudget widget registration", () => {
+  beforeEach(() => {
+    clearRegistry();
+    vi.resetModules();
+  });
+
+  describe("actualbudget-summary", () => {
+    it("registers a widget with id 'actualbudget-summary' on import", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-summary")).toBeDefined();
+    });
+
+    it("widget name is 'Actual Budget Summary'", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-summary")?.name).toBe("Actual Budget Summary");
+    });
+
+    it("refreshInterval is 300000", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-summary")?.refreshInterval).toBe(300_000);
+    });
+
+    it("fetchTimeoutMs is 15000", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-summary")?.fetchTimeoutMs).toBe(15_000);
+    });
+
+    it("preferredSize is 'normal'", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-summary")?.preferredSize).toBe("normal");
+    });
+
+    it("serviceEditorPreset has the expected default name and icon", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-summary")?.serviceEditorPreset).toEqual(
+        EXPECTED_PRESET
+      );
+    });
+
+    it("configSchema accepts a minimal valid config", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-summary")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("configSchema rejects a missing url", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-summary")!.configSchema.safeParse({
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("configSchema rejects an invalid url", async () => {
+      await import("@/integrations/actualbudget/summaryWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-summary")!.configSchema.safeParse({
+        url: "not-a-url",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("actualbudget-categories", () => {
+    it("registers a widget with id 'actualbudget-categories' on import", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-categories")).toBeDefined();
+    });
+
+    it("widget name is 'Actual Budget Categories'", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-categories")?.name).toBe(
+        "Actual Budget Categories"
+      );
+    });
+
+    it("refreshInterval is 300000", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-categories")?.refreshInterval).toBe(300_000);
+    });
+
+    it("fetchTimeoutMs is 15000", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-categories")?.fetchTimeoutMs).toBe(15_000);
+    });
+
+    it("preferredSize is 'tall'", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-categories")?.preferredSize).toBe("tall");
+    });
+
+    it("serviceEditorPreset has the expected default name and icon", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-categories")?.serviceEditorPreset).toEqual(
+        EXPECTED_PRESET
+      );
+    });
+
+    it("configSchema accepts a minimal valid config and applies category defaults", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-categories")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toMatchObject({
+          limit: 8,
+          hide_income: true,
+          hide_empty: true,
+        });
+      }
+    });
+
+    it("configSchema rejects a missing url", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-categories")!.configSchema.safeParse({
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("configSchema rejects a non-positive limit", async () => {
+      await import("@/integrations/actualbudget/categoriesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-categories")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+        limit: 0,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("actualbudget-accounts", () => {
+    it("registers a widget with id 'actualbudget-accounts' on import", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-accounts")).toBeDefined();
+    });
+
+    it("widget name is 'Actual Budget Accounts'", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-accounts")?.name).toBe("Actual Budget Accounts");
+    });
+
+    it("refreshInterval is 300000", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-accounts")?.refreshInterval).toBe(300_000);
+    });
+
+    it("fetchTimeoutMs is 15000", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-accounts")?.fetchTimeoutMs).toBe(15_000);
+    });
+
+    it("preferredSize is 'tall'", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-accounts")?.preferredSize).toBe("tall");
+    });
+
+    it("serviceEditorPreset has the expected default name and icon", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-accounts")?.serviceEditorPreset).toEqual(
+        EXPECTED_PRESET
+      );
+    });
+
+    it("configSchema accepts a minimal valid config and applies account defaults", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-accounts")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toMatchObject({
+          exclude_closed: true,
+          exclude_offbudget: false,
+        });
+      }
+    });
+
+    it("configSchema rejects a missing api_key", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-accounts")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("configSchema rejects an invalid url", async () => {
+      await import("@/integrations/actualbudget/accountsWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-accounts")!.configSchema.safeParse({
+        url: "not-a-url",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("actualbudget-schedules", () => {
+    it("registers a widget with id 'actualbudget-schedules' on import", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-schedules")).toBeDefined();
+    });
+
+    it("widget name is 'Actual Budget Schedules'", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-schedules")?.name).toBe(
+        "Actual Budget Schedules"
+      );
+    });
+
+    it("refreshInterval is 300000", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-schedules")?.refreshInterval).toBe(300_000);
+    });
+
+    it("fetchTimeoutMs is 15000", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-schedules")?.fetchTimeoutMs).toBe(15_000);
+    });
+
+    it("preferredSize is 'tall'", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-schedules")?.preferredSize).toBe("tall");
+    });
+
+    it("serviceEditorPreset has the expected default name and icon", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      expect(getWidget("actualbudget-schedules")?.serviceEditorPreset).toEqual(
+        EXPECTED_PRESET
+      );
+    });
+
+    it("configSchema accepts a minimal valid config and applies schedule defaults", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-schedules")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toMatchObject({ limit: 6, days_ahead: 30 });
+      }
+    });
+
+    it("configSchema rejects a missing budget_sync_id", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-schedules")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("configSchema rejects an out-of-range days_ahead", async () => {
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const result = getWidget("actualbudget-schedules")!.configSchema.safeParse({
+        url: "http://actual-http-api:5007",
+        api_key: "key",
+        budget_sync_id: "sync-id",
+        days_ahead: 0,
+      });
+      expect(result.success).toBe(false);
+    });
   });
 });
