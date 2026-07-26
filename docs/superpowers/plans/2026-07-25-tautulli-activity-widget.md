@@ -32,8 +32,8 @@ Testing Library, CSS custom properties.
 - Discard email, IP, machine/device, path, player/platform, and artwork fields.
 - Preserve configured reverse-proxy base paths and forward `AbortSignal`.
 - Never include the request URL, query string, or API key in an error.
-- Use `refreshInterval: 10_000`, `preferredSize: "large"`, and
-  `minSize: "wide"`.
+- Use `refreshInterval: 10_000`, `preferredSize: "tall"`, and
+  `minSize: "tall"`.
 - Custom CSS remains able to override widget styles without `!important`.
 - Follow TDD: demonstrate each focused test failing before production changes.
 
@@ -493,8 +493,8 @@ Append registration assertions to `tautulli.test.ts`:
 expect(widget.id).toBe("tautulli-activity");
 expect(widget.name).toBe("Tautulli Activity");
 expect(widget.refreshInterval).toBe(10_000);
-expect(widget.preferredSize).toBe("large");
-expect(widget.minSize).toBe("wide");
+expect(widget.preferredSize).toBe("tall");
+expect(widget.minSize).toBe("tall");
 expect(widget.serviceEditorPreset).toEqual({
   defaultName: "Tautulli",
   defaultIconUrl:
@@ -708,8 +708,8 @@ registerWidget<TautulliConfig, TautulliActivityData>({
   configSchema: TautulliConfigSchema,
   fetchData: fetchActivity,
   refreshInterval: 10_000,
-  preferredSize: "large",
-  minSize: "wide",
+  preferredSize: "tall",
+  minSize: "tall",
   component: TautulliActivityWidget,
   serviceEditorPreset: {
     defaultName: "Tautulli",
@@ -769,7 +769,7 @@ Append a dedicated CSS block. Use these layout constraints:
 .tautulli-activity-widget__summary {
   display: grid;
   flex-shrink: 0;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
 }
 
@@ -973,7 +973,7 @@ Immediately after the Plex example in `settings.example.yaml`, add:
 #   - name: Tautulli
 #     url: http://192.168.1.x:8181
 #     group: Media
-#     size: large
+#     size: tall
 #     widget:
 #       type: tautulli-activity
 #       config:
@@ -1102,3 +1102,173 @@ git log --oneline -5
 
 Expected: no whitespace errors, no uncommitted implementation changes, and
 separate API, UI, and documentation commits.
+
+---
+
+### Task 5: Tall one-column default and wrapped summary
+
+**Files:**
+
+- Modify: `src/integrations/tautulli/activityWidget.tsx`
+- Modify: `src/app/globals.css`
+- Modify: `src/__tests__/integrations/tautulli.test.ts`
+- Modify: `src/__tests__/integrations/TautulliActivityWidget.test.tsx`
+- Modify: `README.md`
+- Modify: `settings.example.yaml`
+
+**Interfaces:**
+
+- Consumes the existing `tautulli-activity` registration and summary markup.
+- Produces `preferredSize: "tall"` and `minSize: "tall"`.
+- Produces an explicit
+  `tautulli-activity-widget__stat--bandwidth` class on the Bandwidth summary
+  card for full-row placement.
+- Keeps the existing DTO, configuration keys, refresh behavior, and session
+  rendering unchanged.
+
+- [ ] **Step 1: Write the failing layout-contract tests**
+
+In the existing registration test in
+`src/__tests__/integrations/tautulli.test.ts`, change the size assertions to:
+
+```ts
+expect(widget?.preferredSize).toBe("tall");
+expect(widget?.minSize).toBe("tall");
+```
+
+In the summary-rendering test in
+`src/__tests__/integrations/TautulliActivityWidget.test.tsx`, add:
+
+```ts
+expect(screen.getByText("Bandwidth").closest(
+  ".tautulli-activity-widget__stat"
+)).toHaveClass("tautulli-activity-widget__stat--bandwidth");
+```
+
+The production change that makes these tests pass is the new tall registration
+plus the semantic Bandwidth modifier class.
+
+- [ ] **Step 2: Run the focused tests and verify the expected failures**
+
+Run:
+
+```bash
+npx vitest run \
+  src/__tests__/integrations/tautulli.test.ts \
+  src/__tests__/integrations/TautulliActivityWidget.test.tsx
+```
+
+Expected: FAIL because the widget still registers as `large`/`wide` and the
+Bandwidth card does not yet have its modifier class.
+
+- [ ] **Step 3: Change the registration and Bandwidth markup**
+
+In `src/integrations/tautulli/activityWidget.tsx`, change the registration to:
+
+```ts
+preferredSize: "tall",
+minSize: "tall",
+```
+
+Change the summary item metadata so the Bandwidth item can receive its modifier
+class without selecting it by position. The rendered Bandwidth card must
+produce:
+
+```tsx
+<div
+  className="tautulli-activity-widget__stat tautulli-activity-widget__stat--bandwidth"
+>
+  <span className="tautulli-activity-widget__value">
+    {formatBandwidth(data.summary.totalBandwidthKbps)}
+  </span>
+  <span className="tautulli-activity-widget__label">Bandwidth</span>
+</div>
+```
+
+The other four summary cards retain only
+`tautulli-activity-widget__stat`. Do not change labels, values, section
+selection, or session rendering.
+
+- [ ] **Step 4: Wrap summary cards for the narrow tile**
+
+In the existing `@layer tautulli-widget` block in `src/app/globals.css`, use:
+
+```css
+.tautulli-activity-widget__summary {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.tautulli-activity-widget__stat--bandwidth {
+  grid-column: 1 / -1;
+}
+```
+
+This yields two summary cards on row one, two on row two, and Bandwidth across
+row three. Keep the session list vertically scrollable and keep all Tautulli
+styles in the lower `tautulli-widget` cascade layer so user custom CSS still
+wins.
+
+- [ ] **Step 5: Align documentation examples with the new default shape**
+
+In the Tautulli YAML examples in `README.md` and `settings.example.yaml`,
+replace:
+
+```yaml
+size: large
+```
+
+with:
+
+```yaml
+size: tall
+```
+
+Do not change other widget examples or the runtime `settings.yaml`.
+
+- [ ] **Step 6: Run focused tests and static checks**
+
+Run:
+
+```bash
+npx vitest run \
+  src/__tests__/integrations/tautulli.test.ts \
+  src/__tests__/integrations/TautulliActivityWidget.test.tsx \
+  src/__tests__/integrations/sizeHints.test.ts
+npx eslint \
+  src/integrations/tautulli/activityWidget.tsx \
+  src/__tests__/integrations/tautulli.test.ts \
+  src/__tests__/integrations/TautulliActivityWidget.test.tsx
+npx tsc --noEmit
+git diff --check
+```
+
+Expected: all focused tests and static checks pass.
+
+- [ ] **Step 7: Render the dashboard at a normal four-column desktop layout**
+
+Use a temporary config with a four-column Media group, one Tautulli service
+without an explicit `size`, both sections selected, and representative session
+data. Confirm visually:
+
+- The tile occupies one grid column and two rows.
+- Summary cards render as two, two, then full-width Bandwidth.
+- Usernames, titles, state, media type, transcode decision, and progress remain
+  readable.
+- Additional sessions scroll within the tile rather than expanding it.
+- The mobile layout retains the existing full-width collapse.
+
+- [ ] **Step 8: Commit the layout refinement**
+
+```bash
+git add \
+  src/integrations/tautulli/activityWidget.tsx \
+  src/app/globals.css \
+  src/__tests__/integrations/tautulli.test.ts \
+  src/__tests__/integrations/TautulliActivityWidget.test.tsx \
+  README.md \
+  settings.example.yaml
+git commit -m "feat(tautulli): use tall activity layout"
+```
