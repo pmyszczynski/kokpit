@@ -22,5 +22,6 @@ import "./netdata/diskSpaceWidget";
 import "./netdata/loadWidget";
 import "./netdata/sensorWidget";
 import "./docker/widget";
+import "./systemstats/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

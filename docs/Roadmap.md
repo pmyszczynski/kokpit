@@ -82,10 +82,10 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Tile type also pre-selects the matching widget, eliminating the separate widget dropdown for known services
   - YAML schema unchanged — tile type is purely a UI concern resolved at save time
 
-- [ ] `P0` **System stats widget**
+- [x] `P0` **System stats widget**
   - CPU, RAM, disk usage, network I/O
   - Docker container count / status overview
-  - Data via local agent, `/proc`, or optional SSH target
+  - Data via local `/proc` + `statfs`, with an optional Docker socket for the container overview
 
 - [ ] `P1` **Useful API widgets**
   - Weather: Open-Meteo (no API key) + OpenWeatherMap (API key)
