@@ -861,6 +861,173 @@ services:
 
 ---
 
+### Actual Budget
+
+Displays budget summary, category spending, account balances, and upcoming bills from a self-hosted Actual Budget instance. Reading data requires a separate `jhonderson/actual-http-api` sidecar container — Actual Budget has no built-in read API, so the sidecar acts as a JSON bridge to your encrypted budget.
+
+**Prerequisites:** A running Actual Budget server and an `actual-http-api` sidecar container with credentials configured. The sidecar's API key is what you configure in Kokpit; Kokpit never sees your Actual server password.
+
+**Critical setup step — read this first:** Add the sidecar to your `docker-compose.yml`:
+
+```yaml
+services:
+  actual-http-api:
+    image: jhonderson/actual-http-api:26.7.0
+    environment:
+      # Your Actual Budget server connection (the sidecar only; Kokpit never sees this)
+      ACTUAL_SERVER_URL: http://actual-server:5006
+      ACTUAL_SERVER_PASSWORD: your-actual-server-password
+
+      # Generate a long random string for the sidecar's own API auth
+      # This is what you'll put in Kokpit's api_key field
+      API_KEY: generate-a-long-random-string-here
+
+      NODE_ENV: production
+    volumes:
+      - ./actual-http-api-data:/data
+    restart: unless-stopped
+```
+
+Then pin the sidecar's image tag to match your Actual server's version line (e.g. both `26.7.0`). A mismatch causes cryptic sync errors.
+
+**Three distinct secrets — do not confuse them:**
+
+1. **Actual server password** — your budget's login password. Goes in the sidecar's `ACTUAL_SERVER_PASSWORD` env var. Kokpit never sees it.
+2. **Sidecar `API_KEY`** — generate a long random string (use `openssl rand -hex 32` or similar). This is what goes in Kokpit's `api_key` widget config field.
+3. **Budget encryption password** *(optional)* — only needed if your budget is end-to-end encrypted. If you have one, put it in the widget's `encryption_password` field.
+
+**Find your Sync ID:** In Actual Budget, go to Settings → Show advanced settings → Sync ID. Copy that value into the widget's `budget_sync_id` field.
+
+**Privacy mode (default on):** Amounts are blurred by default and reveal on hover or focus. Set `privacy_mode: false` in the widget config to always show amounts.
+
+#### `actualbudget-summary`
+
+Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of overspent categories, and Net Worth.
+
+```yaml
+services:
+  - name: Actual Budget
+    url: http://actual-http-api:5007
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-summary
+      config:
+        url: http://actual-http-api:5007
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+#### `actualbudget-categories`
+
+Shows per-category spending vs. budget as a sorted list with progress bars and colour-coded status (green, yellow, or red for overspent).
+
+```yaml
+services:
+  - name: Budget Categories
+    url: http://actual-http-api:5007
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-categories
+      config:
+        url: http://actual-http-api:5007
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # limit: 8                    # optional; top N categories by spend (1–50, default: 8)
+        # hide_income: true           # optional; exclude income categories (default: true)
+        # hide_empty: true            # optional; exclude categories with no budget/spend (default: true)
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+#### `actualbudget-accounts`
+
+Lists all accounts with their current balance, filtered by closed/off-budget status, plus a Net worth total row.
+
+```yaml
+services:
+  - name: Budget Accounts
+    url: http://actual-http-api:5007
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-accounts
+      config:
+        url: http://actual-http-api:5007
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # exclude_closed: true        # optional; hide closed accounts (default: true)
+        # exclude_offbudget: false    # optional; hide off-budget accounts (default: false)
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+#### `actualbudget-schedules`
+
+Shows upcoming bills and income rules, sorted by due date, with relative due dates ("today", "3d", "overdue") and a footer showing how many are due within 7 days.
+
+```yaml
+services:
+  - name: Budget Schedule
+    url: http://actual-http-api:5007
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-schedules
+      config:
+        url: http://actual-http-api:5007
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # limit: 6                    # optional; top N schedules (1–50, default: 6)
+        # days_ahead: 30              # optional; schedules due within N days (1–365, default: 30)
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+**Config fields (shared across all four widgets):**
+
+| Field | Required | Description |
+|---|---|---|
+| `url` | Yes | Base URL of your actual-http-api sidecar (e.g. `http://actual-http-api:5007`). **Not** your Actual Budget server URL. |
+| `api_key` | Yes | The sidecar's `API_KEY` environment variable. |
+| `budget_sync_id` | Yes | Your budget's Sync ID from Actual → Settings → Show advanced settings. |
+| `encryption_password` | No | Only required for end-to-end-encrypted budgets. |
+| `currency` | No | ISO 4217 code (default: `USD`). Controls amount formatting. |
+| `locale` | No | Locale identifier (e.g. `en-GB`, `de-DE`; default: server locale). |
+| `privacy_mode` | No | When `true` (default), amounts are blurred and reveal on hover/focus. Set to `false` to always show them. |
+
+**Per-widget extra fields:**
+
+| Widget | Field | Type | Description |
+|---|---|---|---|
+| `actualbudget-categories` | `limit` | int | Top N categories by spend, 1–50 (default: 8). |
+| `actualbudget-categories` | `hide_income` | bool | Exclude income categories (default: `true`). |
+| `actualbudget-categories` | `hide_empty` | bool | Exclude categories with no budget or spending (default: `true`). |
+| `actualbudget-accounts` | `exclude_closed` | bool | Hide closed accounts (default: `true`). |
+| `actualbudget-accounts` | `exclude_offbudget` | bool | Hide off-budget accounts (default: `false`). |
+| `actualbudget-schedules` | `limit` | int | Top N schedules, 1–50 (default: 6). |
+| `actualbudget-schedules` | `days_ahead` | int | Schedules due within N days, 1–365 (default: 30). |
+
+**Displayed stats / information:**
+
+| Widget | Shows |
+|---|---|
+| `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of all account balances). |
+| `actualbudget-categories` | Category name, Spent / Budgeted amounts with progress bar, colour status (green ≥ 0%, yellow ≥ 85%, red overspent). Sorted by % spent descending. |
+| `actualbudget-accounts` | Account name, off-budget marker, current balance. Footer shows Net worth total. |
+| `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within 7 days. |
+
+**Read-only:** This integration never modifies your budget — it only reads data from the sidecar.
+
+---
+
 ### Docker
 
 Lists the containers running on the Docker host: a colored state dot, container name, image, and uptime per row, plus a "running / total" summary.

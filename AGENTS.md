@@ -65,7 +65,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 │   ├── auth/               ← auth system (users, JWT, sessions, bcrypt)
 │   ├── components/         ← shared React components (Navbar, etc.)
 │   ├── config/             ← YAML parser, schema, validator, theme helper
-│   ├── integrations/       ← per-service integration modules (Plex, *arr apps, qBittorrent, SABnzbd, Seerr, Immich, Netdata, Unraid, Docker)
+│   ├── integrations/       ← per-service integration modules (Plex, *arr apps, qBittorrent, SABnzbd, Seerr, Immich, Netdata, Unraid, Docker, Actual Budget)
 │   ├── test/               ← Vitest setup
 │   └── widgets/            ← widget plugin system (registry + shared widget types)
 └── public/
