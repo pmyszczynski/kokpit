@@ -84,6 +84,25 @@ services:
         password: qbittorrent-secret-value
 `.trim();
 
+const UNKNOWN_WIDGET_SECRET_YAML = `
+schema_version: 1
+auth:
+  enabled: false
+  session_ttl_hours: 24
+appearance:
+  theme: dark
+layout:
+  columns: 4
+  row_height: 120
+services:
+  - name: Retired integration
+    widget:
+      type: removed-widget
+      config:
+        endpoint: https://retired.local
+        api_key: unknown-widget-secret-value
+`.trim();
+
 type MutableSecretTestService = {
   widget: { config: Record<string, unknown> };
 };
@@ -439,6 +458,37 @@ describe("/api/settings – widget password fields", () => {
     );
     expect(json.services[1].widget.config.username).toBe("admin");
     expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("hides and preserves complete configs for unregistered widget types", async () => {
+    storedYaml = UNKNOWN_WIDGET_SECRET_YAML;
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const getRes = await GET();
+    const revision = getRes.headers.get("X-Config-Revision")!;
+    const redacted = await getRes.json();
+    const serialized = JSON.stringify(redacted);
+
+    expect(serialized).not.toContain("unknown-widget-secret-value");
+    expect(serialized).not.toContain("retired.local");
+    expect(redacted.services[0].widget.config).toEqual({
+      __kokpit_widget_config_reference__: expect.stringMatching(
+        /^__KOKPIT_WIDGET_CONFIG_REF__:/
+      ),
+    });
+
+    redacted.services[0].name = "Retired integration renamed";
+    const res = await PATCH(
+      patch({ services: redacted.services }, { "If-Match": revision })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(storedYaml).toContain("name: Retired integration renamed");
+    expect(storedYaml).toContain("endpoint: https://retired.local");
+    expect(storedYaml).toContain("api_key: unknown-widget-secret-value");
+    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_CONFIG_REF__:");
+    expect(responseText).not.toContain("unknown-widget-secret-value");
+    expect(responseText).not.toContain("retired.local");
   });
 
   it("preserves unchanged secrets through rename and reorder with an optimistic revision", async () => {

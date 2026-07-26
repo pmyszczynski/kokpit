@@ -13,10 +13,16 @@ import {
   widgetCredentialScopesMatch,
 } from "@/widgets/credentialScope";
 import {
+  redactWidgetSecrets,
+  resolveServiceWidgetSecrets,
   resolveWidgetConfigSecrets,
+  UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
-import { createWidgetSecretReference } from "@/widgets/secretReference.server";
+import {
+  createWidgetConfigReference,
+  createWidgetSecretReference,
+} from "@/widgets/secretReference.server";
 import type { Service } from "@/config/schema";
 
 const component = () => React.createElement("div");
@@ -228,5 +234,75 @@ describe("destination-bound secret resolution", () => {
         );
       }
     }
+  });
+});
+
+describe("unregistered widget config redaction", () => {
+  const config = {
+    schema_version: 1 as const,
+    auth: { enabled: false, session_ttl_hours: 24 },
+    appearance: { theme: "dark" as const },
+    layout: { columns: 4, row_height: 120 },
+    services: [
+      {
+        name: "Retired integration",
+        widget: {
+          type: "removed-widget",
+          config: {
+            endpoint: "https://retired.local",
+            api_key: "unknown-widget-secret",
+          },
+        },
+      },
+    ],
+  } satisfies import("@/config/schema").KokpitConfig;
+
+  it("hides the complete config and restores it from the signed placeholder", () => {
+    const redacted = redactWidgetSecrets(config);
+    const browserConfig = redacted.services[0].widget!.config!;
+
+    expect(JSON.stringify(redacted)).not.toContain("unknown-widget-secret");
+    expect(JSON.stringify(redacted)).not.toContain("retired.local");
+    expect(browserConfig).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.stringMatching(
+        /^__KOKPIT_WIDGET_CONFIG_REF__:/
+      ),
+    });
+
+    const restored = resolveServiceWidgetSecrets(
+      redacted.services,
+      config.services
+    );
+    expect(restored[0].widget?.config).toEqual(config.services[0].widget?.config);
+  });
+
+  it("rejects a malformed opaque config placeholder", () => {
+    expect(() =>
+      resolveWidgetConfigSecrets(
+        "removed-widget",
+        { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: "not-a-reference" },
+        config.services
+      )
+    ).toThrowError(
+      expect.objectContaining({ code: "widget_secret_reference_invalid" })
+    );
+  });
+
+  it("rejects an opaque whole-config reference on a registered widget", () => {
+    expect(() =>
+      resolveWidgetConfigSecrets(
+        "tautulli-activity",
+        {
+          url: "http://tautulli.local:8181",
+          api_key: createWidgetConfigReference(
+            "Retired integration",
+            "removed-widget"
+          ),
+        },
+        config.services
+      )
+    ).toThrowError(
+      expect.objectContaining({ code: "widget_secret_reference_invalid" })
+    );
   });
 });

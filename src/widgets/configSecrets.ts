@@ -1,18 +1,26 @@
 import "@/integrations";
 import {
-  serviceNameUniquenessKey,
   type KokpitConfig,
   type Service,
 } from "@/config/schema";
 import { getWidget } from "@/widgets";
 import { widgetCredentialScopesMatch } from "./credentialScope";
 import {
+  isWidgetConfigReference,
   isWidgetSecretReference,
 } from "./secretReference";
 import {
+  createWidgetConfigReference,
   createWidgetSecretReference,
+  verifyWidgetConfigReference,
   verifyWidgetSecretReference,
+  widgetConfigReferenceMatches,
+  widgetSecretReferenceMatches,
 } from "./secretReference.server";
+
+/** The sole browser-visible key for an opaque unknown-widget config. */
+export const UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY =
+  "__kokpit_widget_config_reference__";
 
 export type WidgetSecretResolutionErrorCode =
   | "widget_secret_reference_invalid"
@@ -43,6 +51,16 @@ function passwordFieldKeys(widgetType: string): string[] {
   );
 }
 
+function getOpaqueConfigReference(
+  config: Record<string, unknown>
+): unknown | null {
+  const keys = Object.keys(config);
+  if (keys.length !== 1 || keys[0] !== UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY) {
+    return null;
+  }
+  return config[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
+}
+
 /**
  * Returns a browser-safe config copy. Password fields are identified only by
  * registry metadata, so integrations do not need key-name redaction lists.
@@ -54,6 +72,22 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
       const widget = service.widget;
       const rawConfig = widget?.config;
       if (!widget || !rawConfig) return service;
+
+      // An unregistered widget has no trustworthy field metadata. Treat the
+      // entire non-empty config as secret and retain it only on the server.
+      if (!getWidget(widget.type)) {
+        if (Object.keys(rawConfig).length === 0) return service;
+        return {
+          ...service,
+          widget: {
+            ...widget,
+            config: {
+              [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]:
+                createWidgetConfigReference(service.name, widget.type),
+            },
+          },
+        };
+      }
 
       const passwordKeys = passwordFieldKeys(widget.type);
       if (passwordKeys.length === 0) return service;
@@ -92,22 +126,22 @@ function resolveReference(
   savedServices: Service[]
 ): unknown {
   const reference = verifyWidgetSecretReference(referenceValue);
-  if (
-    !reference ||
-    reference.widgetType !== expectedWidgetType ||
-    reference.fieldKey !== expectedFieldKey
-  ) {
+  if (!reference) {
     throw new WidgetSecretResolutionError(
       "widget_secret_reference_invalid"
     );
   }
 
-  const source = savedServices.find(
-    (service) =>
-      serviceNameUniquenessKey(service.name) ===
-      serviceNameUniquenessKey(reference.serviceName)
+  const source = savedServices.find((service) =>
+    service.widget?.type === expectedWidgetType &&
+    widgetSecretReferenceMatches(
+      reference,
+      service.name,
+      expectedWidgetType,
+      expectedFieldKey
+    )
   );
-  if (source?.widget?.type !== expectedWidgetType) {
+  if (!source?.widget) {
     throw new WidgetSecretResolutionError(
       "widget_secret_reference_invalid"
     );
@@ -143,6 +177,37 @@ function resolveReference(
   return savedValue;
 }
 
+function resolveUnknownWidgetConfig(
+  widgetType: string,
+  config: Record<string, unknown>,
+  savedServices: Service[]
+): Record<string, unknown> {
+  const opaqueReference = getOpaqueConfigReference(config);
+  if (opaqueReference === null) {
+    if (Object.prototype.hasOwnProperty.call(config, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY)) {
+      throw new WidgetSecretResolutionError(
+        "widget_secret_reference_invalid"
+      );
+    }
+    return config;
+  }
+
+  const reference = verifyWidgetConfigReference(opaqueReference);
+  if (!reference) {
+    throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+  }
+  const source = savedServices.find(
+    (service) =>
+      service.widget?.config !== undefined &&
+      service.widget.type === widgetType &&
+      widgetConfigReferenceMatches(reference, service.name, widgetType)
+  );
+  if (!source?.widget?.config) {
+    throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+  }
+  return source.widget.config;
+}
+
 /**
  * Resolves placeholders in one submitted widget config against the live
  * server-side config. Used by connection testing before schema validation.
@@ -157,9 +222,17 @@ export function resolveWidgetConfigSecrets(
   }
 
   const rawConfig = config as Record<string, unknown>;
+  if (!getWidget(widgetType)) {
+    return resolveUnknownWidgetConfig(widgetType, rawConfig, savedServices);
+  }
   let resolvedConfig: Record<string, unknown> | null = null;
   const passwordKeys = passwordFieldKeys(widgetType);
   for (const [key, value] of Object.entries(rawConfig)) {
+    if (isWidgetConfigReference(value)) {
+      throw new WidgetSecretResolutionError(
+        "widget_secret_reference_invalid"
+      );
+    }
     if (
       isWidgetSecretReference(value) &&
       !passwordKeys.includes(key)

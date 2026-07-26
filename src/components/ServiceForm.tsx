@@ -353,6 +353,16 @@ function WidgetConfigFields({
                 savedSecret ? "Saved — enter a new value to replace" : field.placeholder
               }
             />
+            {savedSecret && !field.required && (
+              <button
+                type="button"
+                className="settings-btn settings-btn--danger"
+                onClick={() => onChange(field.key, undefined)}
+                aria-label={`Clear saved ${field.label}`}
+              >
+                Clear saved credential
+              </button>
+            )}
             {needsReplacement && (
               <p className="settings-form-hint settings-form-hint--error">
                 This credential is saved for a different connection. Re-enter the credential to continue.

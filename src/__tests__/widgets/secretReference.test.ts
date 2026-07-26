@@ -10,7 +10,7 @@ beforeAll(() => {
 function signRawPayload(payload: unknown): string {
   const rawKey = process.env.KOKPIT_SESSION_SECRET!;
   const purposeKey = createHmac("sha256", rawKey)
-    .update("kokpit/widget-secret-reference/v1")
+    .update("kokpit/widget-secret-reference/v2")
     .digest();
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const mac = createHmac("sha256", purposeKey)
@@ -21,8 +21,11 @@ function signRawPayload(payload: unknown): string {
 
 describe("signed widget secret references", () => {
   it("round-trips an authenticated locator without secret material", async () => {
-    const { createWidgetSecretReference, verifyWidgetSecretReference } =
-      await import("@/widgets/secretReference.server");
+    const {
+      createWidgetSecretReference,
+      verifyWidgetSecretReference,
+      widgetSecretReferenceMatches,
+    } = await import("@/widgets/secretReference.server");
     const token = createWidgetSecretReference(
       "Tautulli",
       "tautulli-activity",
@@ -30,12 +33,20 @@ describe("signed widget secret references", () => {
     );
 
     expect(token).not.toContain("saved-super-secret");
-    expect(verifyWidgetSecretReference(token)).toEqual({
-      v: 1,
-      serviceName: "Tautulli",
-      widgetType: "tautulli-activity",
-      fieldKey: "api_key",
-    });
+    expect(token).not.toContain("Tautulli");
+    expect(token).not.toContain("tautulli-activity");
+    expect(token).not.toContain("api_key");
+    const reference = verifyWidgetSecretReference(token);
+    expect(reference).toMatchObject({ v: 2, kind: "field" });
+    expect(reference).not.toBeNull();
+    expect(
+      widgetSecretReferenceMatches(
+        reference!,
+        "Tautulli",
+        "tautulli-activity",
+        "api_key"
+      )
+    ).toBe(true);
   });
 
   it("uses a purpose-derived key rather than the raw JWT key", async () => {
@@ -69,6 +80,32 @@ describe("signed widget secret references", () => {
       "@/widgets/secretReference.server"
     );
     expect(verifyWidgetSecretReference(value)).toBeNull();
+  });
+
+  it("issues a verifiable fixed-size locator for an arbitrarily long service name", async () => {
+    const {
+      createWidgetSecretReference,
+      verifyWidgetSecretReference,
+      widgetSecretReferenceMatches,
+    } = await import("@/widgets/secretReference.server");
+    const serviceName = "T".repeat(10_000);
+    const token = createWidgetSecretReference(
+      serviceName,
+      "tautulli-activity",
+      "api_key"
+    );
+
+    expect(token.length).toBeLessThan(2_048);
+    const reference = verifyWidgetSecretReference(token);
+    expect(reference).not.toBeNull();
+    expect(
+      widgetSecretReferenceMatches(
+        reference!,
+        serviceName,
+        "tautulli-activity",
+        "api_key"
+      )
+    ).toBe(true);
   });
 
   it("rejects payload and signature tampering", async () => {

@@ -827,6 +827,71 @@ describe("ServiceForm – Tautulli defaults", () => {
     });
     expect(screen.getByLabelText("API Token *")).toBeRequired();
   });
+
+  it("clears an optional saved credential, including after its destination changes", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "CPU",
+          widget: {
+            type: "netdata-cpu",
+            config: {
+              url: "http://netdata.local:19999",
+              api_token: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Netdata URL *"), {
+      target: { value: "http://other-netdata.local:19999" },
+    });
+    expect(screen.getByLabelText("API Token *")).toBeRequired();
+    expect(screen.getByText(/re-enter.*credential/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Clear saved credential"));
+
+    expect(screen.queryByText(/re-enter.*credential/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("API Token")).not.toBeRequired();
+    expect(screen.queryByText("Clear saved credential")).not.toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: { url: "http://other-netdata.local:19999" },
+        }),
+      })
+    );
+  });
+
+  it("does not offer to clear a required saved credential", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.queryByText("Clear saved credential")).not.toBeInTheDocument();
+  });
 });
 
 describe("ServiceForm – test connection", () => {
