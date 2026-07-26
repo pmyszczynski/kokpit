@@ -1,6 +1,12 @@
 name: Publish Docker Image
 
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to publish.
+        required: true
+        type: string
   release:
     types: [published]
   workflow_dispatch:
@@ -28,20 +34,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Resolve release info
         id: release_info
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            IS_PRERELEASE=$(gh release view "$TAG" --json isPrerelease -q .isPrerelease)
-          else
+          if [ "${{ github.event_name }}" = "release" ]; then
             IS_PRERELEASE="${{ github.event.release.prerelease }}"
+          else
+            IS_PRERELEASE=$(gh release view "$TAG" --json isPrerelease -q .isPrerelease)
           fi
           echo "prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -59,9 +65,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=tag
+            type=semver,pattern={{version}},value=${{ github.event.release.tag_name || inputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name || inputs.tag }}
+            type=raw,value=${{ github.event.release.tag_name || inputs.tag }}
             type=raw,value=latest,enable=${{ steps.release_info.outputs.prerelease != 'true' }}
 
       - name: Build and push Docker image
@@ -74,3 +80,32 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify published image tags
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          IS_PRERELEASE: ${{ steps.release_info.outputs.prerelease }}
+        run: |
+          VERSION="${TAG#v}"
+          tags=("$TAG" "$VERSION")
+          if [ "$IS_PRERELEASE" != "true" ]; then
+            tags+=("${VERSION%.*}" latest)
+          fi
+
+          for tag in "${tags[@]}"; do
+            for attempt in 1 2 3 4 5 6; do
+              if docker buildx imagetools inspect "$IMAGE:$tag" > /dev/null; then
+                echo "Verified $IMAGE:$tag"
+                break
+              fi
+
+              if [ "$attempt" = "6" ]; then
+                echo "::error::Timed out waiting for $IMAGE:$tag"
+                exit 1
+              fi
+
+              echo "Waiting for $IMAGE:$tag (attempt $attempt of 6)"
+              sleep 10
+            done
+          done

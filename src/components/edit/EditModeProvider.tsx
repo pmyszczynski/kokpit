@@ -338,7 +338,15 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
       toggle();
     }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Hydration edge for the hotkey: this passive effect runs *after* paint, so
+    // a visible navbar/tile does not prove Mod+E is live yet — pressing before
+    // this runs is a lost no-op (an e2e flake). Expose a marker the instant the
+    // listener is attached so tests can wait for the real "ready" edge.
+    document.documentElement.dataset.editHotkeyReady = "true";
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      delete document.documentElement.dataset.editHotkeyReady;
+    };
   }, [canEdit, toggle]);
 
   const keys = useMemo(
