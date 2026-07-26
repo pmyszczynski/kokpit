@@ -53,7 +53,9 @@ services:
       - ./data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      # Probe 127.0.0.1 rather than "localhost" — inside the container
+      # "localhost" also resolves to ::1, which nothing listens on.
+      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${PORT:-3000}/api/health\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -76,8 +76,14 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Probe 127.0.0.1, not "localhost". The server binds $HOSTNAME (0.0.0.0), which
+# is IPv4-only, but Docker's /etc/hosts maps "localhost" to both 127.0.0.1 and
+# ::1. musl's resolver can return ::1 first, and BusyBox wget only ever tries
+# the first address it gets back — no fallback to the next one — so the probe
+# would be refused on [::1]:3000 and mark a perfectly healthy container as
+# unhealthy. $PORT is honored so overriding the listen port keeps the probe valid.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+  CMD wget -qO- "http://127.0.0.1:${PORT:-3000}/api/health" || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "server.js"]
