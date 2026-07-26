@@ -474,15 +474,27 @@ describe("ServiceGrid", () => {
       if (emptyConfigValid) {
         // Schema accepts an empty config — the widget renders.
         expect(container.querySelector(".service-tile__widget")).not.toBeNull();
+        expect(container.querySelector(".tile-widget-badge")).toBeNull();
       } else {
-        // Unconfigured widget — plain link tile, no error box.
+        // Config required but missing: no silent link degrade — the
+        // broken-widget badge takes the widget area's place instead.
         expect(container.querySelector(".service-tile__widget")).toBeNull();
         expect(container.querySelector(".widget-error")).toBeNull();
+        const badge = container.querySelector(".tile-widget-badge");
+        expect(badge).not.toBeNull();
+        expect(badge).toHaveAttribute("data-widget-config-invalid", "true");
+        expect(badge).toHaveAttribute(
+          "aria-label",
+          "Widget configuration error: Svc"
+        );
+        // No edit-mode provider in view mode → non-interactive variant.
+        expect(badge).toHaveAttribute("role", "img");
+        expect(badge).not.toHaveClass("tile-widget-badge--interactive");
       }
     }
   );
 
-  it("renders a plain tile when the widget config is partial/invalid", async () => {
+  it("renders a warning badge (not a plain tile) when the widget config is partial/invalid", async () => {
     getConfig.mockReturnValue(
       makeConfig({
         services: [
@@ -502,8 +514,33 @@ describe("ServiceGrid", () => {
       ({ container } = render(<ServiceGrid />));
     });
     expect(screen.getByText("Plex")).toBeInTheDocument();
+    // Widget area is suppressed, and this is NOT the "unknown widget type"
+    // error box — it's the new badge affordance.
     expect(container.querySelector(".service-tile__widget")).toBeNull();
     expect(container.querySelector(".widget-error")).toBeNull();
+
+    const badge = container.querySelector(".tile-widget-badge");
+    expect(badge).not.toBeNull();
+    expect(badge).toHaveAttribute("data-widget-config-invalid", "true");
+    expect(badge).toHaveAttribute(
+      "aria-label",
+      "Widget configuration error: Plex"
+    );
+    // Partial match rather than the full Zod message: the exact wording
+    // ("Invalid input: expected string, received undefined") is a Zod
+    // implementation detail that has changed across versions. This still
+    // proves the right field path is reported (token) and that it's the
+    // invalid-input case, not some other failure mode.
+    const badgeTitle = badge?.getAttribute("title");
+    expect(badgeTitle).toMatch(/^token: /);
+    expect(badgeTitle).toMatch(/invalid|expected|required/i);
+    // View mode has no EditModeProvider, so the badge is inert (no click
+    // affordance to open a dialog that doesn't exist here).
+    expect(badge).toHaveAttribute("role", "img");
+    expect(badge).not.toHaveClass("tile-widget-badge--interactive");
+    // Plex has a url, so it would normally get a status dot — the badge
+    // takes that slot instead of stacking alongside it.
+    expect(container.querySelector(".status-dot")).toBeNull();
   });
 
   it("keeps the error box for an unknown widget type", async () => {

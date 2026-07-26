@@ -53,6 +53,10 @@ describe("widget credential scope registry invariant", () => {
           .sort((left, right) => left[0].localeCompare(right[0]))
       )
     ).toEqual({
+      "actualbudget-accounts": ["url"],
+      "actualbudget-categories": ["url"],
+      "actualbudget-schedules": ["url"],
+      "actualbudget-summary": ["url"],
       "immich-stats": ["url"],
       "netdata-cpu": ["url"],
       "netdata-disk-io": ["url"],

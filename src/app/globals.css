@@ -12,6 +12,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #2e2e2e;
   --color-error: #ef4444;
+  --color-warning: #f59e0b;
   --radius: 8px;
   --gap: 16px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -28,6 +29,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #2e2e2e;
   --color-error: #ef4444;
+  --color-warning: #f59e0b;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
@@ -42,6 +44,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #dddddd;
   --color-error: #dc2626;
+  --color-warning: #d97706;
   --shadow-sm: 0 1px 3px rgba(17, 17, 17, 0.08);
   --shadow-md: 0 12px 32px rgba(17, 17, 17, 0.12);
 }
@@ -56,6 +59,7 @@
   --color-accent-hover: #4f52d6;
   --color-border: #1f1f1f;
   --color-error: #ef4444;
+  --color-warning: #f59e0b;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.7);
 }
@@ -70,6 +74,7 @@
   --color-accent-hover: #0000cc;
   --color-border: #000000;
   --color-error: #cc0000;
+  --color-warning: #8a4b00;
   --shadow-sm: none;
   --shadow-md: none;
 }
@@ -514,6 +519,55 @@ button {
 .status-dot--pending {
   background: var(--color-text-muted);
   opacity: 0.5;
+}
+
+/* Broken-widget badge: shown instead of the widget area when a service's
+   widget config fails the widget's schema. Modelled on .widget-error, but as
+   an absolutely-positioned corner affordance. It takes the .status-dot's
+   top-right slot rather than adding a new one — the two are mutually
+   exclusive (see ServiceTile.tsx), so there's never a collision to resolve.
+   Bottom-left was tried first but sat on top of the wrapped
+   .service-tile__description on 1x1 tiles; don't reintroduce that. */
+.tile-widget-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  line-height: 0;
+  /* No background fill: it occupies the status dot's slot and should read as
+     the same kind of bare indicator. Dropping the fill also removes the
+     optical mismatch of a bottom-heavy triangle inside a circle. */
+  color: var(--color-warning, #f59e0b);
+  z-index: 2;
+  transition: color 150ms ease, transform 150ms ease;
+}
+
+/* Only interactive when edit mode is available (span[role=button], so it can
+   live inside the anchor tile). */
+.tile-widget-badge--interactive {
+  cursor: pointer;
+}
+
+.tile-widget-badge--interactive:hover {
+  color: color-mix(in srgb, var(--color-warning, #f59e0b) 70%, var(--color-text));
+  transform: scale(1.12);
+}
+
+/* Keyboard focus needs its own indicator: with no background left to shift,
+   suppressing the outline would make focus invisible. */
+.tile-widget-badge--interactive:focus-visible {
+  outline: 2px solid var(--color-warning, #f59e0b);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.tile-widget-badge__glyph {
+  display: block;
 }
 
 /* === SERVICE GROUPS === */
@@ -1335,6 +1389,15 @@ button {
   color: var(--color-error);
 }
 
+.service-form__widget-issues ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.service-form__widget-issues li {
+  margin: 0.15rem 0;
+}
+
 /* === GROUP COMBOBOX === */
 .group-combobox {
   position: relative;
@@ -1576,13 +1639,39 @@ button {
   margin: 0;
 }
 
+/* ── Widget settings boolean field ───────────────────────────────────────── */
+
+/* The label sits to the right of the box rather than above it, so this row
+   opts out of `.service-form .settings-form-row label`'s stacked layout. */
+.widget-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  user-select: none;
+}
+
+/* Overrides `.service-form .settings-form-row input { width: 100% }`, which
+   would otherwise stretch the box across the dialog. */
+.service-form .widget-checkbox input[type="checkbox"],
+.widget-checkbox input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+  margin: 0;
+}
+
 /* ── Shared stat widget base (qBittorrent stats, SABnzbd, Prowlarr, …) ───── */
 
 .qbt-stats-widget,
 .sabnzbd-widget,
 .prowlarr-stats-widget,
 .unraid-stats-widget,
-.tdarr-stats-widget {
+.tdarr-stats-widget,
+.actualbudget-summary-widget {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -1595,7 +1684,8 @@ button {
 .sabnzbd-widget__stat,
 .prowlarr-stats-widget__stat,
 .unraid-stats-widget__stat,
-.tdarr-stats-widget__stat {
+.tdarr-stats-widget__stat,
+.actualbudget-summary-widget__stat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1612,7 +1702,8 @@ button {
 .sabnzbd-widget__value,
 .prowlarr-stats-widget__value,
 .unraid-stats-widget__value,
-.tdarr-stats-widget__value {
+.tdarr-stats-widget__value,
+.actualbudget-summary-widget__value {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text);
@@ -1627,7 +1718,8 @@ button {
 .sabnzbd-widget__label,
 .prowlarr-stats-widget__label,
 .unraid-stats-widget__label,
-.tdarr-stats-widget__label {
+.tdarr-stats-widget__label,
+.actualbudget-summary-widget__label {
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--color-text-muted);
@@ -1652,7 +1744,8 @@ button {
 .sabnzbd-widget--empty,
 .prowlarr-stats-widget--empty,
 .unraid-stats-widget--empty,
-.tdarr-stats-widget--empty {
+.tdarr-stats-widget--empty,
+.actualbudget-summary-widget--empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1663,7 +1756,8 @@ button {
 .sabnzbd-widget__hint,
 .prowlarr-stats-widget__hint,
 .unraid-stats-widget__hint,
-.tdarr-stats-widget__hint {
+.tdarr-stats-widget__hint,
+.actualbudget-summary-widget__hint {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
@@ -2815,6 +2909,409 @@ button {
   gap: 1px;
 }
 
+/* ── System stats widget ─────────────────────────────────────────────────── */
+
+.system-stats-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden auto;
+}
+
+.system-stats-widget__row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.system-stats-widget__row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.system-stats-widget__row-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.system-stats-widget__row-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.system-stats-widget__row-sub {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.system-stats-widget__bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.system-stats-widget__bar-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.system-stats-widget__net-rates {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.system-stats-widget__net-rate {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.system-stats-widget__load-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.system-stats-widget__load-cell {
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.system-stats-widget__stale-error {
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.system-stats-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.system-stats-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.system-stats-widget__hint--error {
+  color: var(--color-error);
+}
+
+/* ── Actual Budget widgets ────────────────────────────────────────────── */
+
+/* Summary widget's grid/__stat/__value/__label/--empty/__hint join the
+   shared stat-grid rule set above (qBittorrent/SABnzbd/Prowlarr/Unraid/
+   Tdarr). Only the two rules that block uses hardcoded hex are redeclared
+   here with theme variables instead. */
+
+.actualbudget-summary-widget__stale-error {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 2px 0;
+}
+
+.actualbudget-summary-widget__hint--error {
+  color: var(--color-error);
+}
+
+/* Privacy mode: figures blur at the widget root and clear on hover/focus of
+   the whole tile. Presentational only — never pair with aria-hidden, the
+   underlying text must stay in the accessibility tree.
+
+   The reveal has to key off `.service-tile`, not the widget root: the widget
+   itself has no focusable descendants, and the actually-focusable element is
+   the outer tile anchor (`.service-tile` > `.service-tile__widget` > this
+   widget root — see ServiceTile.tsx). `.actualbudget-widget--private
+   :focus-within` alone therefore never matches for keyboard users, and the
+   blur never lifts on Tab. The widget-root rules are kept alongside as a
+   fallback in case this widget is ever rendered outside a `.service-tile`. */
+.actualbudget-widget--private .actualbudget-amount {
+  filter: blur(0.35rem);
+  transition: filter 0.15s ease;
+}
+
+.actualbudget-widget--private:hover .actualbudget-amount,
+.actualbudget-widget--private:focus-within .actualbudget-amount,
+.service-tile:hover .actualbudget-widget--private .actualbudget-amount,
+.service-tile:focus-within .actualbudget-widget--private .actualbudget-amount {
+  filter: none;
+}
+
+.actualbudget-amount--negative {
+  color: var(--color-error);
+}
+
+/* Shared list-widget layout: categories / accounts / schedules all follow
+   the Radarr-queue pattern (header-less row list + footer + stale-error). */
+.actualbudget-categories-widget,
+.actualbudget-accounts-widget,
+.actualbudget-schedules-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.actualbudget-categories-widget__list,
+.actualbudget-accounts-widget__list,
+.actualbudget-schedules-widget__list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.actualbudget-categories-widget--empty,
+.actualbudget-accounts-widget--empty,
+.actualbudget-schedules-widget--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  gap: 4px;
+}
+
+.actualbudget-categories-widget__hint,
+.actualbudget-accounts-widget__hint,
+.actualbudget-schedules-widget__hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.actualbudget-categories-widget__hint--error,
+.actualbudget-accounts-widget__hint--error,
+.actualbudget-schedules-widget__hint--error {
+  color: var(--color-error);
+}
+
+.actualbudget-categories-widget__stale-error,
+.actualbudget-accounts-widget__stale-error,
+.actualbudget-schedules-widget__stale-error {
+  font-size: 0.7rem;
+  color: var(--color-error);
+  text-align: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.actualbudget-categories-widget__row,
+.actualbudget-accounts-widget__row,
+.actualbudget-schedules-widget__row {
+  display: grid;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.actualbudget-categories-widget__row:last-child,
+.actualbudget-accounts-widget__row:last-child,
+.actualbudget-schedules-widget__row:last-child {
+  border-bottom: none;
+}
+
+.actualbudget-categories-widget__name,
+.actualbudget-accounts-widget__name,
+.actualbudget-schedules-widget__name {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── Categories widget ────────────────────────────────────────────────── */
+
+.actualbudget-categories-widget__row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(60px, 96px);
+}
+
+.actualbudget-categories-widget__amounts {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.actualbudget-categories-widget__progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.actualbudget-categories-widget__progress-bar {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.actualbudget-categories-widget__progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+.actualbudget-categories-widget__progress-text {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  line-height: 1;
+}
+
+.actualbudget-categories-widget__row--warn .actualbudget-categories-widget__progress-fill {
+  background: var(--color-warning);
+}
+
+.actualbudget-categories-widget__row--warn .actualbudget-categories-widget__name {
+  color: var(--color-warning);
+}
+
+.actualbudget-categories-widget__row--over .actualbudget-categories-widget__progress-fill {
+  background: var(--color-error);
+}
+
+.actualbudget-categories-widget__row--over .actualbudget-categories-widget__name {
+  color: var(--color-error);
+}
+
+/* ── Accounts widget ──────────────────────────────────────────────────── */
+
+/* Third track for the off-budget badge: it used to live inside __name and
+   got clipped by that span's overflow:hidden/ellipsis whenever the account
+   name was long enough to truncate. It is now a grid sibling of __name, so
+   both __badge and __balance get an explicit grid-column — otherwise a row
+   with no badge (the common case) would auto-place __balance into the
+   middle track instead of the last one, misaligning it against rows that do
+   have a badge. */
+.actualbudget-accounts-widget__row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.actualbudget-accounts-widget__badge {
+  grid-column: 2;
+  padding: 1px 6px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.actualbudget-accounts-widget__balance {
+  grid-column: 3;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actualbudget-accounts-widget__footer,
+.actualbudget-schedules-widget__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  margin-top: 2px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.actualbudget-accounts-widget__footer-label,
+.actualbudget-schedules-widget__footer-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.actualbudget-accounts-widget__footer-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.actualbudget-schedules-widget__footer-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ── Schedules widget ─────────────────────────────────────────────────── */
+
+.actualbudget-schedules-widget__row {
+  grid-template-columns: minmax(0, 1fr) auto 56px;
+}
+
+.actualbudget-schedules-widget__amount {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actualbudget-schedules-widget__due {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actualbudget-schedules-widget__due--overdue {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+/* Users who ask for less motion still get the privacy blur/reveal and the
+   category progress-bar fill, just as an instant state change rather than an
+   animated transition. Scoped to these two Actual Budget rules only — not a
+   global reduced-motion reset for the rest of the stylesheet. */
+@media (prefers-reduced-motion: reduce) {
+  .actualbudget-widget--private .actualbudget-amount {
+    transition: none;
+  }
+
+  .actualbudget-categories-widget__progress-fill {
+    transition: none;
+  }
+}
+
 /* === AUTH PAGES (login / first-run setup) === */
 .auth-page {
   display: flex;
@@ -3390,8 +3887,11 @@ button {
   display: block;
 }
 
-/* Keep the edit-mode status dot clear of the kebab in the same corner. */
-.service-tile--editable .status-dot {
+/* Keep the edit-mode status dot clear of the kebab in the same corner. The
+   badge shares the dot's slot (they're mutually exclusive), so it needs the
+   identical shift for the same reason. */
+.service-tile--editable .status-dot,
+.service-tile--editable .tile-widget-badge {
   right: 30px;
 }
 

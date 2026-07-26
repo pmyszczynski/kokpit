@@ -87,10 +87,17 @@ beforeEach(() => {
   vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.useRealTimers();
+  // The "uses widget.fetchTimeoutMs" test below registers a permanent
+  // `__slow-sidecar__` widget via registerWidget, which throws on a
+  // duplicate id. vi.resetModules() in the next beforeEach gives a fresh
+  // registry anyway, but clearing it here too means this doesn't depend on
+  // that ordering — a real fragility under different module-import orders.
+  const { clearRegistry } = await import("../../widgets");
+  clearRegistry();
 });
 
 describe("POST /api/widget/test", () => {
@@ -130,6 +137,12 @@ describe("POST /api/widget/test", () => {
       // a unix socket. Point it at a guaranteed-missing socket so its attempt
       // fails deterministically regardless of the host running the tests.
       vi.stubEnv("KOKPIT_DOCKER_SOCKET", "/nonexistent/docker.sock");
+      // Likewise, system-stats reads real /proc via process.getBuiltinModule,
+      // which bypasses this file's vi.mock("node:fs"). On a Linux CI host an
+      // empty config would happily read the real /proc and succeed (200),
+      // breaking the 500 assertion below. Point it at a guaranteed-missing
+      // proc dir so every read fails deterministically instead.
+      vi.stubEnv("KOKPIT_PROC_PATH", "/nonexistent/proc");
       const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
       vi.stubGlobal("fetch", fetchMock);
       const { POST } = await import("../../app/api/widget/test/route");
@@ -137,7 +150,7 @@ describe("POST /api/widget/test", () => {
       if (emptyConfigValid) {
         // Schema accepts an empty config — the endpoint attempts the fetch.
         expect(res.status).toBe(500);
-        if (id !== "docker") {
+        if (id !== "docker" && id !== "system-stats") {
           expect(fetchMock).toHaveBeenCalled();
         }
       } else {
@@ -414,5 +427,44 @@ describe("POST /api/widget/test", () => {
     expect(responseText).toContain("Connection test failed");
     expect(responseText).not.toContain(rawMessage);
     expect(responseText).not.toContain("saved-unraid-secret");
+  });
+
+  // The two "returns 504" tests above already prove that a widget with no
+  // fetchTimeoutMs (plex) times out at the global 5s default. This test
+  // proves the opposite side: a widget that sets fetchTimeoutMs overrides
+  // that default rather than merely extending it — the request must still
+  // be in flight once the global 5s default has passed, and only end once
+  // the widget's own timeout elapses.
+  it("uses widget.fetchTimeoutMs instead of the 5s default when set", async () => {
+    vi.useFakeTimers();
+    const { registerWidget } = await import("../../widgets");
+    const { z } = await import("zod");
+    registerWidget({
+      id: "__slow-sidecar__",
+      name: "Slow Sidecar (test only)",
+      configSchema: z.object({}),
+      // Never resolves — only the hard timeout can end this request.
+      fetchData: () => new Promise(() => {}),
+      component: () => null,
+      fetchTimeoutMs: 9000,
+    });
+    const { POST } = await import("../../app/api/widget/test/route");
+    const resPromise = POST(post({ type: "__slow-sidecar__", config: {} }));
+
+    let settled = false;
+    resPromise.then(() => {
+      settled = true;
+    });
+
+    // Past the global 5s default but still under the widget's own 9s
+    // override — must still be in flight.
+    await vi.advanceTimersByTimeAsync(5001);
+    expect(settled).toBe(false);
+
+    // Now past the 9s override.
+    await vi.advanceTimersByTimeAsync(4000);
+    const res = await resPromise;
+    expect(res.status).toBe(504);
+    expect((await res.json()).error).toMatch(/timed out/i);
   });
 });

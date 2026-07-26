@@ -30,6 +30,7 @@ const active: EditModeState = {
   status: "idle",
   error: null,
   conflict: false,
+  pendingEditService: null,
 };
 
 describe("editModeReducer", () => {
@@ -98,6 +99,69 @@ describe("editModeReducer", () => {
     expect(next.baseRevision).toBe("rev-1");
   });
 
+  it("REQUEST_SERVICE_EDIT sets pendingEditService", () => {
+    const next = editModeReducer(initialEditModeState, {
+      type: "REQUEST_SERVICE_EDIT",
+      name: "Plex",
+    });
+    expect(next.pendingEditService).toBe("Plex");
+  });
+
+  it("CLEAR_PENDING_EDIT clears pendingEditService", () => {
+    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    const next = editModeReducer(pending, { type: "CLEAR_PENDING_EDIT" });
+    expect(next.pendingEditService).toBeNull();
+  });
+
+  it("CLEAR_PENDING_EDIT is a no-op (same reference) when already null", () => {
+    expect(editModeReducer(active, { type: "CLEAR_PENDING_EDIT" })).toBe(active);
+  });
+
+  it("pendingEditService survives ENTER_START (regression: fresh state objects)", () => {
+    const pending: EditModeState = {
+      ...initialEditModeState,
+      pendingEditService: "Plex",
+    };
+    const next = editModeReducer(pending, { type: "ENTER_START" });
+    expect(next.pendingEditService).toBe("Plex");
+  });
+
+  it("pendingEditService survives ENTER_SUCCESS (regression: fresh state objects)", () => {
+    const pending: EditModeState = {
+      ...initialEditModeState,
+      pendingEditService: "Plex",
+      status: "loading",
+    };
+    const config = cfg();
+    const next = editModeReducer(pending, {
+      type: "ENTER_SUCCESS",
+      config,
+      revision: "rev-1",
+    });
+    expect(next.pendingEditService).toBe("Plex");
+    expect(next.active).toBe(true);
+  });
+
+  it("pendingEditService is dropped by DISCARD", () => {
+    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    expect(
+      editModeReducer(pending, { type: "DISCARD" }).pendingEditService
+    ).toBeNull();
+  });
+
+  it("pendingEditService is dropped by ENTER_ERROR", () => {
+    const pending: EditModeState = {
+      ...initialEditModeState,
+      pendingEditService: "Plex",
+      status: "loading",
+    };
+    const next = editModeReducer(pending, {
+      type: "ENTER_ERROR",
+      error: "boom",
+    });
+    expect(next.pendingEditService).toBeNull();
+  });
+
   it("RELOAD_SUCCESS refreshes the draft and clears the conflict, staying active", () => {
     const conflicted: EditModeState = { ...active, conflict: true, status: "error" };
     const config = cfg({ services: [] });
@@ -151,9 +215,11 @@ function Harness() {
       <span data-testid="active">{String(em.active)}</span>
       <span data-testid="conflict">{String(em.conflict)}</span>
       <span data-testid="dirty">{String(em.dirty)}</span>
+      <span data-testid="status">{em.status}</span>
       <span data-testid="services">{em.draft?.services.length ?? "none"}</span>
       <span data-testid="baseRevision">{em.baseRevision ?? "none"}</span>
       <button onClick={() => void em.enter()}>enter</button>
+      <button onClick={() => em.requestServiceEdit("Plex")}>request-edit</button>
       <button onClick={() => em.setServices([])}>clear-services</button>
       <button
         onClick={() =>
@@ -201,6 +267,35 @@ describe("EditModeProvider (hook flows)", () => {
     });
     expect(screen.getByTestId("active").textContent).toBe("true");
     expect(screen.getByTestId("services").textContent).toBe("1");
+  });
+
+  it("requestServiceEdit does not fire a duplicate GET while entry is already in flight", async () => {
+    let resolveFetch!: (res: Response) => void;
+    const fetchMock = vi.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await setup();
+
+    // First call kicks off entry (status → "loading"); a second call — e.g.
+    // a double-click on the broken-widget badge — must not fire another GET
+    // while the first is still in flight.
+    act(() => {
+      fireEvent.click(screen.getByText("request-edit"));
+    });
+    expect(screen.getByTestId("status").textContent).toBe("loading");
+    act(() => {
+      fireEvent.click(screen.getByText("request-edit"));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFetch(fakeResponse(cfg(), { revision: "rev-1" }));
+    });
+    expect(screen.getByTestId("active").textContent).toBe("true");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("save with a stale revision surfaces a conflict and keeps the draft", async () => {

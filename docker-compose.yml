@@ -43,7 +43,11 @@ services:
       # - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      # 127.0.0.1, not "localhost": the server binds 0.0.0.0 (IPv4-only) while
+      # "localhost" also resolves to ::1 inside the container, and BusyBox wget
+      # never falls back past the first address it resolves. $$PORT is escaped
+      # so the container's shell expands it, not Compose.
+      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${PORT:-3000}/api/health\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

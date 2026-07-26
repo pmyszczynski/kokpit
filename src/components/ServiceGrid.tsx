@@ -11,31 +11,13 @@ import {
   serviceNameUniquenessKey,
   type BookmarkGroup,
   type Service,
-  type ServiceWidget,
   type Size,
 } from "@/config/schema";
-import { getWidget, getWidgetSizeHints } from "@/widgets";
+import { getWidgetSizeHints } from "@/widgets";
+import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "./BookmarkTile";
 import CollapsibleGroup from "./CollapsibleGroup";
-import ServiceTile, { TileWidget } from "./ServiceTile";
-
-// Decide what the client tile gets to see of a service's widget:
-// - no widget → nothing
-// - unknown type → sanitized pass-through, so the renderer surfaces the typo
-// - known type with valid config → sanitized widget
-// - known type with missing/invalid config → nothing (plain link tile)
-// Config (credentials) never leaves the server either way.
-function resolveTileWidget(widget?: ServiceWidget): TileWidget | undefined {
-  if (!widget) return undefined;
-  const def = getWidget(widget.type);
-  if (def && !def.configSchema.safeParse(widget.config ?? {}).success) {
-    return undefined;
-  }
-  return {
-    type: widget.type,
-    refresh_interval_ms: widget.refresh_interval_ms,
-  };
-}
+import ServiceTile from "./ServiceTile";
 
 /**
  * Default tile size for a bookmark group without an explicit

@@ -82,10 +82,10 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Tile type also pre-selects the matching widget, eliminating the separate widget dropdown for known services
   - YAML schema unchanged — tile type is purely a UI concern resolved at save time
 
-- [ ] `P0` **System stats widget**
+- [x] `P0` **System stats widget**
   - CPU, RAM, disk usage, network I/O
   - Docker container count / status overview
-  - Data via local agent, `/proc`, or optional SSH target
+  - Data via local `/proc` + `statfs`, with an optional Docker socket for the container overview
 
 - [ ] `P1` **Useful API widgets**
   - Weather: Open-Meteo (no API key) + OpenWeatherMap (API key)
@@ -143,7 +143,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Welcome card with "Add your first service" when the dashboard is empty (today: blank page)
   - Ghost "+" tile in empty groups while editing; first-edit coach marks
 
-- [ ] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
+- [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
   - Warning badge on tiles whose widget config fails validation, instead of today's silent downgrade to a plain link
   - Badge links to the edit dialog with the validation error shown
 
@@ -186,7 +186,9 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Analytics:
     - [x] Tautulli — configurable current activity widget (summary, active sessions, or both)
     - [ ] Grafana embed widget
-  - Finance: Actual Budget, Firefly III
+  - [ ] **Finance**
+    - [x] Actual Budget
+    - [ ] Firefly III
 
 - [ ] `P2` **Keyboard shortcuts & global search**
   - ⌘K / Ctrl+K launcher: search across all services and bookmarks

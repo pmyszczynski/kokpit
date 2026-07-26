@@ -73,7 +73,8 @@ export async function POST(request: Request) {
     // payloads never round-trip through the form.
     await fetchWithHardTimeout(
       (signal) => widget.fetchData(parsed.data, signal),
-      "Connection test timed out"
+      "Connection test timed out",
+      widget.fetchTimeoutMs
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

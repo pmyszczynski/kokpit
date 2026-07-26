@@ -53,7 +53,9 @@ services:
       - ./data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      # Probe 127.0.0.1 rather than "localhost" — inside the container
+      # "localhost" also resolves to ::1, which nothing listens on.
+      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${PORT:-3000}/api/health\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -291,6 +293,8 @@ services:
 ```
 
 Credentials in `widget.config` are read server-side only and are never sent to the browser.
+
+**Troubleshooting widget configuration:** If a widget's config fails validation (e.g., a missing required field like `token` or a malformed URL), the tile displays a small warning badge in its corner. Hover the badge to see the specific validation errors in a tooltip. Users with edit permission can click the badge to open the service editor with the widget section focused, then fix the configuration and save.
 
 ---
 
@@ -905,6 +909,191 @@ services:
 
 ---
 
+### Actual Budget
+
+Displays budget summary, category spending, account balances, and upcoming bills from a self-hosted Actual Budget instance. Reading data requires a separate `jhonderson/actual-http-api` sidecar container — Actual Budget has no built-in HTTP/REST read API (only a Node.js `@actual-app/api` package for programmatic access), so the sidecar acts as a JSON bridge to your encrypted budget.
+
+**Prerequisites:** A running Actual Budget server and an `actual-http-api` sidecar container with credentials configured. The sidecar's API key is what you configure in Kokpit; Kokpit never sees your Actual server password.
+
+**Critical setup step — read this first:** Add the sidecar to your `docker-compose.yml`:
+
+```yaml
+services:
+  actual-http-api:
+    image: jhonderson/actual-http-api:26.7.0
+    environment:
+      # Your Actual Budget server connection (the sidecar only; Kokpit never sees this)
+      ACTUAL_SERVER_URL: http://actual-server:5006
+      ACTUAL_SERVER_PASSWORD: your-actual-server-password
+
+      # Generate a long random string for the sidecar's own API auth
+      # This is what you'll put in Kokpit's api_key field
+      API_KEY: generate-a-long-random-string-here
+
+      NODE_ENV: production
+    volumes:
+      - ./actual-http-api-data:/data
+    restart: unless-stopped
+```
+
+Then pin the sidecar's image tag to match your Actual server's version line (e.g. both `26.7.0`). A mismatch causes cryptic sync errors.
+
+**Three distinct secrets — do not confuse them:**
+
+1. **Actual server password** — your budget's login password. Goes in the sidecar's `ACTUAL_SERVER_PASSWORD` env var. Kokpit never sees it.
+2. **Sidecar `API_KEY`** — generate a long random string (use `openssl rand -hex 32` or similar). This is what goes in Kokpit's `api_key` widget config field.
+3. **Budget encryption password** *(optional)* — only needed if your budget is end-to-end encrypted. If you have one, put it in the widget's `encryption_password` field.
+
+**Find your Sync ID:** In Actual Budget, go to Settings → Show advanced settings → Sync ID. Copy that value into the widget's `budget_sync_id` field.
+
+**Privacy mode (default on):** Amounts are blurred by default and reveal on hover or focus. Set `privacy_mode: false` in the widget config to always show amounts.
+
+**Two different URLs, on purpose**, and they are resolved by different things:
+
+- The service-level `url` is where **your browser** navigates when you click the tile, so it must be reachable from your machine — a LAN address or hostname like `http://192.168.1.x:5006`, pointing at your Actual Budget server. A Docker service name such as `actual-server` will *not* work here: it only resolves between containers, so the tile would fail to open even though the widget loads fine.
+- `widget.config.url` is fetched **server-side by Kokpit**, so it can use Docker DNS (`http://actual-http-api:5007`) and should point at the sidecar, never at Actual Budget itself.
+
+Pointing both at the sidecar gives you a tile that opens raw JSON instead of your budget.
+
+#### `actualbudget-summary`
+
+Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of overspent categories, and Net Worth.
+
+```yaml
+services:
+  - name: Actual Budget
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-summary
+      config:
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+#### `actualbudget-categories`
+
+Shows per-category spending vs. budget as a sorted list with progress bars and colour-coded status (green, yellow, or red for overspent).
+
+```yaml
+services:
+  - name: Budget Categories
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-categories
+      config:
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # limit: 8                    # optional; top N categories by spend (1–50, default: 8)
+        # hide_income: true           # optional; exclude income categories (default: true)
+        # hide_empty: true            # optional; exclude categories with no budget/spend (default: true)
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+#### `actualbudget-accounts`
+
+Lists all accounts with their current balance, filtered by closed/off-budget status, plus a Net worth total row.
+
+```yaml
+services:
+  - name: Budget Accounts
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-accounts
+      config:
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # exclude_closed: true        # optional; hide closed accounts (default: true)
+        # exclude_offbudget: false    # optional; hide off-budget accounts (default: false)
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+        # (no timezone field here — this widget's balances aren't resolved
+        #  against a date, so nothing in it reads config.timezone)
+```
+
+#### `actualbudget-schedules`
+
+Shows upcoming bills and income rules, sorted by due date, with relative due dates ("today", "3d", "overdue") and a footer showing how many are due soon — within `min(7, days_ahead)` days — or already overdue. Set `days_ahead` below 7 and the footer's own label shrinks to match, so it never promises a window `days_ahead` has already excluded the data for.
+
+```yaml
+services:
+  - name: Budget Schedule
+    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+    icon: di-actual-budget
+    widget:
+      type: actualbudget-schedules
+      config:
+        url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
+        api_key: your-sidecar-api-key
+        budget_sync_id: your-sync-id
+        # limit: 6                    # optional; top N schedules (1–50, default: 6)
+        # days_ahead: 30              # optional; schedules due within N days (1–365, default: 30)
+        # currency: USD               # optional; ISO 4217 code (default: USD)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
+        # privacy_mode: true          # optional; blur amounts until hover (default: true)
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+```
+
+**Config fields (shared across all four widgets):**
+
+| Field | Required | Description |
+|---|---|---|
+| `url` | Yes | Base URL of your actual-http-api sidecar (e.g. `http://actual-http-api:5007`). **Not** your Actual Budget server URL. |
+| `api_key` | Yes | The sidecar's `API_KEY` environment variable. |
+| `budget_sync_id` | Yes | Your budget's Sync ID from Actual → Settings → Show advanced settings. |
+| `encryption_password` | No | Only required for end-to-end-encrypted budgets. |
+| `currency` | No | ISO 4217 code (default: `USD`). Controls amount formatting. |
+| `locale` | No | Locale identifier (e.g. `en-GB`, `de-DE`; default: server locale). |
+| `privacy_mode` | No | When `true` (default), amounts are blurred and reveal on hover/focus. Set to `false` to always show them. |
+
+**`timezone` (summary, categories, schedules only — not accounts):**
+
+| Field | Required | Description |
+|---|---|---|
+| `timezone` | No | IANA timezone name (e.g. `Europe/Warsaw`; default: the server's timezone). Used to resolve the current budget month (summary, categories) or schedule due-date status — "today"/"overdue" (schedules) — Kokpit's own container runs UTC unless you set `TZ` on it, so set this if you're not in UTC and see month or due-date figures off by a few hours around midnight. Not offered on `actualbudget-accounts`: account balances aren't resolved against a date, so nothing there reads it. |
+
+**Per-widget extra fields:**
+
+| Widget | Field | Type | Description |
+|---|---|---|---|
+| `actualbudget-categories` | `limit` | int | Top N categories by spend, 1–50 (default: 8). |
+| `actualbudget-categories` | `hide_income` | bool | Exclude income categories (default: `true`). |
+| `actualbudget-categories` | `hide_empty` | bool | Exclude categories with no budget or spending (default: `true`). |
+| `actualbudget-accounts` | `exclude_closed` | bool | Hide closed accounts (default: `true`). |
+| `actualbudget-accounts` | `exclude_offbudget` | bool | Hide off-budget accounts (default: `false`). |
+| `actualbudget-schedules` | `limit` | int | Top N schedules, 1–50 (default: 6). |
+| `actualbudget-schedules` | `days_ahead` | int | Schedules due within N days, 1–365 (default: 30). |
+
+**Displayed stats / information:**
+
+| Widget | Shows |
+|---|---|
+| `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of all account balances). |
+| `actualbudget-categories` | Category name, Spent / Budgeted amounts with progress bar, colour status — mutually exclusive: green under 85% spent, yellow 85–100% spent, red when the category is overspent (balance below zero, which takes priority over the percentage). Sorted by % spent descending. |
+| `actualbudget-accounts` | Account name, off-budget marker, current balance. Footer shows Net worth total. |
+| `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within `min(7, days_ahead)` days or overdue (e.g. "Due within 3 days or overdue" when `days_ahead: 3`). |
+
+**Read-only:** This integration never modifies your budget — it only reads data from the sidecar.
+
+---
+
 ### Docker
 
 Lists the containers running on the Docker host: a colored state dot, container name, image, and uptime per row, plus a "running / total" summary.
@@ -955,6 +1144,62 @@ Stopped containers count toward the total but are not listed. Paused and restart
 ```
 
 Native TCP Docker host support is on the backlog.
+
+---
+
+### System Stats
+
+Shows live host metrics — CPU usage, RAM, disk usage, and network I/O — read directly from the machine Kokpit runs on via `/proc` (and `statfs` for disk), plus an optional Docker container running/total summary. Unlike the Netdata widget, it needs no external monitoring service.
+
+**Prerequisites:** By default, it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket as described in the Docker widget section above (note its security caveats). Example compose volumes/env:
+
+```yaml
+services:
+  kokpit:
+    volumes:
+      - ./data:/data
+      - /proc:/host/proc:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      KOKPIT_PROC_PATH: /host/proc
+```
+
+**YAML example:**
+
+```yaml
+services:
+  - name: System
+    icon: mdi-server
+    widget:
+      type: system-stats
+      config:
+        proc_path: /host/proc   # optional; defaults to /proc (or KOKPIT_PROC_PATH)
+        disk_path: /             # optional; filesystem to report disk usage for
+        fields:
+          - cpu
+          - memory
+          - disk
+          - network
+          - load
+          - docker
+        docker_socket_path: /var/run/docker.sock   # only used when "docker" is in fields
+```
+
+**Config fields:**
+
+
+| Field                | Required | Description                                                                                                              |
+| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `proc_path`          | No       | Path to procfs. Defaults to the `KOKPIT_PROC_PATH` env var, then `/proc`. Bind-mount the host's `/proc` and set this for host-wide metrics in Docker. |
+| `disk_path`          | No       | Filesystem mount to report disk usage for (default `/`).                                                                |
+| `interface`          | No       | Network interface to measure. Leave empty to sum all non-loopback interfaces.                                           |
+| `docker_socket_path` | No       | Docker socket for the container overview. Defaults to `KOKPIT_DOCKER_SOCKET`, then `/var/run/docker.sock`. Only used when `docker` is listed in `fields`. |
+| `fields`             | No       | Which stats to display: any of `cpu`, `memory`, `disk`, `network`, `load`, `docker` (default: `cpu, memory, disk, network`). |
+
+
+CPU and network rates come from two `/proc` samples taken a fraction of a second apart per refresh. If the Docker socket is unavailable, the container line is quietly omitted (as "Docker unavailable") without affecting the other stats.
+
+**Security note:** The `/proc` and `statfs` reads are local and read-only, full stop. The Docker field is different: Kokpit itself only ever *issues* read-only API calls (`GET /_ping`, `GET /containers/json`), but access to the socket is effectively root-equivalent on the host — the `:ro` mount flag only makes the socket file node read-only, it does not restrict what the Docker Engine API will do for anyone who can reach it. See the hardening guidance (filtered socket proxy) in the Docker widget section above if that matters for your threat model. `proc_path`, `disk_path`, and `docker_socket_path` come from trusted admin config in `settings.yaml`, not from end users. No network requests are made to read the system metrics, so the widget stays fully air-gappable.
 
 ---
 

@@ -9,20 +9,37 @@ export interface WidgetProps<TData = unknown> {
   refresh: () => void;
 }
 
-export type WidgetConfigFieldType = "text" | "url" | "password" | "number" | "multiselect";
+export type WidgetConfigFieldType =
+  | "text"
+  | "url"
+  | "password"
+  | "number"
+  | "multiselect"
+  | "boolean";
 
-export interface WidgetConfigField {
+interface WidgetConfigFieldBase {
   key: string;
   label: string;
-  type: WidgetConfigFieldType;
   placeholder?: string;
   description?: string;
   required?: boolean;
-  /** Initial editor value when the saved widget config omits this key. */
-  defaultValue?: string | number | string[];
   /** Options for multiselect fields. */
   options?: Array<{ value: string; label: string }>;
 }
+
+export type WidgetConfigField =
+  | (WidgetConfigFieldBase & {
+      type: "boolean";
+      /** Must match the config schema's effective default for an absent key. */
+      defaultValue?: boolean;
+    })
+  | (WidgetConfigFieldBase & {
+      type: Exclude<WidgetConfigFieldType, "boolean">;
+      /**
+       * Effective editor value when the saved widget config omits this key.
+       */
+      defaultValue?: string | number | string[];
+    });
 
 /** Default tile label and icon when picking this widget in the service editor. */
 export interface ServiceEditorPreset {
@@ -56,10 +73,16 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   preferredSize?: Size;
   /** Smallest size the widget renders usefully at; the size picker greys out anything below. */
   minSize?: Size;
+  /**
+   * Overrides the default 5s widget fetch timeout (WIDGET_FETCH_TIMEOUT_MS
+   * in src/lib/fetchTimeout.ts) for this widget's fetchData calls. Leave
+   * unset to use the default.
+   */
+  fetchTimeoutMs?: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyWidgetDefinition = WidgetDefinition<any, any>;
+export type AnyWidgetDefinition = WidgetDefinition<any, any>;
 
 const widgetRegistry = new Map<string, AnyWidgetDefinition>();
 

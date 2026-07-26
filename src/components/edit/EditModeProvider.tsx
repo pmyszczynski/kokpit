@@ -57,6 +57,12 @@ export interface EditModeState {
   error: string | null;
   /** True when a save 409'd — the on-disk config moved under us. */
   conflict: boolean;
+  /**
+   * Service whose edit dialog should open as soon as the edit grid mounts.
+   * Set from view mode (the broken-widget badge) where the ServiceForm dialog
+   * does not exist yet; EditableServiceGrid consumes it and clears it.
+   */
+  pendingEditService: string | null;
 }
 
 export const initialEditModeState: EditModeState = {
@@ -67,6 +73,7 @@ export const initialEditModeState: EditModeState = {
   status: "idle",
   error: null,
   conflict: false,
+  pendingEditService: null,
 };
 
 export type EditModeAction =
@@ -79,7 +86,9 @@ export type EditModeAction =
   | { type: "SAVE_SUCCESS"; revision: string | null }
   | { type: "SAVE_ERROR"; error: string }
   | { type: "CONFLICT"; error: string }
-  | { type: "RELOAD_SUCCESS"; config: KokpitConfig; revision: string | null };
+  | { type: "RELOAD_SUCCESS"; config: KokpitConfig; revision: string | null }
+  | { type: "REQUEST_SERVICE_EDIT"; name: string }
+  | { type: "CLEAR_PENDING_EDIT" };
 
 export function editModeReducer(
   state: EditModeState,
@@ -97,6 +106,10 @@ export function editModeReducer(
         status: "idle",
         error: null,
         conflict: false,
+        // Carried across the entry round-trip: REQUEST_SERVICE_EDIT is
+        // dispatched from view mode *before* enter() resolves, and this case
+        // builds a fresh state object rather than spreading.
+        pendingEditService: state.pendingEditService,
       };
     case "ENTER_ERROR":
       return { ...initialEditModeState, status: "error", error: action.error };
@@ -139,6 +152,11 @@ export function editModeReducer(
         error: null,
         conflict: false,
       };
+    case "REQUEST_SERVICE_EDIT":
+      return { ...state, pendingEditService: action.name };
+    case "CLEAR_PENDING_EDIT":
+      if (state.pendingEditService === null) return state;
+      return { ...state, pendingEditService: null };
     default:
       return state;
   }
@@ -157,6 +175,8 @@ export function changedKeys(
 }
 
 export interface EditModeContextValue extends EditModeState {
+  /** Whether the current viewer may edit (mirrors the provider prop). */
+  canEdit: boolean;
   /** True when the draft differs from the baseline. */
   dirty: boolean;
   /** Number of changed top-level editable keys (edit-bar counter). */
@@ -176,6 +196,14 @@ export interface EditModeContextValue extends EditModeState {
   setServices: (services: Service[]) => void;
   setGroups: (groups: Group[] | undefined) => void;
   setBookmarks: (bookmarks: BookmarkGroup[] | undefined) => void;
+  /**
+   * Ask for a service's edit dialog. Entering edit mode when needed, since the
+   * dialog only exists inside EditableServiceGrid — the request is parked in
+   * `pendingEditService` until that grid mounts and picks it up.
+   */
+  requestServiceEdit: (name: string) => void;
+  /** Drop a pending request (after it has been honoured, or is unresolvable). */
+  clearPendingEditService: () => void;
 }
 
 const EditModeContext = createContext<EditModeContextValue | null>(null);
@@ -315,6 +343,27 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     else void enter();
   }, [state.active, discard, enter]);
 
+  const requestServiceEdit = useCallback(
+    (name: string) => {
+      if (!canEdit) return;
+      dispatch({ type: "REQUEST_SERVICE_EDIT", name });
+      // From view mode the edit grid (and with it the dialog) does not exist
+      // yet, so entry has to happen too. A failed entry resets to
+      // initialEditModeState via ENTER_ERROR, which drops the pending name —
+      // the right outcome: no edit mode, nothing to open. Also guard against
+      // a duplicate entry request: a double-click on the badge (or a click
+      // while entry is already in flight) would otherwise fire a second
+      // GET /api/settings before the first one resolves.
+      if (!state.active && state.status !== "loading") void enter();
+    },
+    [canEdit, state.active, state.status, enter]
+  );
+
+  const clearPendingEditService = useCallback(
+    () => dispatch({ type: "CLEAR_PENDING_EDIT" }),
+    []
+  );
+
   // First global hotkey in the app: Mod+E toggles edit mode. Ignored while the
   // user is typing into a field so it never eats an in-form keystroke.
   useEffect(() => {
@@ -357,6 +406,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   const value = useMemo<EditModeContextValue>(
     () => ({
       ...state,
+      canEdit,
       dirty: keys.length > 0,
       dirtyCount: keys.length,
       enter,
@@ -368,9 +418,12 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
       setServices,
       setGroups,
       setBookmarks,
+      requestServiceEdit,
+      clearPendingEditService,
     }),
     [
       state,
+      canEdit,
       keys,
       enter,
       toggle,
@@ -381,6 +434,8 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
       setServices,
       setGroups,
       setBookmarks,
+      requestServiceEdit,
+      clearPendingEditService,
     ]
   );
 
@@ -399,4 +454,14 @@ export function useEditMode(): EditModeContextValue {
     throw new Error("useEditMode must be used within an EditModeProvider");
   }
   return ctx;
+}
+
+/**
+ * Same as useEditMode, but returns null instead of throwing when there is no
+ * provider. For components that live in both the dashboard tree and standalone
+ * (e.g. ServiceTile, which is rendered on its own in unit tests) and only want
+ * edit affordances when edit mode is actually available.
+ */
+export function useEditModeOptional(): EditModeContextValue | null {
+  return useContext(EditModeContext);
 }
