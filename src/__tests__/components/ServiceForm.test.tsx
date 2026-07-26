@@ -688,6 +688,145 @@ describe("ServiceForm – Tautulli defaults", () => {
       })
     );
   });
+
+  it("requires re-entering a saved credential after its destination changes, then accepts a replacement", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://other-tautulli.local:8181" },
+    });
+    const apiKey = screen.getByLabelText(/^API Key \*$/);
+    expect(apiKey).toBeRequired();
+    expect(screen.getByText(/re-enter.*credential/i)).toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(apiKey, { target: { value: "replacement" } });
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({ api_key: "replacement" }),
+        }),
+      })
+    );
+  });
+
+  it("keeps a saved credential valid when its canonical destination is restored or unrelated fields change", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+              sections: ["summary"],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://other-tautulli.local:8181" },
+    });
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "HTTP://TAUTULLI.local:8181/" },
+    });
+    fireEvent.click(screen.getByLabelText("Active sessions"));
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Renamed Tautulli" },
+    });
+    fireEvent.change(screen.getByLabelText("Icon URL"), {
+      target: { value: "https://example.test/icon.svg" },
+    });
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "Media" } });
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "large" } });
+    fireEvent.change(screen.getByLabelText("Refresh interval (ms)"), {
+      target: { value: "15000" },
+    });
+
+    expect(screen.queryByText(/re-enter.*credential/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+  });
+
+  it("binds a saved qBittorrent password to both URL and username", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "qBittorrent",
+          widget: {
+            type: "qbittorrent-stats",
+            config: {
+              url: "http://qbit.local:8080",
+              username: "admin",
+              password: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Username *"), {
+      target: { value: "other-admin" },
+    });
+    expect(screen.getByText(/re-enter.*credential/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Password *")).toBeRequired();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+  });
+
+  it("makes an originally optional saved token required when its scope changes", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "CPU",
+          widget: {
+            type: "netdata-cpu",
+            config: {
+              url: "http://netdata.local:19999",
+              api_token: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Netdata URL *"), {
+      target: { value: "http://other-netdata.local:19999" },
+    });
+    expect(screen.getByLabelText("API Token *")).toBeRequired();
+  });
 });
 
 describe("ServiceForm – test connection", () => {

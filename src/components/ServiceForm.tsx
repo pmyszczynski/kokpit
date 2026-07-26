@@ -16,6 +16,7 @@ import {
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
+import { widgetCredentialScopesMatch } from "@/widgets/credentialScope";
 import { isWidgetSecretReference } from "@/widgets/secretReference";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
@@ -282,10 +283,12 @@ function WidgetConfigFields({
   fields,
   config,
   onChange,
+  savedCredentialsStale,
 }: {
   fields: WidgetConfigField[];
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  savedCredentialsStale: boolean;
 }) {
   return (
     <>
@@ -293,6 +296,7 @@ function WidgetConfigFields({
         const value = config[field.key] ?? field.defaultValue;
         const savedSecret =
           field.type === "password" && isWidgetSecretReference(value);
+        const needsReplacement = savedSecret && savedCredentialsStale;
 
         if (field.type === "multiselect" && field.options) {
           const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -326,11 +330,14 @@ function WidgetConfigFields({
 
         return (
           <div key={field.key} className="settings-form-row">
-            <label htmlFor={`sf-widget-${field.key}`}>{field.label}{field.required && " *"}</label>
+            <label htmlFor={`sf-widget-${field.key}`}>
+              {field.label}{(field.required || needsReplacement) && " *"}
+            </label>
             <input
               id={`sf-widget-${field.key}`}
               type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
               className="settings-input"
+              required={needsReplacement}
               value={
                 savedSecret
                   ? ""
@@ -346,6 +353,11 @@ function WidgetConfigFields({
                 savedSecret ? "Saved — enter a new value to replace" : field.placeholder
               }
             />
+            {needsReplacement && (
+              <p className="settings-form-hint settings-form-hint--error">
+                This credential is saved for a different connection. Re-enter the credential to continue.
+              </p>
+            )}
             {field.description && (
               <p className="settings-form-hint">{field.description}</p>
             )}
@@ -428,15 +440,39 @@ export default function ServiceForm({
 
   const activeWidgetType =
     tileType !== "" ? tileType : orphanWidget?.type ?? null;
-  const activeCleanedConfig = cleanWidgetConfig(
+  const activeRawConfig =
     tileType !== ""
       ? widgetConfig
-      : ((orphanWidget?.config as Record<string, unknown>) ?? {})
+      : ((orphanWidget?.config as Record<string, unknown>) ?? {});
+  const activeCleanedConfig = cleanWidgetConfig(
+    activeRawConfig
   );
+  const originalWidgetConfig =
+    service?.widget?.type === activeWidgetType
+      ? ((service.widget.config as Record<string, unknown>) ?? {})
+      : null;
+  const retainedSavedSecret = selectedWidgetDef?.configFields?.some(
+    (field) =>
+      field.type === "password" &&
+      isWidgetSecretReference(activeRawConfig[field.key])
+  ) ?? false;
+  // Signed references are intentionally opaque to the browser. The only
+  // client-side decision is whether their original and current destinations
+  // normalize to the same registry-declared credential scope.
+  const savedCredentialsStale =
+    retainedSavedSecret &&
+    (!activeWidgetType ||
+      !originalWidgetConfig ||
+      !widgetCredentialScopesMatch(
+        activeWidgetType,
+        originalWidgetConfig,
+        activeCleanedConfig
+      ));
   // Mirrors the dashboard's rule: the widget renders only when its config
   // passes the schema. Unknown types can't be validated client-side.
   const widgetConfigValid = selectedWidgetDef
-    ? selectedWidgetDef.configSchema.safeParse(activeCleanedConfig).success
+    ? selectedWidgetDef.configSchema.safeParse(activeCleanedConfig).success &&
+      !savedCredentialsStale
     : null;
 
   function handleWidgetConfigChange(key: string, value: unknown) {
@@ -483,7 +519,7 @@ export default function ServiceForm({
   }
 
   async function handleTestConnection() {
-    if (!activeWidgetType) return;
+    if (!activeWidgetType || savedCredentialsStale) return;
     setTestStatus({ state: "testing" });
     try {
       const res = await fetch("/api/widget/test", {
@@ -637,6 +673,8 @@ export default function ServiceForm({
       return;
     }
     setNameError(null);
+
+    if (savedCredentialsStale) return;
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
@@ -951,6 +989,7 @@ export default function ServiceForm({
                 <WidgetConfigFields
                   fields={selectedWidgetDef.configFields}
                   config={tileType !== "" ? widgetConfig : orphanConfig}
+                  savedCredentialsStale={savedCredentialsStale}
                   onChange={
                     tileType !== ""
                       ? handleWidgetConfigChange
