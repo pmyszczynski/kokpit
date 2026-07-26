@@ -94,8 +94,8 @@ The widget registration will use:
   id: "tautulli-activity",
   name: "Tautulli Activity",
   refreshInterval: 10_000,
-  preferredSize: "large",
-  minSize: "wide"
+  preferredSize: "tall",
+  minSize: "tall"
 }
 ```
 
@@ -200,16 +200,15 @@ server/client boundary.
 
 ### Summary section
 
-Render one compact row containing:
+Render five compact summary cells in three rows:
 
-- Active
-- Direct Play
-- Direct Stream
-- Transcoding
-- Bandwidth
+- Row one: Active and Direct Play.
+- Row two: Direct Stream and Transcoding.
+- Row three: Bandwidth spanning the full tile width.
 
 Bandwidth is formatted from kilobits per second into `Kbps`, `Mbps`, or `Gbps`
-using decimal units. The row remains usable at the minimum `wide` tile size.
+using decimal units. This arrangement remains readable at the minimum `tall`
+tile size (one column by two rows).
 
 ### Active sessions section
 
@@ -223,9 +222,12 @@ An empty list displays "No active streams." User-provided upstream strings are
 rendered as ordinary React text, not HTML.
 
 When both sections are enabled, the summary remains fixed above the scrollable
-session list. The default `large` tile size gives the list useful vertical
-space. A summary-only or sessions-only tile can be resized by the user while
-respecting the widget's `wide` minimum.
+session list. The default and minimum `tall` tile size (one column by two rows)
+gives the list useful vertical space while keeping the summary narrow-safe.
+The session list remains vertically scrollable below the summary. On mobile,
+the widget retains the project's existing full-width collapse. A summary-only
+or sessions-only tile can be resized by the user while respecting the
+widget's `tall` minimum.
 
 The component follows existing widget state conventions:
 
