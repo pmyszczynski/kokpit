@@ -82,6 +82,12 @@ function nonBlank(value: string | null | undefined, fallback: string): string {
   return value?.trim() ? value : fallback;
 }
 
+function abortedRequestError(): Error {
+  const error = new Error("Tautulli request aborted");
+  error.name = "AbortError";
+  return error;
+}
+
 export async function fetchActivity(
   config: TautulliConfig,
   signal?: AbortSignal
@@ -95,9 +101,7 @@ export async function fetchActivity(
     response = await fetch(url.toString(), { signal });
   } catch {
     if (signal?.aborted) {
-      const abortError = new Error("Tautulli request aborted");
-      abortError.name = "AbortError";
-      throw abortError;
+      throw abortedRequestError();
     }
     throw new Error("Tautulli network request failed");
   }
@@ -109,6 +113,9 @@ export async function fetchActivity(
   try {
     json = await response.json();
   } catch {
+    if (signal?.aborted) {
+      throw abortedRequestError();
+    }
     throw new Error("Tautulli returned invalid JSON");
   }
 

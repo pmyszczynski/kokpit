@@ -269,6 +269,35 @@ describe("fetchActivity", () => {
     expect(error.message).not.toContain("super-secret-key");
   });
 
+  it("preserves externally-triggered abort semantics when reading the response body", async () => {
+    const controller = new AbortController();
+    const leakedUrl =
+      "http://tautulli.local:8181/api/v2?apikey=super-secret-key&cmd=get_activity";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => {
+          controller.abort();
+          throw new Error(`body read aborted for ${leakedUrl}`);
+        },
+      })
+    );
+
+    const error = await fetchActivity(BASE_CONFIG, controller.signal).catch(
+      (reason: unknown) => reason
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("Tautulli request aborted");
+    expect(error.message).not.toContain(leakedUrl);
+    expect(error.message).not.toContain("apikey=");
+    expect(error.message).not.toContain("super-secret-key");
+  });
+
   it("rejects an error envelope without exposing upstream request details", async () => {
     const upstreamMessage = "Request failed at http://tautulli.local:8181/api/v2?apikey=super-secret-key&cmd=get_activity";
     vi.stubGlobal("fetch", mockFetch({
