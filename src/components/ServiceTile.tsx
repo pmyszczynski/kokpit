@@ -59,8 +59,8 @@ function WarningTriangle() {
     <svg
       className="tile-widget-badge__glyph"
       aria-hidden="true"
-      width="14"
-      height="14"
+      width="16"
+      height="16"
       viewBox="0 0 16 16"
     >
       <path

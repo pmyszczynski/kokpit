@@ -539,11 +539,12 @@ button {
   height: 20px;
   padding: 0;
   line-height: 0;
+  /* No background fill: it occupies the status dot's slot and should read as
+     the same kind of bare indicator. Dropping the fill also removes the
+     optical mismatch of a bottom-heavy triangle inside a circle. */
   color: var(--color-warning, #f59e0b);
-  background: color-mix(in srgb, var(--color-warning, #f59e0b) 18%, transparent);
-  border-radius: var(--radius);
   z-index: 2;
-  transition: background 150ms ease, color 150ms ease;
+  transition: color 150ms ease, transform 150ms ease;
 }
 
 /* Only interactive when edit mode is available (span[role=button], so it can
@@ -552,10 +553,17 @@ button {
   cursor: pointer;
 }
 
-.tile-widget-badge--interactive:hover,
+.tile-widget-badge--interactive:hover {
+  color: color-mix(in srgb, var(--color-warning, #f59e0b) 70%, var(--color-text));
+  transform: scale(1.12);
+}
+
+/* Keyboard focus needs its own indicator: with no background left to shift,
+   suppressing the outline would make focus invisible. */
 .tile-widget-badge--interactive:focus-visible {
-  background: color-mix(in srgb, var(--color-warning, #f59e0b) 32%, transparent);
-  outline: none;
+  outline: 2px solid var(--color-warning, #f59e0b);
+  outline-offset: 2px;
+  border-radius: 50%;
 }
 
 .tile-widget-badge__glyph {
