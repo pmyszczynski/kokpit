@@ -41,6 +41,25 @@ describe("ServiceTile", () => {
     expect(screen.getByText("Jellyfin")).toBeInTheDocument();
   });
 
+  it("groups the service icon and name in the same header row", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Jellyfin"
+          url="http://192.168.1.10:8096"
+          icon="/icons/jellyfin.png"
+        />
+      ));
+    });
+
+    const header = container.querySelector(".service-tile__header");
+    expect(header).not.toBeNull();
+    expect(header?.children).toHaveLength(2);
+    expect(header?.children[0]).toHaveClass("service-tile__icon");
+    expect(header?.children[1]).toHaveClass("service-tile__name");
+  });
+
   it("links to the correct URL in a new tab", async () => {
     await act(async () => {
       render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);

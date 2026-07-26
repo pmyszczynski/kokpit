@@ -297,8 +297,10 @@ export default function ServiceTile({ name, url, icon, description, widget, size
       ) : (
         url && <StatusDot url={url} preview={preview} />
       )}
-      <ServiceIcon icon={icon} url={url} name={name} />
-      <span className="service-tile__name">{name}</span>
+      <div className="service-tile__header">
+        <ServiceIcon icon={icon} url={url} name={name} />
+        <span className="service-tile__name">{name}</span>
+      </div>
       {description && (
         <span className="service-tile__description">{description}</span>
       )}

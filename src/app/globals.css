@@ -428,6 +428,14 @@ button {
   height: 32px;
   object-fit: contain;
   border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.service-tile__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .service-tile__letter-fallback {
