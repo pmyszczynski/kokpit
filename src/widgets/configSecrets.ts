@@ -43,7 +43,7 @@ export class WidgetSecretResolutionError extends Error {
   }
 }
 
-function passwordFieldKeys(widgetType: string): string[] {
+function credentialFieldKeys(widgetType: string): string[] {
   return (
     getWidget(widgetType)
       ?.configFields?.filter((field) => field.type === "password")
@@ -89,12 +89,12 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
         };
       }
 
-      const passwordKeys = passwordFieldKeys(widget.type);
-      if (passwordKeys.length === 0) return service;
+      const credentialKeys = credentialFieldKeys(widget.type);
+      if (credentialKeys.length === 0) return service;
 
       let changed = false;
       const redactedConfig = { ...rawConfig };
-      for (const key of passwordKeys) {
+      for (const key of credentialKeys) {
         if (
           !Object.prototype.hasOwnProperty.call(rawConfig, key) ||
           rawConfig[key] === undefined
@@ -226,7 +226,7 @@ export function resolveWidgetConfigSecrets(
     return resolveUnknownWidgetConfig(widgetType, rawConfig, savedServices);
   }
   let resolvedConfig: Record<string, unknown> | null = null;
-  const passwordKeys = passwordFieldKeys(widgetType);
+  const credentialKeys = credentialFieldKeys(widgetType);
   for (const [key, value] of Object.entries(rawConfig)) {
     if (isWidgetConfigReference(value)) {
       throw new WidgetSecretResolutionError(
@@ -235,14 +235,14 @@ export function resolveWidgetConfigSecrets(
     }
     if (
       isWidgetSecretReference(value) &&
-      !passwordKeys.includes(key)
+      !credentialKeys.includes(key)
     ) {
       throw new WidgetSecretResolutionError(
         "widget_secret_reference_invalid"
       );
     }
   }
-  for (const key of passwordKeys) {
+  for (const key of credentialKeys) {
     const value = rawConfig[key];
     if (!isWidgetSecretReference(value)) continue;
     resolvedConfig ??= { ...rawConfig };
