@@ -21,6 +21,18 @@ const SERVICES = [
     // missing here, so the config fails validation.
     widget: { type: "sonarr-queue", config: { url: "http://localhost:8001" } },
   },
+  {
+    name: "Prowlarr",
+    url: "http://localhost:8002",
+    // The control that matters: a widget whose config PASSES its schema. Its
+    // data fetch will fail (nothing is listening on that port), which is the
+    // point — a runtime fetch failure is a different condition from a config
+    // failure and must not raise the badge.
+    widget: {
+      type: "prowlarr-stats",
+      config: { url: "http://localhost:8002", api_key: "test-key" },
+    },
+  },
   { name: "Grafana", url: "http://localhost:3001" },
 ];
 
@@ -63,11 +75,21 @@ test.describe("broken-widget feedback", () => {
     await expect(tile.locator(".service-tile__widget")).toHaveCount(0);
     await expect(tile.locator(".widget-error")).toHaveCount(0);
 
-    // A valid, unaffected sibling tile keeps rendering as a plain link.
+    // A widget-less sibling keeps rendering as a plain link.
     const grafanaTile = page
       .locator(".service-tile")
       .filter({ has: page.locator('.service-tile__name:text-is("Grafana")') });
     await expect(grafanaTile.locator(".tile-widget-badge")).toHaveCount(0);
+
+    // The control that actually guards against false positives: a widget
+    // whose config is VALID gets no badge, even though its data fetch fails
+    // against a port with nothing behind it. A broken connection and a broken
+    // config are different problems and must look different.
+    const prowlarrTile = page
+      .locator(".service-tile")
+      .filter({ has: page.locator('.service-tile__name:text-is("Prowlarr")') });
+    await expect(prowlarrTile.locator(".service-tile__widget")).toHaveCount(1);
+    await expect(prowlarrTile.locator(".tile-widget-badge")).toHaveCount(0);
   });
 
   test("clicking the badge opens the service's edit dialog", async ({ page }) => {
