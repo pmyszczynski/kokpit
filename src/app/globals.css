@@ -3622,8 +3622,12 @@ button {
 .tautulli-activity-widget__summary {
   display: grid;
   flex-shrink: 0;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
+}
+
+.tautulli-activity-widget__stat--bandwidth {
+  grid-column: 1 / -1;
 }
 
 .tautulli-activity-widget__sessions {

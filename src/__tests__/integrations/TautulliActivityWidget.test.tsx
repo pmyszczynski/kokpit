@@ -38,6 +38,9 @@ describe("TautulliActivityWidget", () => {
     expect(screen.getByText("Transcoding")).toBeInTheDocument();
     expect(screen.getByText("12.5 Mbps")).toBeInTheDocument();
     expect(screen.getByText("Bandwidth")).toBeInTheDocument();
+    expect(screen.getByText("Bandwidth").closest(
+      ".tautulli-activity-widget__stat"
+    )).toHaveClass("tautulli-activity-widget__stat--bandwidth");
   });
 
   it("formats bandwidth as Kbps, Mbps, and Gbps at decimal thresholds", () => {

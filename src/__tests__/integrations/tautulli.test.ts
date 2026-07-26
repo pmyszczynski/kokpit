@@ -281,8 +281,8 @@ describe("Tautulli activity widget registration", () => {
     expect(widget?.id).toBe("tautulli-activity");
     expect(widget?.name).toBe("Tautulli Activity");
     expect(widget?.refreshInterval).toBe(10_000);
-    expect(widget?.preferredSize).toBe("large");
-    expect(widget?.minSize).toBe("wide");
+    expect(widget?.preferredSize).toBe("tall");
+    expect(widget?.minSize).toBe("tall");
     expect(widget?.serviceEditorPreset).toEqual({
       defaultName: "Tautulli",
       defaultIconUrl:

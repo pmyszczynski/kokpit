@@ -41,13 +41,20 @@ export function TautulliActivityWidget({
       {data.summary && (
         <div className="tautulli-activity-widget__summary" aria-label="Tautulli summary">
           {[
-            ["Active", String(data.summary.streamCount)],
-            ["Direct Play", String(data.summary.directPlayCount)],
-            ["Direct Stream", String(data.summary.directStreamCount)],
-            ["Transcoding", String(data.summary.transcodeCount)],
-            ["Bandwidth", formatBandwidth(data.summary.totalBandwidthKbps)],
-          ].map(([label, value]) => (
-            <div className="tautulli-activity-widget__stat" key={label}>
+            { label: "Active", value: String(data.summary.streamCount) },
+            { label: "Direct Play", value: String(data.summary.directPlayCount) },
+            { label: "Direct Stream", value: String(data.summary.directStreamCount) },
+            { label: "Transcoding", value: String(data.summary.transcodeCount) },
+            {
+              label: "Bandwidth",
+              value: formatBandwidth(data.summary.totalBandwidthKbps),
+              modifier: "tautulli-activity-widget__stat--bandwidth",
+            },
+          ].map(({ label, value, modifier }) => (
+            <div
+              className={`tautulli-activity-widget__stat${modifier ? ` ${modifier}` : ""}`}
+              key={label}
+            >
               <span className="tautulli-activity-widget__value">{value}</span>
               <span className="tautulli-activity-widget__label">{label}</span>
             </div>
@@ -102,8 +109,8 @@ registerWidget<TautulliConfig, TautulliActivityData>({
   configSchema: TautulliConfigSchema,
   fetchData: fetchActivity,
   refreshInterval: 10_000,
-  preferredSize: "large",
-  minSize: "wide",
+  preferredSize: "tall",
+  minSize: "tall",
   component: TautulliActivityWidget,
   serviceEditorPreset: {
     defaultName: "Tautulli",
