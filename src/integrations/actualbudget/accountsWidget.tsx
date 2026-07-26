@@ -166,5 +166,31 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
       placeholder: "en-US",
       description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
     },
+    {
+      key: "privacy_mode",
+      label: "Blur amounts until hover",
+      type: "boolean",
+      required: false,
+      defaultValue: true,
+      description: "Blurs monetary amounts on the tile until you hover over it.",
+    },
+    {
+      key: "exclude_closed",
+      label: "Hide closed accounts",
+      type: "boolean",
+      required: false,
+      defaultValue: true,
+      description:
+        "Leaves closed accounts out of the list and out of the net worth total.",
+    },
+    {
+      key: "exclude_offbudget",
+      label: "Hide off-budget accounts",
+      type: "boolean",
+      required: false,
+      defaultValue: false,
+      description:
+        "Leaves off-budget accounts out of the list and out of the net worth total.",
+    },
   ],
 });

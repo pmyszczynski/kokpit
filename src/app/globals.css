@@ -1639,6 +1639,31 @@ button {
   margin: 0;
 }
 
+/* ── Widget settings boolean field ───────────────────────────────────────── */
+
+/* The label sits to the right of the box rather than above it, so this row
+   opts out of `.service-form .settings-form-row label`'s stacked layout. */
+.widget-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  user-select: none;
+}
+
+/* Overrides `.service-form .settings-form-row input { width: 100% }`, which
+   would otherwise stretch the box across the dialog. */
+.service-form .widget-checkbox input[type="checkbox"],
+.widget-checkbox input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+  margin: 0;
+}
+
 /* ── Shared stat widget base (qBittorrent stats, SABnzbd, Prowlarr, …) ───── */
 
 .qbt-stats-widget,

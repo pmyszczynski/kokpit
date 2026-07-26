@@ -174,5 +174,13 @@ registerWidget<ActualSummaryConfig, ActualSummaryData>({
       placeholder: "en-US",
       description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
     },
+    {
+      key: "privacy_mode",
+      label: "Blur amounts until hover",
+      type: "boolean",
+      required: false,
+      defaultValue: true,
+      description: "Blurs monetary amounts on the tile until you hover over it.",
+    },
   ],
 });

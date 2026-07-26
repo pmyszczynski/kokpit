@@ -1311,6 +1311,48 @@ const EXPECTED_PRESET = {
     "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/actual-budget.svg",
 };
 
+/** Minimal config every Actual Budget schema accepts, for default probing. */
+const MINIMAL_CONFIG = {
+  url: "http://actual-http-api:5007",
+  api_key: "key",
+  budget_sync_id: "sync-id",
+};
+
+async function loadWidget(importWidget: () => Promise<unknown>, id: string) {
+  await importWidget();
+  const { getWidget } = await import("@/widgets");
+  const def = getWidget(id);
+  if (!def) throw new Error(`widget "${id}" did not register`);
+  return def;
+}
+
+function fieldByKey(
+  def: { configFields?: Array<{ key: string }> },
+  key: string
+) {
+  return def.configFields?.find((f) => f.key === key);
+}
+
+/**
+ * The contract behind `WidgetConfigField.defaultValue`: the checkbox shown for
+ * an absent key must match what the schema actually does, or the settings UI
+ * misreports live behaviour and a double toggle flips the real setting.
+ */
+function expectBooleanFieldDefaultsMatchSchema(def: {
+  configFields?: Array<{ key: string; type: string; defaultValue?: boolean }>;
+  configSchema: { parse: (v: unknown) => unknown };
+}) {
+  const parsed = def.configSchema.parse(MINIMAL_CONFIG) as Record<string, unknown>;
+  const booleanFields = (def.configFields ?? []).filter((f) => f.type === "boolean");
+  expect(booleanFields.length).toBeGreaterThan(0);
+  for (const field of booleanFields) {
+    expect(typeof field.defaultValue).toBe("boolean");
+    expect({ [field.key]: field.defaultValue }).toEqual({
+      [field.key]: parsed[field.key],
+    });
+  }
+}
+
 describe("actualbudget widget registration", () => {
   beforeEach(() => {
     clearRegistry();
@@ -1386,6 +1428,25 @@ describe("actualbudget widget registration", () => {
         budget_sync_id: "sync-id",
       });
       expect(result.success).toBe(false);
+    });
+
+    it("exposes privacy_mode as a boolean field defaulting to true", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/summaryWidget"),
+        "actualbudget-summary"
+      );
+      expect(fieldByKey(def, "privacy_mode")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+    });
+
+    it("every boolean field's defaultValue matches the schema default", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/summaryWidget"),
+        "actualbudget-summary"
+      );
+      expectBooleanFieldDefaultsMatchSchema(def);
     });
   });
 
@@ -1469,6 +1530,41 @@ describe("actualbudget widget registration", () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it("exposes privacy_mode, hide_income and hide_empty as boolean fields", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/categoriesWidget"),
+        "actualbudget-categories"
+      );
+      expect(fieldByKey(def, "privacy_mode")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+      expect(fieldByKey(def, "hide_income")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+      expect(fieldByKey(def, "hide_empty")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+    });
+
+    it("exposes limit as a number field", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/categoriesWidget"),
+        "actualbudget-categories"
+      );
+      expect(fieldByKey(def, "limit")).toMatchObject({ type: "number" });
+    });
+
+    it("every boolean field's defaultValue matches the schema default", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/categoriesWidget"),
+        "actualbudget-categories"
+      );
+      expectBooleanFieldDefaultsMatchSchema(def);
+    });
   });
 
   describe("actualbudget-accounts", () => {
@@ -1548,6 +1644,35 @@ describe("actualbudget widget registration", () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it("exposes privacy_mode, exclude_closed and exclude_offbudget as boolean fields", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/accountsWidget"),
+        "actualbudget-accounts"
+      );
+      expect(fieldByKey(def, "privacy_mode")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+      expect(fieldByKey(def, "exclude_closed")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+      // The one default-false option — a `defaultValue: true` copy-paste here
+      // would render the box checked and misreport what the widget does.
+      expect(fieldByKey(def, "exclude_offbudget")).toMatchObject({
+        type: "boolean",
+        defaultValue: false,
+      });
+    });
+
+    it("every boolean field's defaultValue matches the schema default", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/accountsWidget"),
+        "actualbudget-accounts"
+      );
+      expectBooleanFieldDefaultsMatchSchema(def);
+    });
   });
 
   describe("actualbudget-schedules", () => {
@@ -1626,6 +1751,34 @@ describe("actualbudget widget registration", () => {
         days_ahead: 0,
       });
       expect(result.success).toBe(false);
+    });
+
+    it("exposes privacy_mode as a boolean field defaulting to true", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/schedulesWidget"),
+        "actualbudget-schedules"
+      );
+      expect(fieldByKey(def, "privacy_mode")).toMatchObject({
+        type: "boolean",
+        defaultValue: true,
+      });
+    });
+
+    it("exposes limit and days_ahead as number fields", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/schedulesWidget"),
+        "actualbudget-schedules"
+      );
+      expect(fieldByKey(def, "limit")).toMatchObject({ type: "number" });
+      expect(fieldByKey(def, "days_ahead")).toMatchObject({ type: "number" });
+    });
+
+    it("every boolean field's defaultValue matches the schema default", async () => {
+      const def = await loadWidget(
+        () => import("@/integrations/actualbudget/schedulesWidget"),
+        "actualbudget-schedules"
+      );
+      expectBooleanFieldDefaultsMatchSchema(def);
     });
   });
 });

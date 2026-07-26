@@ -216,5 +216,13 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
       placeholder: "30",
       description: "Only show schedules due within this many days.",
     },
+    {
+      key: "privacy_mode",
+      label: "Blur amounts until hover",
+      type: "boolean",
+      required: false,
+      defaultValue: true,
+      description: "Blurs monetary amounts on the tile until you hover over it.",
+    },
   ],
 });

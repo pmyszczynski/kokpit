@@ -376,6 +376,37 @@ function WidgetConfigFields({
           );
         }
 
+        if (field.type === "boolean") {
+          // An option the user has never touched has no entry in the saved
+          // config, but the widget still behaves the way its schema default
+          // says — so an absent key renders as `defaultValue`, not unchecked.
+          // Rendering it unchecked would misreport live behaviour, and a user
+          // toggling it twice would flip the real setting.
+          const checked =
+            typeof value === "boolean" ? value : field.defaultValue ?? false;
+          return (
+            <div key={field.key} className="settings-form-row settings-form-row--checkbox">
+              <label className="widget-checkbox" htmlFor={`sf-widget-${field.key}`}>
+                <input
+                  id={`sf-widget-${field.key}`}
+                  type="checkbox"
+                  checked={checked}
+                  // `e.target.checked` is a real boolean, passed through
+                  // untouched: these keys are `z.boolean()` in the widget
+                  // schemas, which does not coerce the string "true".
+                  onChange={(e) => onChange(field.key, e.target.checked)}
+                  aria-invalid={fieldIssueIds.length > 0 ? true : undefined}
+                  aria-describedby={describedBy}
+                />
+                {field.label}
+              </label>
+              {field.description && (
+                <p id={hintId} className="settings-form-hint">{field.description}</p>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div key={field.key} className="settings-form-row">
             <label htmlFor={`sf-widget-${field.key}`}>{field.label}{field.required && " *"}</label>
