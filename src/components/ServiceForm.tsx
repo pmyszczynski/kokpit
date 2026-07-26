@@ -1090,10 +1090,20 @@ export default function ServiceForm({
                     </li>
                   ))}
                 </ul>
-                <p className="settings-form-hint">
-                  Saving from here will normalize it (any field you leave
-                  empty falls back to its default).
-                </p>
+                {/*
+                  Only true when the current (cleaned) config actually
+                  validates — i.e. the saved YAML holds an empty value on a
+                  field that has a schema default, so saving strips it and the
+                  default takes over. For a genuinely missing required field
+                  like Plex's `token`, saving fixes nothing and promising
+                  otherwise would be a lie.
+                */}
+                {widgetConfigValid && (
+                  <p className="settings-form-hint">
+                    Saving from here will normalize it (the empty value falls
+                    back to this field&rsquo;s default).
+                  </p>
+                )}
               </div>
             )}
 

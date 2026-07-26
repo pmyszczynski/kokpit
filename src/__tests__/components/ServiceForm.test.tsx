@@ -647,6 +647,35 @@ describe("ServiceForm – saved config vs. live edits", () => {
     // stripping the empty `fields` array lets the schema default apply. The
     // saved-config warning must not block that legitimately-working action.
     expect(screen.getByText("Test connection")).toBeEnabled();
+    // Cleaning genuinely does repair this config, so the normalize hint is
+    // accurate here.
+    expect(
+      screen.getByText(/Saving from here will normalize it/)
+    ).toBeInTheDocument();
+  });
+
+  it("omits the normalize hint when saving would not actually repair the config", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          // `token` is required and has no schema default, so stripping empty
+          // values on save fixes nothing — promising normalization would lie.
+          widget: {
+            type: "plex",
+            config: { url: "http://plex.local:32400" },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByText(/token: /)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Saving from here will normalize it/)
+    ).not.toBeInTheDocument();
   });
 
   it("hands the display over to live validation once the user edits the widget config", () => {
