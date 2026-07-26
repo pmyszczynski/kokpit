@@ -53,7 +53,8 @@ export async function GET(request: Request) {
   try {
     const data = await fetchWithHardTimeout(
       (signal) => widget.fetchData(parsed.data, signal),
-      "Widget fetch timed out"
+      "Widget fetch timed out",
+      widget.fetchTimeoutMs
     );
     return NextResponse.json({ ok: true, data });
   } catch (err) {
