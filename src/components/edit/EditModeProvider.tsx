@@ -350,10 +350,13 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
       // From view mode the edit grid (and with it the dialog) does not exist
       // yet, so entry has to happen too. A failed entry resets to
       // initialEditModeState via ENTER_ERROR, which drops the pending name —
-      // the right outcome: no edit mode, nothing to open.
-      if (!state.active) void enter();
+      // the right outcome: no edit mode, nothing to open. Also guard against
+      // a duplicate entry request: a double-click on the badge (or a click
+      // while entry is already in flight) would otherwise fire a second
+      // GET /api/settings before the first one resolves.
+      if (!state.active && state.status !== "loading") void enter();
     },
-    [canEdit, state.active, enter]
+    [canEdit, state.active, state.status, enter]
   );
 
   const clearPendingEditService = useCallback(

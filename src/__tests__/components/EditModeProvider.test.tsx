@@ -215,9 +215,11 @@ function Harness() {
       <span data-testid="active">{String(em.active)}</span>
       <span data-testid="conflict">{String(em.conflict)}</span>
       <span data-testid="dirty">{String(em.dirty)}</span>
+      <span data-testid="status">{em.status}</span>
       <span data-testid="services">{em.draft?.services.length ?? "none"}</span>
       <span data-testid="baseRevision">{em.baseRevision ?? "none"}</span>
       <button onClick={() => void em.enter()}>enter</button>
+      <button onClick={() => em.requestServiceEdit("Plex")}>request-edit</button>
       <button onClick={() => em.setServices([])}>clear-services</button>
       <button
         onClick={() =>
@@ -265,6 +267,35 @@ describe("EditModeProvider (hook flows)", () => {
     });
     expect(screen.getByTestId("active").textContent).toBe("true");
     expect(screen.getByTestId("services").textContent).toBe("1");
+  });
+
+  it("requestServiceEdit does not fire a duplicate GET while entry is already in flight", async () => {
+    let resolveFetch!: (res: Response) => void;
+    const fetchMock = vi.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await setup();
+
+    // First call kicks off entry (status → "loading"); a second call — e.g.
+    // a double-click on the broken-widget badge — must not fire another GET
+    // while the first is still in flight.
+    act(() => {
+      fireEvent.click(screen.getByText("request-edit"));
+    });
+    expect(screen.getByTestId("status").textContent).toBe("loading");
+    act(() => {
+      fireEvent.click(screen.getByText("request-edit"));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFetch(fakeResponse(cfg(), { revision: "rev-1" }));
+    });
+    expect(screen.getByTestId("active").textContent).toBe("true");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("save with a stale revision surfaces a conflict and keeps the draft", async () => {

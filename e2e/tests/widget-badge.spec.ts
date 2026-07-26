@@ -42,6 +42,12 @@ function sonarrTile(page: Page) {
     .filter({ has: page.locator('.service-tile__name:text-is("Sonarr")') });
 }
 
+function prowlarrTile(page: Page) {
+  return page
+    .locator(".service-tile")
+    .filter({ has: page.locator('.service-tile__name:text-is("Prowlarr")') });
+}
+
 test.describe("broken-widget feedback", () => {
   test.beforeAll(async ({ request }) => {
     // Warm up dev-mode route compilation before the first real test.
@@ -79,10 +85,7 @@ test.describe("broken-widget feedback", () => {
     // Sonarr's config is broken, so it gets the badge and no dot, while
     // Prowlarr's config is valid, so it keeps its dot and gets no badge.
     await expect(tile.locator(".status-dot")).toHaveCount(0);
-    const prowlarrDotTile = page
-      .locator(".service-tile")
-      .filter({ has: page.locator('.service-tile__name:text-is("Prowlarr")') });
-    await expect(prowlarrDotTile.locator(".status-dot")).toBeVisible();
+    await expect(prowlarrTile(page).locator(".status-dot")).toBeVisible();
 
     // A widget-less sibling keeps rendering as a plain link.
     const grafanaTile = page
@@ -94,11 +97,8 @@ test.describe("broken-widget feedback", () => {
     // whose config is VALID gets no badge, even though its data fetch fails
     // against a port with nothing behind it. A broken connection and a broken
     // config are different problems and must look different.
-    const prowlarrTile = page
-      .locator(".service-tile")
-      .filter({ has: page.locator('.service-tile__name:text-is("Prowlarr")') });
-    await expect(prowlarrTile.locator(".service-tile__widget")).toHaveCount(1);
-    await expect(prowlarrTile.locator(".tile-widget-badge")).toHaveCount(0);
+    await expect(prowlarrTile(page).locator(".service-tile__widget")).toHaveCount(1);
+    await expect(prowlarrTile(page).locator(".tile-widget-badge")).toHaveCount(0);
   });
 
   test("clicking the badge opens the service's edit dialog", async ({ page }) => {
@@ -115,5 +115,16 @@ test.describe("broken-widget feedback", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("Edit Service")).toBeVisible();
     await expect(dialog.getByLabel("Name *")).toHaveValue("Sonarr");
+
+    // focusWidget behavior: the dialog scrolls to the Widget section and
+    // focuses the first invalid config field — here, sonarr-queue's missing
+    // `api_key` — with its validation error visible, instead of leaving the
+    // user to hunt for what needs fixing.
+    await expect(dialog.getByText("Widget", { exact: true })).toBeInViewport();
+    const apiKeyInput = dialog.getByLabel("API Key *");
+    await expect(apiKeyInput).toBeFocused();
+    await expect(
+      dialog.getByRole("alert").filter({ hasText: "api_key" })
+    ).toBeVisible();
   });
 });

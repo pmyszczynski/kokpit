@@ -508,7 +508,7 @@ describe("ServiceTile broken-widget badge", () => {
     expect(requestServiceEdit).toHaveBeenCalledTimes(2);
   });
 
-  it("clicking the non-interactive badge does not throw and does not navigate", async () => {
+  it("clicking the non-interactive badge does not throw and does not intercept the click", async () => {
     editModeOptional.current = null;
     let container!: HTMLElement;
     await act(async () => {
@@ -520,7 +520,18 @@ describe("ServiceTile broken-widget badge", () => {
         />
       ));
     });
+    const link = container.querySelector("a.service-tile")!;
+    let capturedEvent: Event | null = null;
+    link.addEventListener("click", (e) => (capturedEvent = e), true);
+
     const badge = container.querySelector(".tile-widget-badge")!;
     expect(() => fireEvent.click(badge)).not.toThrow();
+
+    // Unlike the interactive badge (which calls preventDefault +
+    // stopPropagation), the non-interactive one has no click handler at all —
+    // the click bubbles straight through to the tile's anchor unimpeded, so
+    // nothing here stops the link's default navigation.
+    expect(capturedEvent).not.toBeNull();
+    expect((capturedEvent as unknown as Event).defaultPrevented).toBe(false);
   });
 });

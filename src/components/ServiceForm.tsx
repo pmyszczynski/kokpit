@@ -286,26 +286,73 @@ function GroupCombobox({
   );
 }
 
+// The two issue lists (saved-config vs. live) render in mutually-exclusive
+// branches but share the same field keys, so their <li> ids are namespaced by
+// `kind` to avoid collisions. `index` is folded in too since a schema can, in
+// principle, report more than one issue for the same path. `path` is
+// sanitized because it comes from a Zod path (dotted, can contain characters
+// that aren't valid in an id token) — this is only used to build a readable
+// id, not to look anything up, so a lossy sanitize is fine.
+function widgetIssueElementId(
+  kind: "saved" | "live",
+  path: string,
+  index: number
+): string {
+  const sanitizedPath = path.replace(/[^a-zA-Z0-9_-]+/g, "-") || "root";
+  return `sf-widget-issue-${kind}-${index}-${sanitizedPath}`;
+}
+
 function WidgetConfigFields({
   fields,
   config,
   onChange,
+  issues,
+  issueKind,
 }: {
   fields: WidgetConfigField[];
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  /** Whichever issue list is currently displayed on screen (saved or live), or empty when neither is shown. */
+  issues: WidgetConfigIssue[];
+  issueKind: "saved" | "live";
 }) {
+  // Same "does this issue belong to this field" rule as the focusWidget mount
+  // effect below: exact path match, or a nested path under `field.key.`.
+  function issueIdsFor(key: string): string[] {
+    return issues
+      .map((issue, i) => ({ issue, i }))
+      .filter(
+        ({ issue }) =>
+          issue.path === key || issue.path.startsWith(`${key}.`)
+      )
+      .map(({ i }) => widgetIssueElementId(issueKind, issues[i].path, i));
+  }
+
   return (
     <>
       {fields.map((field) => {
         const value = config[field.key];
+        const fieldIssueIds = issueIdsFor(field.key);
+        const hintId = field.description ? `sf-widget-${field.key}-hint` : undefined;
+        const describedBy =
+          [...fieldIssueIds, hintId].filter(Boolean).join(" ") || undefined;
 
         if (field.type === "multiselect" && field.options) {
           const selected = Array.isArray(value) ? (value as string[]) : [];
+          // There's no single input this label/description apply to — it's a
+          // group of checkboxes — so the group gets role="group" plus
+          // aria-labelledby/aria-describedby instead of an input's
+          // aria-invalid/aria-describedby pairing.
+          const labelId = `sf-widget-${field.key}-label`;
           return (
             <div key={field.key} className="settings-form-row settings-form-row--multiselect">
-              <label>{field.label}</label>
-              <div className="widget-multiselect">
+              <label id={labelId}>{field.label}</label>
+              <div
+                className="widget-multiselect"
+                role="group"
+                aria-labelledby={labelId}
+                aria-describedby={describedBy}
+              >
                 {field.options.map((opt) => (
                   <label key={opt.value} className="widget-multiselect__option">
                     <input
@@ -323,7 +370,7 @@ function WidgetConfigFields({
                 ))}
               </div>
               {field.description && (
-                <p className="settings-form-hint">{field.description}</p>
+                <p id={hintId} className="settings-form-hint">{field.description}</p>
               )}
             </div>
           );
@@ -342,9 +389,11 @@ function WidgetConfigFields({
                 onChange(field.key, field.type === "number" ? (raw === "" ? undefined : Number(raw)) : raw);
               }}
               placeholder={field.placeholder}
+              aria-invalid={fieldIssueIds.length > 0 ? true : undefined}
+              aria-describedby={describedBy}
             />
             {field.description && (
-              <p className="settings-form-hint">{field.description}</p>
+              <p id={hintId} className="settings-form-hint">{field.description}</p>
             )}
           </div>
         );
@@ -481,6 +530,18 @@ export default function ServiceForm({
   const displayedWidgetIssues: WidgetConfigIssue[] = showSavedConfigIssues
     ? savedConfigIssues
     : configIssues;
+  // Same "which list is on screen" question, but for the aria-invalid /
+  // aria-describedby wiring on the fields themselves: unlike the focus
+  // effect (only meaningful once, under focusWidget), the fields render on
+  // every pass, so this must also cover the "nothing shown yet" case (a
+  // freshly-picked widget type with an empty, untouched config) — otherwise
+  // required-field issues that aren't actually displayed would still mark
+  // fields invalid and point aria-describedby at ids that don't exist.
+  const showingWidgetIssuesList = showSavedConfigIssues || showSpecificWidgetIssues;
+  const fieldIssueKind: "saved" | "live" = showSavedConfigIssues ? "saved" : "live";
+  const fieldIssues: WidgetConfigIssue[] = showingWidgetIssuesList
+    ? displayedWidgetIssues
+    : [];
 
   function handleWidgetConfigChange(key: string, value: unknown) {
     setWidgetConfig((prev) => ({ ...prev, [key]: value }));
@@ -686,9 +747,15 @@ export default function ServiceForm({
     const targetId = firstInvalidField
       ? `sf-widget-${firstInvalidField.key}`
       : "sf-tile-type";
-    dialogRef.current
-      ?.querySelector<HTMLElement>(`#${targetId}`)
-      ?.focus();
+    // getElementById (not querySelector) because targetId embeds a
+    // widget-defined field.key: interpolating it into a CSS selector throws
+    // a SyntaxError for a key with a CSS-special character (or a leading
+    // digit). getElementById takes a literal id, no selector parsing. Still
+    // scoped to the dialog, matching the previous querySelector's intent.
+    const target = document.getElementById(targetId);
+    if (target && dialogRef.current?.contains(target)) {
+      target.focus();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1026,6 +1093,8 @@ export default function ServiceForm({
                       ? handleWidgetConfigChange
                       : handleOrphanWidgetConfigChange
                   }
+                  issues={fieldIssues}
+                  issueKind={fieldIssueKind}
                 />
               )}
 
@@ -1081,9 +1150,10 @@ export default function ServiceForm({
                   widget&rsquo;s schema:
                 </p>
                 <ul>
-                  {savedConfigIssues.map((issue) => (
+                  {savedConfigIssues.map((issue, i) => (
                     <li
                       key={`${issue.path}:${issue.message}`}
+                      id={widgetIssueElementId("saved", issue.path, i)}
                       className="settings-form-hint settings-form-hint--error"
                     >
                       {issue.path}: {issue.message}
@@ -1126,9 +1196,10 @@ export default function ServiceForm({
                   will render as a plain link until these are fixed:
                 </p>
                 <ul>
-                  {configIssues.map((issue) => (
+                  {configIssues.map((issue, i) => (
                     <li
                       key={`${issue.path}:${issue.message}`}
+                      id={widgetIssueElementId("live", issue.path, i)}
                       className="settings-form-hint settings-form-hint--error"
                     >
                       {issue.path}: {issue.message}

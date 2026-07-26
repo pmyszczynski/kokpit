@@ -98,18 +98,45 @@ describe("edit-mode drag handles", () => {
   });
 });
 
+// jsdom doesn't implement <dialog>'s showModal/close at all (neither method
+// exists on the prototype), so there's nothing for vi.spyOn to wrap until a
+// base implementation is installed once, here. Each test then spies on top
+// of this stub and vi.restoreAllMocks() reverts to it — unlike a direct
+// `HTMLDialogElement.prototype.showModal = vi.fn()` assignment, which
+// vi.clearAllMocks() (see afterEach below) does NOT undo, leaking the
+// patched prototype methods into later suites in this file.
+if (typeof HTMLDialogElement.prototype.showModal !== "function") {
+  HTMLDialogElement.prototype.showModal = function () {};
+}
+if (typeof HTMLDialogElement.prototype.close !== "function") {
+  HTMLDialogElement.prototype.close = function () {};
+}
+
 describe("pendingEditService (broken-widget badge → ServiceForm handoff)", () => {
+  let showModalSpy: ReturnType<typeof vi.spyOn>;
+  let closeSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
-    HTMLDialogElement.prototype.showModal = vi.fn();
-    HTMLDialogElement.prototype.close = vi.fn().mockImplementation(function (
-      this: HTMLDialogElement
-    ) {
-      this.dispatchEvent(new Event("close"));
-    });
+    showModalSpy = vi
+      .spyOn(HTMLDialogElement.prototype, "showModal")
+      .mockImplementation(() => {});
+    closeSpy = vi
+      .spyOn(HTMLDialogElement.prototype, "close")
+      .mockImplementation(function (this: HTMLDialogElement) {
+        this.dispatchEvent(new Event("close"));
+      });
   });
 
   afterEach(() => {
+    // Clears call history for every mock in the file (module-scope
+    // setServices/setGroups/setBookmarks/clearPendingEditService included),
+    // same as before. mockRestore() on the two dialog spies additionally
+    // reverts HTMLDialogElement.prototype back to the plain stub installed
+    // above, so the next beforeEach spies on that stub fresh instead of
+    // stacking a spy on top of the previous test's spy.
     vi.clearAllMocks();
+    showModalSpy.mockRestore();
+    closeSpy.mockRestore();
     pendingEditService = null;
   });
 
