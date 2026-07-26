@@ -16,6 +16,7 @@ import {
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
+import { isWidgetSecretReference } from "@/widgets/secretReference";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
@@ -290,6 +291,8 @@ function WidgetConfigFields({
     <>
       {fields.map((field) => {
         const value = config[field.key] ?? field.defaultValue;
+        const savedSecret =
+          field.type === "password" && isWidgetSecretReference(value);
 
         if (field.type === "multiselect" && field.options) {
           const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -328,12 +331,20 @@ function WidgetConfigFields({
               id={`sf-widget-${field.key}`}
               type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
               className="settings-input"
-              value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+              value={
+                savedSecret
+                  ? ""
+                  : typeof value === "string" || typeof value === "number"
+                    ? String(value)
+                    : ""
+              }
               onChange={(e) => {
                 const raw = e.target.value;
                 onChange(field.key, field.type === "number" ? (raw === "" ? undefined : Number(raw)) : raw);
               }}
-              placeholder={field.placeholder}
+              placeholder={
+                savedSecret ? "Saved — enter a new value to replace" : field.placeholder
+              }
             />
             {field.description && (
               <p className="settings-form-hint">{field.description}</p>

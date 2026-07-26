@@ -54,6 +54,36 @@ layout:
 services: []
 `.trim();
 
+const SECRET_YAML = `
+schema_version: 1
+auth:
+  enabled: false
+  session_ttl_hours: 24
+appearance:
+  theme: dark
+layout:
+  columns: 4
+  row_height: 120
+services:
+  - name: Tautulli
+    url: http://tautulli.local:8181
+    widget:
+      type: tautulli-activity
+      config:
+        url: http://tautulli.local:8181
+        api_key: tautulli-secret-value
+        sections:
+          - summary
+  - name: Downloads
+    url: http://qbittorrent.local:8080
+    widget:
+      type: qbittorrent-stats
+      config:
+        url: http://qbittorrent.local:8080
+        username: admin
+        password: qbittorrent-secret-value
+`.trim();
+
 function patch(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/settings", {
     method: "PATCH",
@@ -367,6 +397,112 @@ describe("GET /api/settings", () => {
     const res = await GET();
     const rev = res.headers.get("X-Config-Revision");
     expect(rev).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("/api/settings – widget password fields", () => {
+  let storedYaml: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    storedYaml = SECRET_YAML;
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockImplementation(() => storedYaml);
+    vi.mocked(writeFileSync).mockImplementation((_path, value) => {
+      storedYaml = String(value);
+    });
+  });
+
+  it("redacts every metadata-declared password from GET without changing non-secret config", async () => {
+    const { GET } = await import("../../app/api/settings/route");
+
+    const res = await GET();
+    const json = await res.json();
+    const serialized = JSON.stringify(json);
+
+    expect(res.status).toBe(200);
+    expect(serialized).not.toContain("tautulli-secret-value");
+    expect(serialized).not.toContain("qbittorrent-secret-value");
+    expect(json.services[0].widget.config.api_key).toMatch(
+      /^__KOKPIT_WIDGET_SECRET_REF__:/
+    );
+    expect(json.services[1].widget.config.password).toMatch(
+      /^__KOKPIT_WIDGET_SECRET_REF__:/
+    );
+    expect(json.services[0].widget.config.url).toBe(
+      "http://tautulli.local:8181"
+    );
+    expect(json.services[1].widget.config.username).toBe("admin");
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("preserves unchanged secrets through rename and reorder with an optimistic revision", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const getRes = await GET();
+    const revision = getRes.headers.get("X-Config-Revision")!;
+    const redacted = await getRes.json();
+    const [tautulli, downloads] = redacted.services;
+
+    const res = await PATCH(
+      patch(
+        {
+          services: [
+            { ...downloads, name: "Downloads Renamed" },
+            { ...tautulli, name: "Tautulli Renamed" },
+          ],
+        },
+        { "If-Match": revision }
+      )
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(storedYaml).toContain("name: Downloads Renamed");
+    expect(storedYaml).toContain("name: Tautulli Renamed");
+    expect(storedYaml).toContain("password: qbittorrent-secret-value");
+    expect(storedYaml).toContain("api_key: tautulli-secret-value");
+    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(responseText).not.toContain("qbittorrent-secret-value");
+    expect(responseText).not.toContain("tautulli-secret-value");
+    expect(responseText).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(res.headers.get("X-Config-Revision")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("writes an explicit replacement and redacts it from the PATCH response", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const getRes = await GET();
+    const revision = getRes.headers.get("X-Config-Revision")!;
+    const redacted = await getRes.json();
+    redacted.services[0].widget.config.api_key = "replacement-secret-value";
+
+    const res = await PATCH(
+      patch({ services: redacted.services }, { "If-Match": revision })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(storedYaml).toContain("api_key: replacement-secret-value");
+    expect(storedYaml).not.toContain("api_key: tautulli-secret-value");
+    expect(storedYaml).toContain("password: qbittorrent-secret-value");
+    expect(responseText).not.toContain("replacement-secret-value");
+    expect(responseText).not.toContain("qbittorrent-secret-value");
+    expect(responseText).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+  });
+
+  it("keeps the revision-conflict check ahead of secret resolution", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const redacted = await (await GET()).json();
+    redacted.services[0].widget.config.api_key =
+      "__KOKPIT_WIDGET_SECRET_REF__:malformed";
+
+    const res = await PATCH(
+      patch({ services: redacted.services }, { "If-Match": "stale-revision" })
+    );
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("revision_mismatch");
+    expect(writeFileSync).not.toHaveBeenCalled();
   });
 });
 

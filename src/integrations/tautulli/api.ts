@@ -90,7 +90,17 @@ export async function fetchActivity(
   url.searchParams.set("apikey", config.api_key);
   url.searchParams.set("cmd", "get_activity");
 
-  const response = await fetch(url.toString(), { signal });
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), { signal });
+  } catch {
+    if (signal?.aborted) {
+      const abortError = new Error("Tautulli request aborted");
+      abortError.name = "AbortError";
+      throw abortError;
+    }
+    throw new Error("Tautulli network request failed");
+  }
   if (!response.ok) {
     throw new Error(`Tautulli responded with ${response.status}`);
   }

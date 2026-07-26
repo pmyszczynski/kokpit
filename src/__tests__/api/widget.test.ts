@@ -48,6 +48,12 @@ services:
   - name: Mystery
     widget:
       type: not-a-real-widget
+  - name: Tautulli
+    widget:
+      type: tautulli-activity
+      config:
+        url: http://tautulli.test:8181
+        api_key: tautulli-route-secret
 `.trim();
 
 const AUTH_ENABLED_YAML = SERVICES_YAML.replace("enabled: false", "enabled: true");
@@ -133,6 +139,27 @@ describe("GET /api/widget", () => {
     const res = await GET(get({ type: "plex", service: "Plex" }));
     expect(res.status).toBe(500);
     expect((await res.json()).error).toMatch(/502/);
+  });
+
+  it("does not return Tautulli network rejection details from the generic route", async () => {
+    const leakedUrl =
+      "http://tautulli.test:8181/api/v2?apikey=tautulli-route-secret&cmd=get_activity";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error(`fetch failed for ${leakedUrl}`))
+    );
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(
+      get({ type: "tautulli-activity", service: "Tautulli" })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(500);
+    expect(responseText).toContain("Tautulli network request failed");
+    expect(responseText).not.toContain(leakedUrl);
+    expect(responseText).not.toContain("apikey=");
+    expect(responseText).not.toContain("tautulli-route-secret");
   });
 
   it("returns 504 even when the widget ignores its abort signal", async () => {

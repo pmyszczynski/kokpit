@@ -226,6 +226,49 @@ describe("fetchActivity", () => {
     await expect(fetchActivity(BASE_CONFIG)).rejects.toThrow(/^Tautulli responded with 401$/);
   });
 
+  it("replaces a raw network rejection that contains the request URL and API key", async () => {
+    const leakedUrl =
+      "http://tautulli.local:8181/api/v2?apikey=super-secret-key&cmd=get_activity";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error(`fetch failed for ${leakedUrl}`))
+    );
+
+    const error = await fetchActivity(BASE_CONFIG).catch(
+      (reason: unknown) => reason
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.message).toBe("Tautulli network request failed");
+    expect(error.message).not.toContain(leakedUrl);
+    expect(error.message).not.toContain("apikey=");
+    expect(error.message).not.toContain("super-secret-key");
+  });
+
+  it("preserves externally-triggered abort semantics without leaking rejection details", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(
+        new Error(
+          "aborted http://tautulli.local/api/v2?apikey=super-secret-key"
+        )
+      )
+    );
+
+    const error = await fetchActivity(BASE_CONFIG, controller.signal).catch(
+      (reason: unknown) => reason
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("Tautulli request aborted");
+    expect(error.message).not.toContain("super-secret-key");
+  });
+
   it("rejects an error envelope without exposing upstream request details", async () => {
     const upstreamMessage = "Request failed at http://tautulli.local:8181/api/v2?apikey=super-secret-key&cmd=get_activity";
     vi.stubGlobal("fetch", mockFetch({

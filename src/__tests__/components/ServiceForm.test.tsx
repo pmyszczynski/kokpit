@@ -24,6 +24,8 @@ beforeEach(() => {
 });
 
 const noop = vi.fn();
+const SAVED_TAUTULLI_SECRET =
+  '__KOKPIT_WIDGET_SECRET_REF__:["Tautulli","tautulli-activity","api_key"]';
 
 describe("ServiceForm – rendering", () => {
   it('shows "Add Service" for a new service', () => {
@@ -615,6 +617,77 @@ describe("ServiceForm – Tautulli defaults", () => {
     if (!parsed.success) throw parsed.error;
     expect(parsed.data.sections).toEqual(["summary", "sessions"]);
   });
+
+  it("keeps a saved secret out of the password input and preserves its token when unchanged", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+              sections: ["summary"],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByLabelText(/^API Key \*$/)).toHaveValue("");
+    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET);
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({
+            api_key: SAVED_TAUTULLI_SECRET,
+          }),
+        }),
+      })
+    );
+  });
+
+  it("replaces a saved secret when a new password is entered", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^API Key \*$/), {
+      target: { value: "new-tautulli-secret" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({
+            api_key: "new-tautulli-secret",
+          }),
+        }),
+      })
+    );
+  });
 });
 
 describe("ServiceForm – test connection", () => {
@@ -669,6 +742,45 @@ describe("ServiceForm – test connection", () => {
       type: "plex",
       config: { url: "http://plex.local:32400", token: "secret" },
     });
+  });
+
+  it("posts the opaque saved-secret token without putting it in the password input", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByLabelText(/^API Key \*$/)).toHaveValue("");
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() =>
+      expect(screen.getByText("Connection OK")).toBeInTheDocument()
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      type: "tautulli-activity",
+      config: {
+        url: "http://tautulli.local:8181",
+        api_key: SAVED_TAUTULLI_SECRET,
+      },
+    });
+    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET);
   });
 
   it("shows the server error message when the test fails", async () => {

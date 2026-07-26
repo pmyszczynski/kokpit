@@ -1,8 +1,13 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
+import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
+import {
+  resolveWidgetConfigSecrets,
+  WidgetSecretResolutionError,
+} from "@/widgets/configSecrets";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead
@@ -34,7 +39,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = widget.configSchema.safeParse(config ?? {});
+  let resolvedConfig: unknown;
+  try {
+    resolvedConfig = resolveWidgetConfigSecrets(
+      type,
+      config ?? {},
+      getConfig().services
+    );
+  } catch (error) {
+    if (error instanceof WidgetSecretResolutionError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 400 }
+      );
+    }
+    throw error;
+  }
+
+  const parsed = widget.configSchema.safeParse(resolvedConfig);
   if (!parsed.success) {
     const messages = parsed.error.issues
       .map((issue) => `${issue.path.join(".")}: ${issue.message}`)

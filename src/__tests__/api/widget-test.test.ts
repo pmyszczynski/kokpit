@@ -47,6 +47,20 @@ services: []
 
 const AUTH_YAML = BASE_YAML.replace("enabled: false", "enabled: true");
 
+const TAUTULLI_SECRET_YAML = BASE_YAML.replace(
+  "services: []",
+  `services:
+  - name: Tautulli
+    url: http://tautulli.local:8181
+    widget:
+      type: tautulli-activity
+      config:
+        url: http://tautulli.local:8181
+        api_key: saved-tautulli-secret
+        sections:
+          - summary`
+);
+
 function post(body: unknown) {
   return new Request("http://localhost/api/widget/test", {
     method: "POST",
@@ -155,6 +169,47 @@ describe("POST /api/widget/test", () => {
     expect(json).toEqual({ ok: true });
   });
 
+  it("resolves a redacted saved password server-side for a connection test", async () => {
+    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((input: string | URL | Request) => {
+        const url = new URL(String(input));
+        if (url.searchParams.get("apikey") !== "saved-tautulli-secret") {
+          return Promise.reject(new Error("saved secret was not resolved"));
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              response: {
+                result: "success",
+                message: null,
+                data: { stream_count: 0, sessions: [] },
+              },
+            }),
+        } as Response);
+      })
+    );
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const redactedConfig = settings.services[0].widget.config;
+    expect(JSON.stringify(redactedConfig)).not.toContain(
+      "saved-tautulli-secret"
+    );
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(
+      post({ type: "tautulli-activity", config: redactedConfig })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(responseText).toBe('{"ok":true}');
+    expect(responseText).not.toContain("saved-tautulli-secret");
+  });
+
   it("returns 504 when the connection test exceeds the 5s timeout", async () => {
     vi.useFakeTimers();
     // A fetch that never settles until its signal aborts — the route's
@@ -202,6 +257,44 @@ describe("POST /api/widget/test", () => {
     const res = await resPromise;
     expect(res.status).toBe(504);
     expect((await res.json()).error).toMatch(/timed out/i);
+  });
+
+  it("keeps the hard-timeout response for an aborted Tautulli request", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        (_url: string, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts?.signal?.addEventListener("abort", () =>
+              reject(
+                new Error(
+                  "aborted http://tautulli.test/api/v2?apikey=tautulli-secret"
+                )
+              )
+            );
+          })
+      )
+    );
+    const { POST } = await import("../../app/api/widget/test/route");
+    const resPromise = POST(
+      post({
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.test",
+          api_key: "tautulli-secret",
+        },
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(5001);
+    const res = await resPromise;
+    const responseText = await res.text();
+
+    expect(res.status).toBe(504);
+    expect(responseText).toContain("Connection test timed out");
+    expect(responseText).not.toContain("tautulli-secret");
+    expect(responseText).not.toContain("apikey=");
   });
 
   it("returns 500 with the error message when the widget fetch fails", async () => {

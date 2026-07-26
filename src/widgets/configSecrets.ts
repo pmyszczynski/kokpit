@@ -1,0 +1,163 @@
+import "@/integrations";
+import {
+  serviceNameUniquenessKey,
+  type KokpitConfig,
+  type Service,
+} from "@/config/schema";
+import { getWidget } from "@/widgets";
+import {
+  createWidgetSecretReference,
+  isWidgetSecretReference,
+  parseWidgetSecretReference,
+} from "./secretReference";
+
+export class WidgetSecretResolutionError extends Error {
+  constructor() {
+    super("Saved widget secret could not be resolved");
+    this.name = "WidgetSecretResolutionError";
+  }
+}
+
+function passwordFieldKeys(widgetType: string): string[] {
+  return (
+    getWidget(widgetType)
+      ?.configFields?.filter((field) => field.type === "password")
+      .map((field) => field.key) ?? []
+  );
+}
+
+/**
+ * Returns a browser-safe config copy. Password fields are identified only by
+ * registry metadata, so integrations do not need key-name redaction lists.
+ */
+export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
+  return {
+    ...config,
+    services: config.services.map((service) => {
+      const widget = service.widget;
+      const rawConfig = widget?.config;
+      if (!widget || !rawConfig) return service;
+
+      const passwordKeys = passwordFieldKeys(widget.type);
+      if (passwordKeys.length === 0) return service;
+
+      let changed = false;
+      const redactedConfig = { ...rawConfig };
+      for (const key of passwordKeys) {
+        if (
+          !Object.prototype.hasOwnProperty.call(rawConfig, key) ||
+          rawConfig[key] === undefined
+        ) {
+          continue;
+        }
+        redactedConfig[key] = createWidgetSecretReference(
+          service.name,
+          widget.type,
+          key
+        );
+        changed = true;
+      }
+      if (!changed) return service;
+
+      return {
+        ...service,
+        widget: { ...widget, config: redactedConfig },
+      };
+    }),
+  };
+}
+
+function resolveReference(
+  referenceValue: unknown,
+  expectedWidgetType: string,
+  expectedFieldKey: string,
+  savedServices: Service[]
+): unknown {
+  const reference = parseWidgetSecretReference(referenceValue);
+  if (
+    !reference ||
+    reference.widgetType !== expectedWidgetType ||
+    reference.fieldKey !== expectedFieldKey
+  ) {
+    throw new WidgetSecretResolutionError();
+  }
+
+  const source = savedServices.find(
+    (service) =>
+      serviceNameUniquenessKey(service.name) ===
+      serviceNameUniquenessKey(reference.serviceName)
+  );
+  if (source?.widget?.type !== expectedWidgetType) {
+    throw new WidgetSecretResolutionError();
+  }
+
+  const sourceConfig = source.widget.config;
+  if (
+    !sourceConfig ||
+    !Object.prototype.hasOwnProperty.call(sourceConfig, expectedFieldKey)
+  ) {
+    throw new WidgetSecretResolutionError();
+  }
+  const savedValue = sourceConfig[expectedFieldKey];
+  if (isWidgetSecretReference(savedValue)) {
+    throw new WidgetSecretResolutionError();
+  }
+  return savedValue;
+}
+
+/**
+ * Resolves placeholders in one submitted widget config against the live
+ * server-side config. Used by connection testing before schema validation.
+ */
+export function resolveWidgetConfigSecrets(
+  widgetType: string,
+  config: unknown,
+  savedServices: Service[]
+): unknown {
+  if (typeof config !== "object" || config === null || Array.isArray(config)) {
+    return config;
+  }
+
+  const rawConfig = config as Record<string, unknown>;
+  let resolvedConfig: Record<string, unknown> | null = null;
+  for (const key of passwordFieldKeys(widgetType)) {
+    const value = rawConfig[key];
+    if (!isWidgetSecretReference(value)) continue;
+    resolvedConfig ??= { ...rawConfig };
+    resolvedConfig[key] = resolveReference(
+      value,
+      widgetType,
+      key,
+      savedServices
+    );
+  }
+  return resolvedConfig ?? config;
+}
+
+/**
+ * Resolves all submitted service placeholders before YAML persistence. Each
+ * token points to its original service name, so rename and reorder operations
+ * can happen together without relying on array position.
+ */
+export function resolveServiceWidgetSecrets(
+  submittedServices: Service[],
+  savedServices: Service[]
+): Service[] {
+  return submittedServices.map((service) => {
+    const widget = service.widget;
+    if (!widget?.config) return service;
+    const resolved = resolveWidgetConfigSecrets(
+      widget.type,
+      widget.config,
+      savedServices
+    );
+    if (resolved === widget.config) return service;
+    return {
+      ...service,
+      widget: {
+        ...widget,
+        config: resolved as Record<string, unknown>,
+      },
+    };
+  });
+}
