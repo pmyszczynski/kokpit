@@ -1,6 +1,11 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
-import { fetchSummary, ActualSummaryConfigSchema, BASE_CONFIG_FIELDS } from "./api";
+import {
+  fetchSummary,
+  ActualSummaryConfigSchema,
+  BASE_CONFIG_FIELDS,
+  TIMEZONE_CONFIG_FIELD,
+} from "./api";
 import type { ActualSummaryConfig, ActualSummary } from "./api";
 import { Amount } from "./Amount";
 
@@ -47,7 +52,12 @@ export function ActualBudgetSummaryWidget({
     );
   }
 
-  const overspentCount = data.month.categories.filter((c) => c.balance < 0).length;
+  // Archived (hidden) categories are never shown by the categories widget —
+  // see categoriesWidget.tsx's visibleCategories — so counting one here would
+  // report "N overspent" with no corresponding row anywhere a user can see.
+  const overspentCount = data.month.categories.filter(
+    (c) => c.balance < 0 && !c.hidden
+  ).length;
 
   return (
     <div
@@ -127,5 +137,5 @@ registerWidget<ActualSummaryConfig, ActualSummaryData>({
   refreshInterval: 300_000,
   fetchTimeoutMs: 15_000,
   component: ActualBudgetSummaryWidget,
-  configFields: [...BASE_CONFIG_FIELDS],
+  configFields: [...BASE_CONFIG_FIELDS, TIMEZONE_CONFIG_FIELD],
 });

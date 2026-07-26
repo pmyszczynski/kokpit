@@ -968,14 +968,15 @@ services:
         # exclude_offbudget: false    # optional; hide off-budget accounts (default: false)
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
-        # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
         # encryption_password: ""     # optional; only for E2E-encrypted budgets
+        # (no timezone field here — this widget's balances aren't resolved
+        #  against a date, so nothing in it reads config.timezone)
 ```
 
 #### `actualbudget-schedules`
 
-Shows upcoming bills and income rules, sorted by due date, with relative due dates ("today", "3d", "overdue") and a footer showing how many are due within 7 days or already overdue.
+Shows upcoming bills and income rules, sorted by due date, with relative due dates ("today", "3d", "overdue") and a footer showing how many are due soon — within `min(7, days_ahead)` days — or already overdue. Set `days_ahead` below 7 and the footer's own label shrinks to match, so it never promises a window `days_ahead` has already excluded the data for.
 
 ```yaml
 services:
@@ -1007,8 +1008,13 @@ services:
 | `encryption_password` | No | Only required for end-to-end-encrypted budgets. |
 | `currency` | No | ISO 4217 code (default: `USD`). Controls amount formatting. |
 | `locale` | No | Locale identifier (e.g. `en-GB`, `de-DE`; default: server locale). |
-| `timezone` | No | IANA timezone name (e.g. `Europe/Warsaw`; default: the server's timezone). Used to resolve the current budget month and schedule due dates ("today"/"overdue") — Kokpit's own container runs UTC unless you set `TZ` on it, so set this if you're not in UTC and see month or due-date figures off by a few hours around midnight. |
 | `privacy_mode` | No | When `true` (default), amounts are blurred and reveal on hover/focus. Set to `false` to always show them. |
+
+**`timezone` (summary, categories, schedules only — not accounts):**
+
+| Field | Required | Description |
+|---|---|---|
+| `timezone` | No | IANA timezone name (e.g. `Europe/Warsaw`; default: the server's timezone). Used to resolve the current budget month (summary, categories) or schedule due-date status — "today"/"overdue" (schedules) — Kokpit's own container runs UTC unless you set `TZ` on it, so set this if you're not in UTC and see month or due-date figures off by a few hours around midnight. Not offered on `actualbudget-accounts`: account balances aren't resolved against a date, so nothing there reads it. |
 
 **Per-widget extra fields:**
 
@@ -1029,7 +1035,7 @@ services:
 | `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of all account balances). |
 | `actualbudget-categories` | Category name, Spent / Budgeted amounts with progress bar, colour status — mutually exclusive: green under 85% spent, yellow 85–100% spent, red when the category is overspent (balance below zero, which takes priority over the percentage). Sorted by % spent descending. |
 | `actualbudget-accounts` | Account name, off-budget marker, current balance. Footer shows Net worth total. |
-| `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within 7 days or overdue. |
+| `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within `min(7, days_ahead)` days or overdue (e.g. "Due within 3 days or overdue" when `days_ahead: 3`). |
 
 **Read-only:** This integration never modifies your budget — it only reads data from the sidecar.
 

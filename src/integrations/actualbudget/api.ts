@@ -80,9 +80,10 @@ export interface ActualSchedulesConfig extends ActualBudgetBaseConfig {
 
 /**
  * The config fields every one of the four widgets exposes for
- * `ActualBudgetBaseConfig`, in display order. Each widget's `configFields`
- * spreads this array first and appends its own fields after — see
- * accountsWidget.tsx, categoriesWidget.tsx, schedulesWidget.tsx and
+ * `ActualBudgetBaseConfig`, in display order — except `timezone`, which is
+ * exported separately as `TIMEZONE_CONFIG_FIELD` below. Each widget's
+ * `configFields` spreads this array first and appends its own fields after —
+ * see accountsWidget.tsx, categoriesWidget.tsx, schedulesWidget.tsx and
  * summaryWidget.tsx.
  *
  * Previously these ~8 definitions (label, placeholder, description, the lot)
@@ -141,15 +142,6 @@ export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
     description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
   },
   {
-    key: "timezone",
-    label: "Timezone",
-    type: "text",
-    required: false,
-    placeholder: "Europe/Warsaw",
-    description:
-      "Optional IANA timezone name (e.g. Europe/Warsaw) used to resolve the current budget month. Defaults to the server's timezone.",
-  },
-  {
     key: "privacy_mode",
     label: "Blur amounts until hover",
     type: "boolean",
@@ -158,6 +150,27 @@ export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
     description: "Blurs monetary amounts on the tile until you hover over it.",
   },
 ];
+
+/**
+ * `timezone` stays on the shared *schema* (`BaseConfigSchema` above) so a
+ * config remains portable if a service is ever repointed at a different
+ * Actual Budget widget type — but it is only wired into three of the four
+ * fetchers. `fetchAccounts` never reads it, which made it a dead setting in
+ * the accounts widget's editor: previously `BASE_CONFIG_FIELDS` included it
+ * unconditionally, so every widget advertised a "Timezone" field even where
+ * changing it did nothing. Exported separately, this is spread into
+ * summaryWidget/categoriesWidget/schedulesWidget only — see accountsWidget.tsx
+ * for the omission.
+ */
+export const TIMEZONE_CONFIG_FIELD: WidgetConfigField = {
+  key: "timezone",
+  label: "Timezone",
+  type: "text",
+  required: false,
+  placeholder: "Europe/Warsaw",
+  description:
+    "Optional IANA timezone name (e.g. Europe/Warsaw). Resolves the current budget month (summary, categories) or due-date status — \"today\"/\"overdue\" (schedules). Defaults to the server's timezone.",
+};
 
 // ── Widget-facing shapes ─────────────────────────────────────────────────────
 

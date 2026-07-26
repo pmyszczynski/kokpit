@@ -8,6 +8,7 @@ const noop = () => {};
 interface SchedulesData {
   schedules: ActualSchedule[];
   dueSoonCount: number;
+  dueSoonWindowDays: number;
   currency: string;
   locale?: string;
   privacyMode: boolean;
@@ -66,6 +67,8 @@ const SAMPLE_DATA: SchedulesData = {
   // sch-today (0) and sch-soon (2) qualify; sch-overdue (-6) and sch-far (37)
   // do not.
   dueSoonCount: 2,
+  // days_ahead defaults to 30, so the effective window is min(7, 30) = 7.
+  dueSoonWindowDays: 7,
   currency: "USD",
   locale: "en-US",
   privacyMode: false,
@@ -230,6 +233,36 @@ describe("ActualBudgetSchedulesWidget", () => {
     expect(screen.getByText("9")).toBeInTheDocument();
   });
 
+  it("reflects a days_ahead below 7 in the footer label, not a hardcoded 7", () => {
+    // With days_ahead: 3, fetchSchedules already filters out anything beyond
+    // 3 days, so a footer that still said "Due within 7 days" would promise a
+    // window the fetched data can never back up. dueSoonWindowDays carries
+    // the effective min(7, days_ahead) so the label and the count agree with
+    // what was actually fetched.
+    render(
+      <ActualBudgetSchedulesWidget
+        data={{ ...SAMPLE_DATA, dueSoonWindowDays: 3, dueSoonCount: 1 }}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    expect(screen.getByText("Due within 3 days or overdue")).toBeInTheDocument();
+    expect(screen.queryByText("Due within 7 days or overdue")).not.toBeInTheDocument();
+  });
+
+  it("pluralizes the footer label correctly for a 1-day window", () => {
+    render(
+      <ActualBudgetSchedulesWidget
+        data={{ ...SAMPLE_DATA, dueSoonWindowDays: 1, dueSoonCount: 0 }}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    expect(screen.getByText("Due within 1 day or overdue")).toBeInTheDocument();
+  });
+
   it("shows the stale error alongside data when data is non-null and error is set", () => {
     render(
       <ActualBudgetSchedulesWidget
@@ -274,6 +307,7 @@ describe("ActualBudgetSchedulesWidget", () => {
         data={{
           schedules: [],
           dueSoonCount: 0,
+          dueSoonWindowDays: 7,
           currency: "USD",
           locale: "en-US",
           privacyMode: false,

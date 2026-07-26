@@ -1,6 +1,11 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
-import { fetchSchedules, ActualSchedulesConfigSchema, BASE_CONFIG_FIELDS } from "./api";
+import {
+  fetchSchedules,
+  ActualSchedulesConfigSchema,
+  BASE_CONFIG_FIELDS,
+  TIMEZONE_CONFIG_FIELD,
+} from "./api";
 import type { ActualSchedulesConfig, ActualSchedule } from "./api";
 import { Amount } from "./Amount";
 
@@ -16,14 +21,23 @@ import { Amount } from "./Amount";
 // footer would under-report whenever more than `limit` schedules fall within
 // the window — exactly the case this count exists to surface.
 //
-// The window has no lower bound: `daysUntil <= 7` counts overdue schedules
-// too (negative daysUntil), not just 0–7. An overdue bill is still due — more
-// urgently, not less — so excluding it from "how many need attention soon"
-// would be exactly backwards. The upper bound is already enforced by
-// fetchSchedules's own `days_ahead` filter.
+// The window has no lower bound: `daysUntil <= dueSoonWindowDays` counts
+// overdue schedules too (negative daysUntil), not just 0–N. An overdue bill
+// is still due — more urgently, not less — so excluding it from "how many
+// need attention soon" would be exactly backwards.
+//
+// `dueSoonWindowDays` is `Math.min(7, config.days_ahead)`, not a bare 7:
+// fetchSchedules already filters its result to `days_ahead` before this file
+// ever sees it, so a bill due in 5 days simply isn't in `schedules` when
+// `days_ahead` is 3 — a footer that still claimed "due within 7 days" would
+// be promising a window the data can never actually cover. Threading the
+// effective number into the data (the same way privacyMode/currency ride
+// along) lets both the count and the label agree with what was actually
+// fetched.
 interface ActualSchedulesData {
   schedules: ActualSchedule[];
   dueSoonCount: number;
+  dueSoonWindowDays: number;
   currency: string;
   locale?: string;
   privacyMode: boolean;
@@ -34,10 +48,14 @@ async function fetchSchedulesData(
   signal?: AbortSignal
 ): Promise<ActualSchedulesData> {
   const schedules = await fetchSchedules(config, signal);
-  const dueSoonCount = schedules.filter((schedule) => schedule.daysUntil <= 7).length;
+  const dueSoonWindowDays = Math.min(7, config.days_ahead);
+  const dueSoonCount = schedules.filter(
+    (schedule) => schedule.daysUntil <= dueSoonWindowDays
+  ).length;
   return {
     schedules: schedules.slice(0, config.limit),
     dueSoonCount,
+    dueSoonWindowDays,
     currency: config.currency,
     locale: config.locale,
     privacyMode: config.privacy_mode,
@@ -48,6 +66,12 @@ function dueLabel(daysUntil: number): string {
   if (daysUntil < 0) return "overdue";
   if (daysUntil === 0) return "today";
   return `${daysUntil}d`;
+}
+
+/** "Due within 7 days or overdue" — pluralized, and reflecting the actual
+ * effective window rather than a hardcoded 7 (see ActualSchedulesData). */
+function dueSoonFooterLabel(windowDays: number): string {
+  return `Due within ${windowDays} day${windowDays === 1 ? "" : "s"} or overdue`;
 }
 
 export function ActualBudgetSchedulesWidget({
@@ -139,7 +163,7 @@ export function ActualBudgetSchedulesWidget({
       </div>
       <div className="actualbudget-schedules-widget__footer">
         <span className="actualbudget-schedules-widget__footer-label">
-          Due within 7 days or overdue
+          {dueSoonFooterLabel(data.dueSoonWindowDays)}
         </span>
         <span className="actualbudget-schedules-widget__footer-value">{data.dueSoonCount}</span>
       </div>
@@ -168,6 +192,7 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
   component: ActualBudgetSchedulesWidget,
   configFields: [
     ...BASE_CONFIG_FIELDS,
+    TIMEZONE_CONFIG_FIELD,
     {
       key: "limit",
       label: "Schedule limit",

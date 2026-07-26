@@ -1830,18 +1830,23 @@ describe("actualbudget widget registration", () => {
       });
     });
 
-    it("exposes timezone as an optional text field", async () => {
+    it("does NOT expose timezone as a config field — fetchAccounts never reads it", async () => {
+      // Fix: BASE_CONFIG_FIELDS used to include timezone unconditionally, so
+      // every widget's editor advertised a "Timezone" field even though
+      // fetchAccounts (api.ts) never reads config.timezone — a dead setting
+      // with nothing behind it here. timezone still lives on the shared
+      // *schema* below (a config stays portable across widget types), just
+      // not in this widget's editor fields.
       const def = await loadWidget(
         () => import("@/integrations/actualbudget/accountsWidget"),
         "actualbudget-accounts"
       );
-      expect(fieldByKey(def, "timezone")).toMatchObject({
-        type: "text",
-        required: false,
-      });
+      expect(fieldByKey(def, "timezone")).toBeUndefined();
     });
 
-    it("configSchema accepts an explicit timezone", async () => {
+    it("configSchema still accepts an explicit timezone even though the editor doesn't offer it", async () => {
+      // The schema stays permissive so a config is portable if a service is
+      // repointed at a different Actual Budget widget type later.
       await import("@/integrations/actualbudget/accountsWidget");
       const { getWidget } = await import("@/widgets");
       const result = getWidget("actualbudget-accounts")!.configSchema.safeParse({
@@ -2066,6 +2071,45 @@ describe("actualbudget widget registration", () => {
       // overdue-1 (-7d), overdue-2 (-3d), today (0d) and soon (4d) all
       // qualify (<= 7); far (20d) does not.
       expect(data.dueSoonCount).toBe(4);
+    });
+
+    it("caps the due-soon window to days_ahead when it is below 7, and threads the effective number through", async () => {
+      // Fix: fetchSchedules filters to `days_ahead` before this wrapper ever
+      // sees the result, so with days_ahead: 3 a bill due in 5 days is
+      // already gone — a label still promising "due within 7 days" would be
+      // describing a window the data can't actually cover. The effective
+      // window is min(7, days_ahead) = 3 here, used for both the count and
+      // (via dueSoonWindowDays) the label.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-26T12:00:00"));
+      vi.stubGlobal(
+        "fetch",
+        makeFetchMock({
+          "/schedules": makeJsonResponse([
+            { id: "in-2", name: "In 2 days", next_date: "2026-07-28", completed: false, amount: -100 },
+            { id: "in-5", name: "In 5 days", next_date: "2026-07-31", completed: false, amount: -100 },
+          ]),
+          "/payees": makeJsonResponse([]),
+        })
+      );
+
+      await import("@/integrations/actualbudget/schedulesWidget");
+      const { getWidget } = await import("@/widgets");
+      const widget = getWidget("actualbudget-schedules")!;
+
+      const data = (await widget.fetchData({
+        ...MINIMAL_CONFIG,
+        currency: "USD",
+        privacy_mode: true,
+        limit: 6,
+        days_ahead: 3,
+      })) as { schedules: unknown[]; dueSoonCount: number; dueSoonWindowDays: number };
+
+      // in-5 (5 days out) never reaches this wrapper at all — fetchSchedules
+      // already dropped it at days_ahead: 3 — so only in-2 is even eligible.
+      expect(data.schedules).toHaveLength(1);
+      expect(data.dueSoonWindowDays).toBe(3);
+      expect(data.dueSoonCount).toBe(1);
     });
   });
 });

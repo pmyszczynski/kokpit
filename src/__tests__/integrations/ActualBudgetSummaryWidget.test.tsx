@@ -126,6 +126,42 @@ describe("ActualBudgetSummaryWidget", () => {
     expect(screen.getByText("Overspent")).toBeInTheDocument();
   });
 
+  it("excludes hidden (archived) categories from the overspent count", () => {
+    // The categories widget never shows archived categories (see
+    // categoriesWidget.tsx's visibleCategories), so counting one here would
+    // report an overspent figure with no corresponding row anywhere a user
+    // can see it.
+    render(
+      <ActualBudgetSummaryWidget
+        data={{
+          ...SAMPLE_DATA,
+          month: {
+            ...SAMPLE_DATA.month,
+            categories: [
+              ...SAMPLE_DATA.month.categories,
+              {
+                id: "cat-hidden",
+                name: "Archived Overspend",
+                groupName: "Everyday",
+                isIncome: false,
+                hidden: true,
+                budgeted: 5000,
+                spent: -9000,
+                balance: -4000,
+                carryover: false,
+              },
+            ],
+          },
+        }}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    // Still 2, not 3: the hidden category's negative balance must not count.
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
   it("renders net worth from the accounts total", () => {
     render(
       <ActualBudgetSummaryWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />

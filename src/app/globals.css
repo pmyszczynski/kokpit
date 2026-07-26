@@ -3040,14 +3040,24 @@ button {
 
 /* Privacy mode: figures blur at the widget root and clear on hover/focus of
    the whole tile. Presentational only — never pair with aria-hidden, the
-   underlying text must stay in the accessibility tree. */
+   underlying text must stay in the accessibility tree.
+
+   The reveal has to key off `.service-tile`, not the widget root: the widget
+   itself has no focusable descendants, and the actually-focusable element is
+   the outer tile anchor (`.service-tile` > `.service-tile__widget` > this
+   widget root — see ServiceTile.tsx). `.actualbudget-widget--private
+   :focus-within` alone therefore never matches for keyboard users, and the
+   blur never lifts on Tab. The widget-root rules are kept alongside as a
+   fallback in case this widget is ever rendered outside a `.service-tile`. */
 .actualbudget-widget--private .actualbudget-amount {
   filter: blur(0.35rem);
   transition: filter 0.15s ease;
 }
 
 .actualbudget-widget--private:hover .actualbudget-amount,
-.actualbudget-widget--private:focus-within .actualbudget-amount {
+.actualbudget-widget--private:focus-within .actualbudget-amount,
+.service-tile:hover .actualbudget-widget--private .actualbudget-amount,
+.service-tile:focus-within .actualbudget-widget--private .actualbudget-amount {
   filter: none;
 }
 

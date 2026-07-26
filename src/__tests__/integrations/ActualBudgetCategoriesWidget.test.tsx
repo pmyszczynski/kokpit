@@ -95,6 +95,24 @@ const UNBUDGETED_SPENT: ActualCategory = {
   carryover: false,
 };
 
+// budgeted === 0, spent < 0, balance > 0: a category carrying a positive
+// balance from a prior month (100.00 carried, 0 assigned this month, 50.00
+// spent). available = balance + |spent| = 5000 + 5000 = 10000, so 50% spent
+// — not 100%. This is the carrying-funds case the balance-derived formula
+// exists to get right; the old budgeted===0-implies-100% special case
+// treated it identically to a truly unbudgeted overspend.
+const CARRYOVER_PARTIAL: ActualCategory = {
+  id: "cat-carryover",
+  name: "Carryover Fund",
+  groupName: "Everyday",
+  isIncome: false,
+  hidden: false,
+  budgeted: 0,
+  spent: -5000,
+  balance: 5000,
+  carryover: true,
+};
+
 // hidden === true: archived in Actual. Never something to show, and not a
 // configurable option — must be dropped unconditionally, before it can
 // consume a `limit` slot ahead of a visible category.
@@ -368,6 +386,104 @@ describe("ActualBudgetCategoriesWidget", () => {
     // category a user most needs to see. It must rank among the top spenders
     // (100%, ahead of Rent's 95%), not get truncated behind Groceries (78%).
     expect(rowNames(container)).toEqual(["Miscellaneous", "Rent"]);
+  });
+
+  it("computes percent spent for a category carrying a balance from a prior month as 50%, not 100%", () => {
+    render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [CARRYOVER_PARTIAL],
+          hideIncome: true,
+          hideEmpty: true,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    const row = screen
+      .getByText("Carryover Fund")
+      .closest(".actualbudget-categories-widget__row");
+    expect(row).toHaveTextContent("50%");
+  });
+
+  it("does not apply the --over modifier to a carrying category with a positive balance", () => {
+    const { container } = render(
+      <ActualBudgetCategoriesWidget
+        data={makeData({
+          categories: [CARRYOVER_PARTIAL],
+          hideIncome: true,
+          hideEmpty: true,
+        })}
+        loading={false}
+        error={null}
+        refresh={noop}
+      />
+    );
+    const row = container.querySelector(".actualbudget-categories-widget__row");
+    expect(row?.className).not.toContain("actualbudget-categories-widget__row--over");
+  });
+
+  // The four cases from the fix's verification table, each pinned directly:
+  // ordinary, carrying a balance, truly unbudgeted overspend, and untouched.
+  describe("percentSpent: available = balance + |spent|", () => {
+    it("ordinary category (budgeted 40000, spent -31200, balance 8800): 78%", () => {
+      render(
+        <ActualBudgetCategoriesWidget
+          data={makeData({ categories: [GROCERIES], hideEmpty: false })}
+          loading={false}
+          error={null}
+          refresh={noop}
+        />
+      );
+      const row = screen
+        .getByText("Groceries")
+        .closest(".actualbudget-categories-widget__row");
+      expect(row).toHaveTextContent("78%");
+    });
+
+    it("carrying 10000 available (budgeted 0, spent -5000, balance 5000): 50%", () => {
+      render(
+        <ActualBudgetCategoriesWidget
+          data={makeData({ categories: [CARRYOVER_PARTIAL], hideEmpty: false })}
+          loading={false}
+          error={null}
+          refresh={noop}
+        />
+      );
+      const row = screen
+        .getByText("Carryover Fund")
+        .closest(".actualbudget-categories-widget__row");
+      expect(row).toHaveTextContent("50%");
+    });
+
+    it("truly unbudgeted overspend (budgeted 0, spent -5000, balance -5000): 100%", () => {
+      render(
+        <ActualBudgetCategoriesWidget
+          data={makeData({ categories: [UNBUDGETED_SPENT], hideEmpty: false })}
+          loading={false}
+          error={null}
+          refresh={noop}
+        />
+      );
+      const row = screen
+        .getByText("Miscellaneous")
+        .closest(".actualbudget-categories-widget__row");
+      expect(row).toHaveTextContent("100%");
+    });
+
+    it("nothing budgeted, nothing spent (budgeted 0, spent 0, balance 0): 0%", () => {
+      render(
+        <ActualBudgetCategoriesWidget
+          data={makeData({ categories: [GIFTS], hideEmpty: false })}
+          loading={false}
+          error={null}
+          refresh={noop}
+        />
+      );
+      const row = screen.getByText("Gifts").closest(".actualbudget-categories-widget__row");
+      expect(row).toHaveTextContent("0%");
+    });
   });
 
   it("shows the stale error alongside data when data is non-null and error is set", () => {

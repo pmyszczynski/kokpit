@@ -5,9 +5,9 @@ import {
   currentMonth,
   ActualCategoriesConfigSchema,
   BASE_CONFIG_FIELDS,
+  TIMEZONE_CONFIG_FIELD,
 } from "./api";
 import type { ActualCategoriesConfig, ActualBudgetMonth, ActualCategory } from "./api";
-import { calcProgress } from "@/integrations/shared/queue";
 import { Amount } from "./Amount";
 
 // See summaryWidget.tsx for why display settings ride along on the fetched
@@ -46,21 +46,30 @@ async function fetchCategoriesData(
 }
 
 /**
- * Percent of budgeted spent, 0–100. `spent` is negative, so abs it first.
+ * Percent of available funds spent, 0–100. `spent` is negative, so abs it
+ * first.
  *
- * `calcProgress` returns 0 whenever `budgeted` is 0 — correct for a category
- * with nothing budgeted and nothing spent, but wrong for one with real
- * spending and no budget at all. That is exactly the category a user most
- * needs to see, and `hide_empty` doesn't catch it (it only drops categories
- * where budgeted *and* spent are both 0), so without this it silently sorts
- * to the bottom and gets cut by `limit`. Treat unbudgeted-but-spent as fully
- * consumed instead.
+ * Deriving from `budgeted` alone (treating budgeted === 0 as "fully spent
+ * whenever spent !== 0") got carried-over categories wrong: a category with
+ * 0 budgeted this month but 100.00 carried from last month and 50.00 spent
+ * still has 50.00 available, not 0 — it should read 50%, not 100%.
+ *
+ * `balance` already accounts for carryover: `balance = available − |spent|`,
+ * so `available = balance + |spent|`. That single derivation is correct for
+ * every case, including the ordinary one (no carryover): there,
+ * `balance = budgeted − |spent|`, so `available` reduces to `budgeted` and
+ * this produces the same percentage as before. When `available` is 0 (or
+ * negative — truly unbudgeted with real spending, or overspent past a
+ * carried balance), the category is fully consumed: 100% if anything was
+ * spent, 0% if nothing was budgeted, carried, or spent at all.
  */
 function percentSpent(category: ActualCategory): number {
-  if (category.budgeted === 0) {
-    return Math.abs(category.spent) > 0 ? 100 : 0;
+  const spent = Math.abs(category.spent);
+  const available = category.balance + spent;
+  if (available <= 0) {
+    return spent > 0 ? 100 : 0;
   }
-  return calcProgress(category.budgeted, category.budgeted - Math.abs(category.spent));
+  return Math.min(100, Math.max(0, Math.round((spent / available) * 100)));
 }
 
 function visibleCategories(data: ActualCategoriesData): ActualCategory[] {
@@ -184,6 +193,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
   component: ActualBudgetCategoriesWidget,
   configFields: [
     ...BASE_CONFIG_FIELDS,
+    TIMEZONE_CONFIG_FIELD,
     {
       key: "limit",
       label: "Category limit",
