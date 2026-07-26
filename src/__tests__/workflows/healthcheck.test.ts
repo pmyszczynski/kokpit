@@ -22,17 +22,29 @@ function readCompose(): Compose {
   return parseDocument(readRepoFile("docker-compose.yml")).toJS() as Compose;
 }
 
+// Returns the HEALTHCHECK instruction's command, so an unrelated CMD elsewhere
+// in the Dockerfile can't satisfy the assertions while the probe regresses.
 function dockerfileHealthcheck(): string {
-  const dockerfile = readRepoFile("Dockerfile");
-  const line = dockerfile
+  const instruction = readRepoFile("Dockerfile")
     .split("\n")
-    .find((candidate) => candidate.trimStart().startsWith("CMD wget"));
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n")
+    // Collapse backslash continuations so each instruction is one line.
+    .replace(/\\\r?\n\s*/g, " ")
+    .split("\n")
+    .find((line) => line.trimStart().startsWith("HEALTHCHECK"));
 
-  if (!line) {
-    throw new Error("Missing HEALTHCHECK CMD in Dockerfile");
+  if (!instruction) {
+    throw new Error("Missing HEALTHCHECK instruction in Dockerfile");
   }
 
-  return line;
+  const command = /\sCMD\s+(.+?)\s*$/.exec(instruction)?.[1];
+
+  if (!command) {
+    throw new Error("HEALTHCHECK instruction has no CMD in Dockerfile");
+  }
+
+  return command;
 }
 
 describe("container healthcheck", () => {
