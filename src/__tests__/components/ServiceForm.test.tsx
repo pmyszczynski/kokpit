@@ -603,6 +603,183 @@ describe("ServiceForm – optional widget config", () => {
   });
 });
 
+describe("ServiceForm – boolean widget config fields", () => {
+  // actualbudget-accounts is the widest boolean case in the registry: one
+  // default-true option (privacy_mode), another default-true filter
+  // (exclude_closed) and a default-false one (exclude_offbudget).
+  function setupAccountsForm(onSave = noop) {
+    const result = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "actualbudget-accounts" },
+    });
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Budget" },
+    });
+    return result;
+  }
+
+  it("renders a labelled checkbox for a boolean field", () => {
+    setupAccountsForm();
+    const checkbox = screen.getByLabelText("Blur amounts until hover");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toHaveAttribute("type", "checkbox");
+  });
+
+  it("wires the field description up as the checkbox's description", () => {
+    setupAccountsForm();
+    const checkbox = screen.getByLabelText("Hide closed accounts");
+    const hintId = checkbox.getAttribute("aria-describedby");
+    expect(hintId).toBe("sf-widget-exclude_closed-hint");
+    expect(document.getElementById(hintId!)).toHaveTextContent(
+      "Leaves closed accounts out of the list and out of the net worth total."
+    );
+  });
+
+  it("renders an absent key using the field's defaultValue, not unchecked", () => {
+    setupAccountsForm();
+    // Nothing has been configured, so none of these keys exist in the config —
+    // the boxes must still mirror what the schema defaults actually do.
+    expect(screen.getByLabelText("Blur amounts until hover")).toBeChecked();
+    expect(screen.getByLabelText("Hide closed accounts")).toBeChecked();
+    expect(screen.getByLabelText("Hide off-budget accounts")).not.toBeChecked();
+  });
+
+  it("renders a saved value in preference to the defaultValue", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Budget",
+          widget: {
+            type: "actualbudget-accounts",
+            config: {
+              url: "http://actual-http-api:5007",
+              api_key: "key",
+              budget_sync_id: "sync-id",
+              privacy_mode: false,
+              exclude_offbudget: true,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+    expect(screen.getByLabelText("Blur amounts until hover")).not.toBeChecked();
+    expect(screen.getByLabelText("Hide off-budget accounts")).toBeChecked();
+    // Still absent from the saved config → still falls back to its default.
+    expect(screen.getByLabelText("Hide closed accounts")).toBeChecked();
+  });
+
+  it("writes a real boolean, not the string \"true\"", () => {
+    const onSave = vi.fn();
+    setupAccountsForm(onSave);
+    // exclude_offbudget defaults to false, so one click writes `true`.
+    fireEvent.click(screen.getByLabelText("Hide off-budget accounts"));
+    fireEvent.click(screen.getByText("Save"));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(typeof saved.widget.config.exclude_offbudget).toBe("boolean");
+    expect(saved.widget.config.exclude_offbudget).toBe(true);
+  });
+
+  it("keeps `false` through a save round-trip when a default-true option is unchecked", () => {
+    // The highest-risk failure in the boolean field: cleanWidgetConfig drops
+    // "unconfigured" values, and if it dropped `false` too, unchecking a
+    // default-true option would silently revert to `true` on save.
+    const onSave = vi.fn();
+    setupAccountsForm(onSave);
+    expect(screen.getByLabelText("Blur amounts until hover")).toBeChecked();
+    fireEvent.click(screen.getByLabelText("Blur amounts until hover"));
+    expect(screen.getByLabelText("Blur amounts until hover")).not.toBeChecked();
+    fireEvent.click(screen.getByText("Save"));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.widget.config).toBeDefined();
+    expect(Object.keys(saved.widget.config)).toContain("privacy_mode");
+    expect(typeof saved.widget.config.privacy_mode).toBe("boolean");
+    expect(saved.widget.config.privacy_mode).toBe(false);
+  });
+
+  it("a lone `false` is enough to count as a configured widget", () => {
+    // Same guard from the other side: `{privacy_mode: false}` must not clean
+    // down to `{}`, which would drop the whole config on save.
+    const onSave = vi.fn();
+    setupAccountsForm(onSave);
+    fireEvent.click(screen.getByLabelText("Hide closed accounts"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave.mock.calls[0][0].widget.config).toEqual({
+      exclude_closed: false,
+    });
+  });
+
+  it("round-trips a saved `false` back out unchanged when nothing is touched", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Budget",
+          widget: {
+            type: "actualbudget-accounts",
+            config: {
+              url: "http://actual-http-api:5007",
+              api_key: "key",
+              budget_sync_id: "sync-id",
+              privacy_mode: false,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave.mock.calls[0][0].widget.config).toMatchObject({
+      privacy_mode: false,
+    });
+  });
+
+  it("leaves the other field types rendering exactly as before", () => {
+    setupAccountsForm();
+    // text / url / password fields on the same widget still render as inputs
+    // with the shared class, not as checkboxes.
+    const urlInput = screen.getByLabelText("URL *");
+    expect(urlInput).toHaveAttribute("type", "text");
+    expect(urlInput).toHaveClass("settings-input");
+    const apiKey = screen.getByLabelText("API Key *");
+    expect(apiKey).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Budget Sync ID *")).toHaveAttribute("type", "text");
+  });
+
+  it("leaves number and multiselect fields rendering unchanged", () => {
+    const { container } = render(
+      <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "actualbudget-schedules" },
+    });
+    expect(screen.getByLabelText("Schedule limit")).toHaveAttribute("type", "number");
+    expect(screen.getByLabelText("Days ahead")).toHaveAttribute("type", "number");
+
+    // Plex's `fields` multiselect still renders as its own labelled group of
+    // option checkboxes, not as a row of standalone boolean fields.
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+    const group = container.querySelector(".widget-multiselect");
+    expect(group).toBeInTheDocument();
+    expect(group).toHaveAttribute("role", "group");
+    expect(group).toHaveAttribute("aria-labelledby", "sf-widget-fields-label");
+    expect(
+      container.querySelectorAll(".widget-multiselect__option input[type='checkbox']")
+    ).toHaveLength(10);
+    expect(container.querySelector(".widget-checkbox")).not.toBeInTheDocument();
+  });
+});
+
 describe("ServiceForm – saved config vs. live edits", () => {
   // Regression test for the "broken widget feedback" bug: the tile validates
   // the RAW saved config (fields: [] fails Plex's `.min(1)`, hence the

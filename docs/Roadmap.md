@@ -184,7 +184,9 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Files / cloud: Nextcloud
   - Security: Vaultwarden, CrowdSec
   - Analytics: Tautulli, Grafana embed widget
-  - Finance: Actual Budget, Firefly III
+  - [ ] **Finance**
+    - [x] Actual Budget
+    - [ ] Firefly III
 
 - [ ] `P2` **Keyboard shortcuts & global search**
   - ⌘K / Ctrl+K launcher: search across all services and bookmarks

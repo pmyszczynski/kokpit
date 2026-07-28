@@ -9,7 +9,13 @@ export interface WidgetProps<TData = unknown> {
   refresh: () => void;
 }
 
-export type WidgetConfigFieldType = "text" | "url" | "password" | "number" | "multiselect";
+export type WidgetConfigFieldType =
+  | "text"
+  | "url"
+  | "password"
+  | "number"
+  | "multiselect"
+  | "boolean";
 
 export interface WidgetConfigField {
   key: string;
@@ -20,6 +26,14 @@ export interface WidgetConfigField {
   required?: boolean;
   /** Options for multiselect fields. */
   options?: Array<{ value: string; label: string }>;
+  /**
+   * For boolean fields: the effective value to show when this key is absent
+   * from the saved config. Must match the zod schema's `.default()` for the
+   * same key — a config written before the field was exposed has no entry, but
+   * the widget still behaves as the schema default says, and an unchecked box
+   * over a `true` default would misreport live behaviour.
+   */
+  defaultValue?: boolean;
 }
 
 /** Default tile label and icon when picking this widget in the service editor. */
@@ -48,6 +62,12 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   preferredSize?: Size;
   /** Smallest size the widget renders usefully at; the size picker greys out anything below. */
   minSize?: Size;
+  /**
+   * Overrides the default 5s widget fetch timeout (WIDGET_FETCH_TIMEOUT_MS
+   * in src/lib/fetchTimeout.ts) for this widget's fetchData calls. Leave
+   * unset to use the default.
+   */
+  fetchTimeoutMs?: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
