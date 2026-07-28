@@ -80,7 +80,6 @@ import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "../BookmarkTile";
 import CollapsibleGroup, { migrateGroupCollapseKey } from "../CollapsibleGroup";
 import ServiceTile from "../ServiceTile";
-import DashboardTileGrid from "../DashboardTileGrid";
 import ServiceForm from "../ServiceForm";
 import BookmarkGroupForm from "../BookmarkGroupForm";
 import AddTilePicker, { type AddChoice } from "./AddTilePicker";
@@ -250,9 +249,9 @@ function DroppableTileGrid({
     (isOver && activeIsTile ? " dashboard-tile-grid--drop-active" : "");
   return (
     <SortableContext items={itemIds} strategy={rectSortingStrategy}>
-      <DashboardTileGrid ref={setNodeRef} className={className} style={style}>
+      <div ref={setNodeRef} className={className} style={style}>
         {children}
-      </DashboardTileGrid>
+      </div>
     </SortableContext>
   );
 }

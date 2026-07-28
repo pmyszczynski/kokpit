@@ -18,7 +18,6 @@ import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "./BookmarkTile";
 import CollapsibleGroup from "./CollapsibleGroup";
 import ServiceTile from "./ServiceTile";
-import DashboardTileGrid from "./DashboardTileGrid";
 
 /**
  * Default tile size for a bookmark group without an explicit
@@ -76,9 +75,9 @@ function TileGrid({
       ? ({ "--group-columns": columns } as React.CSSProperties)
       : undefined;
   return (
-    <DashboardTileGrid className="dashboard-tile-grid" style={style}>
+    <div className="dashboard-tile-grid" style={style}>
       {children}
-    </DashboardTileGrid>
+    </div>
   );
 }
 
@@ -134,9 +133,9 @@ export default function ServiceGrid() {
         if (section.name === null) {
           // Implicit ungrouped section: bare tile grid, no header/collapse.
           return (
-            <DashboardTileGrid key="__ungrouped__" className="dashboard-tile-grid">
+            <div key="__ungrouped__" className="dashboard-tile-grid">
               {ungrouped.map(renderServiceTile)}
-            </DashboardTileGrid>
+            </div>
           );
         }
 
