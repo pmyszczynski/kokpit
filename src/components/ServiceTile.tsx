@@ -297,7 +297,20 @@ export default function ServiceTile({ name, url, icon, description, widget, size
       ) : (
         url && <StatusDot url={url} preview={preview} />
       )}
-      <div className="service-tile__header">
+      {/*
+       * The name shares the header row with the icon, and that row runs the
+       * full content width straight under the absolutely-positioned corner
+       * controls — so on a 1x1 tile a long name is overlaid by them. Which
+       * control occupies the shared slot decides how much clearance the row
+       * needs (the badge is 20px wide, the dot 8px), so report it to the
+       * stylesheet and let `.service-tile__header[data-corner-slot]` reserve
+       * the matching inset. The edit-mode kebab needs no flag: it is always
+       * present when `drag` is, which `.service-tile--editable` already says.
+       */}
+      <div
+        className="service-tile__header"
+        data-corner-slot={invalidIssues ? "badge" : url ? "dot" : undefined}
+      >
         <ServiceIcon icon={icon} url={url} name={name} />
         <span className="service-tile__name">{name}</span>
       </div>
