@@ -436,6 +436,42 @@ button {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  /* The corner controls (.status-dot / .tile-widget-badge and the edit-mode
+     .tile-kebab) are absolutely positioned over the tile's top-right corner —
+     which is this row. Without a reserved inset a long name runs underneath
+     them, most visibly on a 1x1 tile where the header owns the full content
+     width. --tile-corner-reach is how far the right-most control extends in
+     from the tile's BORDER edge; the header lives inside the tile's padding,
+     so that padding comes back off, plus 6px of breathing room. Clamped at 0
+     so a larger --gap simply means no inset rather than negative padding. */
+  padding-right: max(0px, calc(var(--tile-corner-reach, 0px) + 6px - var(--gap)));
+}
+
+/* View mode: the shared slot holds either the dot (right: 10px + 8px wide) or
+   the badge (right: 6px + 20px wide). Keep these in sync with .status-dot and
+   .tile-widget-badge below. */
+.service-tile__header[data-corner-slot="dot"] {
+  --tile-corner-reach: 18px;
+}
+
+.service-tile__header[data-corner-slot="badge"] {
+  --tile-corner-reach: 26px;
+}
+
+/* Edit mode: .tile-kebab takes the corner (right: 6px + 20px wide) and pushes
+   the dot/badge out to right: 30px — see the `.service-tile--editable
+   .status-dot` shift in the B3 section. Ordered after the view-mode rules so
+   the kebab-only case wins on equal specificity. */
+.service-tile--editable .service-tile__header {
+  --tile-corner-reach: 26px;
+}
+
+.service-tile--editable .service-tile__header[data-corner-slot="dot"] {
+  --tile-corner-reach: 38px;
+}
+
+.service-tile--editable .service-tile__header[data-corner-slot="badge"] {
+  --tile-corner-reach: 50px;
 }
 
 .service-tile__letter-fallback {
@@ -3573,7 +3609,9 @@ button {
 
 /* Keep the edit-mode status dot clear of the kebab in the same corner. The
    badge shares the dot's slot (they're mutually exclusive), so it needs the
-   identical shift for the same reason. */
+   identical shift for the same reason. Changing this offset also changes how
+   much clearance the header row needs — update the --tile-corner-reach values
+   on .service-tile__header to match. */
 .service-tile--editable .status-dot,
 .service-tile--editable .tile-widget-badge {
   right: 30px;
