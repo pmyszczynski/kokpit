@@ -41,6 +41,75 @@ describe("ServiceTile", () => {
     expect(screen.getByText("Jellyfin")).toBeInTheDocument();
   });
 
+  it("groups the service icon and name in the same header row", async () => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Jellyfin"
+          url="http://192.168.1.10:8096"
+          icon="/icons/jellyfin.png"
+        />
+      ));
+    });
+
+    const header = container.querySelector(".service-tile__header");
+    expect(header).not.toBeNull();
+    expect(header?.children).toHaveLength(2);
+    expect(header?.children[0]).toHaveClass("service-tile__icon");
+    expect(header?.children[1]).toHaveClass("service-tile__name");
+  });
+
+  // The header row sits under the absolutely-positioned top-right corner
+  // controls, so it has to declare which one is there for globals.css to
+  // reserve the matching inset (--tile-corner-reach). jsdom applies no
+  // stylesheet, so the flag itself is what's assertable here.
+  describe("header corner-control clearance", () => {
+    const cornerSlot = (container: HTMLElement) =>
+      container
+        .querySelector(".service-tile__header")
+        ?.getAttribute("data-corner-slot");
+
+    it("flags the status dot's slot on a tile with a URL", async () => {
+      let container!: HTMLElement;
+      await act(async () => {
+        ({ container } = render(
+          <ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />
+        ));
+      });
+      expect(container.querySelector(".status-dot")).not.toBeNull();
+      expect(cornerSlot(container)).toBe("dot");
+    });
+
+    it("flags the wider badge slot when the widget config is invalid", async () => {
+      const issues: WidgetConfigIssue[] = [
+        { path: "api_key", message: "Required" },
+      ];
+      let container!: HTMLElement;
+      await act(async () => {
+        ({ container } = render(
+          <ServiceTile
+            name="Sonarr"
+            url="http://sonarr.local"
+            widget={{ type: "sonarr-queue", invalid: issues }}
+          />
+        ));
+      });
+      expect(container.querySelector(".tile-widget-badge")).not.toBeNull();
+      expect(cornerSlot(container)).toBe("badge");
+    });
+
+    it("omits the flag when neither corner control renders", async () => {
+      let container!: HTMLElement;
+      await act(async () => {
+        ({ container } = render(<ServiceTile name="System Stats" />));
+      });
+      expect(container.querySelector(".status-dot")).toBeNull();
+      expect(container.querySelector(".tile-widget-badge")).toBeNull();
+      expect(cornerSlot(container)).toBeNull();
+    });
+  });
+
   it("links to the correct URL in a new tab", async () => {
     await act(async () => {
       render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
