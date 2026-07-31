@@ -19,6 +19,7 @@ import {
   UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
+import { WIDGET_SECRET_REFERENCE_PREFIX } from "@/widgets/secretReference";
 import {
   createWidgetConfigReference,
   createWidgetSecretReference,
@@ -34,6 +35,7 @@ const baseDefinition = {
   configFields: [
     { key: "url", label: "URL", type: "url" as const },
     { key: "token", label: "Token", type: "password" as const },
+    { key: "number", label: "Number", type: "number" as const },
   ],
 };
 
@@ -53,10 +55,10 @@ describe("widget credential scope registry invariant", () => {
           .sort((left, right) => left[0].localeCompare(right[0]))
       )
     ).toEqual({
-      "actualbudget-accounts": ["url"],
-      "actualbudget-categories": ["url"],
-      "actualbudget-schedules": ["url"],
-      "actualbudget-summary": ["url"],
+      "actualbudget-accounts": ["url", "budget_sync_id"],
+      "actualbudget-categories": ["url", "budget_sync_id"],
+      "actualbudget-schedules": ["url", "budget_sync_id"],
+      "actualbudget-summary": ["url", "budget_sync_id"],
       "immich-stats": ["url"],
       "netdata-cpu": ["url"],
       "netdata-disk-io": ["url"],
@@ -95,6 +97,7 @@ describe("widget credential scope registry invariant", () => {
     { id: "empty-scope", credentialScopeFields: [] },
     { id: "unknown-scope", credentialScopeFields: ["missing"] },
     { id: "secret-scope", credentialScopeFields: ["token"] },
+    { id: "number-scope", credentialScopeFields: ["number"] },
   ])("rejects invalid definition $id", (extra) => {
     expect(() =>
       registerWidget({
@@ -158,6 +161,22 @@ describe("credential scope normalization", () => {
         { url: "http://host:8080", username: "admin" },
         { url: "http://host:8080", username: "Admin" }
       )
+    ).toBe(false);
+  });
+
+  it("keeps Actual Budget credentials bound to the selected budget", () => {
+    const source = {
+      url: "http://actual.local:5006",
+      budget_sync_id: "budget-a",
+    };
+    expect(
+      normalizeCredentialScope("actualbudget-accounts", source)
+    ).toEqual(["http://actual.local:5006/", "budget-a"]);
+    expect(
+      widgetCredentialScopesMatch("actualbudget-accounts", source, {
+        ...source,
+        budget_sync_id: "budget-b",
+      })
     ).toBe(false);
   });
 });
@@ -239,6 +258,94 @@ describe("destination-bound secret resolution", () => {
       }
     }
   });
+
+  it("preserves literal credentials that use the old marker prefix", () => {
+    const literal = `${WIDGET_SECRET_REFERENCE_PREFIX}a-real-password`;
+    const config = {
+      ...savedServices[0],
+      widget: {
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.local:8181",
+          api_key: literal,
+        },
+      },
+    } satisfies Service;
+    const redacted = redactWidgetSecrets({
+      schema_version: 1,
+      auth: { enabled: false, session_ttl_hours: 24 },
+      appearance: { theme: "dark" },
+      layout: { columns: 4, row_height: 120 },
+      services: [config],
+    });
+
+    expect(redacted.services[0].widget?.config?.api_key).not.toBe(literal);
+    expect(
+      resolveWidgetConfigSecrets(
+        "tautulli-activity",
+        redacted.services[0].widget!.config,
+        [config]
+      )
+    ).toEqual(config.widget?.config);
+  });
+});
+
+describe("registered widget config redaction", () => {
+  function kokpitConfig(service: Service) {
+    return {
+      schema_version: 1 as const,
+      auth: { enabled: false, session_ttl_hours: 24 },
+      appearance: { theme: "dark" as const },
+      layout: { columns: 4, row_height: 120 },
+      services: [service],
+    };
+  }
+
+  it("keeps invalid stored configs opaque instead of making them look valid", () => {
+    const service = {
+      name: "Plex",
+      widget: {
+        type: "plex",
+        config: { url: "http://plex.local:32400", token: "" },
+      },
+    } satisfies Service;
+    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const browserConfig = redacted.services[0].widget!.config!;
+
+    expect(browserConfig).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
+    });
+    expect(
+      resolveWidgetConfigSecrets("plex", browserConfig, [service])
+    ).toEqual(service.widget?.config);
+  });
+
+  it("keeps configs with unregistered fields opaque", () => {
+    const service = {
+      name: "Plex",
+      widget: {
+        type: "plex",
+        config: {
+          url: "http://plex.local:32400",
+          token: "saved-secret",
+          legacy_token: "must-not-reach-browser",
+        },
+      },
+    } satisfies Service;
+    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const browserConfig = redacted.services[0].widget!.config!;
+
+    expect(JSON.stringify(browserConfig)).not.toContain("saved-secret");
+    expect(JSON.stringify(browserConfig)).not.toContain(
+      "must-not-reach-browser"
+    );
+    expect(browserConfig).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
+    });
+    expect(
+      resolveWidgetConfigSecrets("plex", browserConfig, [service])
+    ).toEqual(service.widget?.config);
+  });
 });
 
 describe("unregistered widget config redaction", () => {
@@ -292,13 +399,13 @@ describe("unregistered widget config redaction", () => {
     );
   });
 
-  it("rejects an opaque whole-config reference on a registered widget", () => {
+  it("rejects an opaque whole-config reference mixed with regular config", () => {
     expect(() =>
       resolveWidgetConfigSecrets(
         "tautulli-activity",
         {
           url: "http://tautulli.local:8181",
-          api_key: createWidgetConfigReference(
+          [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(
             "Retired integration",
             "removed-widget"
           ),

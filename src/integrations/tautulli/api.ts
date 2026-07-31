@@ -79,7 +79,8 @@ function withTrailingSlash(url: string): string {
 }
 
 function nonBlank(value: string | null | undefined, fallback: string): string {
-  return value?.trim() ? value : fallback;
+  const trimmed = value?.trim();
+  return trimmed || fallback;
 }
 
 function abortedRequestError(): Error {

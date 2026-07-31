@@ -566,7 +566,13 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
       const result = await saveRaw("groups", payload);
       if (result.ok) {
         // Now — and only now — reflect the cascade in shared state and clear ops.
-        if (cascade.servicesChanged) setServices(cascade.services);
+        if (cascade.servicesChanged) {
+          setServices(
+            Array.isArray(result.config?.services)
+              ? result.config.services
+              : cascade.services
+          );
+        }
         if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
         setPendingGroupOps([]);
       }

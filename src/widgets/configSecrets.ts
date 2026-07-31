@@ -6,7 +6,6 @@ import {
 import { getWidget } from "@/widgets";
 import { widgetCredentialScopesMatch } from "./credentialScope";
 import {
-  isWidgetConfigReference,
   isWidgetSecretReference,
 } from "./secretReference";
 import {
@@ -51,6 +50,25 @@ function credentialFieldKeys(widgetType: string): string[] {
   );
 }
 
+function configFieldKeys(widgetType: string): string[] {
+  return getWidget(widgetType)?.configFields?.map((field) => field.key) ?? [];
+}
+
+function shouldHideWholeConfig(
+  widgetType: string,
+  config: Record<string, unknown>
+): boolean {
+  const widget = getWidget(widgetType);
+  if (!widget) return Object.keys(config).length > 0;
+
+  const knownKeys = new Set(configFieldKeys(widgetType));
+  if (Object.keys(config).some((key) => !knownKeys.has(key))) {
+    return true;
+  }
+
+  return !widget.configSchema.safeParse(config).success;
+}
+
 function getOpaqueConfigReference(
   config: Record<string, unknown>
 ): unknown | null {
@@ -73,10 +91,9 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
       const rawConfig = widget?.config;
       if (!widget || !rawConfig) return service;
 
-      // An unregistered widget has no trustworthy field metadata. Treat the
-      // entire non-empty config as secret and retain it only on the server.
-      if (!getWidget(widget.type)) {
-        if (Object.keys(rawConfig).length === 0) return service;
+      // A config outside the editor's exact field contract cannot safely be
+      // classified in the browser. Keep it on the server as one opaque value.
+      if (shouldHideWholeConfig(widget.type, rawConfig)) {
         return {
           ...service,
           widget: {
@@ -222,17 +239,21 @@ export function resolveWidgetConfigSecrets(
   }
 
   const rawConfig = config as Record<string, unknown>;
+  const opaqueReference = getOpaqueConfigReference(rawConfig);
+  if (opaqueReference !== null) {
+    return resolveUnknownWidgetConfig(widgetType, rawConfig, savedServices);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawConfig, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY)) {
+    throw new WidgetSecretResolutionError(
+      "widget_secret_reference_invalid"
+    );
+  }
   if (!getWidget(widgetType)) {
     return resolveUnknownWidgetConfig(widgetType, rawConfig, savedServices);
   }
   let resolvedConfig: Record<string, unknown> | null = null;
   const credentialKeys = credentialFieldKeys(widgetType);
   for (const [key, value] of Object.entries(rawConfig)) {
-    if (isWidgetConfigReference(value)) {
-      throw new WidgetSecretResolutionError(
-        "widget_secret_reference_invalid"
-      );
-    }
     if (
       isWidgetSecretReference(value) &&
       !credentialKeys.includes(key)

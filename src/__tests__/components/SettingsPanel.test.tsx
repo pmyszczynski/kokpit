@@ -759,6 +759,62 @@ describe("SettingsPanel - groups tab", () => {
     expect(servicesTab).toBeEnabled();
   });
 
+  it("uses redacted service state returned by a successful group cascade", async () => {
+    const initial = groupsConfig();
+    initial.services[0] = {
+      ...initial.services[0],
+      widget: {
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.local:8181",
+          api_key: "literal-replacement",
+        },
+      },
+    };
+    const responseConfig = {
+      ...initial,
+      groups: [{ name: "Movies" }, { name: "Infra" }],
+      services: initial.services.map((service) =>
+        service.name === "Jellyfin"
+          ? {
+              ...service,
+              group: "Movies",
+              widget: {
+                ...service.widget!,
+                config: {
+                  ...service.widget!.config,
+                  api_key: "server-redacted-reference",
+                },
+              },
+            }
+          : service
+      ),
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(responseConfig))
+    );
+    render(<SettingsPanel config={initial} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const input = screen.getByLabelText("Group name for Media");
+    fireEvent.change(input, { target: { value: "Movies" } });
+    fireEvent.blur(input);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    const row = screen.getByText("Jellyfin").closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    const props = JSON.parse(
+      screen.getByTestId("service-form-stub-props").textContent!
+    );
+    expect(props.service.widget.config.api_key).toBe(
+      "server-redacted-reference"
+    );
+  });
+
   it("deleting a group clears members' group and bookmark placement references", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);

@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 
 let cachedSecret: Uint8Array | null = null;
@@ -13,7 +13,10 @@ export function getServerSecret(): Uint8Array {
   if (cachedSecret) return cachedSecret;
 
   const envSecret = process.env.KOKPIT_SESSION_SECRET;
-  if (envSecret) {
+  if (envSecret !== undefined) {
+    if (!envSecret.trim()) {
+      throw new Error("KOKPIT_SESSION_SECRET must not be empty");
+    }
     cachedSecret = new TextEncoder().encode(envSecret);
     return cachedSecret;
   }
@@ -22,12 +25,40 @@ export function getServerSecret(): Uint8Array {
   const secretPath = join(dbDir, ".session_secret");
 
   let secret: string;
-  if (existsSync(secretPath)) {
+  try {
     secret = readFileSync(secretPath, "utf-8").trim();
-  } else {
-    secret = randomBytes(32).toString("hex");
+  } catch (error) {
+    if (
+      typeof error !== "object" ||
+      error === null ||
+      !("code" in error) ||
+      error.code !== "ENOENT"
+    ) {
+      throw error;
+    }
     mkdirSync(dbDir, { recursive: true });
-    writeFileSync(secretPath, secret, { encoding: "utf-8", mode: 0o600 });
+    secret = randomBytes(32).toString("hex");
+    try {
+      writeFileSync(secretPath, secret, {
+        encoding: "utf-8",
+        mode: 0o600,
+        flag: "wx",
+      });
+    } catch (writeError) {
+      if (
+        typeof writeError !== "object" ||
+        writeError === null ||
+        !("code" in writeError) ||
+        writeError.code !== "EEXIST"
+      ) {
+        throw writeError;
+      }
+      secret = readFileSync(secretPath, "utf-8").trim();
+    }
+  }
+
+  if (!secret.trim()) {
+    throw new Error("Server session secret must not be empty");
   }
 
   cachedSecret = new TextEncoder().encode(secret);

@@ -203,7 +203,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
   refreshInterval: 300_000,
   fetchTimeoutMs: 15_000,
   component: ActualBudgetCategoriesWidget,
-  credentialScopeFields: ["url"],
+  credentialScopeFields: ["url", "budget_sync_id"],
   configFields: [
     ...BASE_CONFIG_FIELDS,
     TIMEZONE_CONFIG_FIELD,

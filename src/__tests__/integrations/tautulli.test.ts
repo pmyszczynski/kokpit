@@ -154,6 +154,21 @@ describe("fetchActivity", () => {
     ]);
   });
 
+  it("trims selected user and title values", async () => {
+    const response = makeActivityResponse();
+    response.response.data.sessions = [{
+      ...ACTIVITY_RESPONSE.response.data.sessions[0],
+      username: "  alice  ",
+      full_title: "  The Expanse  ",
+    }];
+    vi.stubGlobal("fetch", mockFetch(response));
+
+    expect((await fetchActivity(BASE_CONFIG)).sessions?.[0]).toMatchObject({
+      username: "alice",
+      title: "The Expanse",
+    });
+  });
+
   it("uses full_title, title, and a neutral fallback in that order", async () => {
     const response = makeActivityResponse();
     response.response.data.sessions = [

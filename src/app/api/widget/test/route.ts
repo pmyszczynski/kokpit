@@ -54,7 +54,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    throw error;
+    return NextResponse.json(
+      { ok: false, error: publicWidgetFetchError("connection-test") },
+      { status: 500 }
+    );
   }
 
   const parsed = widget.configSchema.safeParse(resolvedConfig);

@@ -150,7 +150,10 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
-      throw error;
+      return NextResponse.json(
+        { error: "Failed to save settings" },
+        { status: 500 }
+      );
     }
   }
 

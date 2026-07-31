@@ -319,7 +319,8 @@ function withTrailingSlash(url: string): string {
 }
 
 function nonBlank(value: string | null | undefined, fallback: string): string {
-  return value?.trim() ? value : fallback;
+  const trimmed = value?.trim();
+  return trimmed || fallback;
 }
 
 function sanitizeApiMessage(
@@ -350,7 +351,9 @@ if (!response.ok) {
 }
 ```
 
-Catch only JSON decoding and convert it to
+At both the initial `fetch` stage and the response-body (`response.json()`)
+stage, sanitize `AbortError` failures to the safe `Tautulli request aborted`
+message. Catch only other JSON decoding failures and convert them to
 `Tautulli returned invalid JSON`. Parse the envelope separately. If
 `result !== "success"`, throw `sanitizeApiMessage`. Parse `response.data` with
 `ActivityDataSchema`; convert its Zod failure to

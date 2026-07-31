@@ -3,6 +3,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
 import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
+import {
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 
 // Every selectable tile type, with what its schema says about an empty
 // config. Derived from the registry so new integrations are covered
@@ -24,8 +28,11 @@ beforeEach(() => {
 });
 
 const noop = vi.fn();
-const SAVED_TAUTULLI_SECRET =
-  '__KOKPIT_WIDGET_SECRET_REF__:["Tautulli","tautulli-activity","api_key"]';
+const SAVED_TAUTULLI_SECRET_TOKEN =
+  `${WIDGET_SECRET_REFERENCE_PREFIX}["Tautulli","tautulli-activity","api_key"]`;
+const SAVED_TAUTULLI_SECRET = {
+  [WIDGET_SECRET_REFERENCE_KEY]: SAVED_TAUTULLI_SECRET_TOKEN,
+};
 
 describe("ServiceForm – rendering", () => {
   it('shows "Add Service" for a new service', () => {
@@ -1079,7 +1086,7 @@ describe("ServiceForm – Tautulli defaults", () => {
     );
 
     expect(screen.getByLabelText(/^API Key \*$/)).toHaveValue("");
-    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET);
+    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET_TOKEN);
     fireEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1168,6 +1175,70 @@ describe("ServiceForm – Tautulli defaults", () => {
         }),
       })
     );
+  });
+
+  it("restores a saved credential reference when a replacement is erased", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    const apiKey = screen.getByLabelText(/^API Key \*$/);
+    fireEvent.change(apiKey, { target: { value: "replacement" } });
+    fireEvent.change(apiKey, { target: { value: "" } });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({ api_key: SAVED_TAUTULLI_SECRET }),
+        }),
+      })
+    );
+  });
+
+  it("announces a stale saved credential to assistive technology", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://other-tautulli.local:8181" },
+    });
+
+    const apiKey = screen.getByLabelText(/^API Key \*$/);
+    const alert = screen.getByText(/saved for a different connection/i);
+    expect(apiKey).toHaveAttribute("aria-invalid", "true");
+    expect(apiKey).toHaveAttribute("aria-describedby", alert.id);
+    expect(alert).toHaveTextContent(/saved for a different connection/i);
   });
 
   it("keeps a saved credential valid when its canonical destination is restored or unrelated fields change", () => {
@@ -1423,7 +1494,7 @@ describe("ServiceForm – test connection", () => {
         api_key: SAVED_TAUTULLI_SECRET,
       },
     });
-    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET);
+    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET_TOKEN);
   });
 
   it("shows the server error message when the test fails", async () => {

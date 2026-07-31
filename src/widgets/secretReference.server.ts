@@ -3,8 +3,10 @@ import { getServerSecret } from "@/auth/serverSecret";
 import {
   isWidgetConfigReference,
   isWidgetSecretReference,
+  WIDGET_SECRET_REFERENCE_KEY,
   WIDGET_CONFIG_REFERENCE_PREFIX,
   WIDGET_SECRET_REFERENCE_PREFIX,
+  type WidgetSecretReferencePlaceholder,
 } from "./secretReference";
 
 const PURPOSE = "kokpit/widget-secret-reference/v2";
@@ -66,14 +68,19 @@ export function createWidgetSecretReference(
   serviceName: string,
   widgetType: string,
   fieldKey: string
-): string {
-  return encodePayload(WIDGET_SECRET_REFERENCE_PREFIX, {
-    v: 2,
-    kind: "field",
-    serviceLocator: locator("service", serviceName),
-    widgetLocator: locator("widget", widgetType),
-    fieldLocator: locator("field", fieldKey),
-  });
+): WidgetSecretReferencePlaceholder {
+  return {
+    [WIDGET_SECRET_REFERENCE_KEY]: encodePayload(
+      WIDGET_SECRET_REFERENCE_PREFIX,
+      {
+        v: 2,
+        kind: "field",
+        serviceLocator: locator("service", serviceName),
+        widgetLocator: locator("widget", widgetType),
+        fieldLocator: locator("field", fieldKey),
+      }
+    ),
+  };
 }
 
 export function createWidgetConfigReference(
@@ -208,7 +215,11 @@ export function verifyWidgetSecretReference(
   value: unknown
 ): WidgetSecretReference | null {
   if (!isWidgetSecretReference(value)) return null;
-  return verifyReference(value, WIDGET_SECRET_REFERENCE_PREFIX, isExactFieldPayload);
+  return verifyReference(
+    value[WIDGET_SECRET_REFERENCE_KEY],
+    WIDGET_SECRET_REFERENCE_PREFIX,
+    isExactFieldPayload
+  );
 }
 
 export function verifyWidgetConfigReference(

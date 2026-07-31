@@ -240,8 +240,9 @@ The component follows existing widget state conventions:
 
 ## Error Handling
 
-- Network and abort behavior remains governed by the existing widget route and
-  hard-timeout wrapper.
+- At both the initial fetch and response-body read stages, sanitize AbortError
+  failures to `Tautulli request aborted`; the existing widget route and
+  hard-timeout wrapper continue to govern the surrounding network behavior.
 - Non-2xx responses fail even if a response body resembles a success envelope.
 - A 2xx response with `result: "error"` also fails.
 - Malformed JSON or missing envelope data fails with a Tautulli-specific

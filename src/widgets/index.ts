@@ -100,7 +100,7 @@ export function registerWidget<TConfig = Record<string, unknown>, TData = unknow
     }
     for (const key of scope) {
       const field = fields.find((candidate) => candidate.key === key);
-      if (!field || field.type === "password") {
+      if (!field || (field.type !== "url" && field.type !== "text")) {
         throw new Error(
           `Widget "${def.id}" has an invalid credential scope field "${key}"`
         );

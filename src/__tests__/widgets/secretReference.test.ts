@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { createHmac } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
+import {
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 
 beforeAll(() => {
   process.env.KOKPIT_SESSION_SECRET =
@@ -19,6 +23,10 @@ function signRawPayload(payload: unknown): string {
   return `__KOKPIT_WIDGET_SECRET_REF__:${encoded}.${mac}`;
 }
 
+function fieldReference(token: string) {
+  return { [WIDGET_SECRET_REFERENCE_KEY]: token };
+}
+
 describe("signed widget secret references", () => {
   it("round-trips an authenticated locator without secret material", async () => {
     const {
@@ -32,10 +40,11 @@ describe("signed widget secret references", () => {
       "api_key"
     );
 
-    expect(token).not.toContain("saved-super-secret");
-    expect(token).not.toContain("Tautulli");
-    expect(token).not.toContain("tautulli-activity");
-    expect(token).not.toContain("api_key");
+    const encodedToken = token[WIDGET_SECRET_REFERENCE_KEY];
+    expect(encodedToken).not.toContain("saved-super-secret");
+    expect(encodedToken).not.toContain("Tautulli");
+    expect(encodedToken).not.toContain("tautulli-activity");
+    expect(encodedToken).not.toContain("api_key");
     const reference = verifyWidgetSecretReference(token);
     expect(reference).toMatchObject({ v: 2, kind: "field" });
     expect(reference).not.toBeNull();
@@ -50,15 +59,12 @@ describe("signed widget secret references", () => {
   });
 
   it("uses a purpose-derived key rather than the raw JWT key", async () => {
-    const { WIDGET_SECRET_REFERENCE_PREFIX } = await import(
-      "@/widgets/secretReference"
-    );
     const { createWidgetSecretReference } = await import(
       "@/widgets/secretReference.server"
     );
     const token = createWidgetSecretReference("A", "plex", "token");
     const [payload, signature] = token
-      .slice(WIDGET_SECRET_REFERENCE_PREFIX.length)
+      [WIDGET_SECRET_REFERENCE_KEY].slice(WIDGET_SECRET_REFERENCE_PREFIX.length)
       .split(".");
     const rawKeySignature = createHmac(
       "sha256",
@@ -71,10 +77,10 @@ describe("signed widget secret references", () => {
   });
 
   it.each([
-    "",
-    "__KOKPIT_WIDGET_SECRET_REF__:",
-    "__KOKPIT_WIDGET_SECRET_REF__:not-a-token",
-    `__KOKPIT_WIDGET_SECRET_REF__:${"a".repeat(5000)}`,
+    fieldReference(""),
+    fieldReference("__KOKPIT_WIDGET_SECRET_REF__:"),
+    fieldReference("__KOKPIT_WIDGET_SECRET_REF__:not-a-token"),
+    fieldReference(`__KOKPIT_WIDGET_SECRET_REF__:${"a".repeat(5000)}`),
   ])("fails closed for malformed or oversized value %#", async (value) => {
     const { verifyWidgetSecretReference } = await import(
       "@/widgets/secretReference.server"
@@ -95,7 +101,7 @@ describe("signed widget secret references", () => {
       "api_key"
     );
 
-    expect(token.length).toBeLessThan(2_048);
+    expect(token[WIDGET_SECRET_REFERENCE_KEY].length).toBeLessThan(2_048);
     const reference = verifyWidgetSecretReference(token);
     expect(reference).not.toBeNull();
     expect(
@@ -109,13 +115,12 @@ describe("signed widget secret references", () => {
   });
 
   it("rejects payload and signature tampering", async () => {
-    const { WIDGET_SECRET_REFERENCE_PREFIX } = await import(
-      "@/widgets/secretReference"
-    );
     const { createWidgetSecretReference, verifyWidgetSecretReference } =
       await import("@/widgets/secretReference.server");
     const token = createWidgetSecretReference("A", "plex", "token");
-    const encoded = token.slice(WIDGET_SECRET_REFERENCE_PREFIX.length);
+    const encoded = token[WIDGET_SECRET_REFERENCE_KEY].slice(
+      WIDGET_SECRET_REFERENCE_PREFIX.length
+    );
     const [payload, signature] = encoded.split(".");
     const decoded = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
@@ -128,12 +133,16 @@ describe("signed widget secret references", () => {
 
     expect(
       verifyWidgetSecretReference(
-        `${WIDGET_SECRET_REFERENCE_PREFIX}${changedPayload}.${signature}`
+        fieldReference(
+          `${WIDGET_SECRET_REFERENCE_PREFIX}${changedPayload}.${signature}`
+        )
       )
     ).toBeNull();
     expect(
       verifyWidgetSecretReference(
-        `${WIDGET_SECRET_REFERENCE_PREFIX}${payload}.${changedSignature}`
+        fieldReference(
+          `${WIDGET_SECRET_REFERENCE_PREFIX}${payload}.${changedSignature}`
+        )
       )
     ).toBeNull();
   });
@@ -145,23 +154,23 @@ describe("signed widget secret references", () => {
 
     expect(
       verifyWidgetSecretReference(
-        signRawPayload({
+        fieldReference(signRawPayload({
           v: 2,
           serviceName: "A",
           widgetType: "plex",
           fieldKey: "token",
-        })
+        }))
       )
     ).toBeNull();
     expect(
       verifyWidgetSecretReference(
-        signRawPayload({
+        fieldReference(signRawPayload({
           v: 1,
           serviceName: "A",
           widgetType: "plex",
           fieldKey: "token",
           extra: true,
-        })
+        }))
       )
     ).toBeNull();
   });

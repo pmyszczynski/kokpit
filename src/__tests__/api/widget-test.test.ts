@@ -21,6 +21,7 @@ vi.mock("next/headers", () => ({
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
 import { existsSync, readFileSync } from "node:fs";
+import { WIDGET_SECRET_REFERENCE_KEY } from "@/widgets/secretReference";
 import "@/integrations";
 import { getAllWidgets } from "@/widgets";
 
@@ -101,6 +102,29 @@ afterEach(async () => {
 });
 
 describe("POST /api/widget/test", () => {
+  it("returns a bounded 500 when secret resolution fails unexpectedly", async () => {
+    vi.doMock("@/widgets/configSecrets", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/widgets/configSecrets")>()),
+      resolveWidgetConfigSecrets: () => {
+        throw new Error("leaked internal secret resolver detail");
+      },
+    }));
+    try {
+      const { POST } = await import("../../app/api/widget/test/route");
+      const res = await POST(post({ type: "plex", config: {} }));
+      const body = await res.json();
+
+      expect(res.status).toBe(500);
+      expect(body).toEqual({
+        ok: false,
+        error: "Connection test failed",
+      });
+      expect(JSON.stringify(body)).not.toContain("leaked");
+    } finally {
+      vi.doUnmock("@/widgets/configSecrets");
+    }
+  });
+
   it("returns 401 when auth is enabled and no session cookie is present", async () => {
     vi.stubEnv("KOKPIT_AUTH_DISABLED", "false");
     vi.mocked(readFileSync).mockReturnValue(AUTH_YAML);
@@ -265,9 +289,15 @@ describe("POST /api/widget/test", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const reference = settings.services[0].widget.config.api_key as string;
-    const forged =
-      reference.slice(0, -1) + (reference.endsWith("A") ? "B" : "A");
+    const reference = settings.services[0].widget.config.api_key as Record<
+      string,
+      string
+    >;
+    const token = reference[WIDGET_SECRET_REFERENCE_KEY];
+    const forged = {
+      [WIDGET_SECRET_REFERENCE_KEY]:
+        token.slice(0, -1) + (token.endsWith("A") ? "B" : "A"),
+    };
 
     const { POST } = await import("../../app/api/widget/test/route");
     for (const [type, config] of [

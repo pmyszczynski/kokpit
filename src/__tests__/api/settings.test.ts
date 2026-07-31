@@ -22,6 +22,10 @@ vi.mock("next/headers", () => ({
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 
 const BASE_YAML = `
 schema_version: 1
@@ -161,6 +165,24 @@ describe("PATCH /api/settings – validation", () => {
 });
 
 describe("PATCH /api/settings – layout", () => {
+  it("returns a bounded 500 when secret resolution fails unexpectedly", async () => {
+    vi.doMock("@/widgets/configSecrets", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/widgets/configSecrets")>()),
+      resolveServiceWidgetSecrets: () => {
+        throw new Error("leaked internal secret resolver detail");
+      },
+    }));
+    try {
+      const { PATCH } = await import("../../app/api/settings/route");
+      const res = await PATCH(patch({ services: [] }));
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ error: "Failed to save settings" });
+    } finally {
+      vi.doUnmock("@/widgets/configSecrets");
+    }
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
@@ -447,12 +469,16 @@ describe("/api/settings – widget password fields", () => {
     expect(res.status).toBe(200);
     expect(serialized).not.toContain("tautulli-secret-value");
     expect(serialized).not.toContain("qbittorrent-secret-value");
-    expect(json.services[0].widget.config.api_key).toMatch(
-      /^__KOKPIT_WIDGET_SECRET_REF__:/
-    );
-    expect(json.services[1].widget.config.password).toMatch(
-      /^__KOKPIT_WIDGET_SECRET_REF__:/
-    );
+    expect(json.services[0].widget.config.api_key).toMatchObject({
+      [WIDGET_SECRET_REFERENCE_KEY]: expect.stringMatching(
+        new RegExp(`^${WIDGET_SECRET_REFERENCE_PREFIX}`)
+      ),
+    });
+    expect(json.services[1].widget.config.password).toMatchObject({
+      [WIDGET_SECRET_REFERENCE_KEY]: expect.stringMatching(
+        new RegExp(`^${WIDGET_SECRET_REFERENCE_PREFIX}`)
+      ),
+    });
     expect(json.services[0].widget.config.url).toBe(
       "http://tautulli.local:8181"
     );
@@ -595,8 +621,9 @@ describe("/api/settings – widget password fields", () => {
   it("rejects malformed references with a stable safe code and no write", async () => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const redacted = await (await GET()).json();
-    redacted.services[0].widget.config.api_key =
-      "__KOKPIT_WIDGET_SECRET_REF__:malformed";
+    redacted.services[0].widget.config.api_key = {
+      [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
+    };
     vi.mocked(writeFileSync).mockClear();
 
     const res = await PATCH(patch({ services: redacted.services }));
@@ -611,8 +638,9 @@ describe("/api/settings – widget password fields", () => {
   it("keeps the revision-conflict check ahead of secret resolution", async () => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const redacted = await (await GET()).json();
-    redacted.services[0].widget.config.api_key =
-      "__KOKPIT_WIDGET_SECRET_REF__:malformed";
+    redacted.services[0].widget.config.api_key = {
+      [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
+    };
 
     const res = await PATCH(
       patch({ services: redacted.services }, { "If-Match": "stale-revision" })
