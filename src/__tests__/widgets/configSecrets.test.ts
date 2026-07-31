@@ -301,7 +301,7 @@ describe("registered widget config redaction", () => {
     };
   }
 
-  it("keeps invalid stored configs opaque instead of making them look valid", () => {
+  it("preserves empty saved credentials so invalid configs stay editable", () => {
     const service = {
       name: "Plex",
       widget: {
@@ -312,12 +312,26 @@ describe("registered widget config redaction", () => {
     const redacted = redactWidgetSecrets(kokpitConfig(service));
     const browserConfig = redacted.services[0].widget!.config!;
 
-    expect(browserConfig).toEqual({
-      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
-    });
+    expect(browserConfig).toEqual(service.widget?.config);
     expect(
       resolveWidgetConfigSecrets("plex", browserConfig, [service])
     ).toEqual(service.widget?.config);
+  });
+
+  it("preserves known fields when a required credential is missing", () => {
+    const service = {
+      name: "Sonarr",
+      widget: {
+        type: "sonarr-queue",
+        config: { url: "http://sonarr.local:8989" },
+      },
+    } satisfies Service;
+
+    const redacted = redactWidgetSecrets(kokpitConfig(service));
+
+    expect(redacted.services[0].widget?.config).toEqual(
+      service.widget?.config
+    );
   });
 
   it("keeps configs with unregistered fields opaque", () => {

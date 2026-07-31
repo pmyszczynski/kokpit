@@ -66,7 +66,10 @@ function shouldHideWholeConfig(
     return true;
   }
 
-  return !widget.configSchema.safeParse(config).success;
+  return credentialFieldKeys(widgetType).some((key) => {
+    const value = config[key];
+    return value !== undefined && value !== "" && typeof value !== "string";
+  });
 }
 
 function getOpaqueConfigReference(
@@ -91,8 +94,8 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
       const rawConfig = widget?.config;
       if (!widget || !rawConfig) return service;
 
-      // A config outside the editor's exact field contract cannot safely be
-      // classified in the browser. Keep it on the server as one opaque value.
+      // Unknown fields and non-string credentials cannot safely be classified
+      // in the browser. Keep the complete config on the server in those cases.
       if (shouldHideWholeConfig(widget.type, rawConfig)) {
         return {
           ...service,
@@ -112,10 +115,8 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
       let changed = false;
       const redactedConfig = { ...rawConfig };
       for (const key of credentialKeys) {
-        if (
-          !Object.prototype.hasOwnProperty.call(rawConfig, key) ||
-          rawConfig[key] === undefined
-        ) {
+        const value = rawConfig[key];
+        if (value === undefined || value === "") {
           continue;
         }
         redactedConfig[key] = createWidgetSecretReference(
