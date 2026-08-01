@@ -5,7 +5,7 @@ import "@/integrations";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KokpitConfig, Service, Group, BookmarkGroup } from "@/config/schema";
-import type { ClientSafeSettings } from "@/widgets/configSecrets";
+import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import {
   resolveServiceSize,
   resolveGroupOrder,

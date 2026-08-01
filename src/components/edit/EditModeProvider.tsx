@@ -25,7 +25,7 @@ import type {
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
 import { migrateLegacyServiceSizes } from "@/config/resolve";
-import type { ClientSafeSettings } from "@/widgets/configSecrets";
+import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import EditBar from "./EditBar";
 
 export type EditModeStatus =

@@ -13,7 +13,7 @@ import {
   widgetCredentialScopesMatch,
 } from "@/widgets/credentialScope";
 import {
-  redactWidgetSecrets,
+  toClientSafeSettings,
   resolveServiceWidgetSecrets,
   resolveWidgetConfigSecrets,
   UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
@@ -271,7 +271,7 @@ describe("destination-bound secret resolution", () => {
         },
       },
     } satisfies Service;
-    const redacted = redactWidgetSecrets({
+    const redacted = toClientSafeSettings({
       schema_version: 1,
       auth: { enabled: false, session_ttl_hours: 24 },
       appearance: { theme: "dark" },
@@ -309,7 +309,7 @@ describe("registered widget config redaction", () => {
         config: { url: "http://plex.local:32400", token: "" },
       },
     } satisfies Service;
-    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const redacted = toClientSafeSettings(kokpitConfig(service));
     const browserConfig = redacted.services[0].widget!.config!;
 
     expect(browserConfig).toEqual(service.widget?.config);
@@ -327,7 +327,7 @@ describe("registered widget config redaction", () => {
       },
     } satisfies Service;
 
-    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const redacted = toClientSafeSettings(kokpitConfig(service));
 
     expect(redacted.services[0].widget?.config).toEqual(
       service.widget?.config
@@ -347,7 +347,7 @@ describe("registered widget config redaction", () => {
         },
       },
     } satisfies Service;
-    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const redacted = toClientSafeSettings(kokpitConfig(service));
     const browserConfig = redacted.services[0].widget!.config!;
 
     expect(browserConfig).toMatchObject({
@@ -376,7 +376,7 @@ describe("registered widget config redaction", () => {
         },
       },
     } satisfies Service;
-    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const redacted = toClientSafeSettings(kokpitConfig(service));
     const browserConfig = redacted.services[0].widget!.config!;
 
     expect(JSON.stringify(browserConfig)).not.toContain("nested-secret");
@@ -397,7 +397,7 @@ describe("registered widget config redaction", () => {
         },
       },
     } satisfies Service;
-    const opaqueConfig = redactWidgetSecrets(kokpitConfig(service)).services[0]
+    const opaqueConfig = toClientSafeSettings(kokpitConfig(service)).services[0]
       .widget!.config!;
     const replacement = {
       ...opaqueConfig,
@@ -432,7 +432,7 @@ describe("registered widget config redaction", () => {
         },
       },
     } satisfies Service;
-    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const redacted = toClientSafeSettings(kokpitConfig(service));
     const browserConfig = redacted.services[0].widget!.config!;
 
     expect(JSON.stringify(browserConfig)).not.toContain("saved-secret");
@@ -469,7 +469,7 @@ describe("unregistered widget config redaction", () => {
   } satisfies import("@/config/schema").KokpitConfig;
 
   it("hides the complete config and restores it from the signed placeholder", () => {
-    const redacted = redactWidgetSecrets(config);
+    const redacted = toClientSafeSettings(config);
     const browserConfig = redacted.services[0].widget!.config!;
 
     expect(JSON.stringify(redacted)).not.toContain("unknown-widget-secret");
