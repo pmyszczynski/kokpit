@@ -48,13 +48,19 @@ interface Cell {
   row: number;
 }
 
+interface GridMeasurements {
+  cells: Cell[];
+  contentBox: { left: number; right: number; width: number };
+  tiles: Array<{ name: string; left: number; right: number; width: number }>;
+}
+
 /**
  * Resolves every tile in `group`'s grid to its 1-based grid cell by measuring
  * bounding boxes against the grid's own track sizes. Reading placement back
  * from geometry (rather than from a style attribute) is what makes this a real
  * check of the CSS flow.
  */
-async function cells(page: Page, group: string): Promise<Cell[]> {
+async function gridMeasurements(page: Page, group: string): Promise<GridMeasurements> {
   return page.evaluate((groupName) => {
     const section = [...document.querySelectorAll(".service-group")].find(
       (el) =>
@@ -71,16 +77,38 @@ async function cells(page: Page, group: string): Promise<Cell[]> {
     const columnGap = parseFloat(style.columnGap) || 0;
     const rowGap = parseFloat(style.rowGap) || 0;
     const rowHeight = parseFloat(style.gridAutoRows);
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const contentLeft = gridBox.left + grid.clientLeft + paddingLeft;
+    const contentWidth = grid.clientWidth - paddingLeft - paddingRight;
+    const contentBox = {
+      left: contentLeft,
+      right: contentLeft + contentWidth,
+      width: contentWidth,
+    };
 
-    return [...grid.children].map((tile) => {
+    const tiles = [...grid.children].map((tile) => {
       const box = tile.getBoundingClientRect();
       return {
         name: tile.querySelector(".service-tile__name")?.textContent?.trim() ?? "",
         column: Math.round((box.left - gridBox.left) / (track + columnGap)) + 1,
         row: Math.round((box.top - gridBox.top) / (rowHeight + rowGap)) + 1,
+        left: box.left,
+        right: box.right,
+        width: box.width,
       };
     });
+
+    return {
+      cells: tiles.map(({ name, column, row }) => ({ name, column, row })),
+      contentBox,
+      tiles,
+    };
   }, group);
+}
+
+async function cells(page: Page, group: string): Promise<Cell[]> {
+  return (await gridMeasurements(page, group)).cells;
 }
 
 test.describe("dashboard grid packing", () => {
@@ -119,7 +147,7 @@ test.describe("dashboard grid packing", () => {
   test("mixed large/wide/tall/normal tiles pack without avoidable gaps", async ({
     page,
   }) => {
-    // large(1,1) + wide(3,1) fill row 1; the tall tile then takes the two-row
+    // large(2×2) + wide(2×1) fill row 1; the tall tile then takes the two-row
     // slot at column 3 instead of opening a fresh row band, so 10 span cells
     // fit in the minimum 3 rows for a 4-column grid.
     expect(await cells(page, "Mixed")).toEqual([
@@ -158,7 +186,22 @@ test.describe("dashboard grid packing", () => {
     // The mobile collapse is deliberate: every preset becomes a single
     // full-width cell, so packing must not reintroduce multi-column spans.
     await page.setViewportSize({ width: 390, height: 844 });
-    const mixed = await cells(page, "Mixed");
-    expect(mixed.map((c) => c.column)).toEqual([1, 1, 1, 1, 1]);
+    const mixed = await gridMeasurements(page, "Mixed");
+    expect(mixed.cells.map((c) => c.column)).toEqual([1, 1, 1, 1, 1]);
+
+    for (const tile of mixed.tiles) {
+      expect(tile.left, `${tile.name} should start at the grid content edge`).toBeCloseTo(
+        mixed.contentBox.left,
+        1
+      );
+      expect(tile.right, `${tile.name} should end at the grid content edge`).toBeCloseTo(
+        mixed.contentBox.right,
+        1
+      );
+      expect(tile.width, `${tile.name} should fill the grid content width`).toBeCloseTo(
+        mixed.contentBox.width,
+        1
+      );
+    }
   });
 });
