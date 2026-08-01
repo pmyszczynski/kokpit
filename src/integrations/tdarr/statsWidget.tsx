@@ -92,6 +92,7 @@ registerWidget<TdarrConfig, TdarrStats>({
   fetchData: fetchTdarrStats,
   refreshInterval: 10_000,
   component: TdarrStatsWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

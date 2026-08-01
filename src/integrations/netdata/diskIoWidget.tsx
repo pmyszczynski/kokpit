@@ -91,6 +91,7 @@ registerWidget<NetdataBaseConfig, DiskIoData>({
   fetchData: fetchDiskIoData,
   refreshInterval: 10_000,
   component: NetdataDiskIoWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

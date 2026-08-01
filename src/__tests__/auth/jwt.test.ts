@@ -2,6 +2,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { jwtVerify } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 beforeAll(() => {
@@ -15,6 +16,17 @@ describe("signJWT()", () => {
     const token = await signJWT("user-123", 24);
     expect(typeof token).toBe("string");
     expect(token.split(".")).toHaveLength(3);
+  });
+
+  it("continues signing sessions with the raw existing server secret bytes", async () => {
+    const { signJWT } = await import("../../auth/jwt");
+    const token = await signJWT("unchanged-key-user", 24);
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(process.env.KOKPIT_SESSION_SECRET!)
+    );
+
+    expect(payload.userId).toBe("unchanged-key-user");
   });
 });
 

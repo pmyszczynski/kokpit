@@ -204,7 +204,7 @@ test("Test connection button reports success and failure", async ({
   await page.fill("#sf-widget-token", "test-token-2");
   await expect(page.getByText("Connection OK")).toBeHidden();
   await testBtn.click();
-  await expect(page.getByText(/Plex responded with 503/)).toBeVisible({
+  await expect(page.getByText("Connection test failed")).toBeVisible({
     timeout: 15_000,
   });
 });

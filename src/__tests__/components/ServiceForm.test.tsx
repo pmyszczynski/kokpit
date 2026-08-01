@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
-import { getWidgetsWithServiceEditorPreset } from "@/widgets";
+import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
+import {
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 
 // Every selectable tile type, with what its schema says about an empty
 // config. Derived from the registry so new integrations are covered
@@ -24,6 +28,11 @@ beforeEach(() => {
 });
 
 const noop = vi.fn();
+const SAVED_TAUTULLI_SECRET_TOKEN =
+  `${WIDGET_SECRET_REFERENCE_PREFIX}["Tautulli","tautulli-activity","api_key"]`;
+const SAVED_TAUTULLI_SECRET = {
+  [WIDGET_SECRET_REFERENCE_KEY]: SAVED_TAUTULLI_SECRET_TOKEN,
+};
 
 describe("ServiceForm – rendering", () => {
   it('shows "Add Service" for a new service', () => {
@@ -984,6 +993,417 @@ describe("ServiceForm – focusWidget", () => {
   });
 });
 
+describe("ServiceForm – Tautulli defaults", () => {
+  function selectTautulli(onSave = vi.fn()) {
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "tautulli-activity" },
+    });
+    return onSave;
+  }
+
+  function fillTautulliConfig() {
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://tautulli.local:8181" },
+    });
+    fireEvent.change(screen.getByLabelText(/^API Key \*$/), {
+      target: { value: "secret" },
+    });
+  }
+
+  it("pre-fills defaults and preserves the final required display section", () => {
+    const onSave = selectTautulli();
+
+    expect(screen.getByLabelText("Name *")).toHaveValue("Tautulli");
+    expect(screen.getByLabelText("Icon URL")).toHaveValue(
+      "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/svg/tautulli.svg"
+    );
+    expect(screen.getByLabelText("Summary")).toBeChecked();
+    expect(screen.getByLabelText("Active sessions")).toBeChecked();
+    fillTautulliConfig();
+    fireEvent.click(screen.getByLabelText("Summary"));
+    expect(screen.getByLabelText("Summary")).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText("Active sessions"));
+    expect(screen.getByLabelText("Active sessions")).toBeChecked();
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      widget: {
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.local:8181",
+          api_key: "secret",
+          sections: ["sessions"],
+        },
+        refresh_interval_ms: undefined,
+      },
+    }));
+  });
+
+  it("keeps untouched display defaults out of saved config and lets the schema apply them", () => {
+    const onSave = selectTautulli();
+    fillTautulliConfig();
+    fireEvent.click(screen.getByText("Save"));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.widget).toEqual({
+      type: "tautulli-activity",
+      config: {
+        url: "http://tautulli.local:8181",
+        api_key: "secret",
+      },
+      refresh_interval_ms: undefined,
+    });
+    const parsed = getWidget("tautulli-activity")!.configSchema.safeParse(
+      saved.widget!.config
+    );
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data.sections).toEqual(["summary", "sessions"]);
+  });
+
+  it("keeps a saved secret out of the password input and preserves its token when unchanged", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+              sections: ["summary"],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByLabelText(/^API Key \*$/)).toHaveValue("");
+    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET_TOKEN);
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({
+            api_key: SAVED_TAUTULLI_SECRET,
+          }),
+        }),
+      })
+    );
+  });
+
+  it("replaces a saved secret when a new password is entered", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^API Key \*$/), {
+      target: { value: "new-tautulli-secret" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({
+            api_key: "new-tautulli-secret",
+          }),
+        }),
+      })
+    );
+  });
+
+  it("requires re-entering a saved credential after its destination changes, then accepts a replacement", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://other-tautulli.local:8181" },
+    });
+    const apiKey = screen.getByLabelText(/^API Key \*$/);
+    expect(apiKey).toBeRequired();
+    expect(screen.getByText(/re-enter.*credential/i)).toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(apiKey, { target: { value: "replacement" } });
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({ api_key: "replacement" }),
+        }),
+      })
+    );
+  });
+
+  it("restores a saved credential reference when a replacement is erased", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    const apiKey = screen.getByLabelText(/^API Key \*$/);
+    fireEvent.change(apiKey, { target: { value: "replacement" } });
+    fireEvent.change(apiKey, { target: { value: "" } });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: expect.objectContaining({ api_key: SAVED_TAUTULLI_SECRET }),
+        }),
+      })
+    );
+  });
+
+  it("announces a stale saved credential to assistive technology", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://other-tautulli.local:8181" },
+    });
+
+    const apiKey = screen.getByLabelText(/^API Key \*$/);
+    const alert = screen.getByText(/saved for a different connection/i);
+    expect(apiKey).toHaveAttribute("aria-invalid", "true");
+    expect(apiKey).toHaveAttribute("aria-describedby", alert.id);
+    expect(alert).toHaveTextContent(/saved for a different connection/i);
+  });
+
+  it("keeps a saved credential valid when its canonical destination is restored or unrelated fields change", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+              sections: ["summary"],
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "http://other-tautulli.local:8181" },
+    });
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/^URL \*$/), {
+      target: { value: "HTTP://TAUTULLI.local:8181/" },
+    });
+    fireEvent.click(screen.getByLabelText("Active sessions"));
+    fireEvent.change(screen.getByLabelText("Name *"), {
+      target: { value: "Renamed Tautulli" },
+    });
+    fireEvent.change(screen.getByLabelText("Icon URL"), {
+      target: { value: "https://example.test/icon.svg" },
+    });
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "Media" } });
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "large" } });
+    fireEvent.change(screen.getByLabelText("Refresh interval (ms)"), {
+      target: { value: "15000" },
+    });
+
+    expect(screen.queryByText(/re-enter.*credential/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+  });
+
+  it("binds a saved qBittorrent password to both URL and username", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "qBittorrent",
+          widget: {
+            type: "qbittorrent-stats",
+            config: {
+              url: "http://qbit.local:8080",
+              username: "admin",
+              password: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Username *"), {
+      target: { value: "other-admin" },
+    });
+    expect(screen.getByText(/re-enter.*credential/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Password *")).toBeRequired();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+  });
+
+  it("makes an originally optional saved token required when its scope changes", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "CPU",
+          widget: {
+            type: "netdata-cpu",
+            config: {
+              url: "http://netdata.local:19999",
+              api_token: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Netdata URL *"), {
+      target: { value: "http://other-netdata.local:19999" },
+    });
+    expect(screen.getByLabelText("API Token *")).toBeRequired();
+  });
+
+  it("clears an optional saved credential, including after its destination changes", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          name: "CPU",
+          widget: {
+            type: "netdata-cpu",
+            config: {
+              url: "http://netdata.local:19999",
+              api_token: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Netdata URL *"), {
+      target: { value: "http://other-netdata.local:19999" },
+    });
+    expect(screen.getByLabelText("API Token *")).toBeRequired();
+    expect(screen.getByText(/re-enter.*credential/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Clear saved credential"));
+
+    expect(screen.queryByText(/re-enter.*credential/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("API Token")).not.toBeRequired();
+    expect(screen.queryByText("Clear saved credential")).not.toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        widget: expect.objectContaining({
+          config: { url: "http://other-netdata.local:19999" },
+        }),
+      })
+    );
+  });
+
+  it("does not offer to clear a required saved credential", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.queryByText("Clear saved credential")).not.toBeInTheDocument();
+  });
+});
+
 describe("ServiceForm – test connection", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -1036,6 +1456,45 @@ describe("ServiceForm – test connection", () => {
       type: "plex",
       config: { url: "http://plex.local:32400", token: "secret" },
     });
+  });
+
+  it("posts the opaque saved-secret token without putting it in the password input", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ServiceForm
+        service={{
+          name: "Tautulli",
+          widget: {
+            type: "tautulli-activity",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByLabelText(/^API Key \*$/)).toHaveValue("");
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() =>
+      expect(screen.getByText("Connection OK")).toBeInTheDocument()
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      type: "tautulli-activity",
+      config: {
+        url: "http://tautulli.local:8181",
+        api_key: SAVED_TAUTULLI_SECRET,
+      },
+    });
+    expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET_TOKEN);
   });
 
   it("shows the server error message when the test fails", async () => {

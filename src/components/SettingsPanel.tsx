@@ -35,6 +35,10 @@ type TotpState =
   | { status: "setup"; secret: string; qrCode: string }
   | { status: "error" };
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type SaveResult = {
+  ok: boolean;
+  config?: Partial<KokpitConfig>;
+};
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 
@@ -122,6 +126,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   const [services, setServices] = useState<Service[]>(config.services);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [servicesWritePending, setServicesWritePending] = useState(false);
 
   // Groups
   const [groups, setGroups] = useState<Group[]>(config.groups ?? []);
@@ -155,6 +160,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   });
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const servicesSavePendingRef = useRef(false);
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
 
   async function fetchTotpStatus() {
@@ -252,7 +258,10 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     }
   }
 
-  async function saveRaw(section: Tab, payload: Record<string, unknown>) {
+  async function saveRaw(
+    section: Tab,
+    payload: Record<string, unknown>
+  ): Promise<SaveResult> {
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
     try {
       const res = await fetch("/api/settings", {
@@ -261,14 +270,28 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Save failed");
+      // A services response contains freshly redacted credential references.
+      // Those references identify the service by name, so a rename must replace
+      // the optimistic client state with this authoritative response before the
+      // next services edit is submitted.
+      let updatedConfig: Partial<KokpitConfig> | undefined;
+      try {
+        const json: unknown = await res.json();
+        if (json !== null && typeof json === "object") {
+          updatedConfig = json as Partial<KokpitConfig>;
+        }
+      } catch {
+        // The API returns JSON, but a malformed success response must not turn
+        // an already-persisted settings change into a client-side save failure.
+      }
       setSaveStatus((s) => ({ ...s, [section]: "saved" }));
       startTransition(() => router.refresh());
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => setSaveStatus((s) => ({ ...s, [section]: "idle" })), 2000);
-      return true;
+      return { ok: true, config: updatedConfig };
     } catch {
       setSaveStatus((s) => ({ ...s, [section]: "error" }));
-      return false;
+      return { ok: false };
     }
   }
 
@@ -360,32 +383,48 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     save("auth", { enabled: config.auth.enabled, session_ttl_hours: sessionTtl });
   }
 
+  async function saveServices(next: Service[]) {
+    if (servicesSavePendingRef.current) return;
+    servicesSavePendingRef.current = true;
+    setServicesWritePending(true);
+    setServices(next);
+    try {
+      const result = await save("services", next);
+      if (Array.isArray(result.config?.services)) {
+        setServices(result.config.services);
+      }
+    } finally {
+      servicesSavePendingRef.current = false;
+      setServicesWritePending(false);
+    }
+  }
+
   function handleServiceSave(service: Service) {
+    if (servicesSavePendingRef.current) return;
     const next = [...services];
     if (editingIndex !== null) {
       next[editingIndex] = service;
     } else {
       next.push(service);
     }
-    setServices(next);
     setShowServiceForm(false);
     setEditingIndex(null);
-    save("services", next);
+    void saveServices(next);
   }
 
   function handleServiceDelete(index: number) {
+    if (servicesSavePendingRef.current) return;
     const next = services.filter((_, i) => i !== index);
-    setServices(next);
-    save("services", next);
+    void saveServices(next);
   }
 
   function handleServiceReorder(from: number, to: number) {
+    if (servicesSavePendingRef.current) return;
     if (to < 0 || to >= services.length) return;
     const next = [...services];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    setServices(next);
-    save("services", next);
+    void saveServices(next);
   }
 
   function effectiveSize(svc: Service) {
@@ -500,6 +539,10 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   async function handleSaveGroups() {
+    // Group renames/deletes may cascade into the complete services array.
+    // Never let that full-list write race a service save carrying older
+    // credential references.
+    if (servicesSavePendingRef.current) return;
     // Strip default values so omitted keys stay omitted in the YAML round-trip.
     const cleanGroups = groups.map((g) => ({
       name: g.name,
@@ -515,12 +558,29 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     };
     if (cascade.servicesChanged) payload.services = cascade.services;
     if (cascade.bookmarksChanged) payload.bookmarks = cascade.bookmarks;
-    const ok = await saveRaw("groups", payload);
-    if (ok) {
-      // Now — and only now — reflect the cascade in shared state and clear ops.
-      if (cascade.servicesChanged) setServices(cascade.services);
-      if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
-      setPendingGroupOps([]);
+    if (cascade.servicesChanged) {
+      servicesSavePendingRef.current = true;
+      setServicesWritePending(true);
+    }
+    try {
+      const result = await saveRaw("groups", payload);
+      if (result.ok) {
+        // Now — and only now — reflect the cascade in shared state and clear ops.
+        if (cascade.servicesChanged) {
+          setServices(
+            Array.isArray(result.config?.services)
+              ? result.config.services
+              : cascade.services
+          );
+        }
+        if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
+        setPendingGroupOps([]);
+      }
+    } finally {
+      if (cascade.servicesChanged) {
+        servicesSavePendingRef.current = false;
+        setServicesWritePending(false);
+      }
     }
   }
 
@@ -570,11 +630,13 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
   }
 
   function openAddForm() {
+    if (servicesSavePendingRef.current) return;
     setEditingIndex(null);
     setShowServiceForm(true);
   }
 
   function openEditForm(index: number) {
+    if (servicesSavePendingRef.current) return;
     setEditingIndex(index);
     setShowServiceForm(true);
   }
@@ -592,6 +654,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             key={tab}
             className={`settings-tab${activeTab === tab ? " settings-tab--active" : ""}`}
             onClick={() => setActiveTab(tab)}
+            disabled={servicesWritePending}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -1127,7 +1190,7 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                         <button
                           className="settings-icon-btn"
                           aria-label={`Move ${svc.name} up`}
-                          disabled={i === 0}
+                          disabled={servicesWritePending || i === 0}
                           onClick={() => handleServiceReorder(i, i - 1)}
                         >
                           ▲
@@ -1135,7 +1198,10 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                         <button
                           className="settings-icon-btn"
                           aria-label={`Move ${svc.name} down`}
-                          disabled={i === services.length - 1}
+                          disabled={
+                            servicesWritePending ||
+                            i === services.length - 1
+                          }
                           onClick={() => handleServiceReorder(i, i + 1)}
                         >
                           ▼
@@ -1149,12 +1215,14 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
                         <button
                           className="settings-btn"
                           onClick={() => openEditForm(i)}
+                          disabled={servicesWritePending}
                         >
                           Edit
                         </button>
                         <button
                           className="settings-btn settings-btn--danger"
                           onClick={() => handleServiceDelete(i)}
+                          disabled={servicesWritePending}
                         >
                           Delete
                         </button>
@@ -1166,7 +1234,11 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
             )}
 
             <div className="settings-actions settings-actions--spaced">
-              <button className="settings-save-btn" onClick={openAddForm}>
+              <button
+                className="settings-save-btn"
+                onClick={openAddForm}
+                disabled={servicesWritePending}
+              >
                 + Add Service
               </button>
               {saveStatus.services === "saved" && (

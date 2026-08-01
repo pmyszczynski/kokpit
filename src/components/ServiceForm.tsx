@@ -16,6 +16,8 @@ import {
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
+import { widgetCredentialScopesMatch } from "@/widgets/credentialScope";
+import { isWidgetSecretReference } from "@/widgets/secretReference";
 import { widgetConfigIssues, type WidgetConfigIssue } from "@/widgets/tileWidget";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
@@ -108,6 +110,23 @@ function cleanWidgetConfig(
     cleaned[key] = value;
   }
   return cleaned;
+}
+
+function widgetConfigForValidation(
+  fields: WidgetConfigField[] | undefined,
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  if (!fields) return config;
+  const validationConfig = { ...config };
+  for (const field of fields) {
+    if (
+      field.type === "password" &&
+      isWidgetSecretReference(validationConfig[field.key])
+    ) {
+      validationConfig[field.key] = "saved-credential";
+    }
+  }
+  return validationConfig;
 }
 
 type TestStatus =
@@ -305,17 +324,24 @@ function widgetIssueElementId(
 function WidgetConfigFields({
   fields,
   config,
+  initialConfig,
   onChange,
+  savedCredentialsStale,
   issues,
   issueKind,
 }: {
   fields: WidgetConfigField[];
   config: Record<string, unknown>;
+  initialConfig: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  savedCredentialsStale: boolean;
   /** Whichever issue list is currently displayed on screen (saved or live), or empty when neither is shown. */
   issues: WidgetConfigIssue[];
   issueKind: "saved" | "live";
 }) {
+  const [clearedSavedCredentialKeys, setClearedSavedCredentialKeys] = useState<
+    Set<string>
+  >(() => new Set());
   // Same "does this issue belong to this field" rule as the focusWidget mount
   // effect below: exact path match, or a nested path under `field.key.`.
   function issueIdsFor(key: string): string[] {
@@ -331,11 +357,22 @@ function WidgetConfigFields({
   return (
     <>
       {fields.map((field) => {
-        const value = config[field.key];
+        const value = config[field.key] ?? field.defaultValue;
+        const savedSecret =
+          field.type === "password" && isWidgetSecretReference(value);
+        const initialSavedSecret =
+          field.type === "password" &&
+          isWidgetSecretReference(initialConfig[field.key]);
+        const needsReplacement = savedSecret && savedCredentialsStale;
         const fieldIssueIds = issueIdsFor(field.key);
         const hintId = field.description ? `sf-widget-${field.key}-hint` : undefined;
+        const staleCredentialId = needsReplacement
+          ? `sf-widget-${field.key}-stale-credential`
+          : undefined;
         const describedBy =
-          [...fieldIssueIds, hintId].filter(Boolean).join(" ") || undefined;
+          [...fieldIssueIds, staleCredentialId, hintId]
+            .filter(Boolean)
+            .join(" ") || undefined;
 
         if (field.type === "multiselect" && field.options) {
           const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -362,6 +399,7 @@ function WidgetConfigFields({
                         const next = e.target.checked
                           ? [...selected, opt.value]
                           : selected.filter((v) => v !== opt.value);
+                        if (field.required && next.length === 0) return;
                         onChange(field.key, next);
                       }}
                     />
@@ -409,20 +447,73 @@ function WidgetConfigFields({
 
         return (
           <div key={field.key} className="settings-form-row">
-            <label htmlFor={`sf-widget-${field.key}`}>{field.label}{field.required && " *"}</label>
+            <label htmlFor={`sf-widget-${field.key}`}>
+              {field.label}{(field.required || needsReplacement) && " *"}
+            </label>
             <input
               id={`sf-widget-${field.key}`}
               type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
               className="settings-input"
-              value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+              required={needsReplacement}
+              value={
+                savedSecret
+                  ? ""
+                  : typeof value === "string" || typeof value === "number"
+                    ? String(value)
+                    : ""
+              }
               onChange={(e) => {
                 const raw = e.target.value;
-                onChange(field.key, field.type === "number" ? (raw === "" ? undefined : Number(raw)) : raw);
+                const restoreSavedCredential =
+                  field.type === "password" &&
+                  raw === "" &&
+                  initialSavedSecret &&
+                  !clearedSavedCredentialKeys.has(field.key);
+                onChange(
+                  field.key,
+                  restoreSavedCredential
+                    ? initialConfig[field.key]
+                    : field.type === "number"
+                      ? raw === ""
+                        ? undefined
+                        : Number(raw)
+                      : raw
+                );
               }}
-              placeholder={field.placeholder}
-              aria-invalid={fieldIssueIds.length > 0 ? true : undefined}
+              placeholder={
+                savedSecret ? "Saved — enter a new value to replace" : field.placeholder
+              }
+              aria-invalid={
+                fieldIssueIds.length > 0 || needsReplacement ? true : undefined
+              }
               aria-describedby={describedBy}
             />
+            {savedSecret && !field.required && (
+              <button
+                type="button"
+                className="settings-btn settings-btn--danger"
+                onClick={() => {
+                  setClearedSavedCredentialKeys((keys) => {
+                    const next = new Set(keys);
+                    next.add(field.key);
+                    return next;
+                  });
+                  onChange(field.key, undefined);
+                }}
+                aria-label={`Clear saved ${field.label}`}
+              >
+                Clear saved credential
+              </button>
+            )}
+            {needsReplacement && (
+              <p
+                id={staleCredentialId}
+                className="settings-form-hint settings-form-hint--error"
+                role="alert"
+              >
+                This credential is saved for a different connection. Re-enter the credential to continue.
+              </p>
+            )}
             {field.description && (
               <p id={hintId} className="settings-form-hint">{field.description}</p>
             )}
@@ -496,7 +587,13 @@ export default function ServiceForm({
     if (!w) return [];
     const def = getWidget(w.type);
     if (!def) return [];
-    return widgetConfigIssues(def, w.config);
+    return widgetConfigIssues(
+      def,
+      widgetConfigForValidation(
+        def.configFields,
+        (w.config as Record<string, unknown>) ?? {}
+      )
+    );
   });
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
   const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
@@ -525,19 +622,50 @@ export default function ServiceForm({
 
   const activeWidgetType =
     tileType !== "" ? tileType : orphanWidget?.type ?? null;
-  const activeCleanedConfig = cleanWidgetConfig(
+  const activeRawConfig =
     tileType !== ""
       ? widgetConfig
-      : ((orphanWidget?.config as Record<string, unknown>) ?? {})
+      : ((orphanWidget?.config as Record<string, unknown>) ?? {});
+  const activeCleanedConfig = cleanWidgetConfig(
+    activeRawConfig
   );
+  const originalWidgetConfig =
+    service?.widget?.type === activeWidgetType
+      ? ((service.widget.config as Record<string, unknown>) ?? {})
+      : null;
+  const retainedSavedSecret = selectedWidgetDef?.configFields?.some(
+    (field) =>
+      field.type === "password" &&
+      isWidgetSecretReference(activeRawConfig[field.key])
+  ) ?? false;
+  // Signed references are intentionally opaque to the browser. The only
+  // client-side decision is whether their original and current destinations
+  // normalize to the same registry-declared credential scope.
+  const savedCredentialsStale =
+    retainedSavedSecret &&
+    (!activeWidgetType ||
+      !originalWidgetConfig ||
+      !widgetCredentialScopesMatch(
+        activeWidgetType,
+        originalWidgetConfig,
+        activeCleanedConfig
+      ));
   // Mirrors the dashboard's rule: the widget renders only when its config
   // passes the schema. Unknown types can't be validated client-side. Uses the
   // same shared mapper as the tile badge (src/widgets/tileWidget.ts) so the
   // dialog's error list always matches what the badge's tooltip says.
   const configIssues: WidgetConfigIssue[] = selectedWidgetDef
-    ? widgetConfigIssues(selectedWidgetDef, activeCleanedConfig)
+    ? widgetConfigIssues(
+        selectedWidgetDef,
+        widgetConfigForValidation(
+          selectedWidgetDef.configFields,
+          activeCleanedConfig
+        )
+      )
     : [];
-  const widgetConfigValid = selectedWidgetDef ? configIssues.length === 0 : null;
+  const widgetConfigValid = selectedWidgetDef
+    ? configIssues.length === 0 && !savedCredentialsStale
+    : null;
   const widgetConfigEmpty = Object.keys(activeCleanedConfig).length === 0;
   // An entirely empty config right after picking a widget type is the
   // expected starting point, not a mistake — listing every "Required" issue
@@ -621,7 +749,7 @@ export default function ServiceForm({
   }
 
   async function handleTestConnection() {
-    if (!activeWidgetType) return;
+    if (!activeWidgetType || savedCredentialsStale) return;
     setTestStatus({ state: "testing" });
     try {
       const res = await fetch("/api/widget/test", {
@@ -805,6 +933,8 @@ export default function ServiceForm({
       return;
     }
     setNameError(null);
+
+    if (savedCredentialsStale) return;
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
@@ -1117,8 +1247,11 @@ export default function ServiceForm({
             {selectedWidgetDef?.configFields &&
               selectedWidgetDef.configFields.length > 0 && (
                 <WidgetConfigFields
+                  key={activeWidgetType}
                   fields={selectedWidgetDef.configFields}
                   config={tileType !== "" ? widgetConfig : orphanConfig}
+                  initialConfig={originalWidgetConfig ?? {}}
+                  savedCredentialsStale={savedCredentialsStale}
                   onChange={
                     tileType !== ""
                       ? handleWidgetConfigChange

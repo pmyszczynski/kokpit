@@ -21,6 +21,7 @@ vi.mock("next/headers", () => ({
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
 import { existsSync, readFileSync } from "node:fs";
+import { WIDGET_SECRET_REFERENCE_KEY } from "@/widgets/secretReference";
 import "@/integrations";
 import { getAllWidgets } from "@/widgets";
 
@@ -46,6 +47,31 @@ services: []
 `.trim();
 
 const AUTH_YAML = BASE_YAML.replace("enabled: false", "enabled: true");
+
+const TAUTULLI_SECRET_YAML = BASE_YAML.replace(
+  "services: []",
+  `services:
+  - name: Tautulli
+    url: http://tautulli.local:8181
+    widget:
+      type: tautulli-activity
+      config:
+        url: http://tautulli.local:8181
+        api_key: saved-tautulli-secret
+        sections:
+          - summary`
+);
+
+const UNRAID_SECRET_YAML = BASE_YAML.replace(
+  "services: []",
+  `services:
+  - name: Unraid
+    widget:
+      type: unraid-stats
+      config:
+        url: http://unraid.local
+        api_key: saved-unraid-secret`
+);
 
 function post(body: unknown) {
   return new Request("http://localhost/api/widget/test", {
@@ -76,6 +102,29 @@ afterEach(async () => {
 });
 
 describe("POST /api/widget/test", () => {
+  it("returns a bounded 500 when secret resolution fails unexpectedly", async () => {
+    vi.doMock("@/widgets/configSecrets", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/widgets/configSecrets")>()),
+      resolveWidgetConfigSecrets: () => {
+        throw new Error("leaked internal secret resolver detail");
+      },
+    }));
+    try {
+      const { POST } = await import("../../app/api/widget/test/route");
+      const res = await POST(post({ type: "plex", config: {} }));
+      const body = await res.json();
+
+      expect(res.status).toBe(500);
+      expect(body).toEqual({
+        ok: false,
+        error: "Connection test failed",
+      });
+      expect(JSON.stringify(body)).not.toContain("leaked");
+    } finally {
+      vi.doUnmock("@/widgets/configSecrets");
+    }
+  });
+
   it("returns 401 when auth is enabled and no session cookie is present", async () => {
     vi.stubEnv("KOKPIT_AUTH_DISABLED", "false");
     vi.mocked(readFileSync).mockReturnValue(AUTH_YAML);
@@ -168,6 +217,111 @@ describe("POST /api/widget/test", () => {
     expect(json).toEqual({ ok: true });
   });
 
+  it("resolves a redacted saved password server-side for a connection test", async () => {
+    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((input: string | URL | Request) => {
+        const url = new URL(String(input));
+        if (url.searchParams.get("apikey") !== "saved-tautulli-secret") {
+          return Promise.reject(new Error("saved secret was not resolved"));
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              response: {
+                result: "success",
+                message: null,
+                data: { stream_count: 0, sessions: [] },
+              },
+            }),
+        } as Response);
+      })
+    );
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const redactedConfig = settings.services[0].widget.config;
+    expect(JSON.stringify(redactedConfig)).not.toContain(
+      "saved-tautulli-secret"
+    );
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(
+      post({ type: "tautulli-activity", config: redactedConfig })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(responseText).toBe('{"ok":true}');
+    expect(responseText).not.toContain("saved-tautulli-secret");
+  });
+
+  it("rejects an endpoint-changed saved reference before fetch with a safe code", async () => {
+    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const redactedConfig = settings.services[0].widget.config;
+    redactedConfig.url = "http://attacker.invalid:8181";
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(
+      post({ type: "tautulli-activity", config: redactedConfig })
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body).toMatchObject({
+      ok: false,
+      code: "widget_secret_scope_changed",
+    });
+    expect(JSON.stringify(body)).not.toContain("attacker.invalid");
+    expect(JSON.stringify(body)).not.toContain("saved-tautulli-secret");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects forged and cross-widget references before fetch", async () => {
+    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const reference = settings.services[0].widget.config.api_key as Record<
+      string,
+      string
+    >;
+    const token = reference[WIDGET_SECRET_REFERENCE_KEY];
+    const forged = {
+      [WIDGET_SECRET_REFERENCE_KEY]:
+        token.slice(0, -1) + (token.endsWith("A") ? "B" : "A"),
+    };
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    for (const [type, config] of [
+      [
+        "tautulli-activity",
+        { ...settings.services[0].widget.config, api_key: forged },
+      ],
+      [
+        "plex",
+        {
+          url: "http://tautulli.local:8181",
+          token: reference,
+        },
+      ],
+    ] as const) {
+      const res = await POST(post({ type, config }));
+      const body = await res.json();
+      expect(res.status).toBe(400);
+      expect(body.code).toBe("widget_secret_reference_invalid");
+      expect(JSON.stringify(body)).not.toContain("saved-tautulli-secret");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns 504 when the connection test exceeds the 5s timeout", async () => {
     vi.useFakeTimers();
     // A fetch that never settles until its signal aborts — the route's
@@ -217,7 +371,45 @@ describe("POST /api/widget/test", () => {
     expect((await res.json()).error).toMatch(/timed out/i);
   });
 
-  it("returns 500 with the error message when the widget fetch fails", async () => {
+  it("keeps the hard-timeout response for an aborted Tautulli request", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(
+        (_url: string, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts?.signal?.addEventListener("abort", () =>
+              reject(
+                new Error(
+                  "aborted http://tautulli.test/api/v2?apikey=tautulli-secret"
+                )
+              )
+            );
+          })
+      )
+    );
+    const { POST } = await import("../../app/api/widget/test/route");
+    const resPromise = POST(
+      post({
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.test",
+          api_key: "tautulli-secret",
+        },
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(5001);
+    const res = await resPromise;
+    const responseText = await res.text();
+
+    expect(res.status).toBe(504);
+    expect(responseText).toContain("Connection test timed out");
+    expect(responseText).not.toContain("tautulli-secret");
+    expect(responseText).not.toContain("apikey=");
+  });
+
+  it("returns a bounded 500 when the widget fetch fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 503 } as Response)
@@ -232,7 +424,39 @@ describe("POST /api/widget/test", () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.ok).toBe(false);
-    expect(json.error).toMatch(/503/);
+    expect(json.error).toBe("Connection test failed");
+  });
+
+  it("does not reflect a saved secret from an upstream connection-test error", async () => {
+    vi.mocked(readFileSync).mockReturnValue(UNRAID_SECRET_YAML);
+    const rawMessage =
+      "upstream rejected Authorization: Bearer saved-unraid-secret";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ errors: [{ message: rawMessage }] }),
+      } as Response)
+    );
+    const { GET } = await import("../../app/api/settings/route");
+    const settings = await (await GET()).json();
+    const redactedConfig = settings.services[0].widget.config;
+    expect(JSON.stringify(redactedConfig)).not.toContain(
+      "saved-unraid-secret"
+    );
+
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(
+      post({ type: "unraid-stats", config: redactedConfig })
+    );
+    const responseText = await res.text();
+
+    expect(res.status).toBe(500);
+    expect(responseText).toContain("Connection test failed");
+    expect(responseText).not.toContain(rawMessage);
+    expect(responseText).not.toContain("saved-unraid-secret");
   });
 
   // The two "returns 504" tests above already prove that a widget with no

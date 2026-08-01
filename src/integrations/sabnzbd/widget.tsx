@@ -73,6 +73,7 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
   fetchData: fetchQueueData,
   refreshInterval: 10_000,
   component: SabnzbdWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

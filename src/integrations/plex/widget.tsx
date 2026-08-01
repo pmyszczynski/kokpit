@@ -109,6 +109,7 @@ registerWidget<PlexConfig, PlexData>({
   },
   refreshInterval: 10_000,
   component: PlexWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

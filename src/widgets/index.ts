@@ -17,23 +17,34 @@ export type WidgetConfigFieldType =
   | "multiselect"
   | "boolean";
 
-export interface WidgetConfigField {
+interface WidgetConfigFieldBase {
   key: string;
   label: string;
-  type: WidgetConfigFieldType;
   placeholder?: string;
   description?: string;
   required?: boolean;
   /** Options for multiselect fields. */
   options?: Array<{ value: string; label: string }>;
-  /**
-   * For boolean fields: the effective value to show when this key is absent
-   * from the saved config. Must match the zod schema's `.default()` for the
-   * same key — a config written before the field was exposed has no entry, but
-   * the widget still behaves as the schema default says, and an unchecked box
-   * over a `true` default would misreport live behaviour.
-   */
-  defaultValue?: boolean;
+}
+
+export type WidgetConfigField =
+  | (WidgetConfigFieldBase & {
+      type: "boolean";
+      /** Must match the config schema's effective default for an absent key. */
+      defaultValue?: boolean;
+    })
+  | (WidgetConfigFieldBase & {
+      type: Exclude<WidgetConfigFieldType, "boolean">;
+      /**
+       * Effective editor value when the saved widget config omits this key.
+       */
+      defaultValue?: string | number | string[];
+    });
+
+/** A schema-supported non-secret field kept in config but omitted from the editor. */
+export interface WidgetPreservedConfigField {
+  key: string;
+  type: Exclude<WidgetConfigFieldType, "password">;
 }
 
 /** Default tile label and icon when picking this widget in the service editor. */
@@ -53,6 +64,14 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   component: React.ComponentType<WidgetProps<TData>>;
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
+  /** Schema-supported non-secret fields kept on save but not shown in the editor. */
+  preservedConfigFields?: WidgetPreservedConfigField[];
+  /**
+   * Non-secret config fields that bind any password credential to its
+   * destination. Required and validated at registration when password fields
+   * exist.
+   */
+  credentialScopeFields?: string[];
   /** When set, this widget appears as a tile type in the service editor. */
   serviceEditorPreset?: ServiceEditorPreset;
   /**
@@ -78,6 +97,24 @@ const widgetRegistry = new Map<string, AnyWidgetDefinition>();
 export function registerWidget<TConfig = Record<string, unknown>, TData = unknown>(
   def: WidgetDefinition<TConfig, TData>
 ): void {
+  const fields = def.configFields ?? [];
+  const hasPassword = fields.some((field) => field.type === "password");
+  if (hasPassword) {
+    const scope = def.credentialScopeFields;
+    if (!scope || scope.length === 0) {
+      throw new Error(
+        `Widget "${def.id}" must declare a nonempty credential scope`
+      );
+    }
+    for (const key of scope) {
+      const field = fields.find((candidate) => candidate.key === key);
+      if (!field || (field.type !== "url" && field.type !== "text")) {
+        throw new Error(
+          `Widget "${def.id}" has an invalid credential scope field "${key}"`
+        );
+      }
+    }
+  }
   if (widgetRegistry.has(def.id)) {
     throw new Error(`Widget "${def.id}" is already registered`);
   }

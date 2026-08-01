@@ -138,4 +138,5 @@ registerWidget<ActualSummaryConfig, ActualSummaryData>({
   fetchTimeoutMs: 15_000,
   component: ActualBudgetSummaryWidget,
   configFields: [...BASE_CONFIG_FIELDS, TIMEZONE_CONFIG_FIELD],
+  credentialScopeFields: ["url", "budget_sync_id"],
 });

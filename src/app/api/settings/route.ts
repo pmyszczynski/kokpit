@@ -10,6 +10,11 @@ import {
 } from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 import { pruneOrphanedUploads } from "@/lib/uploadGc";
+import {
+  redactWidgetSecrets,
+  resolveServiceWidgetSecrets,
+  WidgetSecretResolutionError,
+} from "@/widgets/configSecrets";
 
 const PatchBodySchema = z.object({
   appearance: z
@@ -75,9 +80,9 @@ export async function GET() {
   }
 
   const config = getConfig();
-  // Body shape is unchanged (other consumers/e2e depend on it); the revision
-  // rides along as a response header for the edit-mode conflict check.
-  return NextResponse.json(config, {
+  // The revision is derived from the real config while the browser receives
+  // opaque references for registry-declared password fields.
+  return NextResponse.json(redactWidgetSecrets(config), {
     headers: { [CONFIG_REVISION_HEADER]: configRevision(config) },
   });
 }
@@ -132,16 +137,39 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
+  if (result.data.services !== undefined) {
+    try {
+      updates.services = resolveServiceWidgetSecrets(
+        result.data.services,
+        getConfig().services
+      );
+    } catch (error) {
+      if (error instanceof WidgetSecretResolutionError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to save settings" },
+        { status: 500 }
+      );
+    }
+  }
+
   try {
     writeConfig(updates as Parameters<typeof writeConfig>[0]);
     const updated = getConfig();
     // Best-effort GC of now-orphaned uploads against the FULL merged config.
     // Never throws, so it can't affect the 200 response below.
     await pruneOrphanedUploads(updated);
-    return NextResponse.json(updated, {
+    return NextResponse.json(redactWidgetSecrets(updated), {
       headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
     });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to save settings" },
+      { status: 500 }
+    );
   }
 }

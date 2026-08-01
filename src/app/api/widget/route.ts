@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
 import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
+import { publicWidgetFetchError } from "@/widgets/publicFetchError";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 
 export async function GET(request: Request) {
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
     }
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Widget fetch failed" },
+      { ok: false, error: publicWidgetFetchError("load") },
       { status: 500 }
     );
   }

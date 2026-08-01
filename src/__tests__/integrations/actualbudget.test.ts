@@ -1461,7 +1461,7 @@ function fieldByKey(
  * misreports live behaviour and a double toggle flips the real setting.
  */
 function expectBooleanFieldDefaultsMatchSchema(def: {
-  configFields?: Array<{ key: string; type: string; defaultValue?: boolean }>;
+  configFields?: Array<{ key: string; type: string; defaultValue?: unknown }>;
   configSchema: { parse: (v: unknown) => unknown };
 }) {
   const parsed = def.configSchema.parse(MINIMAL_CONFIG) as Record<string, unknown>;

@@ -119,6 +119,8 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
   refreshInterval: 300_000,
   fetchTimeoutMs: 15_000,
   component: ActualBudgetAccountsWidget,
+  credentialScopeFields: ["url", "budget_sync_id"],
+  preservedConfigFields: [{ key: "timezone", type: "text" }],
   configFields: [
     ...BASE_CONFIG_FIELDS,
     {

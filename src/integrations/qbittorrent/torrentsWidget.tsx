@@ -102,6 +102,7 @@ registerWidget<QbittorrentConfig, Torrent[]>({
   fetchData: fetchTorrents,
   refreshInterval: 15_000,
   component: QbittorrentTorrentsWidget,
+  credentialScopeFields: ["url", "username"],
   configFields: [
     {
       key: "url",

@@ -24,6 +24,11 @@ vi.mock("@/components/ServiceForm", () => ({
       <button onClick={() => onSave({ name: "NewSvc", url: "http://new.local" })}>
         StubSave
       </button>
+      {service && (
+        <button onClick={() => onSave({ ...service, name: "RenamedSvc" })}>
+          StubRename
+        </button>
+      )}
       <button onClick={onClose}>StubClose</button>
     </div>
   ),
@@ -475,6 +480,84 @@ describe("SettingsPanel - services tab", () => {
     );
   });
 
+  it("uses the server's refreshed credential reference after a service rename", async () => {
+    const oldReference = "widget-secret-ref.old-name";
+    const refreshedReference = "widget-secret-ref.renamed-service";
+    const initialConfig = makeConfig({
+      services: [
+        {
+          name: "Jellyfin",
+          url: "http://jellyfin.local",
+          widget: {
+            type: "tautulli-activity",
+            config: { api_key: oldReference },
+          },
+        },
+        { name: "Portainer", url: "http://portainer.local" },
+      ],
+    });
+    const refreshedConfig = makeConfig({
+      services: [
+        {
+          name: "RenamedSvc",
+          url: "http://jellyfin.local",
+          widget: {
+            type: "tautulli-activity",
+            config: { api_key: refreshedReference },
+          },
+        },
+        { name: "Portainer", url: "http://portainer.local" },
+      ],
+    });
+    let resolveRename!: (response: Response) => void;
+    const renameResponse = new Promise<Response>((resolve) => {
+      resolveRename = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(renameResponse)
+      .mockResolvedValueOnce(jsonResponse(refreshedConfig));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SettingsPanel config={initialConfig} />);
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    fireEvent.click(within(screen.getByText("Jellyfin").closest("tr")!).getByRole("button", { name: "Edit" }));
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "StubRename" }));
+    });
+
+    const renamedRow = screen.getByText("RenamedSvc").closest("tr")!;
+    expect(within(renamedRow).getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(within(renamedRow).getByRole("button", { name: "Delete" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "+ Add Service" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Groups" })).toBeDisabled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRename(jsonResponse(refreshedConfig));
+      await renameResponse;
+    });
+
+    const refreshedRow = screen.getByText("RenamedSvc").closest("tr")!;
+    const editButton = within(refreshedRow).getByRole("button", {
+      name: "Edit",
+    });
+    expect(editButton).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Groups" })).toBeEnabled();
+    fireEvent.click(editButton);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "StubRename" }));
+    });
+
+    const secondPayload = JSON.parse(
+      (fetchMock.mock.calls[1][1] as RequestInit).body as string
+    );
+    expect(secondPayload.services[0].widget.config.api_key).toBe(
+      refreshedReference
+    );
+  });
+
   it("deletes a service from state and saves via PATCH", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
@@ -644,6 +727,92 @@ describe("SettingsPanel - groups tab", () => {
     const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
     expect(jelly.group).toBe("Movies");
     expect(body.bookmarks[0].placement.group).toBe("Movies");
+  });
+
+  it("locks service writes while a group cascade is saving", async () => {
+    let resolveCascade!: (response: Response) => void;
+    const cascadeResponse = new Promise<Response>((resolve) => {
+      resolveCascade = resolve;
+    });
+    const fetchMock = vi.fn().mockReturnValueOnce(cascadeResponse);
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+
+    const input = screen.getByLabelText("Group name for Media");
+    fireEvent.change(input, { target: { value: "Movies" } });
+    fireEvent.blur(input);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    const servicesTab = screen.getByRole("button", { name: "Services" });
+    expect(servicesTab).toBeDisabled();
+    fireEvent.click(servicesTab);
+    expect(screen.getByText("Groups", { selector: "h2" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCascade(jsonResponse({}));
+      await cascadeResponse;
+    });
+
+    expect(servicesTab).toBeEnabled();
+  });
+
+  it("uses redacted service state returned by a successful group cascade", async () => {
+    const initial = groupsConfig();
+    initial.services[0] = {
+      ...initial.services[0],
+      widget: {
+        type: "tautulli-activity",
+        config: {
+          url: "http://tautulli.local:8181",
+          api_key: "literal-replacement",
+        },
+      },
+    };
+    const responseConfig = {
+      ...initial,
+      groups: [{ name: "Movies" }, { name: "Infra" }],
+      services: initial.services.map((service) =>
+        service.name === "Jellyfin"
+          ? {
+              ...service,
+              group: "Movies",
+              widget: {
+                ...service.widget!,
+                config: {
+                  ...service.widget!.config,
+                  api_key: "server-redacted-reference",
+                },
+              },
+            }
+          : service
+      ),
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(responseConfig))
+    );
+    render(<SettingsPanel config={initial} />);
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    const input = screen.getByLabelText("Group name for Media");
+    fireEvent.change(input, { target: { value: "Movies" } });
+    fireEvent.blur(input);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    const row = screen.getByText("Jellyfin").closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    const props = JSON.parse(
+      screen.getByTestId("service-form-stub-props").textContent!
+    );
+    expect(props.service.widget.config.api_key).toBe(
+      "server-redacted-reference"
+    );
   });
 
   it("deleting a group clears members' group and bookmark placement references", async () => {

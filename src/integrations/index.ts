@@ -22,6 +22,7 @@ import "./netdata/diskSpaceWidget";
 import "./netdata/loadWidget";
 import "./netdata/sensorWidget";
 import "./docker/widget";
+import "./tautulli/activityWidget";
 import "./systemstats/widget";
 import "./actualbudget/summaryWidget";
 import "./actualbudget/categoriesWidget";

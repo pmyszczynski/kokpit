@@ -102,6 +102,7 @@ registerWidget<SonarrConfig, SonarrQueueItem[]>({
   fetchData: fetchQueue,
   refreshInterval: 15_000,
   component: SonarrQueueWidget,
+  credentialScopeFields: ["url"],
   configFields: [
     {
       key: "url",

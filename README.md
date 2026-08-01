@@ -354,6 +354,54 @@ The widget only contacts `/status/sessions` or `/library/sections` depending on 
 
 ---
 
+### Tautulli
+
+Displays current Plex activity from Tautulli.
+
+**Prerequisites:** Enable Tautulli's API and copy the generated API key.
+
+**YAML example:**
+
+```yaml
+services:
+  - name: Tautulli
+    url: http://192.168.1.x:8181
+    group: Media
+    size: tall
+    widget:
+      type: tautulli-activity
+      config:
+        url: http://192.168.1.x:8181
+        api_key: <your-tautulli-api-key>
+        sections:
+          - summary
+          - sessions
+```
+
+**Config fields:**
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `url` | Yes | Base URL of the Tautulli instance, including any HTTP root |
+| `api_key` | Yes | Tautulli API key; used only by Kokpit's server |
+| `sections` | No | Non-empty list containing `summary`, `sessions`, or both; defaults to both |
+
+**Summary:**
+
+| Value | Description |
+| --- | --- |
+| Active | Total active streams |
+| Direct Play | Streams played directly |
+| Direct Stream | Streams direct streamed |
+| Transcoding | Streams currently being transcoded |
+| Bandwidth | Total active streaming bandwidth |
+
+**Sessions:** Each active session displays the username, media title and type, playback state, transcode mode, and progress.
+
+Usernames are intentionally displayed. Email, IP, machine/device IDs, file paths, player/platform details, and artwork are discarded server-side.
+
+---
+
 ### Sonarr
 
 Two widgets are available for Sonarr: a calendar showing upcoming episodes and a download queue monitor.
