@@ -50,8 +50,19 @@ function credentialFieldKeys(widgetType: string): string[] {
   );
 }
 
-function configFieldKeys(widgetType: string): string[] {
-  return getWidget(widgetType)?.configFields?.map((field) => field.key) ?? [];
+function isSafeConfigValue(
+  type: "text" | "url" | "password" | "number" | "multiselect" | "boolean",
+  value: unknown
+): boolean {
+  if (value === undefined) return true;
+  if (type === "text" || type === "url" || type === "password") {
+    return typeof value === "string";
+  }
+  if (type === "number") {
+    return typeof value === "number" && Number.isFinite(value);
+  }
+  if (type === "boolean") return typeof value === "boolean";
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function shouldHideWholeConfig(
@@ -61,14 +72,14 @@ function shouldHideWholeConfig(
   const widget = getWidget(widgetType);
   if (!widget) return Object.keys(config).length > 0;
 
-  const knownKeys = new Set(configFieldKeys(widgetType));
-  if (Object.keys(config).some((key) => !knownKeys.has(key))) {
-    return true;
-  }
-
-  return credentialFieldKeys(widgetType).some((key) => {
-    const value = config[key];
-    return value !== undefined && value !== "" && typeof value !== "string";
+  const fields = new Map(
+    [...(widget.configFields ?? []), ...(widget.preservedConfigFields ?? [])].map(
+      (field) => [field.key, field] as const
+    )
+  );
+  return Object.entries(config).some(([key, value]) => {
+    const field = fields.get(key);
+    return !field || !isSafeConfigValue(field.type, value);
   });
 }
 
@@ -94,8 +105,8 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
       const rawConfig = widget?.config;
       if (!widget || !rawConfig) return service;
 
-      // Unknown fields and non-string credentials cannot safely be classified
-      // in the browser. Keep the complete config on the server in those cases.
+      // Unknown keys and malformed declared values could contain secrets.
+      // Keep the complete config on the server in those cases.
       if (shouldHideWholeConfig(widget.type, rawConfig)) {
         return {
           ...service,
@@ -210,6 +221,18 @@ function resolveUnknownWidgetConfig(
     return config;
   }
 
+  return resolveOpaqueWidgetConfigReference(
+    widgetType,
+    opaqueReference,
+    savedServices
+  );
+}
+
+function resolveOpaqueWidgetConfigReference(
+  widgetType: string,
+  opaqueReference: unknown,
+  savedServices: Service[]
+): Record<string, unknown> {
   const reference = verifyWidgetConfigReference(opaqueReference);
   if (!reference) {
     throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
@@ -245,8 +268,20 @@ export function resolveWidgetConfigSecrets(
     return resolveUnknownWidgetConfig(widgetType, rawConfig, savedServices);
   }
   if (Object.prototype.hasOwnProperty.call(rawConfig, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY)) {
-    throw new WidgetSecretResolutionError(
-      "widget_secret_reference_invalid"
+    const replacementConfig = { ...rawConfig };
+    const replacementReference = replacementConfig[
+      UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY
+    ];
+    delete replacementConfig[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
+    resolveOpaqueWidgetConfigReference(
+      widgetType,
+      replacementReference,
+      savedServices
+    );
+    return resolveWidgetConfigSecrets(
+      widgetType,
+      replacementConfig,
+      savedServices
     );
   }
   if (!getWidget(widgetType)) {

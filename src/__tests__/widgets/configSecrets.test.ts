@@ -334,6 +334,92 @@ describe("registered widget config redaction", () => {
     );
   });
 
+  it("preserves schema-supported non-editor fields", () => {
+    const service = {
+      name: "Actual Budget",
+      widget: {
+        type: "actualbudget-accounts",
+        config: {
+          url: "http://actual.local:5006",
+          api_key: "actual-secret",
+          budget_sync_id: "budget-id",
+          timezone: "Europe/Warsaw",
+        },
+      },
+    } satisfies Service;
+    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const browserConfig = redacted.services[0].widget!.config!;
+
+    expect(browserConfig).toMatchObject({
+      url: "http://actual.local:5006",
+      budget_sync_id: "budget-id",
+      timezone: "Europe/Warsaw",
+    });
+    expect(JSON.stringify(browserConfig)).not.toContain("actual-secret");
+    expect(
+      resolveWidgetConfigSecrets(
+        "actualbudget-accounts",
+        browserConfig,
+        [service]
+      )
+    ).toEqual(service.widget?.config);
+  });
+
+  it("hides malformed declared values with the complete config", () => {
+    const service = {
+      name: "Plex",
+      widget: {
+        type: "plex",
+        config: {
+          url: { api_key: "nested-secret" },
+          token: "saved-secret",
+        },
+      },
+    } satisfies Service;
+    const redacted = redactWidgetSecrets(kokpitConfig(service));
+    const browserConfig = redacted.services[0].widget!.config!;
+
+    expect(JSON.stringify(browserConfig)).not.toContain("nested-secret");
+    expect(JSON.stringify(browserConfig)).not.toContain("saved-secret");
+    expect(browserConfig).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
+    });
+  });
+
+  it("allows a verified opaque config to be replaced", () => {
+    const service = {
+      name: "Plex",
+      widget: {
+        type: "plex",
+        config: {
+          url: { api_key: "nested-secret" },
+          token: "saved-secret",
+        },
+      },
+    } satisfies Service;
+    const opaqueConfig = redactWidgetSecrets(kokpitConfig(service)).services[0]
+      .widget!.config!;
+    const replacement = {
+      ...opaqueConfig,
+      url: "http://plex.local:32400",
+      token: "replacement-token",
+    };
+    const resolved = resolveServiceWidgetSecrets(
+      [
+        {
+          ...service,
+          widget: { ...service.widget!, config: replacement },
+        },
+      ],
+      [service]
+    );
+
+    expect(resolved[0].widget?.config).toEqual({
+      url: "http://plex.local:32400",
+      token: "replacement-token",
+    });
+  });
+
   it("keeps configs with unregistered fields opaque", () => {
     const service = {
       name: "Plex",

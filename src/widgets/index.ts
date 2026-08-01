@@ -41,6 +41,12 @@ export type WidgetConfigField =
       defaultValue?: string | number | string[];
     });
 
+/** A schema-supported non-secret field kept in config but omitted from the editor. */
+export interface WidgetPreservedConfigField {
+  key: string;
+  type: Exclude<WidgetConfigFieldType, "password">;
+}
+
 /** Default tile label and icon when picking this widget in the service editor. */
 export interface ServiceEditorPreset {
   defaultName: string;
@@ -58,6 +64,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   component: React.ComponentType<WidgetProps<TData>>;
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
+  /** Schema-supported non-secret fields kept on save but not shown in the editor. */
+  preservedConfigFields?: WidgetPreservedConfigField[];
   /**
    * Non-secret config fields that bind any password credential to its
    * destination. Required and validated at registration when password fields
