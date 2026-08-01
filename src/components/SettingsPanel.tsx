@@ -5,6 +5,7 @@ import "@/integrations";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KokpitConfig, Service, Group, BookmarkGroup } from "@/config/schema";
+import type { ClientSafeSettings } from "@/widgets/configSecrets";
 import {
   resolveServiceSize,
   resolveGroupOrder,
@@ -69,7 +70,7 @@ function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void
   );
 }
 
-export default function SettingsPanel({ config }: { config: KokpitConfig }) {
+export default function SettingsPanel({ config }: { config: ClientSafeSettings }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("appearance");

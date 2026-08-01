@@ -25,6 +25,7 @@ import type {
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
 import { migrateLegacyServiceSizes } from "@/config/resolve";
+import type { ClientSafeSettings } from "@/widgets/configSecrets";
 import EditBar from "./EditBar";
 
 export type EditModeStatus =
@@ -48,9 +49,9 @@ export interface EditModeState {
   /** True while the dashboard is rendered from the draft. */
   active: boolean;
   /** The staged config; null in view mode. */
-  draft: KokpitConfig | null;
+  draft: ClientSafeSettings | null;
   /** Snapshot of the config as loaded — the baseline `dirty` is derived from. */
-  baseline: KokpitConfig | null;
+  baseline: ClientSafeSettings | null;
   /** Revision captured on entry, sent as `If-Match` on save. */
   baseRevision: string | null;
   status: EditModeStatus;
@@ -78,15 +79,15 @@ export const initialEditModeState: EditModeState = {
 
 export type EditModeAction =
   | { type: "ENTER_START" }
-  | { type: "ENTER_SUCCESS"; config: KokpitConfig; revision: string | null }
+  | { type: "ENTER_SUCCESS"; config: ClientSafeSettings; revision: string | null }
   | { type: "ENTER_ERROR"; error: string }
   | { type: "DISCARD" }
-  | { type: "SET_DRAFT"; draft: KokpitConfig }
+  | { type: "SET_DRAFT"; draft: ClientSafeSettings }
   | { type: "SAVE_START" }
   | { type: "SAVE_SUCCESS"; revision: string | null }
   | { type: "SAVE_ERROR"; error: string }
   | { type: "CONFLICT"; error: string }
-  | { type: "RELOAD_SUCCESS"; config: KokpitConfig; revision: string | null }
+  | { type: "RELOAD_SUCCESS"; config: ClientSafeSettings; revision: string | null }
   | { type: "REQUEST_SERVICE_EDIT"; name: string }
   | { type: "CLEAR_PENDING_EDIT" };
 
@@ -164,8 +165,8 @@ export function editModeReducer(
 
 /** Changed top-level editable keys between a draft and its baseline. */
 export function changedKeys(
-  draft: KokpitConfig | null,
-  baseline: KokpitConfig | null
+  draft: ClientSafeSettings | null,
+  baseline: ClientSafeSettings | null
 ): EditableKey[] {
   if (!draft || !baseline) return [];
   return EDITABLE_KEYS.filter(
@@ -192,7 +193,7 @@ export interface EditModeContextValue extends EditModeState {
   /** Re-fetch the draft + revision, discarding local changes (conflict path). */
   reload: () => Promise<void>;
   /** Replace the whole draft (low-level; prefer the typed setters below). */
-  updateDraft: (patch: Partial<KokpitConfig>) => void;
+  updateDraft: (patch: Partial<ClientSafeSettings>) => void;
   setServices: (services: Service[]) => void;
   setGroups: (groups: Group[] | undefined) => void;
   setBookmarks: (bookmarks: BookmarkGroup[] | undefined) => void;
@@ -232,7 +233,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     try {
       const res = await fetch("/api/settings");
       if (!res.ok) throw new Error(`Failed to load settings (${res.status})`);
-      const config = (await res.json()) as KokpitConfig;
+      const config = (await res.json()) as ClientSafeSettings;
       dispatch({ type: "ENTER_SUCCESS", config, revision: readRevision(res) });
     } catch (err) {
       dispatch({
@@ -245,7 +246,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   const discard = useCallback(() => dispatch({ type: "DISCARD" }), []);
 
   const updateDraft = useCallback(
-    (patch: Partial<KokpitConfig>) => {
+    (patch: Partial<ClientSafeSettings>) => {
       if (!state.draft) return;
       dispatch({ type: "SET_DRAFT", draft: { ...state.draft, ...patch } });
     },
@@ -324,7 +325,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     try {
       const res = await fetch("/api/settings");
       if (!res.ok) throw new Error(`Failed to reload settings (${res.status})`);
-      const config = (await res.json()) as KokpitConfig;
+      const config = (await res.json()) as ClientSafeSettings;
       dispatch({
         type: "RELOAD_SUCCESS",
         config,

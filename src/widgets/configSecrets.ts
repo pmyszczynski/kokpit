@@ -21,6 +21,19 @@ import {
 export const UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY =
   "__kokpit_widget_config_reference__";
 
+/**
+ * The settings representation that may cross a server-to-client boundary.
+ *
+ * This is intentionally a distinct type even though its editable, non-secret
+ * fields currently have the same shape as KokpitConfig. Callers should never
+ * pass a raw KokpitConfig to a response or Client Component: constructing this
+ * type through `toClientSafeSettings` is the security boundary that replaces
+ * widget credentials with opaque, server-verifiable references.
+ */
+export type ClientSafeSettings = Omit<KokpitConfig, "services"> & {
+  services: Service[];
+};
+
 export type WidgetSecretResolutionErrorCode =
   | "widget_secret_reference_invalid"
   | "widget_secret_scope_changed";
@@ -97,7 +110,7 @@ function getOpaqueConfigReference(
  * Returns a browser-safe config copy. Password fields are identified only by
  * registry metadata, so integrations do not need key-name redaction lists.
  */
-export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
+export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
   return {
     ...config,
     services: config.services.map((service) => {
@@ -146,6 +159,9 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
     }),
   };
 }
+
+/** @deprecated Use the explicitly named server-to-client boundary helper. */
+export const redactWidgetSecrets = toClientSafeSettings;
 
 function resolveReference(
   referenceValue: unknown,
