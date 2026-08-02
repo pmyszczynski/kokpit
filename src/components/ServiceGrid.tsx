@@ -44,7 +44,7 @@ function renderServiceTile({ service, tile }: { service: Service; tile: import("
       url={service.launch_url}
       icon={service.icon}
       description={service.description}
-      widget={resolveTileWidget(tile.widget)}
+      widget={resolveTileWidget(tile.widget, service.integration?.config)}
       size={resolveServiceSize(tile, hints?.preferredSize, hints?.minSize)}
     />
   );

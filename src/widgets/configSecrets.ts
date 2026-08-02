@@ -7,8 +7,8 @@ import type {
   ClientSafeService,
   ClientSafeSettings,
 } from "./clientSafeSettings";
-import { getWidget } from "@/widgets";
-import { widgetCredentialScopesMatch } from "./credentialScope";
+import { getIntegration, getWidget } from "@/widgets";
+import { integrationCredentialScopesMatch, widgetCredentialScopesMatch } from "./credentialScope";
 import {
   isWidgetSecretReference,
 } from "./secretReference";
@@ -86,17 +86,31 @@ function getOpaqueConfigReference(
 export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
   return {
     schema_version: config.schema_version,
-    auth: { ...config.auth },
-    appearance: { ...config.appearance },
-    layout: { ...config.layout },
+    auth: { enabled: config.auth.enabled, session_ttl_hours: config.auth.session_ttl_hours },
+    appearance: {
+      theme: config.appearance.theme,
+      custom_css: config.appearance.custom_css,
+      card_blur: config.appearance.card_blur,
+      background: config.appearance.background ? { ...config.appearance.background } : undefined,
+    },
+    layout: {
+      columns: config.layout.columns,
+      row_height: config.layout.row_height,
+      ungrouped: config.layout.ungrouped,
+      tablet: config.layout.tablet ? { ...config.layout.tablet } : undefined,
+      mobile: config.layout.mobile ? { ...config.layout.mobile } : undefined,
+    },
     groups: config.groups?.map((group) => ({ ...group })),
     bookmarks: config.bookmarks?.map((group) => ({
       ...group,
       placement: group.placement ? { ...group.placement } : undefined,
       links: group.links.map((link) => ({ ...link })),
     })),
-    service_tiles: config.service_tiles.map((tile) => ({
-      ...tile,
+    service_tiles: (config.service_tiles ?? []).map((tile) => ({
+      id: tile.id,
+      service_id: tile.service_id,
+      group: tile.group,
+      size: tile.size,
       widget: tile.widget
         ? {
             ...tile.widget,
@@ -106,27 +120,55 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
         : undefined,
     })),
     services: config.services.map((service): ClientSafeService => {
-      if (!service.integration) return { ...service };
+      if (!service.integration) {
+        // Schema v1 reaches this helper only in KOK-57 compatibility tests;
+        // production configuration is validated as v2 before this boundary.
+        const legacy = service as Service;
+        if (!legacy.widget?.config) return {
+          id: service.id!, name: service.name, launch_url: service.launch_url,
+          icon: service.icon, description: service.description, category: service.category,
+        };
+        const raw = legacy.widget.config;
+        const definition = getWidget(legacy.widget.type);
+        const fields = new Map([...(definition?.configFields ?? []), ...(definition?.preservedConfigFields ?? [])].map((field) => [field.key, field] as const));
+        const hideWhole = !definition || Object.entries(raw).some(([key, value]) => {
+          const field = fields.get(key);
+          return !field || !isSafeConfigValue(field.type, value);
+        });
+        const safeConfig: Record<string, unknown> = hideWhole
+          ? { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(legacy.name, legacy.widget.type) }
+          : { ...raw };
+        if (!hideWhole) for (const key of credentialFieldKeys(legacy.widget.type)) {
+          if (raw[key] !== undefined && raw[key] !== "") safeConfig[key] = createWidgetSecretReference(legacy.name, legacy.widget.type, key);
+        }
+        return {
+          id: legacy.id!, name: legacy.name, launch_url: legacy.launch_url,
+          icon: legacy.icon, description: legacy.description, category: legacy.category,
+          widget: { type: legacy.widget.type, fields: legacy.widget.fields, refresh_interval_ms: legacy.widget.refresh_interval_ms, config: safeConfig },
+        } as ClientSafeService;
+      }
       const rawConfig = service.integration.config;
+      const integration = getIntegration(service.integration.type);
       const widgets = config.service_tiles
         .filter((tile) => tile.service_id === service.id && tile.widget)
         .map((tile) => getWidget(tile.widget!.type))
         .filter((widget) => widget != null);
       const declaredFields = new Map(
-        widgets.flatMap((widget) => [
+        (integration?.connectionFields ?? widgets.flatMap((widget) => [
           ...(widget.configFields ?? []),
           ...(widget.preservedConfigFields ?? []),
-        ]).map((field) => [field.key, field] as const)
+        ])).map((field) => [field.key, field] as const)
       );
       const hideWholeConfig =
-        widgets.length === 0 ||
+        (!integration && widgets.length === 0) ||
         Object.entries(rawConfig).some(([key, value]) => {
           const field = declaredFields.get(key);
           return !field || !isSafeConfigValue(field.type, value);
         });
       if (hideWholeConfig) {
         return {
-          ...service,
+          id: service.id, name: service.name, launch_url: service.launch_url,
+          icon: service.icon, description: service.description, category: service.category,
           integration: {
             ...service.integration,
             config: {
@@ -148,7 +190,8 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
         );
       }
       return {
-        ...service,
+        id: service.id, name: service.name, launch_url: service.launch_url,
+        icon: service.icon, description: service.description, category: service.category,
         integration: { ...service.integration, config: safeConfig },
       };
     }),
@@ -372,6 +415,9 @@ export function resolveServiceIntegrationSecrets(
       const reference = verifyWidgetSecretReference(value);
       if (!reference || !source?.integration || !widgetSecretReferenceMatches(reference, service.id, service.integration.type, key)) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
       if (!Object.prototype.hasOwnProperty.call(source.integration.config, key)) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+      if (!integrationCredentialScopesMatch(service.integration.type, source.integration.config, incoming)) {
+        throw new WidgetSecretResolutionError("widget_secret_scope_changed");
+      }
       resolved[key] = source.integration.config[key];
     }
     return { ...service, integration: { ...service.integration, config: resolved } };

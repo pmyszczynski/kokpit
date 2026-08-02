@@ -479,7 +479,7 @@ export default function EditableServiceGrid({
         return false;
       }
       const patch = renameGroupPatch(
-        { groups: declaredGroups, services, bookmarks },
+        { groups: declaredGroups, service_tiles: config.service_tiles, bookmarks },
         oldName,
         newName
       );
@@ -487,7 +487,7 @@ export default function EditableServiceGrid({
       migrateGroupCollapseKey(oldName, newName);
       return true;
     },
-    [declaredGroups, services, bookmarks, updateDraft]
+    [declaredGroups, config.service_tiles, bookmarks, updateDraft]
   );
 
   const handleGroupColumns = useCallback(
@@ -499,12 +499,12 @@ export default function EditableServiceGrid({
   const handleGroupDelete = useCallback(
     (name: string) => {
       const patch = deleteGroupPatch(
-        { groups: declaredGroups, services, bookmarks },
+        { groups: declaredGroups, service_tiles: config.service_tiles, bookmarks },
         name
       );
       if (Object.keys(patch).length > 0) updateDraft(patch);
     },
-    [declaredGroups, services, bookmarks, updateDraft]
+    [declaredGroups, config.service_tiles, bookmarks, updateDraft]
   );
 
   const handleGroupDeclare = useCallback(

@@ -324,12 +324,16 @@ export default function ServiceTile({ tileId, name, url, icon, description, widg
             <span className="service-tile__widget-preview" aria-hidden="true">
               {widget.type}
             </span>
-          ) : (
+          ) : tileId ? (
             <WidgetRenderer
               type={widget.type}
-              tileId={tileId ?? name}
+              tileId={tileId}
               refreshInterval={widget.refresh_interval_ms}
             />
+          ) : (
+            <div className="widget-error" role="alert">
+              <span className="widget-error__label">Missing tile identifier</span>
+            </div>
           )}
         </div>
       )}

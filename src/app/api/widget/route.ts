@@ -38,6 +38,13 @@ export async function GET(request: Request) {
   );
   const connection = service.integration?.config ?? {};
   const options = tile.widget.config ?? {};
+  const conflictingKey = Object.keys(options).find((key) =>
+    Object.prototype.hasOwnProperty.call(connection, key)
+  );
+  if (conflictingKey) return NextResponse.json(
+    { ok: false, error: `Tile option "${conflictingKey}" conflicts with integration configuration` },
+    { status: 400 }
+  );
   const integration = requiredIntegration ? getIntegration(requiredIntegration) : undefined;
   const parsedConnection = integration?.connectionSchema.safeParse(connection);
   if (parsedConnection && !parsedConnection.success) return NextResponse.json({ ok: false, error: `Invalid integration config: ${parsedConnection.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ")}` }, { status: 400 });

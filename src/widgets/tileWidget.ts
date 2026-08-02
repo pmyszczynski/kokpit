@@ -54,10 +54,15 @@ export function widgetConfigIssues(
 //   issues, so the tile can show a warning badge instead of silently
 //   downgrading to a plain link
 // Config (credentials) never leaves the server either way.
-export function resolveTileWidget(widget?: ServiceWidget): TileWidget | undefined {
+export function resolveTileWidget(
+  widget?: ServiceWidget,
+  connection?: Record<string, unknown>
+): TileWidget | undefined {
   if (!widget) return undefined;
   const def = getWidget(widget.type);
-  const issues = def ? widgetConfigIssues(def, widget.config) : [];
+  const issues = def
+    ? widgetConfigIssues(def, { ...(connection ?? {}), ...(widget.config ?? {}) })
+    : [];
   return {
     type: widget.type,
     refresh_interval_ms: widget.refresh_interval_ms,

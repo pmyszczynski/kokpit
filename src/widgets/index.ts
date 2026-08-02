@@ -67,6 +67,12 @@ const integrationRegistry = new Map<string, IntegrationDefinition<any>>();
 export function registerIntegration<TConnection>(definition: IntegrationDefinition<TConnection>): void {
   if (integrationRegistry.has(definition.id)) throw new Error(`Integration "${definition.id}" is already registered`);
   if (definition.connectionFields.some((field) => field.type === "password") && definition.credentialScopeFields.length === 0) throw new Error(`Integration "${definition.id}" must declare a nonempty credential scope`);
+  for (const key of definition.credentialScopeFields) {
+    const field = definition.connectionFields.find((candidate) => candidate.key === key);
+    if (!field || (field.type !== "url" && field.type !== "text")) {
+      throw new Error(`Integration "${definition.id}" has an invalid credential scope field "${key}"`);
+    }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   integrationRegistry.set(definition.id, definition as IntegrationDefinition<any>);
 }

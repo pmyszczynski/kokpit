@@ -8,6 +8,7 @@ import {
   GroupsSchema,
   ServiceSchema,
   ServiceTileSchema,
+  KokpitConfigSchema,
 } from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 import { pruneOrphanedUploads } from "@/lib/uploadGc";
@@ -137,6 +138,19 @@ export async function PATCH(request: NextRequest) {
         { status: 500 }
       );
     }
+  }
+
+  const candidate = KokpitConfigSchema.safeParse({ ...getConfig(), ...updates });
+  if (!candidate.success) {
+    return NextResponse.json(
+      {
+        error: candidate.error.issues
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+          .join(", "),
+        code: "config_invalid",
+      },
+      { status: 400 }
+    );
   }
 
   try {

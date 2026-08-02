@@ -11,7 +11,7 @@ import {
   declareGroup,
   setGroupColumns,
 } from "@/config/groupCascade";
-import type { BookmarkGroup, Group, Service } from "@/config/schema";
+import type { BookmarkGroup, Group, Service, ServiceTile } from "@/config/schema";
 
 describe("uniqueCopyName", () => {
   it("appends ' copy' when free", () => {
@@ -127,36 +127,40 @@ describe("applyGroupCascades", () => {
 
 describe("renameGroupPatch / deleteGroupPatch (minimal patches)", () => {
   const groups: Group[] = [{ name: "Media" }, { name: "Infra" }];
-  const services: Service[] = [{ name: "Plex", group: "Media" }];
+  const serviceTiles: ServiceTile[] = [{
+    id: "10000000-0000-4000-8000-000000000001",
+    service_id: "10000000-0000-4000-8000-000000000002",
+    group: "Media",
+  }];
   const bookmarks: BookmarkGroup[] = [
     { name: "Dev", links: [], placement: { group: "Media" } },
   ];
 
   it("rename patches groups + services + bookmarks together", () => {
     const patch = renameGroupPatch(
-      { groups, services, bookmarks },
+      { groups, service_tiles: serviceTiles, bookmarks },
       "Media",
       "Streaming"
     );
     expect(patch.groups?.map((g) => g.name)).toEqual(["Streaming", "Infra"]);
-    expect(patch.services?.[0].group).toBe("Streaming");
+    expect(patch.service_tiles?.[0].group).toBe("Streaming");
     expect(patch.bookmarks?.[0].placement?.group).toBe("Streaming");
   });
 
   it("rename of an undeclared group omits the groups key", () => {
     const patch = renameGroupPatch(
-      { groups: [], services, bookmarks },
+      { groups: [], service_tiles: serviceTiles, bookmarks },
       "Media",
       "Streaming"
     );
     expect(patch.groups).toBeUndefined();
-    expect(patch.services?.[0].group).toBe("Streaming");
+    expect(patch.service_tiles?.[0].group).toBe("Streaming");
   });
 
   it("delete patches the groups drop + cascade clears", () => {
-    const patch = deleteGroupPatch({ groups, services, bookmarks }, "Media");
+    const patch = deleteGroupPatch({ groups, service_tiles: serviceTiles, bookmarks }, "Media");
     expect(patch.groups?.map((g) => g.name)).toEqual(["Infra"]);
-    expect(patch.services?.[0].group).toBeUndefined();
+    expect(patch.service_tiles?.[0].group).toBeUndefined();
     expect(patch.bookmarks?.[0].placement).toBeUndefined();
   });
 });

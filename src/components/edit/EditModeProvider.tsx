@@ -22,9 +22,9 @@ import type {
   KokpitConfig,
   Service,
 } from "@/config/schema";
+import { widgetIntegrationRequirement } from "@/config/schema";
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
-import { migrateLegacyServiceSizes } from "@/config/resolve";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import EditBar from "./EditBar";
 
@@ -38,6 +38,7 @@ export type EditModeStatus =
 /** Top-level config keys edit mode can stage and persist. */
 export const EDITABLE_KEYS = [
   "services",
+  "service_tiles",
   "groups",
   "bookmarks",
   "appearance",
@@ -254,8 +255,71 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   );
 
   const setServices = useCallback(
-    (services: Service[]) => updateDraft({ services: services as KokpitConfig["services"] }),
-    [updateDraft]
+    (services: Service[]) => {
+      if (!state.draft) return;
+      const previousServices = state.draft.services;
+      const previousTiles = state.draft.service_tiles;
+      const nextServices: KokpitConfig["services"] = [];
+      const nextTiles: KokpitConfig["service_tiles"] = [];
+      services.forEach((input, index) => {
+        const previous = input.id
+          ? previousServices.find((service) => service.id === input.id)
+          : previousServices[index];
+        const id = input.id ?? previous?.id ?? crypto.randomUUID();
+        const legacyWidget = input.widget;
+        const existingTile = previousTiles.find((tile) => tile.service_id === id);
+        const submittedConfig = legacyWidget?.config ?? {};
+        const connectionConfig = previous?.integration
+          ? Object.fromEntries(Object.keys(previous.integration.config).map((key) => [
+              key,
+              Object.prototype.hasOwnProperty.call(submittedConfig, key)
+                ? submittedConfig[key]
+                : previous.integration!.config[key],
+            ]))
+          : submittedConfig;
+        const optionConfig = existingTile?.widget?.config
+          ? Object.fromEntries(Object.keys(existingTile.widget.config).map((key) => [
+              key,
+              Object.prototype.hasOwnProperty.call(submittedConfig, key)
+                ? submittedConfig[key]
+                : existingTile.widget!.config![key],
+            ]))
+          : {};
+        nextServices.push({
+          id,
+          name: input.name,
+          launch_url: input.launch_url ?? input.url,
+          icon: input.icon,
+          description: input.description,
+          category: input.category ?? input.group,
+          integration: legacyWidget
+            ? {
+                type: widgetIntegrationRequirement(legacyWidget.type) ?? legacyWidget.type,
+                config: connectionConfig,
+              }
+            : input.integration ?? previous?.integration,
+        });
+        if (existingTile || input.group || input.size || legacyWidget) {
+          nextTiles.push({
+            id: existingTile?.id ?? crypto.randomUUID(),
+            service_id: id,
+            group: input.group ?? existingTile?.group,
+            size: input.size ?? existingTile?.size,
+            widget: legacyWidget
+              ? {
+                  ...legacyWidget,
+                  config: Object.keys(optionConfig).length ? optionConfig : undefined,
+                }
+              : existingTile?.widget,
+          });
+        }
+        nextTiles.push(...previousTiles.filter((tile) =>
+          tile.service_id === id && tile.id !== existingTile?.id
+        ));
+      });
+      updateDraft({ services: nextServices, service_tiles: nextTiles });
+    },
+    [state.draft, updateDraft]
   );
   const setGroups = useCallback(
     (groups: Group[] | undefined) => updateDraft({ groups }),
@@ -281,13 +345,6 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     }
     const body: Partial<KokpitConfig> = {};
     for (const key of keys) {
-      // PATCH's schema strips the deprecated `position` field, so a plain
-      // pass-through would silently drop a legacy service's position-derived
-      // size. Migrate position→size before sending so the size is preserved.
-      if (key === "services") {
-        body.services = migrateLegacyServiceSizes(draft.services) as KokpitConfig["services"];
-        continue;
-      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (body as any)[key] = draft[key];
     }

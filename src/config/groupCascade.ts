@@ -13,6 +13,7 @@ import {
   type Group,
   type KokpitConfig,
   type Service,
+  type ServiceTile,
 } from "./schema";
 
 /** A staged group edit whose effect on services/bookmarks is applied on save. */
@@ -74,15 +75,35 @@ export function applyGroupCascades(
   return { services: svc, bookmarks: bm, servicesChanged, bookmarksChanged };
 }
 
+/** Apply dashboard-group operations to schema-v2 tile placement. */
+export function applyServiceTileGroupCascades(
+  tiles: ServiceTile[],
+  ops: GroupCascadeOp[]
+): { serviceTiles: ServiceTile[]; serviceTilesChanged: boolean } {
+  let serviceTiles = tiles;
+  let serviceTilesChanged = false;
+  for (const op of ops) {
+    const key = serviceNameUniquenessKey(op.type === "rename" ? op.from : op.name);
+    serviceTiles = serviceTiles.map((tile) => {
+      if (!tile.group || serviceNameUniquenessKey(tile.group) !== key) return tile;
+      serviceTilesChanged = true;
+      if (op.type === "rename") return { ...tile, group: op.to };
+      const { group: _group, ...rest } = tile;
+      return rest;
+    });
+  }
+  return { serviceTiles, serviceTilesChanged };
+}
+
 /** Editable draft slice the group ops read/write. */
-type GroupDraft = Pick<KokpitConfig, "services"> & {
+type GroupDraft = Pick<KokpitConfig, "service_tiles"> & {
   groups: Group[];
   bookmarks: BookmarkGroup[];
 };
 
 /** A minimal patch of only the top-level keys an op actually changes. */
 export type GroupEditPatch = Partial<
-  Pick<KokpitConfig, "groups" | "services" | "bookmarks">
+  Pick<KokpitConfig, "groups" | "service_tiles" | "bookmarks">
 >;
 
 /**
@@ -108,10 +129,11 @@ export function renameGroupPatch(
     );
   }
 
-  const cascade = applyGroupCascades(draft.services, draft.bookmarks, [
+  const tileCascade = applyServiceTileGroupCascades(draft.service_tiles, [
     { type: "rename", from: oldName, to: newName },
   ]);
-  if (cascade.servicesChanged) patch.services = cascade.services as KokpitConfig["services"];
+  if (tileCascade.serviceTilesChanged) patch.service_tiles = tileCascade.serviceTiles;
+  const cascade = applyGroupCascades([], draft.bookmarks, [{ type: "rename", from: oldName, to: newName }]);
   if (cascade.bookmarksChanged) patch.bookmarks = cascade.bookmarks;
   return patch;
 }
@@ -130,10 +152,11 @@ export function deleteGroupPatch(draft: GroupDraft, name: string): GroupEditPatc
   );
   if (nextGroups.length !== draft.groups.length) patch.groups = nextGroups;
 
-  const cascade = applyGroupCascades(draft.services, draft.bookmarks, [
+  const tileCascade = applyServiceTileGroupCascades(draft.service_tiles, [
     { type: "delete", name },
   ]);
-  if (cascade.servicesChanged) patch.services = cascade.services as KokpitConfig["services"];
+  if (tileCascade.serviceTilesChanged) patch.service_tiles = tileCascade.serviceTiles;
+  const cascade = applyGroupCascades([], draft.bookmarks, [{ type: "delete", name }]);
   if (cascade.bookmarksChanged) patch.bookmarks = cascade.bookmarks;
   return patch;
 }

@@ -14,6 +14,7 @@ import {
 import { getWidgetSizeHints } from "@/widgets";
 import {
   applyGroupCascades,
+  applyServiceTileGroupCascades,
   type GroupCascadeOp,
 } from "@/config/groupCascade";
 import ServiceForm from "./ServiceForm";
@@ -449,18 +450,22 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     () => applyGroupCascades(services, bookmarks, pendingGroupOps),
     [services, bookmarks, pendingGroupOps]
   );
+  const projectedTiles = useMemo(
+    () => applyServiceTileGroupCascades(config.service_tiles, pendingGroupOps),
+    [config.service_tiles, pendingGroupOps]
+  );
 
   const undeclaredGroups = useMemo(
     () =>
       resolveGroupOrder({
         layout: config.layout,
-        service_tiles: config.service_tiles,
+        service_tiles: projectedTiles.serviceTiles,
         groups,
         bookmarks: projectedCascade.bookmarks,
       })
         .filter((g) => g.name !== null && !g.declared)
         .map((g) => g.name as string),
-    [config.layout, config.service_tiles, projectedCascade, groups]
+    [config.layout, projectedTiles, projectedCascade, groups]
   );
 
   const knownGroupNames = useMemo(() => {
@@ -553,13 +558,14 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     // Apply the staged cascade to the CURRENT services/bookmarks so the PATCH
     // carries the renamed/cleared references atomically with the `groups` write.
     const cascade = applyGroupCascades(services, bookmarks, pendingGroupOps);
+    const tileCascade = applyServiceTileGroupCascades(config.service_tiles, pendingGroupOps);
     const payload: Record<string, unknown> = {
       groups: cleanGroups,
       layout: buildLayoutPayload(),
     };
-    if (cascade.servicesChanged) payload.services = cascade.services;
+    if (tileCascade.serviceTilesChanged) payload.service_tiles = tileCascade.serviceTiles;
     if (cascade.bookmarksChanged) payload.bookmarks = cascade.bookmarks;
-    if (cascade.servicesChanged) {
+    if (tileCascade.serviceTilesChanged) {
       servicesSavePendingRef.current = true;
       setServicesWritePending(true);
     }

@@ -1,5 +1,6 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { KokpitConfigSchema } from "@/config/schema";
 import { migrateV1Config } from "@/config/loader";
 import { toClientSafeSettings, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY } from "@/widgets/configSecrets";
@@ -31,6 +32,29 @@ describe("schema v2 service ownership", () => {
       service_tiles: [{ id: randomUUID(), service_id: serviceId, widget: { type: "sonarr-calendar" } }],
     });
     expect(incompatible.success).toBe(false);
+  });
+
+  it("rejects duplicate Service and ServiceTile IDs with precise paths", () => {
+    const serviceId = randomUUID();
+    const duplicateServices = KokpitConfigSchema.safeParse({
+      schema_version: 2,
+      services: [{ id: serviceId, name: "A" }, { id: serviceId, name: "B" }],
+      service_tiles: [],
+    });
+    expect(duplicateServices.success).toBe(false);
+    if (!duplicateServices.success) expect(duplicateServices.error.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "custom", path: ["services", 1, "id"] })])
+    );
+    const tileId = randomUUID();
+    const duplicateTiles = KokpitConfigSchema.safeParse({
+      schema_version: 2,
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [{ id: tileId, service_id: serviceId }, { id: tileId, service_id: serviceId }],
+    });
+    expect(duplicateTiles.success).toBe(false);
+    if (!duplicateTiles.success) expect(duplicateTiles.error.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "custom", path: ["service_tiles", 1, "id"] })])
+    );
   });
 });
 

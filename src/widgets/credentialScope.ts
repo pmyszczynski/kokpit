@@ -1,4 +1,5 @@
-import { getWidget, type WidgetConfigField } from "./index";
+import { widgetIntegrationRequirement } from "@/config/schema";
+import { getAllWidgets, getIntegration, getWidget, type WidgetConfigField } from "./index";
 
 function normalizeScopeValue(
   field: WidgetConfigField,
@@ -57,4 +58,26 @@ export function widgetCredentialScopesMatch(
     source.length === destination.length &&
     source.every((value, index) => value === destination[index])
   );
+}
+
+/** Compare normalized schema-v2 integration credential destinations. */
+export function integrationCredentialScopesMatch(
+  integrationType: string,
+  sourceConfig: Record<string, unknown>,
+  destinationConfig: Record<string, unknown>
+): boolean {
+  const integration = getIntegration(integrationType);
+  const legacyWidget = getAllWidgets().find((widget) =>
+    (widget.integrationType ?? widgetIntegrationRequirement(widget.id)) === integrationType &&
+    (widget.credentialScopeFields?.length ?? 0) > 0
+  );
+  const scopeFields = integration?.credentialScopeFields ?? legacyWidget?.credentialScopeFields;
+  const fields = integration?.connectionFields ?? legacyWidget?.configFields;
+  if (!scopeFields?.length || !fields) return false;
+  return scopeFields.every((key) => {
+    const field = fields.find((candidate) => candidate.key === key);
+    return field != null &&
+      normalizeScopeValue(field, sourceConfig[key]) ===
+        normalizeScopeValue(field, destinationConfig[key]);
+  });
 }

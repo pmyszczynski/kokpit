@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import path from "path";
 import { parseDocument, stringify } from "yaml";
 import { KokpitConfigSchema, widgetIntegrationRequirement, type KokpitConfig, type Size } from "./schema";
+import { getWidget } from "@/widgets";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 2 }));
@@ -11,15 +12,23 @@ let cachedConfig: KokpitConfig | null = null;
 type LegacyService = Record<string, unknown> & { name?: unknown; widget?: Record<string, unknown> };
 
 const OPTION_KEYS: Record<string, ReadonlySet<string>> = {
+  "plex": new Set(["fields"]),
   "sonarr-calendar": new Set(["days"]),
   "sonarr-queue": new Set(["limit"]),
   "radarr-queue": new Set(["limit"]),
   "qbittorrent-torrents": new Set(["limit", "filter"]),
   "seerr-requests": new Set(["limit", "filter"]),
-  "actualbudget-categories": new Set(["limit", "category_ids", "timezone"]),
-  "actualbudget-accounts": new Set(["account_ids", "timezone"]),
-  "actualbudget-schedules": new Set(["days_ahead", "timezone"]),
-  "actualbudget-summary": new Set(["timezone", "privacy_mode"]),
+  "docker": new Set(["max_items"]),
+  "netdata-cpu": new Set(["history_minutes"]),
+  "netdata-ram": new Set(["history_minutes"]),
+  "netdata-net": new Set(["interface", "history_minutes"]),
+  "netdata-disk-io": new Set(["disk_path", "history_minutes"]),
+  "netdata-disk-space": new Set(["chart_id"]),
+  "netdata-sensor": new Set(["chart_id", "label", "history_minutes"]),
+  "actualbudget-categories": new Set(["limit", "category_ids", "timezone", "hide_income", "hide_empty"]),
+  "actualbudget-accounts": new Set(["account_ids", "timezone", "exclude_closed", "exclude_offbudget"]),
+  "actualbudget-schedules": new Set(["days_ahead", "timezone", "limit"]),
+  "actualbudget-summary": new Set(["timezone", "privacy_mode", "currency", "sections"]),
 };
 
 /** Explicit legacy widget -> reusable integration mapping. */
@@ -30,7 +39,10 @@ export function legacyIntegrationType(widgetType: string): string {
 export function splitLegacyWidgetConfig(widgetType: string, value: unknown) {
   const config = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : {};
-  const optionKeys = OPTION_KEYS[widgetType] ?? new Set<string>();
+  const declaredOptionKeys = getWidget(widgetType)?.optionFields?.map((field) => field.key);
+  const optionKeys = declaredOptionKeys
+    ? new Set(declaredOptionKeys)
+    : OPTION_KEYS[widgetType] ?? new Set<string>();
   const connection: Record<string, unknown> = {};
   const options: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(config)) (optionKeys.has(key) ? options : connection)[key] = item;
@@ -49,8 +61,9 @@ function legacySize(service: LegacyService): Size | undefined {
 export function migrateV1Config(raw: Record<string, unknown>): KokpitConfig {
   const services: KokpitConfig["services"] = [];
   const service_tiles: KokpitConfig["service_tiles"] = [];
-  if (!Array.isArray(raw.services)) throw new Error("services: expected an array");
-  for (const [index, entry] of raw.services.entries()) {
+  const legacyServices = raw.services ?? [];
+  if (!Array.isArray(legacyServices)) throw new Error("services: expected an array");
+  for (const [index, entry] of legacyServices.entries()) {
     if (!entry || typeof entry !== "object") throw new Error(`services.${index}: expected an object`);
     const legacy = entry as LegacyService;
     if (typeof legacy.name !== "string" || !legacy.name.trim()) throw new Error(`services.${index}.name: expected a non-empty string`);
@@ -98,8 +111,9 @@ export function loadConfig(): KokpitConfig {
     try { config = migrateV1Config(parsed as Record<string, unknown>); }
     catch (error) { throw new Error(`Unable to migrate ${CONFIG_PATH} from schema v1: ${error instanceof Error ? error.message : String(error)}`); }
     const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
-    const backup = `${CONFIG_PATH}.v1.bak`;
-    try { writeFileSync(backup, source, { encoding: "utf-8", flag: "wx" }); writeFileSync(temp, stringify(config), "utf-8"); renameSync(temp, CONFIG_PATH); }
+    let backup = `${CONFIG_PATH}.v1.bak`;
+    if (existsSync(backup) && readFileSync(backup, "utf-8") !== source) backup = `${backup}.${randomUUID()}`;
+    try { if (!existsSync(backup)) writeFileSync(backup, source, { encoding: "utf-8", flag: "wx" }); writeFileSync(temp, stringify(config), "utf-8"); renameSync(temp, CONFIG_PATH); }
     catch (error) { try { if (existsSync(temp)) renameSync(temp, `${temp}.failed`); } catch {} throw new Error(`Unable to atomically migrate ${CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`); }
   } else if (version === 2) {
     const result = KokpitConfigSchema.safeParse(parsed);
@@ -111,8 +125,12 @@ export function loadConfig(): KokpitConfig {
 
 export function getConfig(): KokpitConfig { return cachedConfig ?? loadConfig(); }
 export function writeConfig(updates: Partial<KokpitConfig>): void {
-  const candidate = KokpitConfigSchema.parse({ ...getConfig(), ...updates });
+  KokpitConfigSchema.parse({ ...getConfig(), ...updates });
   const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
-  writeFileSync(temp, stringify(candidate), "utf-8"); renameSync(temp, CONFIG_PATH); invalidateCache();
+  const doc = parseDocument(readFileSync(CONFIG_PATH, "utf-8"));
+  for (const [key, value] of Object.entries(updates)) doc.setIn([key], value);
+  // Parse the exact document that will be persisted, not just the in-memory merge.
+  KokpitConfigSchema.parse(doc.toJS());
+  writeFileSync(temp, doc.toString(), "utf-8"); renameSync(temp, CONFIG_PATH); invalidateCache();
 }
 export function invalidateCache(): void { cachedConfig = null; }

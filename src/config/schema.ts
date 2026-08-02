@@ -34,9 +34,9 @@ export const IntegrationSchema = z.object({
 });
 
 export const ServiceSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().trim().min(1),
-  launch_url: z.string().url().optional(),
+  launch_url: z.url().optional(),
   icon: z.string().optional(),
   description: z.string().optional(),
   category: z.string().optional(),
@@ -44,8 +44,8 @@ export const ServiceSchema = z.object({
 });
 
 export const ServiceTileSchema = z.object({
-  id: z.string().uuid(),
-  service_id: z.string().uuid(),
+  id: z.uuid(),
+  service_id: z.uuid(),
   group: z.string().optional(),
   size: SizeEnum.optional(),
   widget: ServiceTileWidgetSchema.optional(),
@@ -213,6 +213,7 @@ export const KokpitConfigSchema = z
     service_tiles: z.array(ServiceTileSchema).default([]),
     bookmarks: BookmarkGroupsSchema.optional(),
   })
+  .catchall(z.unknown())
   .superRefine((data, ctx) => {
     const seen = new Set<string>();
     for (let i = 0; i < data.services.length; i++) {
@@ -237,6 +238,11 @@ export const KokpitConfigSchema = z
       if (tile.widget && service) {
         const required = widgetIntegrationRequirement(tile.widget.type);
         if (required !== null && service.integration?.type !== required) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Widget "${tile.widget.type}" requires integration "${required}"`, path: ["service_tiles", i, "service_id"] });
+        for (const key of Object.keys(tile.widget.config ?? {})) {
+          if (Object.prototype.hasOwnProperty.call(service.integration?.config ?? {}, key)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Tile option "${key}" conflicts with Service integration configuration`, path: ["service_tiles", i, "widget", "config", key] });
+          }
+        }
       }
     }
   });

@@ -7,10 +7,10 @@
 # The in-app UI reads from and writes back to settings.yaml.
 # Changes take effect without restarting the server (dev mode).
 #
-# Schema version: 1 (Phase 1 will finalize the full schema + validator)
+# Schema version: 2
 # ═══════════════════════════════════════════════════════════════
 
-schema_version: 1
+schema_version: 2
 
 # ─── Auth ────────────────────────────────────────────────────
 # When auth.enabled is true, all routes require a valid session.
@@ -53,14 +53,13 @@ layout:
 #   - name: Infrastructure
 
 # ─── Services (app tiles + optional inline widgets) ───────────
-# Each service is a dashboard tile. Attach a widget: block to
-# display live data from that service inside the same tile.
-#
-# A tile without url: is a "pure widget" tile (e.g. system stats).
+# Services hold reusable application metadata and integration connections.
+# Service tiles independently reference them for dashboard presentation.
 # ─────────────────────────────────────────────────────────────
 services: []
+service_tiles: []
 
-# Tile sizing: every service accepts an optional size preset —
+# Tile sizing: every service_tile accepts an optional size preset —
 #   size: normal | wide | tall | large   (normal = 1×1, wide = 2×1,
 #   tall = 1×2, large = 2×2). When omitted, the widget's preferred
 #   size applies (e.g. queue/list widgets suggest "tall"), falling
