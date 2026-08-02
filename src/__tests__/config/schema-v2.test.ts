@@ -73,6 +73,16 @@ describe("v1 migration", () => {
     expect(migrated.services[0].integration?.config).toEqual({ url: "http://sonarr:8989", api_key: "secret" });
     expect(migrated.service_tiles[0].widget?.config).toEqual({ days: 7 });
   });
+
+  it("does not invent an integration for widgets that explicitly need none", () => {
+    const migrated = migrateV1Config({
+      schema_version: 1,
+      services: [{ name: "Host", widget: { type: "system-stats", config: {} } }],
+    });
+
+    expect(migrated.services[0].integration).toBeUndefined();
+    expect(migrated.service_tiles[0].widget?.type).toBe("system-stats");
+  });
 });
 
 describe("schema-v2 client boundary", () => {

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { schemaV2Fixtures } from "../helpers/schema-v2";
 
 /**
  * Broken-widget feedback: when a service's `widget.config` fails that
@@ -35,6 +36,7 @@ const SERVICES = [
   },
   { name: "Grafana", url: "http://localhost:3001" },
 ];
+const FIXTURES = schemaV2Fixtures(SERVICES);
 
 function sonarrTile(page: Page) {
   return page
@@ -56,7 +58,7 @@ test.describe("broken-widget feedback", () => {
 
   test.beforeEach(async ({ request }) => {
     const res = await request.patch("/api/settings", {
-      data: { services: SERVICES, groups: [], bookmarks: [] },
+      data: { ...FIXTURES, groups: [], bookmarks: [] },
     });
     expect(res.ok(), `Settings patch failed: ${res.status()}`).toBeTruthy();
   });

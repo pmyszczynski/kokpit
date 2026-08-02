@@ -32,8 +32,8 @@ const OPTION_KEYS: Record<string, ReadonlySet<string>> = {
 };
 
 /** Explicit legacy widget -> reusable integration mapping. */
-export function legacyIntegrationType(widgetType: string): string {
-  return widgetIntegrationRequirement(widgetType) ?? widgetType;
+export function legacyIntegrationType(widgetType: string): string | null {
+  return widgetIntegrationRequirement(widgetType);
 }
 
 export function splitLegacyWidgetConfig(widgetType: string, value: unknown) {
@@ -70,6 +70,7 @@ export function migrateV1Config(raw: Record<string, unknown>): KokpitConfig {
     const serviceId = randomUUID();
     const widget = legacy.widget;
     const widgetType = typeof widget?.type === "string" ? widget.type : undefined;
+    const integrationType = widgetType ? legacyIntegrationType(widgetType) : null;
     const split = widgetType ? splitLegacyWidgetConfig(widgetType, widget?.config) : undefined;
     services.push({
       id: serviceId, name: legacy.name,
@@ -77,7 +78,7 @@ export function migrateV1Config(raw: Record<string, unknown>): KokpitConfig {
       ...(typeof legacy.icon === "string" ? { icon: legacy.icon } : {}),
       ...(typeof legacy.description === "string" ? { description: legacy.description } : {}),
       ...(typeof legacy.group === "string" ? { category: legacy.group } : {}),
-      ...(widgetType ? { integration: { type: legacyIntegrationType(widgetType), config: split!.connection } } : {}),
+      ...(integrationType ? { integration: { type: integrationType, config: split!.connection } } : {}),
     });
     service_tiles.push({
       id: randomUUID(), service_id: serviceId,

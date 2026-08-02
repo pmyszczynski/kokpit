@@ -45,9 +45,10 @@ export async function POST(request: Request) {
   let resolvedConfig: unknown;
   try {
     const savedServices = getConfig().services;
-    resolvedConfig = savedServices.some((service) => service.integration)
+    const integrationType = legacyIntegrationType(type);
+    resolvedConfig = integrationType && savedServices.some((service) => service.integration)
       ? resolveIntegrationConfigSecrets(
-          legacyIntegrationType(type),
+          integrationType,
           (config ?? {}) as Record<string, unknown>,
           savedServices
         )

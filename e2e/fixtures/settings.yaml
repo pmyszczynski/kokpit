@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -8,14 +8,26 @@ layout:
   columns: 4
   row_height: 120
 services:
-  - name: Plex
-    url: http://localhost:32400
-    widget:
-      type: plex
-      config:
-        url: http://localhost:32400
-        token: test-token
-        fields:
-          - streams
-          - transcodes
-          - library_movies
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Sonarr
+    launch_url: http://localhost:8001
+    category: Media
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Radarr
+    launch_url: http://localhost:8002
+    category: Media
+  - id: 10000000-0000-4000-8000-000000000003
+    name: Grafana
+    launch_url: http://localhost:3001
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    group: Media
+  - id: 20000000-0000-4000-8000-000000000002
+    service_id: 10000000-0000-4000-8000-000000000002
+    group: Media
+  - id: 20000000-0000-4000-8000-000000000003
+    service_id: 10000000-0000-4000-8000-000000000003
+groups:
+  - name: Media
+bookmarks: []

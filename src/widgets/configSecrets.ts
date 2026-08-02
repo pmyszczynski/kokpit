@@ -404,7 +404,11 @@ export function resolveServiceIntegrationSecrets(
     const opaque = getOpaqueConfigReference(incoming);
     if (opaque !== null) {
       const reference = verifyWidgetConfigReference(opaque);
-      const source = saved.find((candidate) => candidate.integration && widgetConfigReferenceMatches(reference!, candidate.id, candidate.integration.type));
+      const source = saved.find((candidate) =>
+        candidate.id === service.id &&
+        candidate.integration?.type === service.integration!.type &&
+        widgetConfigReferenceMatches(reference!, service.id, service.integration!.type)
+      );
       if (!reference || !source?.integration) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
       return { ...service, integration: { ...service.integration, config: source.integration.config } };
     }
