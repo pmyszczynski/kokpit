@@ -111,7 +111,7 @@ export function renameGroupPatch(
   const cascade = applyGroupCascades(draft.services, draft.bookmarks, [
     { type: "rename", from: oldName, to: newName },
   ]);
-  if (cascade.servicesChanged) patch.services = cascade.services;
+  if (cascade.servicesChanged) patch.services = cascade.services as KokpitConfig["services"];
   if (cascade.bookmarksChanged) patch.bookmarks = cascade.bookmarks;
   return patch;
 }
@@ -133,7 +133,7 @@ export function deleteGroupPatch(draft: GroupDraft, name: string): GroupEditPatc
   const cascade = applyGroupCascades(draft.services, draft.bookmarks, [
     { type: "delete", name },
   ]);
-  if (cascade.servicesChanged) patch.services = cascade.services;
+  if (cascade.servicesChanged) patch.services = cascade.services as KokpitConfig["services"];
   if (cascade.bookmarksChanged) patch.bookmarks = cascade.bookmarks;
   return patch;
 }

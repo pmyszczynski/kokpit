@@ -540,7 +540,7 @@ export default function EditableServiceGrid({
     const ungrouped: Service[] = [];
     const servicesByGroup = new Map<string, Service[]>();
     for (const service of services) {
-      const groupName = service.group?.trim() ?? "";
+      const groupName = (service as Service).group?.trim() ?? "";
       if (groupName === "") {
         ungrouped.push(service);
         continue;

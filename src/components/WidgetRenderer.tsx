@@ -10,7 +10,7 @@ import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
 
 interface WidgetRendererProps {
   type: string;
-  serviceName: string;
+  tileId: string;
   refreshInterval?: number;
 }
 
@@ -18,18 +18,17 @@ interface WidgetRendererProps {
 // React rules prohibit conditional hook calls, so the guard lives in the parent.
 function KnownWidgetContent({
   widget,
-  type,
-  serviceName,
+  type: _type,
+  tileId,
   refreshInterval,
 }: {
   widget: WidgetDefinition;
   type: string;
-  serviceName: string;
+  tileId: string;
   refreshInterval?: number;
 }) {
   const { data, loading, error, refresh } = useWidget(
-    type,
-    serviceName,
+    tileId,
     refreshInterval ?? widget.refreshInterval
   );
 
@@ -53,7 +52,7 @@ function KnownWidgetContent({
   return <Component data={data} loading={loading} error={error} refresh={refresh} />;
 }
 
-function WidgetContent({ type, serviceName, refreshInterval }: WidgetRendererProps) {
+function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
   const widget = getWidget(type);
 
   if (!widget) {
@@ -68,7 +67,7 @@ function WidgetContent({ type, serviceName, refreshInterval }: WidgetRendererPro
     <KnownWidgetContent
       widget={widget}
       type={type}
-      serviceName={serviceName}
+      tileId={tileId}
       refreshInterval={refreshInterval}
     />
   );

@@ -6,13 +6,14 @@ import {
   BackgroundSchema,
   BookmarkGroupsSchema,
   GroupsSchema,
-  SizeEnum,
+  ServiceSchema,
+  ServiceTileSchema,
 } from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 import { pruneOrphanedUploads } from "@/lib/uploadGc";
 import {
   redactWidgetSecrets,
-  resolveServiceWidgetSecrets,
+  resolveServiceIntegrationSecrets,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
 
@@ -50,26 +51,8 @@ const PatchBodySchema = z.object({
       session_ttl_hours: z.number().int().positive(),
     })
     .optional(),
-  services: z
-    .array(
-      z.object({
-        name: z.string(),
-        url: z.string().url().optional(),
-        icon: z.string().optional(),
-        description: z.string().optional(),
-        group: z.string().optional(),
-        size: SizeEnum.optional(),
-        widget: z
-          .object({
-            type: z.string(),
-            config: z.record(z.string(), z.unknown()).optional(),
-            fields: z.array(z.string()).optional(),
-            refresh_interval_ms: z.number().int().min(5000).optional(),
-          })
-          .optional(),
-      })
-    )
-    .optional(),
+  services: z.array(ServiceSchema).optional(),
+  service_tiles: z.array(ServiceTileSchema).optional(),
   groups: GroupsSchema.optional(),
   bookmarks: BookmarkGroupsSchema.optional(),
 });
@@ -111,6 +94,8 @@ export async function PATCH(request: NextRequest) {
   if (result.data.auth !== undefined) updates.auth = result.data.auth;
   if (result.data.services !== undefined)
     updates.services = result.data.services;
+  if (result.data.service_tiles !== undefined)
+    updates.service_tiles = result.data.service_tiles;
   if (result.data.groups !== undefined) updates.groups = result.data.groups;
   if (result.data.bookmarks !== undefined)
     updates.bookmarks = result.data.bookmarks;
@@ -139,10 +124,7 @@ export async function PATCH(request: NextRequest) {
 
   if (result.data.services !== undefined) {
     try {
-      updates.services = resolveServiceWidgetSecrets(
-        result.data.services,
-        getConfig().services
-      );
+      updates.services = resolveServiceIntegrationSecrets(result.data.services, getConfig().services);
     } catch (error) {
       if (error instanceof WidgetSecretResolutionError) {
         return NextResponse.json(

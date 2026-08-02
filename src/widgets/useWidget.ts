@@ -12,8 +12,7 @@ interface UseWidgetResult<TData> {
 }
 
 export function useWidget<TData = unknown>(
-  widgetType: string,
-  serviceName: string,
+  tileId: string,
   refreshInterval: number = DEFAULT_REFRESH_INTERVAL
 ): UseWidgetResult<TData> {
   const [data, setData] = useState<TData | null>(null);
@@ -30,10 +29,7 @@ export function useWidget<TData = unknown>(
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        type: widgetType,
-        service: serviceName,
-      });
+      const params = new URLSearchParams({ tile_id: tileId });
       const res = await fetch(`/api/widget?${params}`, {
         signal: controller.signal,
       });
@@ -55,8 +51,7 @@ export function useWidget<TData = unknown>(
         setLoading(false);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetType, serviceName]);
+  }, [tileId]);
 
   useEffect(() => {
     void fetchData();

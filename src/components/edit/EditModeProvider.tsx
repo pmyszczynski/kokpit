@@ -253,7 +253,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   );
 
   const setServices = useCallback(
-    (services: Service[]) => updateDraft({ services }),
+    (services: Service[]) => updateDraft({ services: services as KokpitConfig["services"] }),
     [updateDraft]
   );
   const setGroups = useCallback(
@@ -284,7 +284,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
       // pass-through would silently drop a legacy service's position-derived
       // size. Migrate position→size before sending so the size is preserved.
       if (key === "services") {
-        body.services = migrateLegacyServiceSizes(draft.services);
+        body.services = migrateLegacyServiceSizes(draft.services) as KokpitConfig["services"];
         continue;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

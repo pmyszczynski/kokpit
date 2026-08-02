@@ -145,6 +145,7 @@ function WidgetConfigBadge({
 }
 
 interface ServiceTileProps {
+  tileId?: string;
   name: string;
   url?: string;
   icon?: string;
@@ -253,7 +254,7 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
+export default function ServiceTile({ tileId, name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
   const className =
     `service-tile service-tile--${size}` +
     (drag ? " service-tile--editable" : "") +
@@ -326,7 +327,7 @@ export default function ServiceTile({ name, url, icon, description, widget, size
           ) : (
             <WidgetRenderer
               type={widget.type}
-              serviceName={name}
+              tileId={tileId ?? name}
               refreshInterval={widget.refresh_interval_ms}
             />
           )}

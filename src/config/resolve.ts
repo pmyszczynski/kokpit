@@ -116,7 +116,7 @@ export interface ResolvedGroup {
  * default placement is a renderer concern.
  */
 export function resolveGroupOrder(
-  config: Pick<KokpitConfig, "layout" | "services"> &
+  config: Pick<KokpitConfig, "layout" | "service_tiles"> &
     Partial<Pick<KokpitConfig, "groups" | "bookmarks">>
 ): ResolvedGroup[] {
   const ordered: ResolvedGroup[] = [];
@@ -137,8 +137,8 @@ export function resolveGroupOrder(
   // Groups referenced but not declared → auto-append alphabetically.
   const referenced = new Map<string, string>(); // key → first-seen spelling
   let hasUngrouped = false;
-  for (const service of config.services) {
-    const name = service.group?.trim() ?? "";
+  for (const tile of config.service_tiles ?? []) {
+    const name = tile.group?.trim() ?? "";
     if (name === "") {
       hasUngrouped = true;
     } else {

@@ -101,7 +101,26 @@ export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
   return {
     ...config,
     services: config.services.map((service) => {
-      const widget = service.widget;
+      if (service.integration) {
+        const widget = config.service_tiles
+          .filter((tile) => tile.service_id === service.id)
+          .map((tile) => tile.widget && getWidget(tile.widget.type))
+          .find((candidate) => candidate != null);
+        const rawConfig = service.integration.config;
+        const declared = new Map([...(widget?.configFields ?? []), ...(widget?.preservedConfigFields ?? [])].map((field) => [field.key, field] as const));
+        const unknown = Object.keys(rawConfig).some((key) => !declared.has(key));
+        if (!widget || unknown) return {
+          ...service,
+          integration: { ...service.integration, config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(service.id, service.integration.type) } },
+        };
+        const safe = { ...rawConfig };
+        for (const field of widget.configFields ?? []) if (field.type === "password" && safe[field.key] !== undefined) {
+          safe[field.key] = createWidgetSecretReference(service.id, service.integration.type, field.key);
+        }
+        return { ...service, integration: { ...service.integration, config: safe } };
+      }
+      const legacyService = service as Service;
+      const widget = legacyService.widget;
       const rawConfig = widget?.config;
       if (!widget || !rawConfig) return service;
 
@@ -339,5 +358,33 @@ export function resolveServiceWidgetSecrets(
         config: resolved as Record<string, unknown>,
       },
     };
+  });
+}
+
+/** Resolve schema-v2 Service integration references by immutable Service ID. */
+export function resolveServiceIntegrationSecrets(
+  submitted: KokpitConfig["services"],
+  saved: KokpitConfig["services"]
+): KokpitConfig["services"] {
+  return submitted.map((service) => {
+    if (!service.integration) return service;
+    const incoming = service.integration.config;
+    const opaque = getOpaqueConfigReference(incoming);
+    if (opaque !== null) {
+      const reference = verifyWidgetConfigReference(opaque);
+      const source = saved.find((candidate) => candidate.integration && widgetConfigReferenceMatches(reference!, candidate.id, candidate.integration.type));
+      if (!reference || !source?.integration) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+      return { ...service, integration: { ...service.integration, config: source.integration.config } };
+    }
+    const source = saved.find((candidate) => candidate.id === service.id && candidate.integration?.type === service.integration!.type);
+    const resolved = { ...incoming };
+    for (const [key, value] of Object.entries(incoming)) {
+      if (!isWidgetSecretReference(value)) continue;
+      const reference = verifyWidgetSecretReference(value);
+      if (!reference || !source?.integration || !widgetSecretReferenceMatches(reference, service.id, service.integration.type, key)) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+      if (!Object.prototype.hasOwnProperty.call(source.integration.config, key)) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+      resolved[key] = source.integration.config[key];
+    }
+    return { ...service, integration: { ...service.integration, config: resolved } };
   });
 }

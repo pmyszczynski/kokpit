@@ -32,19 +32,20 @@ function resolveBookmarkSize(bookmark: BookmarkGroup): Size {
   return style === "list" ? "tall" : "normal";
 }
 
-function renderServiceTile(service: Service) {
-  const hints = service.widget
-    ? getWidgetSizeHints(service.widget.type)
+function renderServiceTile({ service, tile }: { service: Service; tile: import("@/config/schema").ServiceTile }) {
+  const hints = tile.widget
+    ? getWidgetSizeHints(tile.widget.type)
     : undefined;
   return (
     <ServiceTile
-      key={`service:${service.name}`}
+      key={`tile:${tile.id}`}
+      tileId={tile.id}
       name={service.name}
-      url={service.url}
+      url={service.launch_url}
       icon={service.icon}
       description={service.description}
-      widget={resolveTileWidget(service.widget)}
-      size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
+      widget={resolveTileWidget(tile.widget)}
+      size={resolveServiceSize(tile, hints?.preferredSize, hints?.minSize)}
     />
   );
 }
@@ -83,7 +84,10 @@ function TileGrid({
 
 export default function ServiceGrid() {
   const config = getConfig();
-  const services = config.services;
+  const services = config.service_tiles.flatMap((tile) => {
+    const service = config.services.find((candidate) => candidate.id === tile.service_id);
+    return service ? [{ service, tile }] : [];
+  });
   const bookmarks = config.bookmarks ?? [];
 
   if (services.length === 0 && bookmarks.length === 0) {
@@ -92,17 +96,17 @@ export default function ServiceGrid() {
 
   // Bucket services by normalized group key (matches resolveGroupOrder's
   // case-insensitive group matching).
-  const ungrouped: Service[] = [];
-  const servicesByGroup = new Map<string, Service[]>();
-  for (const service of services) {
-    const groupName = service.group?.trim() ?? "";
+  const ungrouped: typeof services = [];
+  const servicesByGroup = new Map<string, typeof services>();
+  for (const entry of services) {
+    const groupName = entry.tile.group?.trim() ?? "";
     if (groupName === "") {
-      ungrouped.push(service);
+      ungrouped.push(entry);
       continue;
     }
     const key = serviceNameUniquenessKey(groupName);
     const existing = servicesByGroup.get(key) ?? [];
-    existing.push(service);
+    existing.push(entry);
     servicesByGroup.set(key, existing);
   }
 

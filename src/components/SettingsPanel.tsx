@@ -453,13 +453,13 @@ export default function SettingsPanel({ config }: { config: KokpitConfig }) {
     () =>
       resolveGroupOrder({
         layout: config.layout,
-        services: projectedCascade.services,
+        service_tiles: config.service_tiles,
         groups,
         bookmarks: projectedCascade.bookmarks,
       })
         .filter((g) => g.name !== null && !g.declared)
         .map((g) => g.name as string),
-    [config.layout, projectedCascade, groups]
+    [config.layout, config.service_tiles, projectedCascade, groups]
   );
 
   const knownGroupNames = useMemo(() => {
