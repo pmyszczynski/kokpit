@@ -11,7 +11,7 @@ import {
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 import { pruneOrphanedUploads } from "@/lib/uploadGc";
 import {
-  redactWidgetSecrets,
+  toClientSafeSettings,
   resolveServiceWidgetSecrets,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
@@ -82,7 +82,7 @@ export async function GET() {
   const config = getConfig();
   // The revision is derived from the real config while the browser receives
   // opaque references for registry-declared password fields.
-  return NextResponse.json(redactWidgetSecrets(config), {
+  return NextResponse.json(toClientSafeSettings(config), {
     headers: { [CONFIG_REVISION_HEADER]: configRevision(config) },
   });
 }
@@ -163,7 +163,7 @@ export async function PATCH(request: NextRequest) {
     // Best-effort GC of now-orphaned uploads against the FULL merged config.
     // Never throws, so it can't affect the 200 response below.
     await pruneOrphanedUploads(updated);
-    return NextResponse.json(redactWidgetSecrets(updated), {
+    return NextResponse.json(toClientSafeSettings(updated), {
       headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
     });
   } catch {

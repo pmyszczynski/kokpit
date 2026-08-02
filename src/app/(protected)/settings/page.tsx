@@ -1,11 +1,11 @@
 import { getConfig } from "@/config";
 import SettingsPanel from "@/components/SettingsPanel";
-import { redactWidgetSecrets } from "@/widgets/configSecrets";
+import { toClientSafeSettings } from "@/widgets/configSecrets";
 
 export const dynamic = 'force-dynamic';
 
 export default function SettingsPage() {
-  const config = redactWidgetSecrets(getConfig());
+  const config = toClientSafeSettings(getConfig());
 
   return (
     <div className="settings-page">
