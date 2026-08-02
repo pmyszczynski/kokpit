@@ -448,6 +448,44 @@ describe("registered widget config redaction", () => {
   });
 });
 
+describe("client-safe settings allowlist", () => {
+  it("does not serialize undeclared server-only properties", () => {
+    const config = {
+      schema_version: 1,
+      auth: {
+        enabled: false,
+        session_ttl_hours: 24,
+        future_server_secret: "auth-secret",
+      },
+      appearance: { theme: "dark" },
+      layout: { columns: 4, row_height: 120 },
+      services: [
+        {
+          name: "Plex",
+          future_server_secret: "service-secret",
+          widget: {
+            type: "plex",
+            future_server_secret: "widget-secret",
+            config: {
+              url: "http://plex.local:32400",
+              token: "credential-secret",
+            },
+          },
+        },
+      ],
+      future_server_secret: "top-level-secret",
+    } as unknown as import("@/config/schema").KokpitConfig;
+
+    const serialized = JSON.stringify(toClientSafeSettings(config));
+
+    expect(serialized).not.toContain("top-level-secret");
+    expect(serialized).not.toContain("auth-secret");
+    expect(serialized).not.toContain("service-secret");
+    expect(serialized).not.toContain("widget-secret");
+    expect(serialized).not.toContain("credential-secret");
+  });
+});
+
 describe("unregistered widget config redaction", () => {
   const config = {
     schema_version: 1 as const,

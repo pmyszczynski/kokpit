@@ -3,7 +3,11 @@ import {
   type KokpitConfig,
   type Service,
 } from "@/config/schema";
-import type { ClientSafeSettings } from "./clientSafeSettings";
+import type {
+  ClientSafeService,
+  ClientSafeSettings,
+  ClientSafeWidget,
+} from "./clientSafeSettings";
 import { getWidget } from "@/widgets";
 import { widgetCredentialScopesMatch } from "./credentialScope";
 import {
@@ -99,54 +103,122 @@ function getOpaqueConfigReference(
  * registry metadata, so integrations do not need key-name redaction lists.
  */
 export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
-  const safeConfig = {
-    ...config,
-    services: config.services.map((service) => {
+  return {
+    schema_version: config.schema_version,
+    auth: {
+      enabled: config.auth.enabled,
+      session_ttl_hours: config.auth.session_ttl_hours,
+    },
+    appearance: {
+      theme: config.appearance.theme,
+      custom_css: config.appearance.custom_css,
+      card_blur: config.appearance.card_blur,
+      background: config.appearance.background
+        ? {
+            color: config.appearance.background.color,
+            gradient: config.appearance.background.gradient,
+            image: config.appearance.background.image,
+            blur: config.appearance.background.blur,
+            brightness: config.appearance.background.brightness,
+            opacity: config.appearance.background.opacity,
+          }
+        : undefined,
+    },
+    layout: {
+      columns: config.layout.columns,
+      row_height: config.layout.row_height,
+      ungrouped: config.layout.ungrouped,
+      tablet: config.layout.tablet
+        ? {
+            columns: config.layout.tablet.columns,
+            row_height: config.layout.tablet.row_height,
+          }
+        : undefined,
+      mobile: config.layout.mobile
+        ? {
+            columns: config.layout.mobile.columns,
+            row_height: config.layout.mobile.row_height,
+          }
+        : undefined,
+    },
+    groups: config.groups?.map((group) => ({
+      name: group.name,
+      collapsed: group.collapsed,
+      columns: group.columns,
+    })),
+    bookmarks: config.bookmarks?.map((group) => ({
+      name: group.name,
+      accent: group.accent,
+      style: group.style,
+      placement: group.placement
+        ? { group: group.placement.group, size: group.placement.size }
+        : undefined,
+      links: group.links.map((link) => ({
+        name: link.name,
+        url: link.url,
+        icon: link.icon,
+        abbr: link.abbr,
+        description: link.description,
+      })),
+    })),
+    services: config.services.map((service): ClientSafeService => {
       const widget = service.widget;
       const rawConfig = widget?.config;
-      if (!widget || !rawConfig) return service;
+      const safeService: ClientSafeService = {
+        name: service.name,
+        url: service.url,
+        icon: service.icon,
+        description: service.description,
+        group: service.group,
+        size: service.size,
+        position: service.position
+          ? {
+              col: service.position.col,
+              row: service.position.row,
+              width: service.position.width,
+              height: service.position.height,
+            }
+          : undefined,
+        widget: widget
+          ? {
+              type: widget.type,
+              fields: widget.fields ? [...widget.fields] : undefined,
+              refresh_interval_ms: widget.refresh_interval_ms,
+            }
+          : undefined,
+      };
+      if (!widget || !rawConfig) return safeService;
+
+      let safeWidgetConfig: ClientSafeWidget["config"];
 
       // Unknown keys and malformed declared values could contain secrets.
       // Keep the complete config on the server in those cases.
       if (shouldHideWholeConfig(widget.type, rawConfig)) {
-        return {
-          ...service,
-          widget: {
-            ...widget,
-            config: {
-              [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]:
-                createWidgetConfigReference(service.name, widget.type),
-            },
-          },
+        safeWidgetConfig = {
+          [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(
+            service.name,
+            widget.type
+          ),
         };
-      }
-
-      const credentialKeys = credentialFieldKeys(widget.type);
-      if (credentialKeys.length === 0) return service;
-
-      let changed = false;
-      const redactedConfig = { ...rawConfig };
-      for (const key of credentialKeys) {
-        const value = rawConfig[key];
-        if (value === undefined || value === "") {
-          continue;
+      } else {
+        safeWidgetConfig = { ...rawConfig };
+        for (const key of credentialFieldKeys(widget.type)) {
+          const value = rawConfig[key];
+          if (value === undefined || value === "") continue;
+          safeWidgetConfig[key] = createWidgetSecretReference(
+            service.name,
+            widget.type,
+            key
+          );
         }
-        redactedConfig[key] = createWidgetSecretReference(
-          service.name,
-          widget.type,
-          key
-        );
-        changed = true;
       }
-      if (!changed) return service;
 
       return {
-        ...service,
-        widget: { ...widget, config: redactedConfig },
+        ...safeService,
+        widget: { ...safeService.widget!, config: safeWidgetConfig },
       };
     }),
   };
-  return safeConfig;
 }
 
 function resolveReference(
