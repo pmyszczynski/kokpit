@@ -3,6 +3,10 @@ import {
   type KokpitConfig,
   type Service,
 } from "@/config/schema";
+import type {
+  ClientSafeService,
+  ClientSafeSettings,
+} from "./clientSafeSettings";
 import { getWidget } from "@/widgets";
 import { widgetCredentialScopesMatch } from "./credentialScope";
 import {
@@ -65,24 +69,6 @@ function isSafeConfigValue(
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function shouldHideWholeConfig(
-  widgetType: string,
-  config: Record<string, unknown>
-): boolean {
-  const widget = getWidget(widgetType);
-  if (!widget) return Object.keys(config).length > 0;
-
-  const fields = new Map(
-    [...(widget.configFields ?? []), ...(widget.preservedConfigFields ?? [])].map(
-      (field) => [field.key, field] as const
-    )
-  );
-  return Object.entries(config).some(([key, value]) => {
-    const field = fields.get(key);
-    return !field || !isSafeConfigValue(field.type, value);
-  });
-}
-
 function getOpaqueConfigReference(
   config: Record<string, unknown>
 ): unknown | null {
@@ -97,70 +83,73 @@ function getOpaqueConfigReference(
  * Returns a browser-safe config copy. Password fields are identified only by
  * registry metadata, so integrations do not need key-name redaction lists.
  */
-export function redactWidgetSecrets(config: KokpitConfig): KokpitConfig {
+export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
   return {
-    ...config,
-    services: config.services.map((service) => {
-      if (service.integration) {
-        const widget = config.service_tiles
-          .filter((tile) => tile.service_id === service.id)
-          .map((tile) => tile.widget && getWidget(tile.widget.type))
-          .find((candidate) => candidate != null);
-        const rawConfig = service.integration.config;
-        const declared = new Map([...(widget?.configFields ?? []), ...(widget?.preservedConfigFields ?? [])].map((field) => [field.key, field] as const));
-        const unknown = Object.keys(rawConfig).some((key) => !declared.has(key));
-        if (!widget || unknown) return {
-          ...service,
-          integration: { ...service.integration, config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(service.id, service.integration.type) } },
-        };
-        const safe = { ...rawConfig };
-        for (const field of widget.configFields ?? []) if (field.type === "password" && safe[field.key] !== undefined) {
-          safe[field.key] = createWidgetSecretReference(service.id, service.integration.type, field.key);
-        }
-        return { ...service, integration: { ...service.integration, config: safe } };
-      }
-      const legacyService = service as Service;
-      const widget = legacyService.widget;
-      const rawConfig = widget?.config;
-      if (!widget || !rawConfig) return service;
-
-      // Unknown keys and malformed declared values could contain secrets.
-      // Keep the complete config on the server in those cases.
-      if (shouldHideWholeConfig(widget.type, rawConfig)) {
+    schema_version: config.schema_version,
+    auth: { ...config.auth },
+    appearance: { ...config.appearance },
+    layout: { ...config.layout },
+    groups: config.groups?.map((group) => ({ ...group })),
+    bookmarks: config.bookmarks?.map((group) => ({
+      ...group,
+      placement: group.placement ? { ...group.placement } : undefined,
+      links: group.links.map((link) => ({ ...link })),
+    })),
+    service_tiles: config.service_tiles.map((tile) => ({
+      ...tile,
+      widget: tile.widget
+        ? {
+            ...tile.widget,
+            fields: tile.widget.fields ? [...tile.widget.fields] : undefined,
+            config: tile.widget.config ? { ...tile.widget.config } : undefined,
+          }
+        : undefined,
+    })),
+    services: config.services.map((service): ClientSafeService => {
+      if (!service.integration) return { ...service };
+      const rawConfig = service.integration.config;
+      const widgets = config.service_tiles
+        .filter((tile) => tile.service_id === service.id && tile.widget)
+        .map((tile) => getWidget(tile.widget!.type))
+        .filter((widget) => widget != null);
+      const declaredFields = new Map(
+        widgets.flatMap((widget) => [
+          ...(widget.configFields ?? []),
+          ...(widget.preservedConfigFields ?? []),
+        ]).map((field) => [field.key, field] as const)
+      );
+      const hideWholeConfig =
+        widgets.length === 0 ||
+        Object.entries(rawConfig).some(([key, value]) => {
+          const field = declaredFields.get(key);
+          return !field || !isSafeConfigValue(field.type, value);
+        });
+      if (hideWholeConfig) {
         return {
           ...service,
-          widget: {
-            ...widget,
+          integration: {
+            ...service.integration,
             config: {
               [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]:
-                createWidgetConfigReference(service.name, widget.type),
+                createWidgetConfigReference(service.id, service.integration.type),
             },
           },
         };
       }
-
-      const credentialKeys = credentialFieldKeys(widget.type);
-      if (credentialKeys.length === 0) return service;
-
-      let changed = false;
-      const redactedConfig = { ...rawConfig };
-      for (const key of credentialKeys) {
-        const value = rawConfig[key];
-        if (value === undefined || value === "") {
-          continue;
-        }
-        redactedConfig[key] = createWidgetSecretReference(
-          service.name,
-          widget.type,
-          key
+      const safeConfig = { ...rawConfig };
+      for (const field of declaredFields.values()) {
+        if (field.type !== "password") continue;
+        const value = rawConfig[field.key];
+        if (value === undefined || value === "") continue;
+        safeConfig[field.key] = createWidgetSecretReference(
+          service.id,
+          service.integration.type,
+          field.key
         );
-        changed = true;
       }
-      if (!changed) return service;
-
       return {
         ...service,
-        widget: { ...widget, config: redactedConfig },
+        integration: { ...service.integration, config: safeConfig },
       };
     }),
   };
