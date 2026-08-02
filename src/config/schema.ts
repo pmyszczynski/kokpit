@@ -57,8 +57,15 @@ export function widgetIntegrationRequirement(type: string): string | null {
   if (type.startsWith("actualbudget-")) return "actualbudget";
   if (type.startsWith("qbittorrent-")) return "qbittorrent";
   if (type.startsWith("netdata-")) return "netdata";
-  const suffix = type.lastIndexOf("-");
-  return suffix > 0 ? type.slice(0, suffix) : type;
+  const known: Record<string, string> = {
+    "immich-stats": "immich", "prowlarr-stats": "prowlarr",
+    "radarr-queue": "radarr", "radarr-stats": "radarr",
+    "seerr-requests": "seerr", "seerr-stats": "seerr",
+    "sonarr-calendar": "sonarr", "sonarr-queue": "sonarr",
+    "tautulli-activity": "tautulli", "tdarr-stats": "tdarr",
+    "unraid-stats": "unraid",
+  };
+  return known[type] ?? type;
 }
 
 /** Declared dashboard group. Array order in `groups:` is display order. */

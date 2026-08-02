@@ -6,12 +6,14 @@ vi.mock("node:fs", () => {
   const writeFileSync = vi.fn();
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
+    renameSync,
   };
 });
 vi.mock("next/headers", () => ({

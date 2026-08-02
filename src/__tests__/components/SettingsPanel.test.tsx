@@ -724,8 +724,8 @@ describe("SettingsPanel - groups tab", () => {
     });
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.groups[0].name).toBe("Movies");
-    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
-    expect(jelly.group).toBe("Movies");
+    const jellyTile = body.service_tiles[0];
+    expect(jellyTile.group).toBe("Movies");
     expect(body.bookmarks[0].placement.group).toBe("Movies");
   });
 
@@ -827,8 +827,8 @@ describe("SettingsPanel - groups tab", () => {
     });
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.groups.map((g: { name: string }) => g.name)).toEqual(["Infra"]);
-    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
-    expect(jelly.group).toBeUndefined();
+    const jellyTile = body.service_tiles[0];
+    expect(jellyTile.group).toBeUndefined();
     expect(body.bookmarks[0].placement).toBeUndefined();
   });
 
@@ -897,7 +897,7 @@ describe("SettingsPanel - groups tab", () => {
     );
     // The Services PATCH must carry the ORIGINAL group name; the rename is still
     // an unsaved Groups draft. (Old eager-cascade behavior would leak "Movies".)
-    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
+    const jelly = body.services.find((service: Service) => service.name === "Jellyfin");
     expect(jelly.group).toBe("Media");
     expect(body.groups).toBeUndefined();
   });
@@ -948,7 +948,7 @@ describe("SettingsPanel - groups tab", () => {
     );
     expect(body.groups[0].name).toBe("Movies");
     expect(
-      body.services.find((s: Service) => s.name === "Jellyfin").group
+      body.service_tiles[0].group
     ).toBe("Movies");
     expect(body.bookmarks[0].placement.group).toBe("Movies");
   });
@@ -994,7 +994,7 @@ describe("SettingsPanel - groups tab", () => {
     );
     expect(body.groups[0].name).toBe("media");
     expect(
-      body.services.find((s: Service) => s.name === "Jellyfin").group
+      body.service_tiles[0].group
     ).toBe("media");
     const dev = body.bookmarks.find((b: { name: string }) => b.name === "Dev");
     expect(dev.placement.group).toBe("media");

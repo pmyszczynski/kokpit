@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, screen } from "@testing-library/react";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
+import { migrateV1Config } from "@/config/loader";
 
 // EditableServiceGrid reads the B1 setters from useEditMode; stub the context so
 // the grid can render standalone (drag gestures aren't fired in jsdom — the
@@ -29,7 +30,7 @@ import ServiceTile from "@/components/ServiceTile";
 import CollapsibleGroup from "@/components/CollapsibleGroup";
 
 function cfg(overrides: Record<string, unknown> = {}): KokpitConfig {
-  return KokpitConfigSchema.parse({
+  return migrateV1Config({
     schema_version: 1,
     groups: [{ name: "Media" }],
     services: [

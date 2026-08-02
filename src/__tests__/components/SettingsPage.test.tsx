@@ -5,10 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const existsSync = vi.fn().mockReturnValue(true);
+  const writeFileSync = vi.fn();
+  const renameSync = vi.fn();
   return {
-    default: { readFileSync, existsSync },
+    default: { readFileSync, existsSync, writeFileSync, renameSync },
     readFileSync,
     existsSync,
+    writeFileSync,
+    renameSync,
   };
 });
 vi.mock("@/components/SettingsPanel", () => ({

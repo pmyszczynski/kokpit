@@ -29,7 +29,7 @@ describe("WidgetRenderer", () => {
     );
 
     await act(async () => {
-      render(<WidgetRenderer type="unknown-widget" serviceName="TestService" />);
+      render(<WidgetRenderer type="unknown-widget" tileId="tile-id" />);
     });
 
     expect(screen.getByText(/Unknown widget type/)).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("WidgetRenderer", () => {
     );
 
     await act(async () => {
-      render(<WidgetRenderer type="mock-widget" serviceName="TestService" />);
+      render(<WidgetRenderer type="mock-widget" tileId="tile-id" />);
     });
 
     expect(screen.getByLabelText("Loading widget")).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe("WidgetRenderer", () => {
       } as Response)
     );
 
-    render(<WidgetRenderer type="data-widget" serviceName="TestService" />);
+    render(<WidgetRenderer type="data-widget" tileId="tile-id" />);
 
     await waitFor(() =>
       expect(screen.getByText("widget-data: hello")).toBeInTheDocument()
@@ -96,7 +96,7 @@ describe("WidgetRenderer", () => {
       } as Response)
     );
 
-    render(<WidgetRenderer type="error-widget" serviceName="TestService" />);
+    render(<WidgetRenderer type="error-widget" tileId="tile-id" />);
 
     // WidgetRenderer shows its own .widget-error when data is null
     await waitFor(() =>

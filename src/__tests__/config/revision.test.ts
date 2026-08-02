@@ -1,6 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
+import { migrateV1Config } from "@/config/loader";
 import { configRevision } from "@/config/revision";
 import { canonicalJSONString } from "@/config/canonicalJson";
 
@@ -15,11 +16,12 @@ vi.mock("@/auth/serverSecret", () => ({
 }));
 
 function makeConfig(overrides: Record<string, unknown> = {}): KokpitConfig {
-  return KokpitConfigSchema.parse({
-    schema_version: 1,
-    services: [{ name: "Plex", url: "https://plex.local", group: "Media" }],
-    ...overrides,
-  });
+  const migrated = migrateV1Config({ schema_version: 1, services: [{ name: "Plex", url: "https://plex.local", group: "Media" }], ...overrides });
+  return {
+    ...migrated,
+    services: migrated.services.map((service, index) => ({ ...service, id: `10000000-0000-4000-8000-00000000000${index + 1}` })),
+    service_tiles: migrated.service_tiles.map((tile, index) => ({ ...tile, id: `20000000-0000-4000-8000-00000000000${index + 1}`, service_id: `10000000-0000-4000-8000-00000000000${index + 1}` })),
+  };
 }
 
 describe("canonicalJSONString", () => {

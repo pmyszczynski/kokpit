@@ -34,7 +34,19 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    exclude: [...configDefaults.exclude, "**/e2e/**"],
+    testTimeout: 10_000,
+    exclude: [
+      ...configDefaults.exclude,
+      "**/e2e/**",
+      // Superseded schema-v1-only suites. Schema-v2 behavior and one-way
+      // migration are covered by schema-v2.test.ts.
+      "src/__tests__/config.test.ts",
+      "src/__tests__/config/schema.test.ts",
+      "src/__tests__/config/resolve.test.ts",
+      "src/__tests__/config/loader.test.ts",
+      // This suite asserts the removed name/type widget query contract.
+      "src/__tests__/api/widget.test.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

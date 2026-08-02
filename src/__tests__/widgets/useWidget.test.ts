@@ -14,7 +14,7 @@ describe("useWidget", () => {
       "fetch",
       vi.fn().mockReturnValue(new Promise(() => {})) // never resolves
     );
-    const { result } = renderHook(() => useWidget("test", "TestService"));
+    const { result } = renderHook(() => useWidget("tile-id"));
     expect(result.current.loading).toBe(true);
     expect(result.current.data).toBeNull();
     expect(result.current.error).toBeNull();
@@ -28,7 +28,7 @@ describe("useWidget", () => {
       } as Response)
     );
 
-    const { result } = renderHook(() => useWidget<{ value: number }>("test", "TestService"));
+    const { result } = renderHook(() => useWidget<{ value: number }>("tile-id"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -44,7 +44,7 @@ describe("useWidget", () => {
       } as Response)
     );
 
-    const { result } = renderHook(() => useWidget("test", "TestService"));
+    const { result } = renderHook(() => useWidget("tile-id"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -58,7 +58,7 @@ describe("useWidget", () => {
       vi.fn().mockRejectedValue(new Error("Network error"))
     );
 
-    const { result } = renderHook(() => useWidget("test", "TestService"));
+    const { result } = renderHook(() => useWidget("tile-id"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -72,7 +72,7 @@ describe("useWidget", () => {
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
-    renderHook(() => useWidget("test", "TestService", 5_000));
+    renderHook(() => useWidget("tile-id", 5_000));
 
     await act(async () => {
       await Promise.resolve();
@@ -96,7 +96,7 @@ describe("useWidget", () => {
       })
     );
 
-    const { unmount } = renderHook(() => useWidget("test", "TestService"));
+    const { unmount } = renderHook(() => useWidget("tile-id"));
     unmount();
 
     expect(capturedSignal?.aborted).toBe(true);

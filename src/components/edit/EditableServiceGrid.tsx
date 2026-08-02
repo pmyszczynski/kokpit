@@ -369,7 +369,16 @@ export default function EditableServiceGrid({
     pendingEditService,
     clearPendingEditService,
   } = useEditMode();
-  const services = config.services;
+  const services = useMemo(() => config.services.map((service) => {
+    const tile = config.service_tiles.find((candidate) => candidate.service_id === service.id);
+    return {
+      ...service,
+      url: service.launch_url,
+      group: tile?.group,
+      size: tile?.size,
+      widget: tile?.widget,
+    } satisfies Service;
+  }), [config.services, config.service_tiles]);
   const bookmarks = useMemo(() => config.bookmarks ?? [], [config.bookmarks]);
   const declaredGroups = useMemo(() => config.groups ?? [], [config.groups]);
 

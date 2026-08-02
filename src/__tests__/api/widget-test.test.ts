@@ -6,12 +6,14 @@ vi.mock("node:fs", () => {
   const writeFileSync = vi.fn();
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
+    renameSync,
   };
 });
 vi.mock("next/headers", () => ({
@@ -242,7 +244,7 @@ describe("POST /api/widget/test", () => {
     );
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const redactedConfig = settings.services[0].widget.config;
+    const redactedConfig = settings.services[0].integration.config;
     expect(JSON.stringify(redactedConfig)).not.toContain(
       "saved-tautulli-secret"
     );
@@ -264,7 +266,7 @@ describe("POST /api/widget/test", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const redactedConfig = settings.services[0].widget.config;
+    const redactedConfig = settings.services[0].integration.config;
     redactedConfig.url = "http://attacker.invalid:8181";
 
     const { POST } = await import("../../app/api/widget/test/route");
@@ -289,7 +291,7 @@ describe("POST /api/widget/test", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const reference = settings.services[0].widget.config.api_key as Record<
+    const reference = settings.services[0].integration.config.api_key as Record<
       string,
       string
     >;
@@ -303,7 +305,7 @@ describe("POST /api/widget/test", () => {
     for (const [type, config] of [
       [
         "tautulli-activity",
-        { ...settings.services[0].widget.config, api_key: forged },
+        { ...settings.services[0].integration.config, api_key: forged },
       ],
       [
         "plex",
@@ -442,7 +444,7 @@ describe("POST /api/widget/test", () => {
     );
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const redactedConfig = settings.services[0].widget.config;
+    const redactedConfig = settings.services[0].integration.config;
     expect(JSON.stringify(redactedConfig)).not.toContain(
       "saved-unraid-secret"
     );

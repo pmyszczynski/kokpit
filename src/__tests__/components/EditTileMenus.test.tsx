@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
+import { migrateV1Config } from "@/config/loader";
 
 // Stub the B1 context so the grid renders standalone; the setters ARE the
 // staging surface, so asserting they were called with the mutated arrays proves
@@ -24,7 +25,7 @@ import "@/integrations";
 import EditableServiceGrid from "@/components/edit/EditableServiceGrid";
 
 function cfg(overrides: Record<string, unknown> = {}): KokpitConfig {
-  return KokpitConfigSchema.parse({
+  return migrateV1Config({
     schema_version: 1,
     groups: [{ name: "Media" }],
     services: [{ name: "Plex", url: "https://plex.local", group: "Media" }],
@@ -234,7 +235,7 @@ describe("group kebab", () => {
     expect(patch.groups.map((g: { name: string }) => g.name)).toEqual([
       "Streaming",
     ]);
-    expect(patch.services[0].group).toBe("Streaming");
+    expect(patch.service_tiles[0].group).toBe("Streaming");
     expect(patch.bookmarks[0].placement.group).toBe("Streaming");
 
     // Collapse preference migrated to the new key.
@@ -278,6 +279,6 @@ describe("group kebab", () => {
     expect(updateDraft).toHaveBeenCalledTimes(1);
     const patch = updateDraft.mock.calls[0][0];
     expect(patch.groups).toEqual([]);
-    expect(patch.services[0].group).toBeUndefined();
+    expect(patch.service_tiles[0].group).toBeUndefined();
   });
 });

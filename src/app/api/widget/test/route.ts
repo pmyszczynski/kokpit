@@ -5,10 +5,12 @@ import { getConfig } from "@/config";
 import { getWidget } from "@/widgets";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 import {
+  resolveIntegrationConfigSecrets,
   resolveWidgetConfigSecrets,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
 import { publicWidgetFetchError } from "@/widgets/publicFetchError";
+import { legacyIntegrationType } from "@/config/loader";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead
@@ -42,11 +44,14 @@ export async function POST(request: Request) {
 
   let resolvedConfig: unknown;
   try {
-    resolvedConfig = resolveWidgetConfigSecrets(
-      type,
-      config ?? {},
-      getConfig().services
-    );
+    const savedServices = getConfig().services;
+    resolvedConfig = savedServices.some((service) => service.integration)
+      ? resolveIntegrationConfigSecrets(
+          legacyIntegrationType(type),
+          (config ?? {}) as Record<string, unknown>,
+          savedServices
+        )
+      : resolveWidgetConfigSecrets(type, config ?? {}, savedServices);
   } catch (error) {
     if (error instanceof WidgetSecretResolutionError) {
       return NextResponse.json(

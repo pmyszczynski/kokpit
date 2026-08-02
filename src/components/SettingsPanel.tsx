@@ -126,6 +126,16 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
 
   // Services
   const [services, setServices] = useState<Service[]>(config.services);
+  const serviceTiles = useMemo(
+    () => config.service_tiles ?? config.services.map((service, index) => ({
+      id: service.id ?? `legacy-tile-${index}`,
+      service_id: service.id ?? `legacy-service-${index}`,
+      group: (service as Service).group,
+      size: (service as Service).size,
+      widget: (service as Service).widget,
+    })),
+    [config.service_tiles, config.services]
+  );
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [servicesWritePending, setServicesWritePending] = useState(false);
@@ -451,8 +461,8 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     [services, bookmarks, pendingGroupOps]
   );
   const projectedTiles = useMemo(
-    () => applyServiceTileGroupCascades(config.service_tiles, pendingGroupOps),
-    [config.service_tiles, pendingGroupOps]
+    () => applyServiceTileGroupCascades(serviceTiles, pendingGroupOps),
+    [serviceTiles, pendingGroupOps]
   );
 
   const undeclaredGroups = useMemo(
@@ -558,7 +568,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     // Apply the staged cascade to the CURRENT services/bookmarks so the PATCH
     // carries the renamed/cleared references atomically with the `groups` write.
     const cascade = applyGroupCascades(services, bookmarks, pendingGroupOps);
-    const tileCascade = applyServiceTileGroupCascades(config.service_tiles, pendingGroupOps);
+    const tileCascade = applyServiceTileGroupCascades(serviceTiles, pendingGroupOps);
     const payload: Record<string, unknown> = {
       groups: cleanGroups,
       layout: buildLayoutPayload(),

@@ -25,6 +25,7 @@ import type {
 import { widgetIntegrationRequirement } from "@/config/schema";
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
+import { resolveServiceSize } from "@/config/resolve";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import EditBar from "./EditBar";
 
@@ -304,7 +305,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
             id: existingTile?.id ?? crypto.randomUUID(),
             service_id: id,
             group: input.group ?? existingTile?.group,
-            size: input.size ?? existingTile?.size,
+            size: input.size ?? (input.position ? resolveServiceSize(input) : existingTile?.size),
             widget: legacyWidget
               ? {
                   ...legacyWidget,

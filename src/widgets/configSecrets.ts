@@ -410,16 +410,47 @@ export function resolveServiceIntegrationSecrets(
     }
     const source = saved.find((candidate) => candidate.id === service.id && candidate.integration?.type === service.integration!.type);
     const resolved = { ...incoming };
+    if (typeof resolved.url === "string") {
+      try { resolved.url = new URL(resolved.url.trim()).toString(); } catch { /* schema reports invalid URLs */ }
+    }
     for (const [key, value] of Object.entries(incoming)) {
       if (!isWidgetSecretReference(value)) continue;
       const reference = verifyWidgetSecretReference(value);
       if (!reference || !source?.integration || !widgetSecretReferenceMatches(reference, service.id, service.integration.type, key)) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
       if (!Object.prototype.hasOwnProperty.call(source.integration.config, key)) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
-      if (!integrationCredentialScopesMatch(service.integration.type, source.integration.config, incoming)) {
+      if (!integrationCredentialScopesMatch(service.integration.type, source.integration.config, resolved)) {
         throw new WidgetSecretResolutionError("widget_secret_scope_changed");
       }
       resolved[key] = source.integration.config[key];
     }
     return { ...service, integration: { ...service.integration, config: resolved } };
   });
+}
+
+/** Resolve a connection-test payload without requiring the browser to choose a Service. */
+export function resolveIntegrationConfigSecrets(
+  integrationType: string,
+  config: Record<string, unknown>,
+  saved: KokpitConfig["services"]
+): Record<string, unknown> {
+  const resolved = { ...config };
+  if (typeof resolved.url === "string") {
+    try { resolved.url = new URL(resolved.url.trim()).toString(); } catch { /* validated later */ }
+  }
+  for (const [key, value] of Object.entries(config)) {
+    if (!isWidgetSecretReference(value)) continue;
+    const reference = verifyWidgetSecretReference(value);
+    const source = reference && saved.find((candidate) =>
+      candidate.integration?.type === integrationType &&
+      widgetSecretReferenceMatches(reference, candidate.id, integrationType, key)
+    );
+    if (!source?.integration || !Object.prototype.hasOwnProperty.call(source.integration.config, key)) {
+      throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+    }
+    if (!integrationCredentialScopesMatch(integrationType, source.integration.config, resolved)) {
+      throw new WidgetSecretResolutionError("widget_secret_scope_changed");
+    }
+    resolved[key] = source.integration.config[key];
+  }
+  return resolved;
 }

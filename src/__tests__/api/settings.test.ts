@@ -7,12 +7,14 @@ vi.mock("node:fs", () => {
   const writeFileSync = vi.fn();
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
+    renameSync,
   };
 });
 vi.mock("next/headers", () => ({
@@ -28,7 +30,7 @@ import {
 } from "@/widgets/secretReference";
 
 const BASE_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -38,10 +40,11 @@ layout:
   columns: 4
   row_height: 120
 services: []
+service_tiles: []
 `.trim();
 
 const VIEWPORT_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -56,59 +59,55 @@ layout:
     columns: 1
     row_height: 80
 services: []
+service_tiles: []
 `.trim();
 
 const SECRET_YAML = `
-schema_version: 1
-auth:
-  enabled: false
-  session_ttl_hours: 24
-appearance:
-  theme: dark
-layout:
-  columns: 4
-  row_height: 120
+schema_version: 2
+auth: { enabled: false, session_ttl_hours: 24 }
+appearance: { theme: dark }
+layout: { columns: 4, row_height: 120 }
 services:
-  - name: Tautulli
-    url: http://tautulli.local:8181
-    widget:
-      type: tautulli-activity
-      config:
-        url: http://tautulli.local:8181
-        api_key: tautulli-secret-value
-        sections:
-          - summary
-  - name: Downloads
-    url: http://qbittorrent.local:8080
-    widget:
-      type: qbittorrent-stats
-      config:
-        url: http://qbittorrent.local:8080
-        username: admin
-        password: qbittorrent-secret-value
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Tautulli
+    launch_url: http://tautulli.local:8181
+    integration:
+      type: tautulli
+      config: { url: http://tautulli.local:8181, api_key: tautulli-secret-value }
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Downloads
+    launch_url: http://qbittorrent.local:8080
+    integration:
+      type: qbittorrent
+      config: { url: http://qbittorrent.local:8080, username: admin, password: qbittorrent-secret-value }
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    widget: { type: tautulli-activity, config: { sections: [summary] } }
+  - id: 20000000-0000-4000-8000-000000000002
+    service_id: 10000000-0000-4000-8000-000000000002
+    widget: { type: qbittorrent-stats }
 `.trim();
 
 const UNKNOWN_WIDGET_SECRET_YAML = `
-schema_version: 1
-auth:
-  enabled: false
-  session_ttl_hours: 24
-appearance:
-  theme: dark
-layout:
-  columns: 4
-  row_height: 120
+schema_version: 2
+auth: { enabled: false, session_ttl_hours: 24 }
+appearance: { theme: dark }
+layout: { columns: 4, row_height: 120 }
 services:
-  - name: Retired integration
-    widget:
+  - id: 10000000-0000-4000-8000-000000000003
+    name: Retired integration
+    integration:
       type: removed-widget
-      config:
-        endpoint: https://retired.local
-        api_key: unknown-widget-secret-value
+      config: { endpoint: https://retired.local, api_key: unknown-widget-secret-value }
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000003
+    service_id: 10000000-0000-4000-8000-000000000003
+    widget: { type: removed-widget }
 `.trim();
 
 type MutableSecretTestService = {
-  widget: { config: Record<string, unknown> };
+  integration: { config: Record<string, unknown> };
 };
 
 function patch(body: unknown, headers: Record<string, string> = {}) {
@@ -168,7 +167,7 @@ describe("PATCH /api/settings – layout", () => {
   it("returns a bounded 500 when secret resolution fails unexpectedly", async () => {
     vi.doMock("@/widgets/configSecrets", async (importOriginal) => ({
       ...(await importOriginal<typeof import("@/widgets/configSecrets")>()),
-      resolveServiceWidgetSecrets: () => {
+      resolveServiceIntegrationSecrets: () => {
         throw new Error("leaked internal secret resolver detail");
       },
     }));
@@ -251,7 +250,7 @@ describe("PATCH /api/settings – appearance & services", () => {
     const res = await PATCH(
       patch({
         services: [
-          { name: "Jellyfin", url: "http://jellyfin.local", group: "Media" },
+          { id: "10000000-0000-4000-8000-000000000004", name: "Jellyfin", launch_url: "http://jellyfin.local", category: "Media" },
         ],
       })
     );
@@ -354,9 +353,8 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
       patch({
-        services: [
-          { name: "Plex", url: "http://plex.local", size: "large" },
-        ],
+        services: [{ id: "10000000-0000-4000-8000-000000000005", name: "Plex", launch_url: "http://plex.local" }],
+        service_tiles: [{ id: "20000000-0000-4000-8000-000000000005", service_id: "10000000-0000-4000-8000-000000000005", size: "large" }],
       })
     );
     expect(res.status).toBe(200);
@@ -367,7 +365,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   it("returns 400 for an invalid service size", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
-      patch({ services: [{ name: "Plex", size: "huge" }] })
+      patch({ service_tiles: [{ id: "20000000-0000-4000-8000-000000000005", service_id: "10000000-0000-4000-8000-000000000005", size: "huge" }] })
     );
     expect(res.status).toBe(400);
   });
@@ -469,20 +467,20 @@ describe("/api/settings – widget password fields", () => {
     expect(res.status).toBe(200);
     expect(serialized).not.toContain("tautulli-secret-value");
     expect(serialized).not.toContain("qbittorrent-secret-value");
-    expect(json.services[0].widget.config.api_key).toMatchObject({
+    expect(json.services[0].integration.config.api_key).toMatchObject({
       [WIDGET_SECRET_REFERENCE_KEY]: expect.stringMatching(
         new RegExp(`^${WIDGET_SECRET_REFERENCE_PREFIX}`)
       ),
     });
-    expect(json.services[1].widget.config.password).toMatchObject({
+    expect(json.services[1].integration.config.password).toMatchObject({
       [WIDGET_SECRET_REFERENCE_KEY]: expect.stringMatching(
         new RegExp(`^${WIDGET_SECRET_REFERENCE_PREFIX}`)
       ),
     });
-    expect(json.services[0].widget.config.url).toBe(
+    expect(json.services[0].integration.config.url).toBe(
       "http://tautulli.local:8181"
     );
-    expect(json.services[1].widget.config.username).toBe("admin");
+    expect(json.services[1].integration.config.username).toBe("admin");
     expect(writeFileSync).not.toHaveBeenCalled();
   });
 
@@ -496,7 +494,7 @@ describe("/api/settings – widget password fields", () => {
 
     expect(serialized).not.toContain("unknown-widget-secret-value");
     expect(serialized).not.toContain("retired.local");
-    expect(redacted.services[0].widget.config).toEqual({
+    expect(redacted.services[0].integration.config).toEqual({
       __kokpit_widget_config_reference__: expect.stringMatching(
         /^__KOKPIT_WIDGET_CONFIG_REF__:/
       ),
@@ -554,9 +552,9 @@ describe("/api/settings – widget password fields", () => {
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
-    redacted.services[0].widget.config.url =
+    redacted.services[0].integration.config.url =
       "http://new-tautulli.local:8181";
-    redacted.services[0].widget.config.api_key = "replacement-secret-value";
+    redacted.services[0].integration.config.api_key = "replacement-secret-value";
 
     const res = await PATCH(
       patch({ services: redacted.services }, { "If-Match": revision })
@@ -578,14 +576,13 @@ describe("/api/settings – widget password fields", () => {
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
-    redacted.services[0].widget.config.url =
+    redacted.services[0].integration.config.url =
       " HTTP://TAUTULLI.LOCAL:8181/#dashboard ";
-    redacted.services[0].widget.config.sections = ["sessions"];
+    redacted.service_tiles[0].widget.config.sections = ["sessions"];
 
     const res = await PATCH(
-      patch({ services: redacted.services }, { "If-Match": revision })
+      patch({ services: redacted.services, service_tiles: redacted.service_tiles }, { "If-Match": revision })
     );
-
     expect(res.status).toBe(200);
     expect(storedYaml).toContain("api_key: tautulli-secret-value");
     expect(storedYaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
@@ -593,10 +590,10 @@ describe("/api/settings – widget password fields", () => {
 
   it.each([
     ["endpoint", (services: MutableSecretTestService[]) => {
-      services[0].widget.config.url = "http://attacker.invalid:8181";
+      services[0].integration.config.url = "http://attacker.invalid:8181";
     }],
     ["qBittorrent username", (services: MutableSecretTestService[]) => {
-      services[1].widget.config.username = "other-admin";
+      services[1].integration.config.username = "other-admin";
     }],
   ])("rejects a saved secret when %s scope changes and writes nothing", async (_label, change) => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
@@ -621,7 +618,7 @@ describe("/api/settings – widget password fields", () => {
   it("rejects malformed references with a stable safe code and no write", async () => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const redacted = await (await GET()).json();
-    redacted.services[0].widget.config.api_key = {
+    redacted.services[0].integration.config.api_key = {
       [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
     };
     vi.mocked(writeFileSync).mockClear();
@@ -638,7 +635,7 @@ describe("/api/settings – widget password fields", () => {
   it("keeps the revision-conflict check ahead of secret resolution", async () => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const redacted = await (await GET()).json();
-    redacted.services[0].widget.config.api_key = {
+    redacted.services[0].integration.config.api_key = {
       [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
     };
 

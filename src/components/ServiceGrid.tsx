@@ -84,8 +84,20 @@ function TileGrid({
 
 export default function ServiceGrid() {
   const config = getConfig();
-  const services = config.service_tiles.flatMap((tile) => {
-    const service = config.services.find((candidate) => candidate.id === tile.service_id);
+  const serviceTiles = config.service_tiles ?? config.services.map((service, index) => ({
+    id: service.id ?? `legacy-tile-${index}`,
+    service_id: service.id ?? `legacy-service-${index}`,
+    group: (service as Service).group,
+    size: (service as Service).size,
+    widget: (service as Service).widget,
+  }));
+  const normalizedServices = config.service_tiles ? config.services : config.services.map((service, index) => ({
+    ...service,
+    id: service.id ?? `legacy-service-${index}`,
+    launch_url: service.launch_url ?? (service as Service).url,
+  }));
+  const services = serviceTiles.flatMap((tile) => {
+    const service = normalizedServices.find((candidate) => candidate.id === tile.service_id);
     return service ? [{ service, tile }] : [];
   });
   const bookmarks = config.bookmarks ?? [];
@@ -129,7 +141,7 @@ export default function ServiceGrid() {
 
   // Declared `groups:` order, auto-appended referenced groups, and the
   // implicit ungrouped section placed per `layout.ungrouped`.
-  const sections = resolveGroupOrder(config);
+  const sections = resolveGroupOrder({ ...config, service_tiles: serviceTiles });
 
   return (
     <>
