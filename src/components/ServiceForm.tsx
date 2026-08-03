@@ -17,7 +17,11 @@ import {
 import type { WidgetConfigField } from "@/widgets";
 import { widgetCredentialScopesMatch } from "@/widgets/credentialScope";
 import { isWidgetSecretReference } from "@/widgets/secretReference";
-import { widgetConfigIssues, type WidgetConfigIssue } from "@/widgets/tileWidget";
+import {
+  widgetConfigForValidation,
+  widgetConfigIssues,
+  type WidgetConfigIssue,
+} from "@/widgets/tileWidget";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
@@ -109,23 +113,6 @@ function cleanWidgetConfig(
     cleaned[key] = value;
   }
   return cleaned;
-}
-
-function widgetConfigForValidation(
-  fields: WidgetConfigField[] | undefined,
-  config: Record<string, unknown>
-): Record<string, unknown> {
-  if (!fields) return config;
-  const validationConfig = { ...config };
-  for (const field of fields) {
-    if (
-      field.type === "password" &&
-      isWidgetSecretReference(validationConfig[field.key])
-    ) {
-      validationConfig[field.key] = "saved-credential";
-    }
-  }
-  return validationConfig;
 }
 
 type TestStatus =

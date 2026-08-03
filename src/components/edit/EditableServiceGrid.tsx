@@ -103,7 +103,9 @@ function serviceTileProps(service: Service) {
     url: service.url,
     icon: service.icon,
     description: service.description,
-    widget: resolveTileWidget(service.widget, service.integration?.config),
+    widget: resolveTileWidget(service.widget, service.integration?.config, {
+      normalizeSecretReferences: true,
+    }),
     size: resolveServiceSize(service, hints?.preferredSize, hints?.minSize),
   };
 }
@@ -460,13 +462,11 @@ export default function EditableServiceGrid({
         return;
       }
       const serviceTiles = config.service_tiles.filter((tile) => tile.id !== target.tileId);
-      const hasRemainingTile = serviceTiles.some((tile) => tile.service_id === target.id);
       updateDraft({
         service_tiles: serviceTiles,
-        ...(hasRemainingTile ? {} : { services: config.services.filter((service) => service.id !== target.id) }),
       });
     },
-    [services, config.service_tiles, config.services, setServices, updateDraft]
+    [services, config.service_tiles, setServices, updateDraft]
   );
 
   const handleServiceSize = useCallback(

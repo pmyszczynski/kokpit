@@ -113,7 +113,6 @@ describe("service tile kebab", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Confirm remove" }));
     expect(updateDraft).toHaveBeenCalledWith({
       service_tiles: [],
-      services: [],
     });
   });
 

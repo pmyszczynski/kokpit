@@ -1,15 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 import { registerWidget, clearRegistry } from "@/widgets";
-import type { AnyWidgetDefinition } from "@/widgets";
+import type { AnyWidgetDefinition, WidgetConfigField } from "@/widgets";
 import { widgetConfigIssues, resolveTileWidget } from "@/widgets/tileWidget";
+import {
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeWidget(id: string, configSchema: z.ZodType<any> = z.object({})): AnyWidgetDefinition {
+function makeWidget(
+  id: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  configSchema: z.ZodType<any> = z.object({}),
+  configFields?: WidgetConfigField[],
+  credentialScopeFields?: string[]
+): AnyWidgetDefinition {
   return {
     id,
     name: `Widget ${id}`,
     configSchema,
+    configFields,
+    credentialScopeFields,
     fetchData: async () => ({}),
     component: () => null,
   };
@@ -122,6 +133,40 @@ describe("resolveTileWidget", () => {
       refresh_interval_ms: 5000,
     });
     expect(result).not.toHaveProperty("invalid");
+  });
+
+  it("validates raw credential references by default and normalizes them only for edit previews", () => {
+    registerWidget(
+      makeWidget(
+        "credentialed",
+        z.object({ url: z.string().url(), api_key: z.string().min(1) }),
+        [
+          { key: "url", label: "URL", type: "url", required: true },
+          { key: "api_key", label: "API key", type: "password", required: true },
+        ],
+        ["url"]
+      )
+    );
+    const reference = `${WIDGET_SECRET_REFERENCE_PREFIX}signed-reference`;
+    const widget = {
+      type: "credentialed",
+      config: {
+        url: "http://service.local",
+        api_key: { [WIDGET_SECRET_REFERENCE_KEY]: reference },
+      },
+    };
+
+    const serverResult = resolveTileWidget(widget);
+    expect(serverResult?.invalid).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "api_key" })])
+    );
+
+    const editPreview = resolveTileWidget(widget, undefined, {
+      normalizeSecretReferences: true,
+    });
+
+    expect(editPreview).toEqual({ type: "credentialed" });
+    expect(JSON.stringify(editPreview)).not.toContain(reference);
   });
 
   it("known type + invalid config: sanitized widget with populated `invalid`", () => {

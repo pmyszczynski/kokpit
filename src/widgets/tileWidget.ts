@@ -3,7 +3,12 @@
 // the server grid (ServiceGrid) and the edit-mode grid (EditableServiceGrid)
 // derive it identically from one implementation.
 import type { ServiceWidget } from "@/config/schema";
-import { getWidget, type AnyWidgetDefinition } from "@/widgets";
+import {
+  getWidget,
+  type AnyWidgetDefinition,
+  type WidgetConfigField,
+} from "@/widgets";
+import { isWidgetSecretReference } from "@/widgets/secretReference";
 
 /** One Zod issue, reduced to the two fields that are safe to send to a tile. */
 export interface WidgetConfigIssue {
@@ -21,8 +26,36 @@ export interface TileWidget {
   invalid?: WidgetConfigIssue[];
 }
 
+interface ResolveTileWidgetOptions {
+  /** Browser edit previews receive signed credential references, not secrets. */
+  normalizeSecretReferences?: boolean;
+}
+
 /** Path label used when a Zod issue has no path (whole-object failure). */
 const ROOT_ISSUE_PATH = "config";
+
+/**
+ * Replaces browser-safe references for saved password fields with a harmless
+ * value before client-side schema validation. The server still verifies the
+ * signed reference before accepting a save; this only lets the editor render
+ * an already-configured widget without exposing its credential.
+ */
+export function widgetConfigForValidation(
+  fields: WidgetConfigField[] | undefined,
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  if (!fields) return config;
+  const validationConfig = { ...config };
+  for (const field of fields) {
+    if (
+      field.type === "password" &&
+      isWidgetSecretReference(validationConfig[field.key])
+    ) {
+      validationConfig[field.key] = "saved-credential";
+    }
+  }
+  return validationConfig;
+}
 
 /**
  * Validation issues for `config` against a widget's own `configSchema`, in a
@@ -56,12 +89,21 @@ export function widgetConfigIssues(
 // Config (credentials) never leaves the server either way.
 export function resolveTileWidget(
   widget?: ServiceWidget,
-  connection?: Record<string, unknown>
+  connection?: Record<string, unknown>,
+  options?: ResolveTileWidgetOptions
 ): TileWidget | undefined {
   if (!widget) return undefined;
   const def = getWidget(widget.type);
   const issues = def
-    ? widgetConfigIssues(def, { ...(connection ?? {}), ...(widget.config ?? {}) })
+    ? widgetConfigIssues(
+        def,
+        options?.normalizeSecretReferences
+          ? widgetConfigForValidation(def.configFields, {
+              ...(connection ?? {}),
+              ...(widget.config ?? {}),
+            })
+          : { ...(connection ?? {}), ...(widget.config ?? {}) }
+      )
     : [];
   return {
     type: widget.type,
