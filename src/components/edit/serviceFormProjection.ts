@@ -19,21 +19,52 @@ function deriveIntegration(
   previous: KokpitConfig["services"][number] | undefined,
   primaryTile: ServiceTile | undefined
 ) {
+  if (input.editorIntegration) {
+    switch (input.editorIntegration.command) {
+      case "preserve":
+        return { explicit: false, command: true, integration: previous?.integration };
+      case "clear":
+        return { explicit: true, command: true, integration: undefined };
+      case "set":
+        {
+        const integration = input.editorIntegration;
+        // Only widgets backed by a Service integration can produce this
+        // editor command. In particular, dashboard-only widgets must not
+        // silently become Service integrations.
+        if (
+          input.editorIntegration.type !== "" &&
+          getWidgetsWithServiceEditorPreset().some(
+            (widget) => widgetIntegrationRequirement(widget.id) === integration.type
+          )
+        ) {
+          return {
+            explicit: true,
+            command: true,
+            integration: {
+              type: integration.type,
+              config: integration.config,
+            },
+          };
+        }
+        throw new Error(`Unsupported Service integration "${integration.type}"`);
+        }
+    }
+  }
   const hasInputWidget = Object.prototype.hasOwnProperty.call(input, "widget");
-  if (!hasInputWidget) return { explicit: false, integration: previous?.integration };
+  if (!hasInputWidget) return { explicit: false, command: false, integration: previous?.integration };
 
   const widget = input.widget;
   if (!widget) {
     return primaryTile?.widget
-      ? { explicit: true, integration: undefined }
-      : { explicit: false, integration: previous?.integration };
+      ? { explicit: true, command: false, integration: undefined }
+      : { explicit: false, command: false, integration: previous?.integration };
   }
 
   const preserveUnknownWidgetConfig = Boolean(
     primaryTile?.widget?.type === widget.type && !getWidget(widget.type)
   );
   if (preserveUnknownWidgetConfig) {
-    return { explicit: true, integration: previous?.integration };
+    return { explicit: true, command: false, integration: previous?.integration };
   }
 
   const integrationType = widgetIntegrationRequirement(widget.type);
@@ -48,12 +79,13 @@ function deriveIntegration(
     const connection = splitWidgetConfig(widget.type, widget.config).connection;
     if (Object.keys(connection).length === 0) {
       if (preservePreviousIntegration) {
-        return { explicit: true, integration: previous?.integration };
+        return { explicit: true, command: false, integration: previous?.integration };
       }
-      return { explicit: true, integration: { type: integrationType, config: {} } };
+      return { explicit: true, command: false, integration: { type: integrationType, config: {} } };
     }
     return {
       explicit: true,
+      command: false,
       integration: {
         type: integrationType,
         config: connection,
@@ -61,7 +93,7 @@ function deriveIntegration(
     };
   }
 
-  return { explicit: true, integration: undefined };
+  return { explicit: true, command: false, integration: undefined };
 }
 
 function integrationsMatch(
@@ -88,15 +120,6 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
   const tileConfig = tile?.widget?.config;
   const opaqueTileConfig = tileConfig && hasOpaqueWidgetConfigReference(tileConfig);
   const integrationConfig = service.integration?.config;
-  const opaqueIntegrationConfig = integrationConfig && hasOpaqueWidgetConfigReference(integrationConfig);
-  const catalogWidget = !tile && service.integration
-    ? getWidgetsWithServiceEditorPreset()
-        .filter((widget) => widgetIntegrationRequirement(widget.id) === service.integration!.type)
-        .sort((left, right) =>
-          (left.configFields?.length ?? 0) - (right.configFields?.length ?? 0) ||
-          left.id.localeCompare(right.id)
-        )[0]
-    : undefined;
   return {
     ...service,
     ...(tile ? { tileId: tile.id } : {}),
@@ -107,17 +130,13 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
     ...(tile?.size ? { size: tile.size } : {}),
     ...(tile?.widget ? { widget: {
       ...tile.widget,
-      config: {
-        ...(opaqueIntegrationConfig ? {} : integrationConfig ?? {}),
-        ...(opaqueTileConfig ? {} : tileConfig ?? {}),
-      },
-    } } : catalogWidget ? {
-      editorCatalogOnly: true,
-      widget: {
-        type: catalogWidget.id,
-        config: opaqueIntegrationConfig ? {} : integrationConfig ?? {},
-      },
-    } : {}),
+      // Tile options and Service credentials are separate persisted
+      // boundaries. Never synthesize a merged widget config for the editor.
+      ...(tileConfig ? { config: opaqueTileConfig ? {} : tileConfig } : {}),
+    } } : {}),
+    // Catalog context is a presentation fact: this Service has no tile. It
+    // must not be inferred from whether it currently has an integration.
+    ...(!tile ? { editorCatalogOnly: true, editorIntegration: { command: "preserve" as const } } : {}),
   };
 }
 
@@ -154,6 +173,7 @@ export function normalizeServicesForForm(
     const persisted = { ...service } as Service;
     delete persisted.editorIntegrationConfig;
     delete persisted.editorTileWidgetConfig;
+    delete persisted.editorIntegration;
     delete persisted.tileId;
     return {
       ...persisted,
@@ -215,8 +235,10 @@ export function persistLegacyServices(
   inputsByServiceId.forEach((serviceInputs, id) => {
     const previous = previousServices.find((service) => service.id === id);
     let changedIntegration: KokpitConfig["services"][number]["integration"] | undefined;
-    let requiredIntegration: KokpitConfig["services"][number]["integration"] | undefined;
+    let inferredIntegration: KokpitConfig["services"][number]["integration"] | undefined;
+    let explicitCommandIntegration: KokpitConfig["services"][number]["integration"] | undefined;
     let hasExplicitInput = false;
+    let hasExplicitCommand = false;
 
     for (const input of serviceInputs) {
       const primaryTile = input.tileId
@@ -224,9 +246,20 @@ export function persistLegacyServices(
         : previousTiles.find((tile) => tile.service_id === id);
       const candidate = deriveIntegration(input, previous, primaryTile);
       if (!candidate.explicit) continue;
+      if (candidate.command) {
+        if (
+          hasExplicitCommand &&
+          !integrationsMatch(candidate.integration, explicitCommandIntegration)
+        ) {
+          throw new Error(`Conflicting explicit integration commands for Service "${id}"`);
+        }
+        hasExplicitCommand = true;
+        explicitCommandIntegration = candidate.integration;
+        continue;
+      }
       hasExplicitInput = true;
+      inferredIntegration = candidate.integration;
       if (candidate.integration) {
-        requiredIntegration = candidate.integration;
         if (!integrationsMatch(candidate.integration, previous?.integration)) {
           changedIntegration = candidate.integration;
         }
@@ -235,7 +268,9 @@ export function persistLegacyServices(
 
     integrationsByServiceId.set(
       id,
-      changedIntegration ?? requiredIntegration ?? (hasExplicitInput ? undefined : previous?.integration)
+      hasExplicitCommand
+        ? explicitCommandIntegration
+        : changedIntegration ?? inferredIntegration ?? (hasExplicitInput ? undefined : previous?.integration)
     );
   });
 
@@ -318,6 +353,27 @@ export function persistLegacyServices(
       service_tiles.push(persistedTile);
     }
   });
+
+  const tileRequirementsByServiceId = new Map<string, Set<string>>();
+  for (const tile of service_tiles) {
+    if (!tile.widget) continue;
+    const requirement = widgetIntegrationRequirement(tile.widget.type);
+    if (!requirement) continue;
+    const requirements = tileRequirementsByServiceId.get(tile.service_id) ?? new Set<string>();
+    requirements.add(requirement);
+    tileRequirementsByServiceId.set(tile.service_id, requirements);
+  }
+  for (const [serviceId, requirements] of tileRequirementsByServiceId) {
+    if (requirements.size > 1) {
+      throw new Error(`Conflicting tile integration requirements for Service "${serviceId}"`);
+    }
+    const [requiredType] = requirements;
+    if (servicesById.get(serviceId)?.integration?.type !== requiredType) {
+      throw new Error(
+        `Service "${serviceId}" integration must match its ${requiredType} tile`
+      );
+    }
+  }
 
   if (options.preserveUnrepresentedCatalogServices) {
     for (const service of previousServices) {

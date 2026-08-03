@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
 import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
+import { persistLegacyServices } from "@/components/edit/serviceFormProjection";
 import {
   WIDGET_CONFIG_REFERENCE_PREFIX,
   WIDGET_SECRET_REFERENCE_KEY,
@@ -36,6 +37,165 @@ const SAVED_TAUTULLI_SECRET = {
 };
 
 describe("ServiceForm – rendering", () => {
+  it("edits a Service integration independently from a plain tile", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          name: "Sonarr",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          integration: { type: "sonarr", config: { url: "http://sonarr", api_key: "key" } },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByLabelText("Tile type")).toHaveValue("");
+    expect(screen.getByLabelText("Integration")).toHaveValue("sonarr");
+    expect(screen.getByLabelText("URL *")).toHaveValue("http://sonarr");
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      widget: undefined,
+      editorIntegration: { command: "preserve" },
+    }));
+  });
+
+  it("persists a new credentialed tile with connection and tile config separated", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+
+    fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "plex" } });
+    fireEvent.change(screen.getByLabelText("Server URL *"), {
+      target: { value: "http://plex.local:32400" },
+    });
+    fireEvent.change(screen.getByLabelText("Token *"), {
+      target: { value: "token" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    const input = onSave.mock.calls[0][0];
+    expect(input.editorIntegration).toEqual({
+      command: "set",
+      type: "plex",
+      config: { url: "http://plex.local:32400", token: "token" },
+    });
+    expect(input.widget).toEqual({
+      type: "plex",
+      config: undefined,
+      refresh_interval_ms: undefined,
+    });
+
+    const persisted = persistLegacyServices([input], [], []);
+    expect(persisted.services[0].integration).toEqual({
+      type: "plex",
+      config: { url: "http://plex.local:32400", token: "token" },
+    });
+    expect(persisted.service_tiles[0].widget?.config).toBeUndefined();
+  });
+
+  it("adds an integration to an existing plain v2 tile without adding a widget", () => {
+    const onSave = vi.fn();
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const tileId = "20000000-0000-4000-8000-000000000001";
+    render(
+      <ServiceForm
+        service={{ id: serviceId, tileId, name: "Sonarr" }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Integration"), {
+      target: { value: "sonarr" },
+    });
+    fireEvent.change(screen.getByLabelText("URL *"), {
+      target: { value: "http://sonarr.local" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key *"), {
+      target: { value: "key" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    const input = onSave.mock.calls[0][0];
+    const persisted = persistLegacyServices(
+      [input],
+      [{ id: serviceId, name: "Sonarr" }],
+      [{ id: tileId, service_id: serviceId }]
+    );
+    expect(persisted.services[0].integration).toEqual({
+      type: "sonarr",
+      config: { url: "http://sonarr.local", api_key: "key" },
+    });
+    expect(persisted.service_tiles[0].widget).toBeUndefined();
+  });
+
+  it("blocks integration changes that conflict with the current tile", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Sonarr",
+          integration: { type: "sonarr", config: { url: "http://sonarr", api_key: "key" } },
+          widget: { type: "sonarr-calendar" },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Integration"), { target: { value: "" } });
+    expect(screen.getByText(/tiles that require a different integration/i)).toBeInTheDocument();
+    expect(screen.getByText("Save")).toBeDisabled();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Integration"), { target: { value: "plex" } });
+    expect(screen.getByText("Save")).toBeDisabled();
+  });
+
+  it("requires a replacement saved credential when a plain tile connection changes", () => {
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Sonarr",
+          integration: {
+            type: "sonarr",
+            config: { url: "http://sonarr.local", api_key: SAVED_TAUTULLI_SECRET },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("URL *"), {
+      target: { value: "http://other-sonarr.local" },
+    });
+    expect(screen.getByText(/saved for a different connection/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("API Key *")).toBeRequired();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    expect(screen.getByText("Save")).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("URL *"), {
+      target: { value: "http://sonarr.local" },
+    });
+    expect(screen.queryByText(/saved for a different connection/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    expect(screen.getByText("Save")).toBeEnabled();
+  });
+
   it("blocks a tile from changing a shared Service to a different integration", () => {
     render(
       <ServiceForm
@@ -438,13 +598,15 @@ describe("ServiceForm – tile type", () => {
       expect.objectContaining({
         name: "Plex",
         icon: "https://cdn.simpleicons.org/plex/e5a00d",
-        widget: expect.objectContaining({
+        editorIntegration: {
+          command: "set",
           type: "plex",
           config: expect.objectContaining({
             url: "http://192.168.1.10:32400",
             token: "mytoken",
           }),
-        }),
+        },
+        widget: expect.objectContaining({ type: "plex" }),
       })
     );
   });
@@ -732,10 +894,10 @@ describe("ServiceForm – boolean widget config fields", () => {
     fireEvent.click(screen.getByText("Save"));
 
     const saved = onSave.mock.calls[0][0];
-    expect(saved.widget.config).toBeDefined();
-    expect(Object.keys(saved.widget.config)).toContain("privacy_mode");
-    expect(typeof saved.widget.config.privacy_mode).toBe("boolean");
-    expect(saved.widget.config.privacy_mode).toBe(false);
+    expect(saved.editorIntegration.config).toBeDefined();
+    expect(Object.keys(saved.editorIntegration.config)).toContain("privacy_mode");
+    expect(typeof saved.editorIntegration.config.privacy_mode).toBe("boolean");
+    expect(saved.editorIntegration.config.privacy_mode).toBe(false);
   });
 
   it("a lone `false` is enough to count as a configured widget", () => {
@@ -1056,11 +1218,17 @@ describe("ServiceForm – Tautulli defaults", () => {
     fireEvent.click(screen.getByText("Save"));
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-      widget: {
-        type: "tautulli-activity",
+      editorIntegration: {
+        command: "set",
+        type: "tautulli",
         config: {
           url: "http://tautulli.local:8181",
           api_key: "secret",
+        },
+      },
+      widget: {
+        type: "tautulli-activity",
+        config: {
           sections: ["sessions"],
         },
         refresh_interval_ms: undefined,
@@ -1076,14 +1244,19 @@ describe("ServiceForm – Tautulli defaults", () => {
     const saved = onSave.mock.calls[0][0];
     expect(saved.widget).toEqual({
       type: "tautulli-activity",
+      config: undefined,
+      refresh_interval_ms: undefined,
+    });
+    expect(saved.editorIntegration).toEqual({
+      command: "set",
+      type: "tautulli",
       config: {
         url: "http://tautulli.local:8181",
         api_key: "secret",
       },
-      refresh_interval_ms: undefined,
     });
     const parsed = getWidget("tautulli-activity")!.configSchema.safeParse(
-      saved.widget!.config
+      { ...saved.editorIntegration.config, ...saved.widget!.config }
     );
     expect(parsed.success).toBe(true);
     if (!parsed.success) throw parsed.error;
@@ -1594,6 +1767,47 @@ describe("ServiceForm – test connection", () => {
       },
     }));
     expect(JSON.stringify(onSave.mock.calls[0][0])).not.toContain(marker);
+  });
+
+  it("keeps an untouched opaque connection usable while editing tile options", async () => {
+    const onSave = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const marker = `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-service-config`;
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Sonarr",
+          integration: {
+            type: "sonarr",
+            config: { __kokpit_widget_config_reference__: marker },
+          },
+          widget: { type: "sonarr-calendar", config: { days: 7 } },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Days ahead"), { target: { value: "8" } });
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() => expect(screen.getByText("Connection OK")).toBeInTheDocument());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      type: "sonarr-calendar",
+      config: { __kokpit_widget_config_reference__: marker },
+    });
+
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      editorIntegration: { command: "preserve" },
+      widget: expect.objectContaining({ config: { days: 8 } }),
+    }));
   });
 
   it("still validates visible tile options when the Service connection is opaque", () => {

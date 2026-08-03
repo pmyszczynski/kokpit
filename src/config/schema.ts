@@ -273,6 +273,15 @@ export type Service = Partial<z.infer<typeof ServiceSchema>> &
     /** Editor-only source config boundaries for a projected v2 tile. */
     editorIntegrationConfig?: Record<string, unknown>;
     editorTileWidgetConfig?: Record<string, unknown>;
+    /**
+     * Editor-only command for the Service-level integration. Tile widgets are
+     * deliberately independent in schema v2, so persistence must never infer
+     * this from `widget`.
+     */
+    editorIntegration?:
+      | { command: "preserve" }
+      | { command: "clear" }
+      | { command: "set"; type: string; config: Record<string, unknown> };
     /** Editor-only representative for a catalog Service without a dashboard tile. */
     editorCatalogOnly?: boolean;
   };

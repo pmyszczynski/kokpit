@@ -4,6 +4,7 @@
 // unit-tested (the component just calls these + stages the result).
 import {
   serviceNameUniquenessKey,
+  widgetIntegrationRequirement,
   type BookmarkGroup,
   type Service,
 } from "./schema";
@@ -69,6 +70,18 @@ export function duplicateService(services: Service[], name: string): Service[] {
     ...cloneSource,
     id: generateUuid(),
     tileId: generateUuid(),
+    ...(original.integration || original.editorIntegrationConfig
+      ? {
+          editorIntegration: {
+            command: "set" as const,
+            type: original.integration?.type ??
+              (original.widget ? widgetIntegrationRequirement(original.widget.type) ?? "" : ""),
+            config: cloneConfigWithoutReferences(
+              original.editorIntegrationConfig ?? original.integration?.config ?? {}
+            ) as Record<string, unknown>,
+          },
+        }
+      : {}),
     name: uniqueCopyName(original.name, services.map((s) => s.name)),
     // Deep-clone the widget so the copy can never mutate the original's
     // nested `config`/`fields` (same guarantee duplicateBookmark gives links).
