@@ -11,7 +11,10 @@ const setGroups = vi.fn();
 const setBookmarks = vi.fn();
 // Mutable so individual tests can seed a pending name before rendering — see
 // the "pendingEditService" describe block below.
-let pendingEditService: string | null = null;
+let pendingEditService:
+  | { serviceId?: string; tileId?: string; name: string }
+  | string
+  | null = null;
 const clearPendingEditService = vi.fn(() => {
   pendingEditService = null;
 });
@@ -172,6 +175,25 @@ describe("pendingEditService (broken-widget badge → ServiceForm handoff)", () 
 
     expect(document.getElementById("sf-widget-url")).toHaveValue("http://sonarr.local");
     expect(document.getElementById("sf-widget-api_key")).toHaveFocus();
+  });
+
+  it("uses a supplied tile ID ahead of the shared service ID", async () => {
+    const config = cfg();
+    const serviceId = config.services[0].id;
+    const [firstTile] = config.service_tiles;
+    const laterTileId = "20000000-0000-4000-8000-000000000002";
+    config.service_tiles = [
+      { ...firstTile, id: "20000000-0000-4000-8000-000000000001", service_id: serviceId, group: "Media" },
+      { ...firstTile, id: laterTileId, service_id: serviceId, group: "Later" },
+    ];
+    pendingEditService = { serviceId, tileId: laterTileId, name: "Plex" };
+
+    await act(async () => {
+      render(<EditableServiceGrid config={config} />);
+    });
+
+    expect(screen.getByText("Edit Service")).toBeInTheDocument();
+    expect(document.getElementById("sf-group")).toHaveValue("Later");
   });
 
   it("a pendingEditService naming no service just clears the pending name (no dialog)", async () => {

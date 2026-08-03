@@ -398,11 +398,11 @@ export default function EditableServiceGrid({
     const pending = typeof pendingEditService === "string"
       ? { name: pendingEditService }
       : pendingEditService;
-    const service = services.find((s) =>
-      (pending.tileId != null && s.tileId === pending.tileId) ||
-      (pending.serviceId != null && s.id === pending.serviceId) ||
-      (pending.serviceId == null && pending.tileId == null && keyEq(s.name, pending.name))
-    );
+    const service = services.find((s) => {
+      if (pending.tileId != null) return s.tileId === pending.tileId;
+      if (pending.serviceId != null) return s.id === pending.serviceId;
+      return keyEq(s.name, pending.name);
+    });
     // Seeded from the broken-widget badge (not the kebab's Edit item): focus
     // the Widget section so the Zod error is right where the user lands.
     if (service)
