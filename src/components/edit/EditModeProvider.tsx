@@ -64,7 +64,7 @@ export interface EditModeState {
    * Set from view mode (the broken-widget badge) where the ServiceForm dialog
    * does not exist yet; EditableServiceGrid consumes it and clears it.
    */
-  pendingEditService: string | null;
+  pendingEditService: { serviceId?: string; tileId?: string; name: string } | string | null;
 }
 
 export const initialEditModeState: EditModeState = {
@@ -89,7 +89,7 @@ export type EditModeAction =
   | { type: "SAVE_ERROR"; error: string }
   | { type: "CONFLICT"; error: string }
   | { type: "RELOAD_SUCCESS"; config: ClientSafeSettings; revision: string | null }
-  | { type: "REQUEST_SERVICE_EDIT"; name: string }
+  | { type: "REQUEST_SERVICE_EDIT"; request?: { serviceId?: string; tileId?: string; name: string }; name?: string }
   | { type: "CLEAR_PENDING_EDIT" };
 
 export function editModeReducer(
@@ -155,7 +155,7 @@ export function editModeReducer(
         conflict: false,
       };
     case "REQUEST_SERVICE_EDIT":
-      return { ...state, pendingEditService: action.name };
+      return { ...state, pendingEditService: action.request ?? (action.name ? { name: action.name } : null) };
     case "CLEAR_PENDING_EDIT":
       if (state.pendingEditService === null) return state;
       return { ...state, pendingEditService: null };
@@ -203,7 +203,7 @@ export interface EditModeContextValue extends EditModeState {
    * dialog only exists inside EditableServiceGrid — the request is parked in
    * `pendingEditService` until that grid mounts and picks it up.
    */
-  requestServiceEdit: (name: string) => void;
+  requestServiceEdit: (request: { serviceId?: string; tileId?: string; name: string } | string) => void;
   /** Drop a pending request (after it has been honoured, or is unresolvable). */
   clearPendingEditService: () => void;
 }
@@ -342,9 +342,9 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   }, [state.active, discard, enter]);
 
   const requestServiceEdit = useCallback(
-    (name: string) => {
+    (request: { serviceId?: string; tileId?: string; name: string } | string) => {
       if (!canEdit) return;
-      dispatch({ type: "REQUEST_SERVICE_EDIT", name });
+      dispatch({ type: "REQUEST_SERVICE_EDIT", request: typeof request === "string" ? { name: request } : request });
       // From view mode the edit grid (and with it the dialog) does not exist
       // yet, so entry has to happen too. A failed entry resets to
       // initialEditModeState via ENTER_ERROR, which drops the pending name —

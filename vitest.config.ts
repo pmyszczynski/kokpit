@@ -38,14 +38,6 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       "**/e2e/**",
-      // Superseded schema-v1-only suites. Schema-v2 behavior and one-way
-      // migration are covered by schema-v2.test.ts.
-      "src/__tests__/config.test.ts",
-      "src/__tests__/config/schema.test.ts",
-      "src/__tests__/config/resolve.test.ts",
-      "src/__tests__/config/loader.test.ts",
-      // This suite asserts the removed name/type widget query contract.
-      "src/__tests__/api/widget.test.ts",
     ],
     coverage: {
       provider: "v8",

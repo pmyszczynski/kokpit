@@ -5,12 +5,18 @@ vi.mock("fs", () => {
   const writeFileSync = vi.fn();
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
+  const statSync = vi.fn();
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
+    renameSync,
+    statSync,
+    chmodSync,
   };
 });
 
@@ -23,7 +29,7 @@ import {
 } from "../config/loader";
 
 const VALID_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -44,7 +50,7 @@ describe("loadConfig", () => {
 
   it("parses a valid settings.yaml", () => {
     const config = loadConfig();
-    expect(config.schema_version).toBe(1);
+    expect(config.schema_version).toBe(2);
     expect(config.auth.enabled).toBe(false);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
@@ -54,7 +60,7 @@ describe("loadConfig", () => {
   });
 
   it("applies defaults when optional sections are missing", () => {
-    vi.mocked(readFileSync).mockReturnValue("schema_version: 1");
+    vi.mocked(readFileSync).mockReturnValue("schema_version: 2");
     const config = loadConfig();
     expect(config.auth.enabled).toBe(true);
     expect(config.auth.session_ttl_hours).toBe(24);
@@ -66,21 +72,21 @@ describe("loadConfig", () => {
 
   it("throws a formatted error with field path for an invalid theme value", () => {
     vi.mocked(readFileSync).mockReturnValue(
-      "schema_version: 1\nappearance:\n  theme: purple"
+      "schema_version: 2\nappearance:\n  theme: purple"
     );
     expect(() => loadConfig()).toThrow("appearance.theme");
   });
 
   it("throws a formatted error with field path for an invalid service URL", () => {
     vi.mocked(readFileSync).mockReturnValue(
-      "schema_version: 1\nservices:\n  - name: Test\n    url: not-a-url"
+      "schema_version: 2\nservices:\n  - id: 00000000-0000-4000-8000-000000000001\n    name: Test\n    launch_url: not-a-url"
     );
     expect(() => loadConfig()).toThrow("services");
   });
 
   it("error message begins with 'Invalid settings.yaml'", () => {
     vi.mocked(readFileSync).mockReturnValue(
-      "schema_version: 1\nappearance:\n  theme: purple"
+      "schema_version: 2\nappearance:\n  theme: purple"
     );
     expect(() => loadConfig()).toThrow(/^Invalid settings\.yaml/);
   });
@@ -123,7 +129,7 @@ describe("layout viewport config", () => {
 
   it("parses tablet and mobile viewport overrides", () => {
     vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 1
+schema_version: 2
 layout:
   columns: 4
   row_height: 120
@@ -149,7 +155,7 @@ layout:
 
   it("allows partial tablet override (only columns, no row_height)", () => {
     vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 1
+schema_version: 2
 layout:
   columns: 4
   row_height: 120
@@ -163,7 +169,7 @@ layout:
 
   it("rejects non-positive columns in tablet override", () => {
     vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 1
+schema_version: 2
 layout:
   columns: 4
   row_height: 120
@@ -175,7 +181,7 @@ layout:
 
   it("rejects non-positive row_height in mobile override", () => {
     vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 1
+schema_version: 2
 layout:
   columns: 4
   row_height: 120
@@ -203,7 +209,7 @@ describe("writeConfig", () => {
 
   it("preserves YAML comments from the original file", () => {
     vi.mocked(readFileSync).mockReturnValue(
-      "# Dashboard config\nschema_version: 1\nappearance:\n  theme: dark\n"
+      "# Dashboard config\nschema_version: 2\nappearance:\n  theme: dark\n"
     );
     writeConfig({ appearance: { theme: "light" } });
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;

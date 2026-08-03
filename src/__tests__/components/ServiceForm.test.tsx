@@ -76,7 +76,7 @@ describe("ServiceForm – rendering", () => {
 });
 
 describe("ServiceForm – submission", () => {
-  it("blocks save when the name matches an existing service (case-insensitive)", () => {
+  it("allows a name that matches an existing service", () => {
     const onSave = vi.fn();
     render(
       <ServiceForm
@@ -91,8 +91,7 @@ describe("ServiceForm – submission", () => {
       target: { value: "plex" },
     });
     fireEvent.click(screen.getByText("Save"));
-    expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByText(/already exists/i)).toBeInTheDocument();
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "plex" }));
   });
 
   it("calls onSave with the entered name", () => {

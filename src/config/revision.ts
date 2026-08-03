@@ -3,9 +3,9 @@
 // change to services, groups, bookmarks, appearance, layout, etc. changes the
 // hash without exposing an offline oracle for low-entropy saved credentials.
 //
-// Server-only (`node:crypto`). The client never computes a revision — it reads
+// Server-only (Node crypto). The client never computes a revision — it reads
 // the value from the `X-Config-Revision` response header of GET /api/settings.
-import { createHmac } from "node:crypto";
+import { createHmac } from "crypto";
 import { getServerSecret } from "@/auth/serverSecret";
 import type { KokpitConfig } from "./schema";
 import { canonicalJSONString } from "./canonicalJson";

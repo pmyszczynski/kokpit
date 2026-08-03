@@ -36,17 +36,37 @@ vi.mock("@/components/ServiceForm", () => ({
 
 import SettingsPanel from "@/components/SettingsPanel";
 
-function makeConfig(overrides: Partial<KokpitConfig> = {}): KokpitConfig {
+type LegacyServiceFixture = Service;
+
+function makeConfig(
+  overrides: Partial<Omit<KokpitConfig, "services" | "service_tiles">> & {
+    services?: LegacyServiceFixture[];
+  } = {}
+): KokpitConfig {
+  const legacyServices = overrides.services ?? [
+    { name: "Jellyfin", url: "http://jellyfin.local", group: "Media" },
+    { name: "Portainer", url: "http://portainer.local" },
+  ];
+  const services = legacyServices.map((service, index) => ({
+    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    name: service.name,
+    ...(service.url ? { launch_url: service.url } : {}),
+  }));
+  const service_tiles = legacyServices.map((service, index) => ({
+    id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    service_id: services[index].id,
+    ...(service.group ? { group: service.group } : {}),
+    ...(service.size ? { size: service.size } : {}),
+    ...(service.widget ? { widget: service.widget } : {}),
+  }));
   return {
-    schema_version: 1,
+    schema_version: 2,
     auth: { enabled: true, session_ttl_hours: 24 },
     appearance: { theme: "dark", custom_css: "" },
     layout: { columns: 4, row_height: 120 },
-    services: [
-      { name: "Jellyfin", url: "http://jellyfin.local", group: "Media" },
-      { name: "Portainer", url: "http://portainer.local" },
-    ],
     ...overrides,
+    services,
+    service_tiles,
   };
 }
 
@@ -761,8 +781,8 @@ describe("SettingsPanel - groups tab", () => {
 
   it("uses redacted service state returned by a successful group cascade", async () => {
     const initial = groupsConfig();
-    initial.services[0] = {
-      ...initial.services[0],
+    initial.service_tiles[0] = {
+      ...initial.service_tiles[0],
       widget: {
         type: "tautulli-activity",
         config: {
@@ -774,20 +794,20 @@ describe("SettingsPanel - groups tab", () => {
     const responseConfig = {
       ...initial,
       groups: [{ name: "Movies" }, { name: "Infra" }],
-      services: initial.services.map((service) =>
-        service.name === "Jellyfin"
+      service_tiles: initial.service_tiles.map((tile) =>
+        tile.service_id === initial.services[0].id
           ? {
-              ...service,
+              ...tile,
               group: "Movies",
               widget: {
-                ...service.widget!,
+                ...tile.widget!,
                 config: {
-                  ...service.widget!.config,
+                  ...tile.widget!.config,
                   api_key: "server-redacted-reference",
                 },
               },
             }
-          : service
+          : tile
       ),
     };
     vi.stubGlobal(

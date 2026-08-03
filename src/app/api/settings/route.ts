@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
-import { getConfig, writeConfig } from "@/config";
+import { getConfig, invalidateCache, writeConfig } from "@/config";
+import { ConfigRevisionMismatchError } from "@/config/loader";
 import {
   BackgroundSchema,
   BookmarkGroupsSchema,
@@ -15,6 +16,7 @@ import { pruneOrphanedUploads } from "@/lib/uploadGc";
 import {
   toClientSafeSettings,
   resolveServiceIntegrationSecrets,
+  resolveServiceTileWidgetConfigs,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
 
@@ -57,6 +59,20 @@ const PatchBodySchema = z.object({
   groups: GroupsSchema.optional(),
   bookmarks: BookmarkGroupsSchema.optional(),
 });
+
+let pendingSettingsWrite: Promise<void> = Promise.resolve();
+
+async function serializeSettingsWrite<T>(work: () => Promise<T>): Promise<T> {
+  let release!: () => void;
+  const previous = pendingSettingsWrite;
+  pendingSettingsWrite = new Promise<void>((resolve) => { release = resolve; });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
 
 export async function GET() {
   if (!(await isRequestAuthenticated())) {
@@ -101,71 +117,54 @@ export async function PATCH(request: NextRequest) {
   if (result.data.bookmarks !== undefined)
     updates.bookmarks = result.data.bookmarks;
 
-  // Optimistic-concurrency check: if the caller sent the base revision it
-  // captured on entry (`If-Match`), reject the write when the on-disk config
-  // has changed since (e.g. a hand-edit picked up by the file watcher). Absent
-  // header → back-compat, proceed as before.
   const ifMatch = request.headers.get("If-Match");
-  if (ifMatch !== null) {
-    const currentRevision = configRevision(getConfig());
-    if (ifMatch !== currentRevision) {
+  return serializeSettingsWrite(async () => {
+    // Re-read only after acquiring the write lock so concurrent requests and
+    // external settings.yaml changes cannot validate against a stale revision.
+    invalidateCache();
+    const current = getConfig();
+    const currentRevision = configRevision(current);
+    if (ifMatch !== null && ifMatch !== currentRevision) {
       return NextResponse.json(
-        {
-          error:
-            "settings.yaml changed since you started editing; reload before saving.",
-          code: "revision_mismatch",
-        },
-        {
-          status: 409,
-          headers: { [CONFIG_REVISION_HEADER]: currentRevision },
-        }
+        { error: "settings.yaml changed since you started editing; reload before saving.", code: "revision_mismatch" },
+        { status: 409, headers: { [CONFIG_REVISION_HEADER]: currentRevision } }
       );
     }
-  }
-
-  if (result.data.services !== undefined) {
     try {
-      updates.services = resolveServiceIntegrationSecrets(result.data.services, getConfig().services);
+      if (result.data.services !== undefined) {
+        updates.services = resolveServiceIntegrationSecrets(result.data.services, current.services);
+      }
+      if (result.data.service_tiles !== undefined) {
+        updates.service_tiles = resolveServiceTileWidgetConfigs(result.data.service_tiles, current.service_tiles);
+      }
     } catch (error) {
       if (error instanceof WidgetSecretResolutionError) {
+        return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
+    }
+    const candidate = KokpitConfigSchema.safeParse({ ...current, ...updates });
+    if (!candidate.success) {
+      return NextResponse.json({
+        error: candidate.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(", "),
+        code: "config_invalid",
+      }, { status: 400 });
+    }
+    try {
+      writeConfig(updates as Parameters<typeof writeConfig>[0], currentRevision);
+      const updated = getConfig();
+      await pruneOrphanedUploads(updated);
+      return NextResponse.json(toClientSafeSettings(updated), {
+        headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
+      });
+    } catch (error) {
+      if (error instanceof ConfigRevisionMismatchError) {
         return NextResponse.json(
-          { error: error.message, code: error.code },
-          { status: 400 }
+          { error: "settings.yaml changed since you started editing; reload before saving.", code: "revision_mismatch" },
+          { status: 409, headers: { [CONFIG_REVISION_HEADER]: error.currentRevision } }
         );
       }
-      return NextResponse.json(
-        { error: "Failed to save settings" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
     }
-  }
-
-  const candidate = KokpitConfigSchema.safeParse({ ...getConfig(), ...updates });
-  if (!candidate.success) {
-    return NextResponse.json(
-      {
-        error: candidate.error.issues
-          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-          .join(", "),
-        code: "config_invalid",
-      },
-      { status: 400 }
-    );
-  }
-
-  try {
-    writeConfig(updates as Parameters<typeof writeConfig>[0]);
-    const updated = getConfig();
-    // Best-effort GC of now-orphaned uploads against the FULL merged config.
-    // Never throws, so it can't affect the 200 response below.
-    await pruneOrphanedUploads(updated);
-    return NextResponse.json(toClientSafeSettings(updated), {
-      headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
-    });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to save settings" },
-      { status: 500 }
-    );
-  }
+  });
 }

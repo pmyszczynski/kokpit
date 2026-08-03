@@ -76,8 +76,9 @@ export function integrationCredentialScopesMatch(
   if (!scopeFields?.length || !fields) return false;
   return scopeFields.every((key) => {
     const field = fields.find((candidate) => candidate.key === key);
-    return field != null &&
-      normalizeScopeValue(field, sourceConfig[key]) ===
-        normalizeScopeValue(field, destinationConfig[key]);
+    if (!field) return false;
+    const source = normalizeScopeValue(field, sourceConfig[key]);
+    const destination = normalizeScopeValue(field, destinationConfig[key]);
+    return source !== null && destination !== null && source === destination;
   });
 }

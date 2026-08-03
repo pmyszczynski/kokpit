@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  moveServiceByIdToGroup,
   moveServiceToGroup,
   moveBookmarkToGroup,
   reorderGroups,
@@ -128,6 +129,27 @@ describe("moveServiceToGroup — within-group reorder", () => {
       config: { url: "http://a", token: "t" },
     });
     expect(moved.url).toBe("http://a.local");
+  });
+});
+
+describe("moveServiceByIdToGroup", () => {
+  it("moves the selected service when display names are duplicated", () => {
+    const services: Service[] = [
+      svc("Plex", "Media", { id: "10000000-0000-4000-8000-000000000001" }),
+      svc("Plex", "Media", { id: "10000000-0000-4000-8000-000000000002" }),
+      svc("Radarr", "Media", { id: "10000000-0000-4000-8000-000000000003" }),
+    ];
+    const next = moveServiceByIdToGroup(
+      services,
+      "10000000-0000-4000-8000-000000000002",
+      "Media",
+      0
+    );
+    expect(next.map((service) => service.id)).toEqual([
+      "10000000-0000-4000-8000-000000000002",
+      "10000000-0000-4000-8000-000000000001",
+      "10000000-0000-4000-8000-000000000003",
+    ]);
   });
 });
 

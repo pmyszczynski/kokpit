@@ -4,6 +4,8 @@ import {
   duplicateService,
   duplicateBookmark,
 } from "@/config/duplicate";
+import { createWidgetConfigReference } from "@/widgets/secretReference.server";
+import { WIDGET_SECRET_REFERENCE_KEY, WIDGET_SECRET_REFERENCE_PREFIX } from "@/widgets/secretReference";
 import {
   applyGroupCascades,
   renameGroupPatch,
@@ -41,6 +43,18 @@ describe("duplicateService", () => {
     expect(next[1]).not.toBe(services[0]);
   });
 
+  it("uses a fresh service id when duplicating by immutable identity", () => {
+    const withDuplicateNames: Service[] = [
+      { id: "10000000-0000-4000-8000-000000000001", name: "Plex" },
+      { id: "10000000-0000-4000-8000-000000000002", name: "Plex" },
+    ];
+    const next = duplicateService(withDuplicateNames, withDuplicateNames[1].id!);
+    expect(next[0]).toBe(withDuplicateNames[0]);
+    expect(next[1]).toBe(withDuplicateNames[1]);
+    expect(next[2].id).not.toBe(withDuplicateNames[1].id);
+    expect(next[2].name).toBe("Plex copy");
+  });
+
   it("clones nested widget config as a fresh object", () => {
     const withWidget: Service[] = [
       { name: "Plex", widget: { type: "plex", config: { url: "x" } } },
@@ -60,6 +74,26 @@ describe("duplicateService", () => {
     const next = duplicateService(withFields, "Plex");
     expect(next[1].widget?.fields).not.toBe(withFields[0].widget?.fields);
     expect(next[1].widget?.fields).toEqual(["a", "b"]);
+  });
+
+  it("strips credential and opaque config references from a projected copy", () => {
+    const source: Service[] = [{
+      id: "10000000-0000-4000-8000-000000000001",
+      tileId: "20000000-0000-4000-8000-000000000001",
+      name: "Sonarr",
+      widget: { type: "sonarr-calendar", config: {
+        url: "http://sonarr",
+        api_key: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}signed` },
+        __kokpit_widget_config_reference__: createWidgetConfigReference("x", "unknown"),
+        nested: { api_key: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}nested` } },
+        days: 7,
+      } },
+    }];
+    const copy = duplicateService(source, source[0].tileId!)[1];
+    expect(copy).toMatchObject({ name: "Sonarr copy" });
+    expect(copy.id).not.toBe(source[0].id);
+    expect(copy.tileId).not.toBe(source[0].tileId);
+    expect(copy.widget?.config).toEqual({ url: "http://sonarr", nested: {}, days: 7 });
   });
 
   it("no-ops on an unknown name", () => {

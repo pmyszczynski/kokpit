@@ -594,18 +594,27 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
       const result = await saveRaw("groups", payload);
       if (result.ok) {
         // Now — and only now — reflect the cascade in shared state and clear ops.
-        if (cascade.servicesChanged) {
-          setServices(
-            Array.isArray(result.config?.services)
-              ? result.config.services
-              : cascade.services
+        if (tileCascade.serviceTilesChanged) {
+          const fallback = persistLegacyServices(
+            cascade.services,
+            persistedServices,
+            tileCascade.serviceTiles
           );
+          const refreshed = normalizeServicesForForm(
+            Array.isArray(result.config?.services) ? result.config.services : fallback.services,
+            Array.isArray(result.config?.service_tiles)
+              ? result.config.service_tiles
+              : fallback.service_tiles
+          );
+          setServices(projectLegacyServices(refreshed.services, refreshed.service_tiles));
+          setPersistedServices(refreshed.services);
+          setServiceTiles(refreshed.service_tiles);
         }
         if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
         setPendingGroupOps([]);
       }
     } finally {
-      if (cascade.servicesChanged) {
+      if (tileCascade.serviceTilesChanged) {
         servicesSavePendingRef.current = false;
         setServicesWritePending(false);
       }

@@ -19,8 +19,8 @@ function makeConfig(overrides: Record<string, unknown> = {}): KokpitConfig {
   const migrated = migrateV1Config({ schema_version: 1, services: [{ name: "Plex", url: "https://plex.local", group: "Media" }], ...overrides });
   return {
     ...migrated,
-    services: migrated.services.map((service, index) => ({ ...service, id: `10000000-0000-4000-8000-00000000000${index + 1}` })),
-    service_tiles: migrated.service_tiles.map((tile, index) => ({ ...tile, id: `20000000-0000-4000-8000-00000000000${index + 1}`, service_id: `10000000-0000-4000-8000-00000000000${index + 1}` })),
+    services: migrated.services.map((service, index) => ({ ...service, id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` })),
+    service_tiles: migrated.service_tiles.map((tile, index) => ({ ...tile, id: `20000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, service_id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` })),
   };
 }
 

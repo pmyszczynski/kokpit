@@ -114,6 +114,53 @@ export function moveServiceToGroup(
   return next;
 }
 
+/**
+ * ID-based counterpart to moveServiceToGroup for editor interactions. Service
+ * names are display data and need not be unique, while persisted IDs are.
+ */
+export function moveServiceByIdToGroup(
+  services: Service[],
+  serviceId: string,
+  targetGroup: string | null,
+  targetIndex: number
+): Service[] {
+  const index = services.findIndex((service) => service.id === serviceId);
+  if (index === -1) return services;
+
+  const moving = withServiceGroup(services[index], targetGroup);
+  const rest = services.filter((_, i) => i !== index);
+  const targetKey = normalizeGroup(targetGroup);
+  const memberPositions: number[] = [];
+  rest.forEach((service, i) => {
+    if (normalizeGroup(service.group) === targetKey) memberPositions.push(i);
+  });
+
+  const next = [...rest];
+  next.splice(insertionIndex(memberPositions, targetIndex, rest.length), 0, moving);
+  return next;
+}
+
+/** Tile-aware editor counterpart for projected v2 Services. */
+export function moveServiceByIdentityToGroup(
+  services: Service[],
+  identity: string,
+  targetGroup: string | null,
+  targetIndex: number
+): Service[] {
+  const index = services.findIndex((service) => service.tileId === identity || (!service.tileId && service.id === identity));
+  if (index === -1) return services;
+  const moving = withServiceGroup(services[index], targetGroup);
+  const rest = services.filter((_, i) => i !== index);
+  const targetKey = normalizeGroup(targetGroup);
+  const memberPositions: number[] = [];
+  rest.forEach((service, i) => {
+    if (normalizeGroup(service.group) === targetKey) memberPositions.push(i);
+  });
+  const next = [...rest];
+  next.splice(insertionIndex(memberPositions, targetIndex, rest.length), 0, moving);
+  return next;
+}
+
 /** Return `bookmark` with `placement.group` set to `targetGroup` (or cleared). */
 function withBookmarkGroup(
   bookmark: BookmarkGroup,

@@ -8,13 +8,17 @@ vi.mock("node:fs", () => {
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
   const renameSync = vi.fn();
+  const statSync = vi.fn().mockReturnValue({ mode: 0o100600 });
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
     renameSync,
+    statSync,
+    chmodSync,
   };
 });
 vi.mock("next/headers", () => ({
@@ -23,7 +27,7 @@ vi.mock("next/headers", () => ({
 
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import {
   WIDGET_SECRET_REFERENCE_KEY,
   WIDGET_SECRET_REFERENCE_PREFIX,
@@ -88,6 +92,11 @@ service_tiles:
     service_id: 10000000-0000-4000-8000-000000000002
     widget: { type: qbittorrent-stats }
 `.trim();
+
+const TILE_SECRET_YAML = SECRET_YAML.replace(
+  "config: { sections: [summary] }",
+  "config: { client_secret: tile-secret-value, sections: [summary] }"
+);
 
 const UNKNOWN_WIDGET_SECRET_YAML = `
 schema_version: 2
@@ -257,6 +266,34 @@ describe("PATCH /api/settings – appearance & services", () => {
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
     expect(written).toContain("Jellyfin");
+  });
+});
+
+describe("PATCH /api/settings – opaque tile widget config", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(TILE_SECRET_YAML);
+    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+  });
+
+  it("round-trips a signed opaque tile config without exposing or persisting its marker", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const getRes = await GET();
+    const revision = getRes.headers.get("X-Config-Revision")!;
+    const redacted = await getRes.json();
+
+    expect(JSON.stringify(redacted)).not.toContain("tile-secret-value");
+    expect(redacted.service_tiles[0].widget.config).toHaveProperty("__kokpit_widget_config_reference__");
+
+    const res = await PATCH(patch({ service_tiles: redacted.service_tiles }, { "If-Match": revision }));
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(writeFileSync).mock.calls[0][1]).toContain("tile-secret-value");
+    expect(vi.mocked(writeFileSync).mock.calls[0][1]).not.toContain("__kokpit_widget_config_reference__");
+    expect(responseText).not.toContain("tile-secret-value");
   });
 });
 
@@ -686,5 +723,38 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
     expect(writeFileSync).not.toHaveBeenCalled();
     // The 409 carries the true current revision for the client's Reload path.
     expect(res.headers.get("X-Config-Revision")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("does not overwrite an external edit made after validation", async () => {
+    const externallyEdited = BASE_YAML.replace("theme: dark", "theme: oled");
+    vi.mocked(readFileSync)
+      .mockReturnValueOnce(BASE_YAML)
+      .mockReturnValueOnce(externallyEdited);
+    const { PATCH } = await import("../../app/api/settings/route");
+
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("revision_mismatch");
+    expect(writeFileSync).not.toHaveBeenCalled();
+    expect(renameSync).not.toHaveBeenCalled();
+  });
+
+  it("allows only one concurrent PATCH to commit for the same revision", async () => {
+    let diskYaml = BASE_YAML;
+    vi.mocked(readFileSync).mockImplementation(() => diskYaml);
+    vi.mocked(writeFileSync).mockImplementation((_path, data) => {
+      diskYaml = String(data);
+    });
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const revision = (await GET()).headers.get("X-Config-Revision")!;
+
+    const responses = await Promise.all([
+      PATCH(patch({ appearance: { theme: "light" } }, { "If-Match": revision })),
+      PATCH(patch({ appearance: { theme: "oled" } }, { "If-Match": revision })),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
   });
 });

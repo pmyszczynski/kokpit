@@ -58,6 +58,7 @@ export function widgetIntegrationRequirement(type: string): string | null {
   if (type.startsWith("qbittorrent-")) return "qbittorrent";
   if (type.startsWith("netdata-")) return "netdata";
   const known: Record<string, string> = {
+    "plex": "plex", "sabnzbd": "sabnzbd", "docker": "docker",
     "immich-stats": "immich", "prowlarr-stats": "prowlarr",
     "radarr-queue": "radarr", "radarr-stats": "radarr",
     "seerr-requests": "seerr", "seerr-stats": "seerr",
@@ -65,7 +66,7 @@ export function widgetIntegrationRequirement(type: string): string | null {
     "tautulli-activity": "tautulli", "tdarr-stats": "tdarr",
     "unraid-stats": "unraid",
   };
-  return known[type] ?? type;
+  return known[type] ?? null;
 }
 
 /** Declared dashboard group. Array order in `groups:` is display order. */
@@ -267,6 +268,11 @@ export type Service = Partial<z.infer<typeof ServiceSchema>> &
     size?: Size;
     position?: WidgetPosition;
     widget?: ServiceWidget;
+    /** Editor-only identity of the projected tile; never persisted on Service. */
+    tileId?: string;
+    /** Editor-only source config boundaries for a projected v2 tile. */
+    editorIntegrationConfig?: Record<string, unknown>;
+    editorTileWidgetConfig?: Record<string, unknown>;
   };
 export type ServiceTile = z.infer<typeof ServiceTileSchema>;
 export type ServiceWidget = z.infer<typeof ServiceTileWidgetSchema>;

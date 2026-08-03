@@ -7,13 +7,17 @@ vi.mock("node:fs", () => {
   const existsSync = vi.fn().mockReturnValue(true);
   const mkdirSync = vi.fn();
   const renameSync = vi.fn();
+  const statSync = vi.fn().mockReturnValue({ mode: 0o100644 });
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
     renameSync,
+    statSync,
+    chmodSync,
   };
 });
 vi.mock("next/headers", () => ({

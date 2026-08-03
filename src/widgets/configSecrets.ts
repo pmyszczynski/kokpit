@@ -2,15 +2,17 @@ import "@/integrations";
 import {
   type KokpitConfig,
   type Service,
+  widgetIntegrationRequirement,
 } from "@/config/schema";
 import type {
   ClientSafeService,
   ClientSafeSettings,
 } from "./clientSafeSettings";
-import { getIntegration, getWidget } from "@/widgets";
+import { getAllWidgets, getIntegration, getWidget } from "@/widgets";
 import { integrationCredentialScopesMatch, widgetCredentialScopesMatch } from "./credentialScope";
 import {
   isWidgetSecretReference,
+  WIDGET_SECRET_REFERENCE_KEY,
 } from "./secretReference";
 import {
   createWidgetConfigReference,
@@ -54,6 +56,14 @@ function credentialFieldKeys(widgetType: string): string[] {
   );
 }
 
+function integrationCredentialFieldKeys(integrationType: string): Set<string> {
+  const integration = getIntegration(integrationType);
+  const fields = integration?.connectionFields ?? getAllWidgets().find(
+    (widget) => widgetIntegrationRequirement(widget.id) === integrationType
+  )?.configFields ?? [];
+  return new Set(fields.filter((field) => field.type === "password").map((field) => field.key));
+}
+
 function isSafeConfigValue(
   type: "text" | "url" | "password" | "number" | "multiselect" | "boolean",
   value: unknown
@@ -77,6 +87,72 @@ function getOpaqueConfigReference(
     return null;
   }
   return config[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
+}
+
+function hasSecretLikeKey(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasSecretLikeKey);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value).some(
+    ([key, nested]) =>
+      /api[_-]?key|token|password|secret|credential|authorization/i.test(key) ||
+      hasSecretLikeKey(nested)
+  );
+}
+
+function clientSafeTileWidgetConfig(
+  tile: KokpitConfig["service_tiles"][number]
+): Record<string, unknown> | undefined {
+  const config = tile.widget?.config;
+  if (!config) return undefined;
+  const definition = getWidget(tile.widget!.type);
+  const fields = new Map(
+    [
+      ...(definition?.optionFields ?? definition?.configFields ?? []),
+      ...(definition?.preservedConfigFields ?? []),
+    ].map((field) => [field.key, field] as const)
+  );
+  const opaque =
+    !definition ||
+    Object.entries(config).some(([key, value]) => {
+      const field = fields.get(key);
+      return !field ||
+        field.type === "password" ||
+        !isSafeConfigValue(field.type, value) ||
+        hasSecretLikeKey(value);
+    });
+  if (!opaque) return { ...config };
+  return {
+    [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(
+      tile.id,
+      tile.widget!.type
+    ),
+  };
+}
+
+function containsReservedFieldReferenceEnvelope(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(containsReservedFieldReferenceEnvelope);
+  }
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return Object.prototype.hasOwnProperty.call(record, WIDGET_SECRET_REFERENCE_KEY) ||
+    Object.values(record).some(containsReservedFieldReferenceEnvelope);
+}
+
+function hasReservedFieldReferenceEnvelope(config: Record<string, unknown>): boolean {
+  return Object.values(config).some(containsReservedFieldReferenceEnvelope);
+}
+
+function assertValidFieldReferences(
+  config: Record<string, unknown>,
+  credentialKeys: ReadonlySet<string>
+): void {
+  for (const [key, value] of Object.entries(config)) {
+    if (isWidgetSecretReference(value) && credentialKeys.has(key)) continue;
+    if (containsReservedFieldReferenceEnvelope(value)) {
+      throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+    }
+  }
 }
 
 /**
@@ -115,7 +191,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
         ? {
             ...tile.widget,
             fields: tile.widget.fields ? [...tile.widget.fields] : undefined,
-            config: tile.widget.config ? { ...tile.widget.config } : undefined,
+            config: clientSafeTileWidgetConfig(tile),
           }
         : undefined,
     })),
@@ -314,6 +390,9 @@ export function resolveWidgetConfigSecrets(
   }
 
   const rawConfig = config as Record<string, unknown>;
+  if (hasReservedFieldReferenceEnvelope(rawConfig)) {
+    assertValidFieldReferences(rawConfig, new Set(credentialFieldKeys(widgetType)));
+  }
   const opaqueReference = getOpaqueConfigReference(rawConfig);
   if (opaqueReference !== null) {
     return resolveUnknownWidgetConfig(widgetType, rawConfig, savedServices);
@@ -401,6 +480,10 @@ export function resolveServiceIntegrationSecrets(
   return submitted.map((service) => {
     if (!service.integration) return service;
     const incoming = service.integration.config;
+    if (hasReservedFieldReferenceEnvelope(incoming)) {
+      const credentialKeys = integrationCredentialFieldKeys(service.integration.type);
+      assertValidFieldReferences(incoming, credentialKeys);
+    }
     const hasOpaqueReference = Object.prototype.hasOwnProperty.call(
       incoming,
       UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY
@@ -433,6 +516,41 @@ export function resolveServiceIntegrationSecrets(
   });
 }
 
+/** Resolve opaque schema-v2 ServiceTile widget configs by immutable tile ID. */
+export function resolveServiceTileWidgetConfigs(
+  submitted: KokpitConfig["service_tiles"],
+  saved: KokpitConfig["service_tiles"]
+): KokpitConfig["service_tiles"] {
+  return submitted.map((tile) => {
+    const config = tile.widget?.config;
+    if (config && hasReservedFieldReferenceEnvelope(config)) {
+      throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+    }
+    if (!config || !Object.prototype.hasOwnProperty.call(config, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY)) {
+      return tile;
+    }
+    const reference = verifyWidgetConfigReference(
+      config[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]
+    );
+    const source = saved.find((candidate) =>
+      candidate.id === tile.id &&
+      candidate.widget?.config !== undefined &&
+      candidate.widget.type === tile.widget?.type &&
+      reference !== null &&
+      widgetConfigReferenceMatches(reference, tile.id, tile.widget.type)
+    );
+    if (!reference || !source?.widget?.config) {
+      throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+    }
+    if (Object.keys(config).length === 1) {
+      return { ...tile, widget: { ...tile.widget!, config: source.widget.config } };
+    }
+    const resolved = { ...config };
+    delete resolved[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
+    return { ...tile, widget: { ...tile.widget!, config: resolved } };
+  });
+}
+
 function resolveOpaqueIntegrationConfigReference(
   service: KokpitConfig["services"][number],
   opaqueReference: unknown,
@@ -461,6 +579,10 @@ export function resolveIntegrationConfigSecrets(
   saved: KokpitConfig["services"]
 ): Record<string, unknown> {
   const resolved = { ...config };
+  if (hasReservedFieldReferenceEnvelope(config)) {
+    const credentialKeys = integrationCredentialFieldKeys(integrationType);
+    assertValidFieldReferences(config, credentialKeys);
+  }
   if (typeof resolved.url === "string") {
     try { resolved.url = new URL(resolved.url.trim()).toString(); } catch { /* validated later */ }
   }

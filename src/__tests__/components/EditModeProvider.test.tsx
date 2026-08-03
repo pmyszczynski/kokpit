@@ -114,11 +114,11 @@ describe("editModeReducer", () => {
       type: "REQUEST_SERVICE_EDIT",
       name: "Plex",
     });
-    expect(next.pendingEditService).toBe("Plex");
+    expect(next.pendingEditService).toEqual({ name: "Plex" });
   });
 
   it("CLEAR_PENDING_EDIT clears pendingEditService", () => {
-    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    const pending: EditModeState = { ...active, pendingEditService: { name: "Plex" } };
     const next = editModeReducer(pending, { type: "CLEAR_PENDING_EDIT" });
     expect(next.pendingEditService).toBeNull();
   });
@@ -130,16 +130,16 @@ describe("editModeReducer", () => {
   it("pendingEditService survives ENTER_START (regression: fresh state objects)", () => {
     const pending: EditModeState = {
       ...initialEditModeState,
-      pendingEditService: "Plex",
+      pendingEditService: { name: "Plex" },
     };
     const next = editModeReducer(pending, { type: "ENTER_START" });
-    expect(next.pendingEditService).toBe("Plex");
+    expect(next.pendingEditService).toEqual({ name: "Plex" });
   });
 
   it("pendingEditService survives ENTER_SUCCESS (regression: fresh state objects)", () => {
     const pending: EditModeState = {
       ...initialEditModeState,
-      pendingEditService: "Plex",
+      pendingEditService: { name: "Plex" },
       status: "loading",
     };
     const config = cfg();
@@ -148,12 +148,12 @@ describe("editModeReducer", () => {
       config,
       revision: "rev-1",
     });
-    expect(next.pendingEditService).toBe("Plex");
+    expect(next.pendingEditService).toEqual({ name: "Plex" });
     expect(next.active).toBe(true);
   });
 
   it("pendingEditService is dropped by DISCARD", () => {
-    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    const pending: EditModeState = { ...active, pendingEditService: { name: "Plex" } };
     expect(
       editModeReducer(pending, { type: "DISCARD" }).pendingEditService
     ).toBeNull();
@@ -162,7 +162,7 @@ describe("editModeReducer", () => {
   it("pendingEditService is dropped by ENTER_ERROR", () => {
     const pending: EditModeState = {
       ...initialEditModeState,
-      pendingEditService: "Plex",
+      pendingEditService: { name: "Plex" },
       status: "loading",
     };
     const next = editModeReducer(pending, {

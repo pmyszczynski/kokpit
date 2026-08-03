@@ -109,8 +109,12 @@ describe("service tile kebab", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Remove" }));
     // Two-step confirm.
     expect(setServices).not.toHaveBeenCalled();
+    expect(updateDraft).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("menuitem", { name: "Confirm remove" }));
-    expect(setServices).toHaveBeenCalledWith([]);
+    expect(updateDraft).toHaveBeenCalledWith({
+      service_tiles: [],
+      services: [],
+    });
   });
 
   it("size picker greys out sizes below the widget minSize", async () => {

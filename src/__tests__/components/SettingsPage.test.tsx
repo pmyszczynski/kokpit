@@ -7,12 +7,16 @@ vi.mock("node:fs", () => {
   const existsSync = vi.fn().mockReturnValue(true);
   const writeFileSync = vi.fn();
   const renameSync = vi.fn();
+  const statSync = vi.fn().mockReturnValue({ mode: 0o100644 });
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, existsSync, writeFileSync, renameSync },
+    default: { readFileSync, existsSync, writeFileSync, renameSync, statSync, chmodSync },
     readFileSync,
     existsSync,
     writeFileSync,
     renameSync,
+    statSync,
+    chmodSync,
   };
 });
 vi.mock("@/components/SettingsPanel", () => ({

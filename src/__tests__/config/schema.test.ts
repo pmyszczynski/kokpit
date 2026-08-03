@@ -2,44 +2,53 @@ import { describe, it, expect } from "vitest";
 import { KokpitConfigSchema } from "@/config/schema";
 
 const minimalValid = {
-  schema_version: 1 as const,
-  services: [{ name: "A" }],
+  schema_version: 2 as const,
+  services: [],
+  service_tiles: [],
 };
 
-describe("KokpitConfigSchema", () => {
-  it("accepts unique service names", () => {
+describe("KokpitConfigSchema – services and tiles", () => {
+  const serviceId = "00000000-0000-4000-8000-000000000001";
+
+  it("accepts services with duplicate names when each has a unique ID", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
-      services: [{ name: "Plex" }, { name: "Sonarr" }],
+      services: [
+        { id: serviceId, name: "Plex" },
+        { id: "00000000-0000-4000-8000-000000000002", name: "Plex" },
+      ],
     });
     expect(r.success).toBe(true);
   });
 
-  it("rejects duplicate service names (case-insensitive)", () => {
+  it("rejects duplicate service IDs", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
-      services: [{ name: "Plex" }, { name: "plex" }],
+      services: [{ id: serviceId, name: "Plex" }, { id: serviceId, name: "plex" }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ path: ["services", 1, "name"] }),
+          expect.objectContaining({ path: ["services", 1, "id"] }),
         ])
       );
     }
   });
 
-  it("rejects duplicate names after trim", () => {
+  it("rejects a tile that references a missing service", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
-      services: [{ name: "Plex " }, { name: " Plex" }],
+      service_tiles: [{
+        id: "00000000-0000-4000-8000-000000000003",
+        service_id: serviceId,
+      }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ path: ["services", 1, "name"] }),
+          expect.objectContaining({ path: ["service_tiles", 0, "service_id"] }),
         ])
       );
     }
@@ -48,7 +57,7 @@ describe("KokpitConfigSchema", () => {
   it("rejects whitespace-only service name", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
-      services: [{ name: "   " }],
+      services: [{ id: serviceId, name: "   " }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -61,13 +70,15 @@ describe("KokpitConfigSchema", () => {
   });
 });
 
-describe("KokpitConfigSchema – service size", () => {
+describe("KokpitConfigSchema – service tile size", () => {
   it.each(["normal", "wide", "tall", "large"] as const)(
     "accepts size %s",
     (size) => {
+      const serviceId = "00000000-0000-4000-8000-000000000001";
       const r = KokpitConfigSchema.safeParse({
         ...minimalValid,
-        services: [{ name: "Plex", size }],
+        services: [{ id: serviceId, name: "Plex" }],
+        service_tiles: [{ id: "00000000-0000-4000-8000-000000000002", service_id: serviceId, size }],
       });
       expect(r.success).toBe(true);
     }
@@ -76,20 +87,12 @@ describe("KokpitConfigSchema – service size", () => {
   it("rejects an unknown size value", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
-      services: [{ name: "Plex", size: "huge" }],
+      services: [{ id: "00000000-0000-4000-8000-000000000001", name: "Plex" }],
+      service_tiles: [{ id: "00000000-0000-4000-8000-000000000002", service_id: "00000000-0000-4000-8000-000000000001", size: "huge" }],
     });
     expect(r.success).toBe(false);
   });
 
-  it("still parses the deprecated position field", () => {
-    const r = KokpitConfigSchema.safeParse({
-      ...minimalValid,
-      services: [
-        { name: "Plex", position: { col: 1, row: 1, width: 2, height: 2 } },
-      ],
-    });
-    expect(r.success).toBe(true);
-  });
 });
 
 describe("KokpitConfigSchema – appearance.background & card_blur", () => {

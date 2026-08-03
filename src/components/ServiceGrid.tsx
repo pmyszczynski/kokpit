@@ -40,6 +40,7 @@ function renderServiceTile({ service, tile }: { service: Service; tile: import("
     <ServiceTile
       key={`tile:${tile.id}`}
       tileId={tile.id}
+      serviceId={service.id}
       name={service.name}
       url={service.launch_url}
       icon={service.icon}

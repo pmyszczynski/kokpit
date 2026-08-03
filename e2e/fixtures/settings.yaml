@@ -11,23 +11,31 @@ services:
   - id: 10000000-0000-4000-8000-000000000001
     name: Sonarr
     launch_url: http://localhost:8001
-    category: Media
+    integration:
+      type: sonarr
+      config:
+        url: http://localhost:8001/
   - id: 10000000-0000-4000-8000-000000000002
-    name: Radarr
+    name: Prowlarr
     launch_url: http://localhost:8002
-    category: Media
+    integration:
+      type: prowlarr
+      config:
+        url: http://localhost:8002/
+        api_key: test-key
   - id: 10000000-0000-4000-8000-000000000003
     name: Grafana
     launch_url: http://localhost:3001
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000001
     service_id: 10000000-0000-4000-8000-000000000001
-    group: Media
+    widget:
+      type: sonarr-queue
   - id: 20000000-0000-4000-8000-000000000002
     service_id: 10000000-0000-4000-8000-000000000002
-    group: Media
+    widget:
+      type: prowlarr-stats
   - id: 20000000-0000-4000-8000-000000000003
     service_id: 10000000-0000-4000-8000-000000000003
-groups:
-  - name: Media
+groups: []
 bookmarks: []

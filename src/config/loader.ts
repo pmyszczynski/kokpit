@@ -1,9 +1,11 @@
 import { randomUUID } from "crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "fs";
 import path from "path";
 import { parseDocument, stringify } from "yaml";
 import { KokpitConfigSchema, widgetIntegrationRequirement, type KokpitConfig, type Size } from "./schema";
 import { splitWidgetConfig } from "@/components/edit/serviceFormProjection";
+import { canonicalJSONString } from "./canonicalJson";
+import { configRevision } from "./revision";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 2 }));
@@ -21,6 +23,12 @@ export function splitLegacyWidgetConfig(widgetType: string, value: unknown) {
   return splitWidgetConfig(widgetType, value);
 }
 
+function widgetConfig(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 function legacySize(service: LegacyService): Size | undefined {
   if (["normal", "wide", "tall", "large"].includes(String(service.size))) return service.size as Size;
   const position = service.position as { width?: unknown; height?: unknown } | undefined;
@@ -33,25 +41,44 @@ function legacySize(service: LegacyService): Size | undefined {
 export function migrateV1Config(raw: Record<string, unknown>): KokpitConfig {
   const services: KokpitConfig["services"] = [];
   const service_tiles: KokpitConfig["service_tiles"] = [];
+  const integrationServices = new Map<string, string>();
   const legacyServices = raw.services ?? [];
   if (!Array.isArray(legacyServices)) throw new Error("services: expected an array");
   for (const [index, entry] of legacyServices.entries()) {
     if (!entry || typeof entry !== "object") throw new Error(`services.${index}: expected an object`);
     const legacy = entry as LegacyService;
     if (typeof legacy.name !== "string" || !legacy.name.trim()) throw new Error(`services.${index}.name: expected a non-empty string`);
-    const serviceId = randomUUID();
     const widget = legacy.widget;
     const widgetType = typeof widget?.type === "string" ? widget.type : undefined;
     const integrationType = widgetType ? legacyIntegrationType(widgetType) : null;
-    const split = widgetType ? splitLegacyWidgetConfig(widgetType, widget?.config) : undefined;
-    services.push({
-      id: serviceId, name: legacy.name,
+    const split = integrationType !== null && widgetType
+      ? splitLegacyWidgetConfig(widgetType, widget?.config)
+      : { connection: {}, options: widgetConfig(widget?.config) };
+    // A Service owns both its connection and its presentation.  Sharing a
+    // backend is only safe when the legacy cards would produce the same Service.
+    const presentation = {
+      name: legacy.name,
       ...(typeof legacy.url === "string" ? { launch_url: legacy.url } : {}),
       ...(typeof legacy.icon === "string" ? { icon: legacy.icon } : {}),
       ...(typeof legacy.description === "string" ? { description: legacy.description } : {}),
       ...(typeof legacy.group === "string" ? { category: legacy.group } : {}),
-      ...(integrationType ? { integration: { type: integrationType, config: split!.connection } } : {}),
-    });
+    };
+    const integrationKey = integrationType
+      ? `${integrationType}:${canonicalJSONString({ connection: split.connection, presentation })}`
+      : undefined;
+    let serviceId = integrationKey ? integrationServices.get(integrationKey) : undefined;
+    if (!serviceId) {
+      serviceId = randomUUID();
+      services.push({
+        id: serviceId, name: legacy.name,
+        ...(typeof legacy.url === "string" ? { launch_url: legacy.url } : {}),
+        ...(typeof legacy.icon === "string" ? { icon: legacy.icon } : {}),
+        ...(typeof legacy.description === "string" ? { description: legacy.description } : {}),
+        ...(typeof legacy.group === "string" ? { category: legacy.group } : {}),
+        ...(integrationType ? { integration: { type: integrationType, config: split.connection } } : {}),
+      });
+      if (integrationKey) integrationServices.set(integrationKey, serviceId);
+    }
     service_tiles.push({
       id: randomUUID(), service_id: serviceId,
       ...(typeof legacy.group === "string" ? { group: legacy.group } : {}),
@@ -74,7 +101,11 @@ function validationError(error: { issues: Array<{ path: PropertyKey[]; message: 
 export function getConfigPath(): string { return CONFIG_PATH; }
 
 export function loadConfig(): KokpitConfig {
-  if (!existsSync(CONFIG_PATH)) { mkdirSync(path.dirname(CONFIG_PATH), { recursive: true }); writeFileSync(CONFIG_PATH, DEFAULT_CONFIG, "utf-8"); }
+  if (!existsSync(CONFIG_PATH)) {
+    mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+    writeFileSync(CONFIG_PATH, DEFAULT_CONFIG, { encoding: "utf-8", mode: 0o600 });
+    try { chmodSync(CONFIG_PATH, 0o600); } catch { /* creation mode is already restrictive */ }
+  }
   const source = readFileSync(CONFIG_PATH, "utf-8");
   const parsed = parseDocument(source).toJS() as unknown;
   if (!parsed || typeof parsed !== "object" || !("schema_version" in parsed)) throw new Error("Invalid settings.yaml:\n  • schema_version: Required (expected 1 for migration or 2)");
@@ -86,7 +117,16 @@ export function loadConfig(): KokpitConfig {
     const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
     let backup = `${CONFIG_PATH}.v1.bak`;
     if (existsSync(backup) && readFileSync(backup, "utf-8") !== source) backup = `${backup}.${randomUUID()}`;
-    try { if (!existsSync(backup)) writeFileSync(backup, source, { encoding: "utf-8", flag: "wx" }); writeFileSync(temp, stringify(config), "utf-8"); renameSync(temp, CONFIG_PATH); }
+    const sourceMode = statSync(CONFIG_PATH).mode & 0o777;
+    try {
+      if (!existsSync(backup)) {
+        writeFileSync(backup, source, { encoding: "utf-8", flag: "wx", mode: sourceMode });
+        chmodSync(backup, sourceMode);
+      }
+      writeFileSync(temp, stringify(config), { encoding: "utf-8", mode: sourceMode });
+      chmodSync(temp, sourceMode);
+      renameSync(temp, CONFIG_PATH);
+    }
     catch (error) { try { if (existsSync(temp)) renameSync(temp, `${temp}.failed`); } catch {} throw new Error(`Unable to atomically migrate ${CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`); }
   } else if (version === 2) {
     const result = KokpitConfigSchema.safeParse(parsed);
@@ -97,13 +137,35 @@ export function loadConfig(): KokpitConfig {
 }
 
 export function getConfig(): KokpitConfig { return cachedConfig ?? loadConfig(); }
-export function writeConfig(updates: Partial<KokpitConfig>): void {
+export class ConfigRevisionMismatchError extends Error {
+  constructor(readonly currentRevision: string) {
+    super("settings.yaml changed before it could be written");
+    this.name = "ConfigRevisionMismatchError";
+  }
+}
+
+export function writeConfig(
+  updates: Partial<KokpitConfig>,
+  expectedRevision?: string
+): void {
   KokpitConfigSchema.parse({ ...getConfig(), ...updates });
-  const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
   const doc = parseDocument(readFileSync(CONFIG_PATH, "utf-8"));
+  const current = KokpitConfigSchema.parse(doc.toJS());
+  if (expectedRevision !== undefined && configRevision(current) !== expectedRevision) {
+    throw new ConfigRevisionMismatchError(configRevision(current));
+  }
+  const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
   for (const [key, value] of Object.entries(updates)) doc.setIn([key], value);
   // Parse the exact document that will be persisted, not just the in-memory merge.
   KokpitConfigSchema.parse(doc.toJS());
-  writeFileSync(temp, doc.toString(), "utf-8"); renameSync(temp, CONFIG_PATH); invalidateCache();
+  let mode = 0o600;
+  try {
+    if (existsSync(CONFIG_PATH)) mode = statSync(CONFIG_PATH).mode & 0o777;
+  } catch {
+    // Test doubles and unusual filesystems may not expose mode metadata.
+  }
+  writeFileSync(temp, doc.toString(), { encoding: "utf-8", mode });
+  try { chmodSync(temp, mode); } catch { /* write mode is already restrictive */ }
+  renameSync(temp, CONFIG_PATH); invalidateCache();
 }
 export function invalidateCache(): void { cachedConfig = null; }

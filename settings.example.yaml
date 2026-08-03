@@ -66,185 +66,93 @@ service_tiles: []
 #   back to "normal". The legacy position: field is DEPRECATED —
 #   use size: plus array order instead.
 #
-# Example entries (uncomment and fill in your values):
+# Schema-v2 example entries (uncomment and fill in your values). Services own
+# reusable connections; tiles own placement and widget-specific options:
 # services:
-#   - name: Plex
-#     url: http://192.168.1.x:32400
+#   - id: 10000000-0000-4000-8000-000000000001
+#     name: Plex
+#     launch_url: http://192.168.1.x:32400
+#     integration:
+#       type: plex
+#       config:
+#         url: http://192.168.1.x:32400
+#         token: <your-plex-token>
+# service_tiles:
+#   - id: 20000000-0000-4000-8000-000000000001
+#     service_id: 10000000-0000-4000-8000-000000000001
 #     group: Media
 #     size: large
 #     widget:
 #       type: plex
 #       config:
-#         url: http://192.168.1.x:32400
-#         token: <your-plex-token>
 #         fields:
 #           - streams
 #           - transcodes
 #
-#   - name: Tautulli
-#     url: http://192.168.1.x:8181
+# Additional schema-v2 widget examples (connection fields belong to the
+# service integration; display and filtering options belong to the tile):
+# services:
+#   - id: 10000000-0000-4000-8000-000000000002
+#     name: Tautulli
+#     launch_url: http://192.168.1.x:8181
+#     integration:
+#       type: tautulli
+#       config:
+#         url: http://192.168.1.x:8181
+#         api_key: <your-tautulli-api-key>
+# service_tiles:
+#   - id: 20000000-0000-4000-8000-000000000002
+#     service_id: 10000000-0000-4000-8000-000000000002
 #     group: Media
 #     size: tall
 #     widget:
 #       type: tautulli-activity
 #       config:
-#         url: http://192.168.1.x:8181
-#         api_key: <your-tautulli-api-key>
-#         sections:
-#           - summary
-#           - sessions
+#         sections: [summary, sessions]
 #
-#   - name: qBittorrent Stats
-#     url: http://192.168.1.x:8080
-#     widget:
-#       type: qbittorrent-stats
+# Repeat this service/service_tile pattern for the other integrations listed
+# in README.md; never place url, group, or widget directly under services.
+#
+# Legacy service-shaped widget examples have been replaced by the schema-v2
+# pattern above. Keep connections on services[].integration.config and put only
+# tile-specific options on service_tiles[].widget.config. For example:
+# services:
+#   - id: 10000000-0000-4000-8000-000000000003
+#     name: qBittorrent
+#     launch_url: http://192.168.1.x:8080
+#     integration:
+#       type: qbittorrent
 #       config:
 #         url: http://192.168.1.x:8080
 #         username: <your-username>
 #         password: <your-password>
-#
-#   - name: qBittorrent Torrents
-#     url: http://192.168.1.x:8080
+#   - id: 10000000-0000-4000-8000-000000000004
+#     name: Actual Budget
+#     launch_url: http://192.168.1.x:5006 # browser navigation, not the sidecar
+#     integration:
+#       type: actualbudget
+#       config:
+#         url: http://actual-http-api:5007
+#         api_key: <your-sidecar-api-key>
+#         budget_sync_id: <your-sync-id>
+# service_tiles:
+#   - id: 20000000-0000-4000-8000-000000000003
+#     service_id: 10000000-0000-4000-8000-000000000003
 #     widget:
 #       type: qbittorrent-torrents
-#       config:
-#         url: http://192.168.1.x:8080
-#         username: <your-username>
-#         password: <your-password>
-#
-#   - name: SABnzbd
-#     url: http://192.168.1.x:8080
-#     widget:
-#       type: sabnzbd
-#       config:
-#         url: http://192.168.1.x:8080
-#         apikey: <your-api-key>
-#
-#   - name: Tdarr
-#     url: http://192.168.1.x:8265
-#     widget:
-#       type: tdarr-stats
-#       config:
-#         url: http://192.168.1.x:8265
-#         # apikey: <optional-api-key>
-#
-#   NOTE: two different URLs. The service-level `url` (port 5006 below) is
-#   your Actual Budget server — it's only where clicking the tile navigates.
-#   The widget's `config.url` (port 5007) is the actual-http-api sidecar —
-#   that's what the widget actually fetches from. Pointing both at the
-#   sidecar gives you a tile that opens raw JSON instead of your budget.
-#
-#   - name: Actual Budget Summary
-#     url: http://192.168.1.x:5006
-#     icon: di-actual-budget
-#     widget:
-#       type: actualbudget-summary
-#       config:
-#         url: http://192.168.1.x:5007
-#         api_key: <your-sidecar-api-key>
-#         budget_sync_id: <your-sync-id>
-#         # currency: USD
-#         # locale: en-US
-#         # timezone: Europe/Warsaw
-#         # privacy_mode: true
-#         # encryption_password: <password-if-e2e-encrypted>
-#
-#   - name: Budget Categories
-#     url: http://192.168.1.x:5006
+#       config: { limit: 10, filter: downloading }
+#   - id: 20000000-0000-4000-8000-000000000004
+#     service_id: 10000000-0000-4000-8000-000000000004
 #     widget:
 #       type: actualbudget-categories
-#       config:
-#         url: http://192.168.1.x:5007
-#         api_key: <your-sidecar-api-key>
-#         budget_sync_id: <your-sync-id>
-#         # limit: 8
-#         # hide_income: true
-#         # hide_empty: true
-#         # timezone: Europe/Warsaw
+#       config: { limit: 8, hide_income: true, hide_empty: true, timezone: Europe/Warsaw }
 #
-#   - name: Budget Accounts
-#     url: http://192.168.1.x:5006
-#     widget:
-#       type: actualbudget-accounts
-#       config:
-#         url: http://192.168.1.x:5007
-#         api_key: <your-sidecar-api-key>
-#         budget_sync_id: <your-sync-id>
-#         # exclude_closed: true
-#         # exclude_offbudget: false
-#         # timezone: Europe/Warsaw
-#
-#   - name: Budget Schedule
-#     url: http://192.168.1.x:5006
-#     widget:
-#       type: actualbudget-schedules
-#       config:
-#         url: http://192.168.1.x:5007
-#         api_key: <your-sidecar-api-key>
-#         budget_sync_id: <your-sync-id>
-#         # limit: 6
-#         # days_ahead: 30
-#         # timezone: Europe/Warsaw
-#
-#   - name: Sonarr
-#     url: http://192.168.1.x:8989
-#     widget:
-#       type: sonarr-calendar   # or sonarr-queue
-#       config:
-#         url: http://192.168.1.x:8989
-#         api_key: <your-api-key>
-#
-#   - name: Radarr
-#     url: http://192.168.1.x:7878
-#     widget:
-#       type: radarr-stats   # or radarr-queue
-#       config:
-#         url: http://192.168.1.x:7878
-#         api_key: <your-api-key>
-#
-#   - name: Prowlarr
-#     url: http://192.168.1.x:9696
-#     widget:
-#       type: prowlarr-stats
-#       config:
-#         url: http://192.168.1.x:9696
-#         api_key: <your-api-key>
-#
-#   - name: Seerr
-#     url: http://192.168.1.x:5055
-#     widget:
-#       type: seerr-stats   # or seerr-requests
-#       config:
-#         url: http://192.168.1.x:5055
-#         api_key: <your-api-key>
-#
-#   - name: Immich
-#     url: http://192.168.1.x:2283
-#     widget:
-#       type: immich-stats
-#       config:
-#         url: http://192.168.1.x:2283/api
-#         api_key: <your-api-key>
-#
-#   - name: Unraid
-#     url: http://192.168.1.x
-#     widget:
-#       type: unraid-stats
-#       config:
-#         url: http://192.168.1.x
-#         api_key: <your-api-key>
-#
-#   - name: CPU
-#     widget:
-#       type: netdata-cpu   # + netdata-ram, netdata-net, netdata-disk-io,
-#                           # netdata-disk-space, netdata-load, netdata-sensor
-#       config:
-#         url: http://192.168.1.x:19999
-#
-#   - name: Docker
-#     widget:
-#       type: docker
-#       config: {}
+# The other network integrations use their service name as integration.type:
+# plex, tautulli, sabnzbd, tdarr, sonarr, radarr, prowlarr, seerr, immich,
+# unraid, and netdata. Reuse one service integration for its related widgets.
+# Docker is a local informational widget, but still requires a matching
+# `docker` service integration. System-stats remains integration-free; its
+# complete configuration is on the tile.
 #
 # See README.md § Widgets for the full field reference for every widget type.
 

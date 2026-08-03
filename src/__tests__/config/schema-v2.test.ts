@@ -1,7 +1,10 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { KokpitConfigSchema } from "@/config/schema";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { KokpitConfigSchema, widgetIntegrationRequirement } from "@/config/schema";
 import { migrateV1Config } from "@/config/loader";
 import { toClientSafeSettings, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY } from "@/widgets/configSecrets";
 
@@ -59,29 +62,85 @@ describe("schema v2 service ownership", () => {
 });
 
 describe("v1 migration", () => {
-  it("creates independent stable references without deduplicating entries", () => {
+  it("only deduplicates services with identical presentation and connection", () => {
+    const base = { url: "http://sonarr:8989", api_key: "secret" };
+    const matching = migrateV1Config({ schema_version: 1, services: [
+      { name: "Sonarr", url: "https://one.example", icon: "one", description: "One", group: "Media", widget: { type: "sonarr-calendar", config: base } },
+      { name: "Sonarr", url: "https://one.example", icon: "one", description: "One", group: "Media", widget: { type: "sonarr-queue", config: base } },
+    ] });
+    expect(matching.services).toHaveLength(1);
+    for (const [field, value] of Object.entries({ name: "Other", url: "https://other.example", icon: "other", description: "Other", group: "Other" })) {
+      const first = { name: "Sonarr", url: "https://one.example", icon: "one", description: "One", group: "Media", widget: { type: "sonarr-calendar", config: base } };
+      const second = { ...first, [field]: value, widget: { type: "sonarr-queue", config: base } };
+      expect(migrateV1Config({ schema_version: 1, services: [first, second] }).services).toHaveLength(2);
+    }
+  });
+
+  it.each([["plex", "plex"], ["sabnzbd", "sabnzbd"], ["docker", "docker"], ["system-stats", null]])(
+    "maps registered widget %s to %s", (widget, integration) => {
+      expect(widgetIntegrationRequirement(widget)).toBe(integration);
+    }
+  );
+  it("deduplicates matching backends while retaining separate tile options", () => {
     const migrated = migrateV1Config({
       schema_version: 1,
       services: [
         { name: "Sonarr", url: "https://sonarr.example", group: "Media", widget: { type: "sonarr-calendar", config: { url: "http://sonarr:8989", api_key: "secret", days: 7 } } },
-        { name: "Sonarr", url: "https://sonarr.example", group: "Media", widget: { type: "sonarr-queue", config: { url: "http://sonarr:8989", api_key: "secret", limit: 5 } } },
+        { name: "Sonarr", url: "https://sonarr.example", group: "Media", widget: { type: "sonarr-queue", config: { api_key: "secret", url: "http://sonarr:8989", limit: 5 } } },
       ],
     });
-    expect(migrated.services).toHaveLength(2);
-    expect(new Set(migrated.services.map((service) => service.id)).size).toBe(2);
-    expect(migrated.service_tiles.map((tile) => tile.service_id)).toEqual(migrated.services.map((service) => service.id));
+    expect(migrated.services).toHaveLength(1);
+    expect(migrated.service_tiles).toHaveLength(2);
+    expect(migrated.service_tiles.map((tile) => tile.service_id)).toEqual([migrated.services[0].id, migrated.services[0].id]);
     expect(migrated.services[0].integration?.config).toEqual({ url: "http://sonarr:8989", api_key: "secret" });
     expect(migrated.service_tiles[0].widget?.config).toEqual({ days: 7 });
+    expect(migrated.service_tiles[1].widget?.config).toEqual({ limit: 5 });
   });
 
-  it("does not invent an integration for widgets that explicitly need none", () => {
+  it("keeps integration-free widget configuration on the tile", () => {
     const migrated = migrateV1Config({
       schema_version: 1,
-      services: [{ name: "Host", widget: { type: "system-stats", config: {} } }],
+      services: [{ name: "Host", widget: { type: "system-stats", config: { show_load: true } } }],
     });
 
     expect(migrated.services[0].integration).toBeUndefined();
-    expect(migrated.service_tiles[0].widget?.type).toBe("system-stats");
+    expect(migrated.service_tiles[0].widget).toEqual({ type: "system-stats", config: { show_load: true } });
+  });
+
+  it("keeps unknown widget configuration without creating integration metadata", () => {
+    const migrated = migrateV1Config({
+      schema_version: 1,
+      services: [{ name: "Custom", widget: { type: "custom-widget", config: { token: "opaque", display: "compact" } } }],
+    });
+
+    expect(migrated.services[0].integration).toBeUndefined();
+    expect(migrated.service_tiles[0].widget).toEqual({
+      type: "custom-widget",
+      config: { token: "opaque", display: "compact" },
+    });
+  });
+
+  it("preserves the source mode for the migrated file and v1 backup", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "kokpit-v1-mode-"));
+    const configPath = path.join(dir, "settings.yaml");
+    writeFileSync(configPath, "schema_version: 1\nservices: []\n", "utf-8");
+    chmodSync(configPath, 0o640);
+    const previousPath = process.env.KOKPIT_CONFIG_PATH;
+    process.env.KOKPIT_CONFIG_PATH = configPath;
+    try {
+      vi.resetModules();
+      const { loadConfig } = await import("@/config/loader");
+      loadConfig();
+
+      expect(statSync(configPath).mode & 0o777).toBe(0o640);
+      expect(statSync(`${configPath}.v1.bak`).mode & 0o777).toBe(0o640);
+      expect(readFileSync(`${configPath}.v1.bak`, "utf-8")).toBe("schema_version: 1\nservices: []\n");
+    } finally {
+      if (previousPath === undefined) delete process.env.KOKPIT_CONFIG_PATH;
+      else process.env.KOKPIT_CONFIG_PATH = previousPath;
+      rmSync(dir, { recursive: true, force: true });
+      vi.resetModules();
+    }
   });
 });
 

@@ -6,7 +6,6 @@ import {
   Service,
   ServiceWidget,
   Size,
-  serviceNameUniquenessKey,
 } from "@/config/schema";
 import { resolveServiceSize, sizeSatisfies } from "@/config";
 import { resolveIconRef } from "@/config/iconRef";
@@ -527,7 +526,7 @@ function WidgetConfigFields({
 export default function ServiceForm({
   service,
   existingGroups,
-  takenNames = [],
+  takenNames: _takenNames = [],
   initialGroup,
   initialPreset,
   focusWidget = false,
@@ -927,11 +926,6 @@ export default function ServiceForm({
       return;
     }
 
-    const nameKey = serviceNameUniquenessKey(trimmedName);
-    if (takenNames.some((n) => serviceNameUniquenessKey(n) === nameKey)) {
-      setNameError("A service with this name already exists.");
-      return;
-    }
     setNameError(null);
 
     if (savedCredentialsStale) return;
@@ -957,6 +951,8 @@ export default function ServiceForm({
     }
 
     onSave({
+      ...(service?.id ? { id: service.id } : {}),
+      ...(service?.tileId ? { tileId: service.tileId } : {}),
       name: trimmedName,
       url: url.trim() || undefined,
       icon: icon.trim() || undefined,

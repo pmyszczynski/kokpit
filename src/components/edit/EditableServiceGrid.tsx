@@ -56,7 +56,7 @@ import {
   groupContainerId,
   groupSortableId,
   moveBookmarkToGroup,
-  moveServiceToGroup,
+  moveServiceByIdentityToGroup,
   reorderGroups,
   serviceTileId,
 } from "@/config/reorder";
@@ -97,11 +97,13 @@ function serviceTileProps(service: Service) {
     ? getWidgetSizeHints(service.widget.type)
     : undefined;
   return {
+    serviceId: service.id,
+    tileId: service.tileId,
     name: service.name,
     url: service.url,
     icon: service.icon,
     description: service.description,
-    widget: resolveTileWidget(service.widget),
+    widget: resolveTileWidget(service.widget, service.integration?.config),
     size: resolveServiceSize(service, hints?.preferredSize, hints?.minSize),
   };
 }
@@ -112,6 +114,7 @@ interface TileData {
   type: "tile";
   kind: "service" | "bookmark";
   name: string;
+  identity: string;
   containerId: string;
 }
 interface ContainerData {
@@ -127,7 +130,7 @@ interface ContainerInfo {
   id: string;
   /** Display group name to assign on drop; null = clear group. */
   group: string | null;
-  serviceNames: string[];
+  serviceIds: string[];
   bookmarkNames: string[];
 }
 
@@ -151,11 +154,12 @@ function SortableServiceTile({
     transition,
     isDragging,
   } = useSortable({
-    id: serviceTileId(service.name),
+    id: serviceTileId(service.tileId ?? service.id ?? service.name),
     data: {
       type: "tile",
       kind: "service",
       name: service.name,
+      identity: service.tileId ?? service.id ?? service.name,
       containerId,
     } satisfies TileData,
   });
@@ -200,6 +204,7 @@ function SortableBookmarkTile({
       type: "tile",
       kind: "bookmark",
       name: bookmark.name,
+      identity: bookmark.name,
       containerId,
     } satisfies TileData,
   });
@@ -315,23 +320,25 @@ function keyEq(a: string, b: string): boolean {
  */
 function computeTargetIndex(
   list: string[],
-  movingName: string,
+  movingIdentity: string,
   overData: TileData | ContainerData | undefined,
   sameContainer: boolean,
   kind: "service" | "bookmark"
 ): number {
-  const withoutMoving = list.filter((n) => !keyEq(n, movingName));
+  const sameItem = (value: string, identity: string) =>
+    kind === "service" ? value === identity : keyEq(value, identity);
+  const withoutMoving = list.filter((value) => !sameItem(value, movingIdentity));
   if (!overData || overData.type === "container") return withoutMoving.length;
   if (overData.kind !== kind) return withoutMoving.length;
 
   if (sameContainer) {
-    const oldIdx = list.findIndex((n) => keyEq(n, movingName));
-    const newIdx = list.findIndex((n) => keyEq(n, overData.name));
+    const oldIdx = list.findIndex((value) => sameItem(value, movingIdentity));
+    const newIdx = list.findIndex((value) => sameItem(value, overData.identity));
     if (oldIdx === -1 || newIdx === -1) return withoutMoving.length;
     const reordered = arrayMove(list, oldIdx, newIdx);
-    return reordered.findIndex((n) => keyEq(n, movingName));
+    return reordered.findIndex((value) => sameItem(value, movingIdentity));
   }
-  const overIdx = withoutMoving.findIndex((n) => keyEq(n, overData.name));
+  const overIdx = withoutMoving.findIndex((value) => sameItem(value, overData.identity));
   return overIdx === -1 ? withoutMoving.length : overIdx;
 }
 
@@ -350,7 +357,7 @@ const collisionDetection: CollisionDetection = (args) => {
 // Which edit dialog (if any) is mounted. `group` is the target section an
 // add-flow was launched from (null = ungrouped / no placement).
 type ActiveDialog =
-  | { kind: "service-edit"; name: string; focusWidget?: boolean }
+  | { kind: "service-edit"; id: string; focusWidget?: boolean }
   | { kind: "service-add"; group: string | null; preset?: string }
   | { kind: "bookmark-edit"; name: string }
   | { kind: "bookmark-add"; group: string | null }
@@ -386,11 +393,18 @@ export default function EditableServiceGrid({
   // service that is no longer in the draft, so it can't linger.
   useEffect(() => {
     if (!pendingEditService) return;
-    const service = services.find((s) => keyEq(s.name, pendingEditService));
+    const pending = typeof pendingEditService === "string"
+      ? { name: pendingEditService }
+      : pendingEditService;
+    const service = services.find((s) =>
+      (pending.tileId != null && s.tileId === pending.tileId) ||
+      (pending.serviceId != null && s.id === pending.serviceId) ||
+      (pending.serviceId == null && pending.tileId == null && keyEq(s.name, pending.name))
+    );
     // Seeded from the broken-widget badge (not the kebab's Edit item): focus
     // the Widget section so the Zod error is right where the user lands.
     if (service)
-      setDialog({ kind: "service-edit", name: service.name, focusWidget: true });
+      setDialog({ kind: "service-edit", id: service.tileId ?? service.id!, focusWidget: true });
     clearPendingEditService();
   }, [pendingEditService, services, clearPendingEditService]);
 
@@ -411,9 +425,16 @@ export default function EditableServiceGrid({
   // ---- B3 staged mutations (all via the B1 setters / updateDraft) ----
 
   const handleServiceEditSave = useCallback(
-    (originalName: string, updated: Service) =>
+    (id: string, tileId: string | undefined, updated: Service) =>
       setServices(
-        services.map((s) => (keyEq(s.name, originalName) ? updated : s))
+        services.map((s) => s.id !== id ? s : {
+          ...updated,
+          id: s.id,
+          tileId: s.tileId,
+          editorIntegrationConfig: s.editorIntegrationConfig,
+          editorTileWidgetConfig: s.editorTileWidgetConfig,
+          ...(s.tileId !== tileId ? { group: s.group, size: s.size, widget: s.widget } : {}),
+        })
       ),
     [services, setServices]
   );
@@ -427,19 +448,31 @@ export default function EditableServiceGrid({
   );
 
   const handleServiceDuplicate = useCallback(
-    (name: string) => setServices(duplicateService(services, name)),
+    (id: string) => setServices(duplicateService(services, id)),
     [services, setServices]
   );
 
   const handleServiceRemove = useCallback(
-    (name: string) => setServices(services.filter((s) => !keyEq(s.name, name))),
-    [services, setServices]
+    (identity: string) => {
+      const target = services.find((service) => (service.tileId ?? service.id) === identity);
+      if (!target?.tileId) {
+        setServices(services.filter((service) => service.id !== identity));
+        return;
+      }
+      const serviceTiles = config.service_tiles.filter((tile) => tile.id !== target.tileId);
+      const hasRemainingTile = serviceTiles.some((tile) => tile.service_id === target.id);
+      updateDraft({
+        service_tiles: serviceTiles,
+        ...(hasRemainingTile ? {} : { services: config.services.filter((service) => service.id !== target.id) }),
+      });
+    },
+    [services, config.service_tiles, config.services, setServices, updateDraft]
   );
 
   const handleServiceSize = useCallback(
-    (name: string, size: Size) =>
+    (id: string, size: Size) =>
       setServices(
-        services.map((s) => (keyEq(s.name, name) ? { ...s, size } : s))
+        services.map((s) => ((s.tileId ?? s.id) === id ? { ...s, size } : s))
       ),
     [services, setServices]
   );
@@ -585,7 +618,7 @@ export default function EditableServiceGrid({
       containerById.set(id, {
         id,
         group,
-        serviceNames: svc.map((s) => s.name),
+        serviceIds: svc.map((s) => s.tileId ?? s.id ?? s.name),
         bookmarkNames: bms.map((b) => b.name),
       });
     };
@@ -662,15 +695,15 @@ export default function EditableServiceGrid({
 
       if (activeData.kind === "service") {
         const idx = computeTargetIndex(
-          target.serviceNames,
-          activeData.name,
+          target.serviceIds,
+          activeData.identity,
           overData,
           sameContainer,
           "service"
         );
-        const next = moveServiceToGroup(
+        const next = moveServiceByIdentityToGroup(
           services,
-          activeData.name,
+          activeData.identity,
           target.group,
           idx
         );
@@ -701,8 +734,8 @@ export default function EditableServiceGrid({
   const overlay = useMemo(() => {
     if (!activeId) return null;
     if (activeId.startsWith(SERVICE_TILE_PREFIX)) {
-      const name = activeId.slice(SERVICE_TILE_PREFIX.length);
-      const service = services.find((s) => keyEq(s.name, name));
+      const id = activeId.slice(SERVICE_TILE_PREFIX.length);
+      const service = services.find((s) => (s.tileId ?? s.id) === id);
       if (!service) return null;
       return <ServiceTile {...serviceTileProps(service)} preview />;
     }
@@ -732,10 +765,10 @@ export default function EditableServiceGrid({
         name={service.name}
         size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
         minSize={hints?.minSize}
-        onEdit={() => setDialog({ kind: "service-edit", name: service.name })}
-        onSize={(size) => handleServiceSize(service.name, size)}
-        onDuplicate={() => handleServiceDuplicate(service.name)}
-        onRemove={() => handleServiceRemove(service.name)}
+        onEdit={() => setDialog({ kind: "service-edit", id: service.tileId ?? service.id! })}
+        onSize={(size) => handleServiceSize(service.tileId ?? service.id!, size)}
+        onDuplicate={() => handleServiceDuplicate(service.tileId ?? service.id!)}
+        onRemove={() => handleServiceRemove(service.tileId ?? service.id!)}
       />
     );
   };
@@ -758,7 +791,7 @@ export default function EditableServiceGrid({
     <>
       {sectionServices.map((service) => (
         <SortableServiceTile
-          key={`service:${service.name}`}
+          key={`service:${service.tileId ?? service.id}`}
           service={service}
           containerId={containerId}
           kebab={serviceKebab(service)}
@@ -790,7 +823,7 @@ export default function EditableServiceGrid({
     sectionServices: Service[],
     sectionBookmarks: BookmarkGroup[]
   ) => [
-    ...sectionServices.map((s) => serviceTileId(s.name)),
+    ...sectionServices.map((s) => serviceTileId(s.tileId ?? s.id ?? s.name)),
     ...sectionBookmarks.map((b) => bookmarkTileId(b.name)),
   ];
 
@@ -939,18 +972,15 @@ export default function EditableServiceGrid({
     }
 
     if (dialog.kind === "service-edit") {
-      const service = services.find((s) => keyEq(s.name, dialog.name));
+      const service = services.find((s) => (s.tileId ?? s.id) === dialog.id);
       if (!service) return null;
       return (
         <ServiceForm
           service={service}
           existingGroups={knownGroupNames}
-          takenNames={services
-            .filter((s) => !keyEq(s.name, dialog.name))
-            .map((s) => s.name)}
           focusWidget={dialog.focusWidget}
           onSave={(updated) => {
-            handleServiceEditSave(dialog.name, updated);
+            handleServiceEditSave(service.id!, service.tileId, updated);
             close();
           }}
           onClose={close}

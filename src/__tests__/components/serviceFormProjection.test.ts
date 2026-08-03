@@ -4,14 +4,393 @@ import {
   projectLegacyServices,
   splitWidgetConfig,
 } from "@/components/edit/serviceFormProjection";
-import { UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY, resolveServiceIntegrationSecrets } from "@/widgets/configSecrets";
+import {
+  UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
+  resolveServiceIntegrationSecrets,
+  resolveServiceTileWidgetConfigs,
+  toClientSafeSettings,
+} from "@/widgets/configSecrets";
 import { createWidgetConfigReference } from "@/widgets/secretReference.server";
+import { duplicateService } from "@/config/duplicate";
 
 const serviceId = "10000000-0000-4000-8000-000000000001";
 const tileId = "20000000-0000-4000-8000-000000000001";
 const extraTileId = "20000000-0000-4000-8000-000000000002";
 
 describe("serviceFormProjection", () => {
+  it("projects and persists every tile of a shared service independently", () => {
+    const services = [{ id: serviceId, name: "Sonarr", integration: { type: "sonarr", config: { url: "http://sonarr" } } }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, group: "Media", widget: { type: "sonarr-calendar", config: { days: 7 } } },
+      { id: extraTileId, service_id: serviceId, group: "Queue", widget: { type: "sonarr-queue", config: { limit: 3 } } },
+    ];
+    const projected = projectLegacyServices(services, tiles);
+    expect(projected.map((service) => service.tileId)).toEqual([tileId, extraTileId]);
+    const persisted = persistLegacyServices(projected, services, tiles);
+    expect(persisted.services).toHaveLength(1);
+    expect(persisted.service_tiles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: tileId, group: "Media", widget: expect.objectContaining({ config: { days: 7 } }) }),
+      expect.objectContaining({ id: extraTileId, group: "Queue", widget: expect.objectContaining({ config: { limit: 3 } }) }),
+    ]));
+  });
+
+  it("persists a new widget service with its integration and tile options", () => {
+    const persisted = persistLegacyServices([{
+      name: "Plex",
+      url: "http://plex",
+      widget: {
+        type: "plex",
+        config: { url: "http://plex", token: "plex-token", fields: ["streams"] },
+      },
+    }], [], []);
+
+    expect(persisted.services).toHaveLength(1);
+    expect(persisted.services[0]).toMatchObject({
+      integration: { type: "plex", config: { url: "http://plex", token: "plex-token" } },
+    });
+    expect(persisted.service_tiles).toEqual([expect.objectContaining({
+      service_id: persisted.services[0].id,
+      widget: { type: "plex", config: { fields: ["streams"] } },
+    })]);
+  });
+
+  it("persists an unconfigured new integration widget with an empty connection", () => {
+    for (const config of [undefined, {}]) {
+      const persisted = persistLegacyServices([{
+        name: "Plex",
+        widget: { type: "plex", config },
+      }], [], []);
+
+      expect(persisted.services[0].integration).toEqual({ type: "plex", config: {} });
+      expect(persisted.service_tiles[0].widget?.type).toBe("plex");
+    }
+  });
+
+  it("uses a changed second tile connection while preserving every tile option", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr", api_key: "secret" } },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar", config: { days: 7 } } },
+      { id: extraTileId, service_id: serviceId, widget: { type: "sonarr-queue", config: { limit: 3 } } },
+    ];
+    const projected = projectLegacyServices(services, tiles);
+    projected[1] = {
+      ...projected[1],
+      widget: {
+        ...projected[1].widget!,
+        config: { ...projected[1].widget!.config, url: "http://sonarr-new", api_key: "secret-new" },
+      },
+    };
+
+    const persisted = persistLegacyServices(projected, services, tiles);
+
+    expect(persisted.services[0].integration).toEqual({
+      type: "sonarr",
+      config: { url: "http://sonarr-new", api_key: "secret-new" },
+    });
+    expect(persisted.service_tiles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: tileId, widget: { type: "sonarr-calendar", config: { days: 7 } } }),
+      expect.objectContaining({ id: extraTileId, widget: { type: "sonarr-queue", config: { limit: 3 } } }),
+    ]));
+  });
+
+  it("keeps an opaque known-widget tile config out of the shared integration", () => {
+    const opaque = "widget-config-ref.opaque";
+    const services = [{
+      id: serviceId,
+      name: "Plex",
+      integration: { type: "plex", config: { url: "http://plex", api_key: "secret" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: {
+        type: "plex",
+        config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque },
+      },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+
+    expect(projected.widget?.config).toEqual({ url: "http://plex", api_key: "secret" });
+
+    const persisted = persistLegacyServices([{ ...projected, name: "Plex renamed" }], services, tiles);
+
+    expect(persisted.services[0].integration).toEqual(services[0].integration);
+    expect(persisted.service_tiles[0].widget?.config).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque,
+    });
+  });
+
+  it("preserves an opaque service config beside safe tile options", () => {
+    const opaque = "widget-config-ref.service";
+    const services = [{
+      id: serviceId,
+      name: "Plex",
+      integration: { type: "plex", config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: { type: "plex", config: { fields: ["streams"] } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+
+    expect(projected.widget?.config).toEqual({ fields: ["streams"] });
+    expect(projected.editorIntegrationConfig).toEqual(services[0].integration.config);
+    expect(projected.editorTileWidgetConfig).toEqual(tiles[0].widget.config);
+
+    const persisted = persistLegacyServices([{ ...projected, name: "Plex renamed" }], services, tiles);
+
+    expect(persisted.services[0].integration?.config).toEqual(services[0].integration.config);
+    expect(persisted.service_tiles[0].widget?.config).toEqual(tiles[0].widget.config);
+  });
+
+  it("updates the shared connection while replacing an opaque tile config", () => {
+    const opaque = "widget-config-ref.tile";
+    const services = [{
+      id: serviceId,
+      name: "Plex",
+      integration: { type: "plex", config: { url: "http://plex-old", token: "old-token" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: { type: "plex", config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+    const persisted = persistLegacyServices([{
+      ...projected,
+      widget: { ...projected.widget!, config: {
+        url: "http://plex-new",
+        token: "new-token",
+        fields: ["streams"],
+      } },
+    }], services, tiles);
+
+    expect(persisted.services[0].integration).toEqual({
+      type: "plex",
+      config: { url: "http://plex-new", token: "new-token" },
+    });
+    expect(persisted.service_tiles[0].widget?.config).toEqual({ fields: ["streams"] });
+  });
+
+  it("uses shared presentation fields changed through a second projected tile", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      launch_url: "http://sonarr-old",
+      icon: "old-icon",
+      description: "old description",
+      category: "Old",
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar", config: { days: 7 } } },
+      { id: extraTileId, service_id: serviceId, widget: { type: "sonarr-queue", config: { limit: 3 } } },
+    ];
+    const projected = projectLegacyServices(services, tiles);
+    projected[1] = {
+      ...projected[1],
+      name: "Sonarr renamed",
+      url: "http://sonarr-new",
+      icon: "new-icon",
+      description: "new description",
+      category: "New",
+    };
+
+    const persisted = persistLegacyServices(projected, services, tiles);
+
+    expect(persisted.services[0]).toMatchObject({
+      name: "Sonarr renamed",
+      launch_url: "http://sonarr-new",
+      icon: "new-icon",
+      description: "new description",
+      category: "New",
+    });
+  });
+
+  it("keeps the service category when a second tile edit omits it", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      launch_url: "http://sonarr-old",
+      category: "Media",
+      integration: { type: "sonarr", config: { url: "http://sonarr-old", api_key: "old-key" } },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, group: "Media", widget: { type: "sonarr-calendar", config: { days: 7 } } },
+      { id: extraTileId, service_id: serviceId, group: "Queue", widget: { type: "sonarr-queue", config: { limit: 3 } } },
+    ];
+    const projected = projectLegacyServices(services, tiles);
+    const { category: _category, ...secondWithoutCategory } = projected[1];
+    projected[1] = {
+      ...secondWithoutCategory,
+      name: "Sonarr renamed",
+      url: "http://sonarr-new",
+      widget: {
+        ...secondWithoutCategory.widget!,
+        config: { ...secondWithoutCategory.widget!.config, url: "http://sonarr-new", api_key: "new-key" },
+      },
+    };
+
+    const persisted = persistLegacyServices(projected, services, tiles);
+
+    expect(persisted.services[0]).toMatchObject({
+      name: "Sonarr renamed",
+      launch_url: "http://sonarr-new",
+      category: "Media",
+    });
+  });
+
+  it("uses the selected widget integration type when changing integrations", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr", api_key: "sonarr-key" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: { type: "sonarr-calendar", config: { days: 7 } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+    const persisted = persistLegacyServices([{
+      ...projected,
+      widget: {
+        type: "plex",
+        config: { url: "http://plex", token: "plex-token", fields: ["streams"] },
+      },
+    }], services, tiles);
+
+    expect(persisted.services[0].integration).toEqual({
+      type: "plex",
+      config: { url: "http://plex", token: "plex-token" },
+    });
+    expect(persisted.service_tiles[0].widget).toEqual({
+      type: "plex",
+      config: { fields: ["streams"] },
+    });
+  });
+
+  it("round-trips distinct opaque integration and tile configs after a presentation edit", () => {
+    const saved = {
+      schema_version: 2 as const,
+      auth: { enabled: false, session_ttl_hours: 24 },
+      appearance: { theme: "dark" as const },
+      layout: { columns: 4, row_height: 120 },
+      services: [{
+        id: serviceId,
+        name: "Tautulli",
+        integration: {
+          type: "tautulli",
+          config: {
+            url: "http://tautulli",
+            api_key: "integration-secret",
+            future_connection_option: "future-value",
+          },
+        },
+      }],
+      service_tiles: [{
+        id: tileId,
+        service_id: serviceId,
+        widget: {
+          type: "tautulli-activity",
+          config: { api_key: "tile-secret", sections: ["summary"] },
+        },
+      }],
+    };
+    const safe = toClientSafeSettings(saved);
+
+    expect(safe.services[0].integration?.config).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
+    });
+    expect(safe.service_tiles[0].widget?.config).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
+    });
+
+    const [projected] = projectLegacyServices(safe.services, safe.service_tiles);
+    const persisted = persistLegacyServices(
+      [{ ...projected, name: "Tautulli renamed" }],
+      safe.services,
+      safe.service_tiles
+    );
+    const restoredServices = resolveServiceIntegrationSecrets(
+      persisted.services,
+      saved.services
+    );
+    const restoredTiles = resolveServiceTileWidgetConfigs(
+      persisted.service_tiles,
+      saved.service_tiles
+    );
+
+    expect(restoredServices[0].integration?.config).toEqual(
+      saved.services[0].integration.config
+    );
+    expect(restoredTiles[0].widget?.config).toEqual(
+      saved.service_tiles[0].widget.config
+    );
+  });
+
+  it("duplicates a credentialed projected tile with new identities and no secret references", () => {
+    const services = [{ id: serviceId, name: "Sonarr", integration: { type: "sonarr", config: { url: "http://sonarr", api_key: createWidgetConfigReference(serviceId, "sonarr") } } }];
+    const tiles = [{ id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar", config: { days: 7 } } }];
+    const duplicated = duplicateService(projectLegacyServices(services, tiles), serviceId);
+    const persisted = persistLegacyServices(duplicated, services, tiles);
+    expect(persisted.services).toHaveLength(2);
+    expect(persisted.services[1]).toMatchObject({ name: "Sonarr copy" });
+    expect(persisted.services[1].id).not.toBe(serviceId);
+    expect(persisted.services[1].integration?.config).toEqual({ url: "http://sonarr" });
+    expect(persisted.service_tiles).toHaveLength(2);
+    expect(persisted.service_tiles[1].id).not.toBe(tileId);
+    expect(persisted.service_tiles[1].service_id).toBe(persisted.services[1].id);
+  });
+
+  it("does not carry an opaque tile reference onto a duplicated tile", () => {
+    const opaque = createWidgetConfigReference(tileId, "plex");
+    const saved = {
+      schema_version: 2 as const,
+      auth: { enabled: false, session_ttl_hours: 24 },
+      appearance: { theme: "dark" as const },
+      layout: { columns: 4, row_height: 120 },
+      services: [{
+        id: serviceId,
+        name: "Plex",
+        integration: { type: "plex", config: { url: "http://plex", token: "secret" } },
+      }],
+      service_tiles: [{
+        id: tileId,
+        service_id: serviceId,
+        widget: { type: "plex", config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque } },
+      }],
+    };
+    const safe = toClientSafeSettings(saved);
+    const duplicated = duplicateService(
+      projectLegacyServices(safe.services, safe.service_tiles),
+      serviceId
+    );
+    const duplicate = duplicated[1];
+    expect(duplicate.id).not.toBe(serviceId);
+    expect(duplicate.tileId).not.toBe(tileId);
+    expect(duplicate.editorIntegrationConfig).toBeUndefined();
+    expect(duplicate.editorTileWidgetConfig).toBeUndefined();
+
+    const persisted = persistLegacyServices(
+      duplicated,
+      safe.services,
+      safe.service_tiles
+    );
+    const clone = persisted.services[1];
+    const cloneTile = persisted.service_tiles.find((tile) => tile.service_id === clone.id)!;
+
+    expect(clone.integration?.config).toEqual({ url: "http://plex" });
+    expect(JSON.stringify({ clone, cloneTile }))
+      .not.toContain(UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY);
+    expect(JSON.stringify({ clone, cloneTile })).not.toContain(opaque);
+    expect(JSON.stringify({ clone, cloneTile })).not.toContain("secret");
+  });
+
   it("merges connection and tile options for editing, then preserves their boundary and extra tiles", () => {
     const services = [{
       id: serviceId,
@@ -140,5 +519,38 @@ describe("serviceFormProjection", () => {
     }], [{ id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar" } }]);
     expect(persisted.services[0].integration).toBeUndefined();
     expect(persisted.service_tiles[0].widget?.config).toEqual({ sections: ["cpu"] });
+  });
+
+  it("honors explicit clears from the service form without restoring prior tile state", () => {
+    const services = [{
+      id: serviceId,
+      name: "Plex",
+      integration: { type: "plex", config: { url: "http://plex.local", api_key: "secret" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      group: "Media",
+      size: "large" as const,
+      widget: { type: "plex", config: { fields: ["streams"] } },
+    }];
+
+    const persisted = persistLegacyServices([{
+      id: serviceId,
+      name: "Plex",
+      group: undefined,
+      size: undefined,
+      widget: undefined,
+    }], services, tiles);
+
+    expect(persisted.services[0].integration).toBeUndefined();
+    expect(persisted.service_tiles[0]).toEqual({ id: tileId, service_id: serviceId });
+  });
+
+  it("keeps prior tile fields when an input truly omits them", () => {
+    const services = [{ id: serviceId, name: "Plex" }];
+    const tiles = [{ id: tileId, service_id: serviceId, group: "Media", size: "wide" as const }];
+    const persisted = persistLegacyServices([{ id: serviceId, name: "Renamed" }], services, tiles);
+    expect(persisted.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
   });
 });

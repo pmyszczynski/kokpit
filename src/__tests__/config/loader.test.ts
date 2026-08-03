@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { chmodSync, mkdtempSync, rmSync, existsSync, readFileSync, statSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 
@@ -40,7 +40,8 @@ describe("loadConfig", () => {
     const config = loadConfig();
 
     expect(existsSync(configPath)).toBe(true);
-    expect(config.schema_version).toBe(1);
+    expect(statSync(configPath).mode & 0o777).toBe(0o600);
+    expect(config.schema_version).toBe(2);
     expect(config.auth.enabled).toBe(true);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
@@ -52,7 +53,7 @@ describe("loadConfig", () => {
   it("throws a descriptive error listing zod issues for schema-invalid YAML", async () => {
     writeFileSync(
       configPath,
-      "schema_version: 1\nappearance:\n  theme: purple\n",
+      "schema_version: 2\nappearance:\n  theme: purple\n",
       "utf-8"
     );
 
@@ -73,7 +74,7 @@ describe("getConfig / invalidateCache", () => {
     writeFileSync(
       configPath,
       `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: true
   session_ttl_hours: 24
@@ -98,6 +99,13 @@ services: []
 });
 
 describe("writeConfig", () => {
+  it("preserves an existing file mode and creates restrictive files", async () => {
+    writeFileSync(configPath, "schema_version: 2\nservices: []\nservice_tiles: []\n", "utf-8");
+    chmodSync(configPath, 0o640);
+    const { writeConfig } = await freshLoader();
+    writeConfig({ appearance: { theme: "light" } });
+    expect(statSync(configPath).mode & 0o777).toBe(0o640);
+  });
   it("merges a partial update into the existing YAML on disk and invalidates the cache", async () => {
     const { loadConfig, getConfig, writeConfig } = await freshLoader();
     loadConfig();
@@ -118,7 +126,7 @@ describe("writeConfig", () => {
     writeConfig({ appearance: { theme: "oled" } });
 
     const onDisk = readFileSync(configPath, "utf-8");
-    expect(onDisk).toContain("schema_version: 1");
+    expect(onDisk).toContain("schema_version: 2");
     expect(onDisk).toContain("oled");
   });
 
@@ -156,23 +164,28 @@ describe("writeConfig", () => {
     expect(reloaded.bookmarks).toEqual(bookmarks);
   });
 
-  it("round-trips services[].size and layout.ungrouped", async () => {
+  it("round-trips service_tiles[].size and layout.ungrouped", async () => {
     const { loadConfig, getConfig, writeConfig } = await freshLoader();
     loadConfig();
 
     writeConfig({
       layout: { columns: 4, row_height: 120, ungrouped: "first" },
-      services: [{ name: "Plex", size: "large" }],
+      services: [{ id: "00000000-0000-4000-8000-000000000001", name: "Plex" }],
+      service_tiles: [{
+        id: "00000000-0000-4000-8000-000000000002",
+        service_id: "00000000-0000-4000-8000-000000000001",
+        size: "large",
+      }],
     });
 
     const reloaded = getConfig();
     expect(reloaded.layout.ungrouped).toBe("first");
-    expect(reloaded.services[0].size).toBe("large");
+    expect(reloaded.service_tiles[0].size).toBe("large");
   });
 });
 
-describe("deprecated position warning", () => {
-  it("warns once per service with a position field, naming the service", async () => {
+describe("v1 migration", () => {
+  it("migrates a legacy service to a v2 service and tile", async () => {
     writeFileSync(
       configPath,
       `
@@ -186,44 +199,16 @@ services:
       "utf-8"
     );
 
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const { loadConfig, invalidateCache, getConfig } = await freshLoader();
-      loadConfig();
+    const { loadConfig } = await freshLoader();
+    const config = loadConfig();
 
-      const positionWarnings = warn.mock.calls.filter((c) =>
-        String(c[0]).includes("position")
-      );
-      expect(positionWarnings).toHaveLength(1);
-      expect(String(positionWarnings[0][0])).toContain("Legacy Tile");
-
-      // Re-loading must not repeat the warning for the same service.
-      invalidateCache();
-      getConfig();
-      expect(
-        warn.mock.calls.filter((c) => String(c[0]).includes("position"))
-      ).toHaveLength(1);
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it("does not warn when no service uses position", async () => {
-    writeFileSync(
-      configPath,
-      'schema_version: 1\nservices:\n  - name: Plex\n    size: wide\n',
-      "utf-8"
-    );
-
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const { loadConfig } = await freshLoader();
-      loadConfig();
-      expect(
-        warn.mock.calls.filter((c) => String(c[0]).includes("position"))
-      ).toHaveLength(0);
-    } finally {
-      warn.mockRestore();
-    }
+    expect(config.schema_version).toBe(2);
+    expect(config.services).toHaveLength(2);
+    expect(config.service_tiles).toHaveLength(2);
+    expect(config.services[0]).toMatchObject({ name: "Legacy Tile" });
+    expect(config.service_tiles[0].group).toBeUndefined();
+    expect(config.service_tiles[0].size).toBe("wide");
+    expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
+    expect(readFileSync(`${configPath}.v1.bak`, "utf-8")).toContain("schema_version: 1");
   });
 });

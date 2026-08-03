@@ -14,18 +14,21 @@ import {
 } from "@/widgets/credentialScope";
 import {
   toClientSafeSettings,
-  resolveServiceWidgetSecrets,
   resolveServiceIntegrationSecrets,
-  resolveWidgetConfigSecrets,
+  resolveServiceTileWidgetConfigs,
+  resolveIntegrationConfigSecrets,
   UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
-import { WIDGET_SECRET_REFERENCE_PREFIX } from "@/widgets/secretReference";
+import {
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 import {
   createWidgetConfigReference,
   createWidgetSecretReference,
 } from "@/widgets/secretReference.server";
-import type { KokpitConfig, Service } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
 
 const component = () => React.createElement("div");
 const baseDefinition = {
@@ -183,13 +186,16 @@ describe("credential scope normalization", () => {
 });
 
 describe("destination-bound secret resolution", () => {
-  const savedServices: Service[] = [
+  const serviceId = "10000000-0000-4000-8000-000000000001";
+  const tileId = "20000000-0000-4000-8000-000000000001";
+  const savedServices: KokpitConfig["services"] = [
     {
+      id: serviceId,
       name: "Tautulli",
-      widget: {
-        type: "tautulli-activity",
+      integration: {
+        type: "tautulli",
         config: {
-          url: "http://tautulli.local:8181",
+          url: "http://tautulli.local:8181/",
           api_key: "unit-saved-secret",
         },
       },
@@ -198,13 +204,13 @@ describe("destination-bound secret resolution", () => {
 
   it("rejects a copied reference at a different destination", () => {
     const reference = createWidgetSecretReference(
-      "Tautulli",
-      "tautulli-activity",
+      serviceId,
+      "tautulli",
       "api_key"
     );
     expect(() =>
-      resolveWidgetConfigSecrets(
-        "tautulli-activity",
+      resolveIntegrationConfigSecrets(
+        "tautulli",
         { url: "http://other.local:8181", api_key: reference },
         savedServices
       )
@@ -220,33 +226,41 @@ describe("destination-bound secret resolution", () => {
       {
         url: "http://tautulli.local:8181",
         api_key: createWidgetSecretReference(
-          "Missing",
-          "tautulli-activity",
+          "20000000-0000-4000-8000-000000000002",
+          "tautulli",
           "api_key"
         ),
       },
       {
         url: "http://tautulli.local:8181",
         api_key: createWidgetSecretReference(
-          "Tautulli",
-          "tautulli-activity",
+          serviceId,
+          "tautulli",
           "other"
         ),
       },
       {
         url: createWidgetSecretReference(
-          "Tautulli",
-          "tautulli-activity",
+          serviceId,
+          "tautulli",
           "api_key"
         ),
+        api_key: "replacement",
+      },
+      {
+        url: {
+          nested: {
+            [WIDGET_SECRET_REFERENCE_KEY]: "malformed",
+          },
+        },
         api_key: "replacement",
       },
     ];
 
     for (const config of cases) {
       try {
-        resolveWidgetConfigSecrets(
-          "tautulli-activity",
+        resolveIntegrationConfigSecrets(
+          "tautulli",
           config,
           savedServices
         );
@@ -264,121 +278,140 @@ describe("destination-bound secret resolution", () => {
     const literal = `${WIDGET_SECRET_REFERENCE_PREFIX}a-real-password`;
     const config = {
       ...savedServices[0],
-      widget: {
-        type: "tautulli-activity",
+      integration: {
+        type: "tautulli",
         config: {
-          url: "http://tautulli.local:8181",
+          url: "http://tautulli.local:8181/",
           api_key: literal,
         },
       },
-    } satisfies Service;
+    } satisfies KokpitConfig["services"][number];
     const redacted = toClientSafeSettings({
-      schema_version: 1,
+      schema_version: 2,
       auth: { enabled: false, session_ttl_hours: 24 },
       appearance: { theme: "dark" },
       layout: { columns: 4, row_height: 120 },
       services: [config],
+      service_tiles: [{
+        id: tileId,
+        service_id: serviceId,
+        widget: { type: "tautulli-activity" },
+      }],
     });
 
-    expect(redacted.services[0].widget?.config?.api_key).not.toBe(literal);
+    expect(redacted.services[0].integration?.config.api_key).not.toBe(literal);
     expect(
-      resolveWidgetConfigSecrets(
-        "tautulli-activity",
-        redacted.services[0].widget!.config,
+      resolveIntegrationConfigSecrets(
+        "tautulli",
+        redacted.services[0].integration!.config,
         [config]
       )
-    ).toEqual(config.widget?.config);
+    ).toEqual(config.integration.config);
   });
 });
 
 describe("registered widget config redaction", () => {
-  function kokpitConfig(service: Service) {
+  function kokpitConfig(
+    service: KokpitConfig["services"][number],
+    widgetType: string
+  ): KokpitConfig {
     return {
-      schema_version: 1 as const,
+      schema_version: 2,
       auth: { enabled: false, session_ttl_hours: 24 },
       appearance: { theme: "dark" as const },
       layout: { columns: 4, row_height: 120 },
       services: [service],
+      service_tiles: [{
+        id: `20000000-0000-4000-8000-${service.id.slice(-12)}`,
+        service_id: service.id,
+        widget: { type: widgetType },
+      }],
     };
   }
 
   it("preserves empty saved credentials so invalid configs stay editable", () => {
     const service = {
+      id: "10000000-0000-4000-8000-000000000002",
       name: "Plex",
-      widget: {
+      integration: {
         type: "plex",
-        config: { url: "http://plex.local:32400", token: "" },
+        config: { url: "http://plex.local:32400/", token: "" },
       },
-    } satisfies Service;
-    const redacted = toClientSafeSettings(kokpitConfig(service));
-    const browserConfig = redacted.services[0].widget!.config!;
+    } satisfies KokpitConfig["services"][number];
+    const redacted = toClientSafeSettings(kokpitConfig(service, "plex"));
+    const browserConfig = redacted.services[0].integration!.config;
 
-    expect(browserConfig).toEqual(service.widget?.config);
+    expect(browserConfig).toEqual(service.integration.config);
     expect(
-      resolveWidgetConfigSecrets("plex", browserConfig, [service])
-    ).toEqual(service.widget?.config);
+      resolveIntegrationConfigSecrets("plex", browserConfig, [service])
+    ).toEqual(service.integration.config);
   });
 
   it("preserves known fields when a required credential is missing", () => {
     const service = {
+      id: "10000000-0000-4000-8000-000000000003",
       name: "Sonarr",
-      widget: {
-        type: "sonarr-queue",
+      integration: {
+        type: "sonarr",
         config: { url: "http://sonarr.local:8989" },
       },
-    } satisfies Service;
+    } satisfies KokpitConfig["services"][number];
 
-    const redacted = toClientSafeSettings(kokpitConfig(service));
+    const redacted = toClientSafeSettings(kokpitConfig(service, "sonarr-queue"));
 
-    expect(redacted.services[0].widget?.config).toEqual(
-      service.widget?.config
+    expect(redacted.services[0].integration?.config).toEqual(
+      service.integration.config
     );
   });
 
   it("preserves schema-supported non-editor fields", () => {
     const service = {
+      id: "10000000-0000-4000-8000-000000000004",
       name: "Actual Budget",
-      widget: {
-        type: "actualbudget-accounts",
+      integration: {
+        type: "actualbudget",
         config: {
-          url: "http://actual.local:5006",
+          url: "http://actual.local:5006/",
           api_key: "actual-secret",
           budget_sync_id: "budget-id",
           timezone: "Europe/Warsaw",
         },
       },
-    } satisfies Service;
-    const redacted = toClientSafeSettings(kokpitConfig(service));
-    const browserConfig = redacted.services[0].widget!.config!;
+    } satisfies KokpitConfig["services"][number];
+    const redacted = toClientSafeSettings(
+      kokpitConfig(service, "actualbudget-accounts")
+    );
+    const browserConfig = redacted.services[0].integration!.config;
 
     expect(browserConfig).toMatchObject({
-      url: "http://actual.local:5006",
+      url: "http://actual.local:5006/",
       budget_sync_id: "budget-id",
       timezone: "Europe/Warsaw",
     });
     expect(JSON.stringify(browserConfig)).not.toContain("actual-secret");
     expect(
-      resolveWidgetConfigSecrets(
-        "actualbudget-accounts",
+      resolveIntegrationConfigSecrets(
+        "actualbudget",
         browserConfig,
         [service]
       )
-    ).toEqual(service.widget?.config);
+    ).toEqual(service.integration.config);
   });
 
   it("hides malformed declared values with the complete config", () => {
     const service = {
+      id: "10000000-0000-4000-8000-000000000005",
       name: "Plex",
-      widget: {
+      integration: {
         type: "plex",
         config: {
           url: { api_key: "nested-secret" },
           token: "saved-secret",
         },
       },
-    } satisfies Service;
-    const redacted = toClientSafeSettings(kokpitConfig(service));
-    const browserConfig = redacted.services[0].widget!.config!;
+    } satisfies KokpitConfig["services"][number];
+    const redacted = toClientSafeSettings(kokpitConfig(service, "plex"));
+    const browserConfig = redacted.services[0].integration!.config;
 
     expect(JSON.stringify(browserConfig)).not.toContain("nested-secret");
     expect(JSON.stringify(browserConfig)).not.toContain("saved-secret");
@@ -389,42 +422,45 @@ describe("registered widget config redaction", () => {
 
   it("allows a verified opaque config to be replaced", () => {
     const service = {
+      id: "10000000-0000-4000-8000-000000000006",
       name: "Plex",
-      widget: {
+      integration: {
         type: "plex",
         config: {
           url: { api_key: "nested-secret" },
           token: "saved-secret",
         },
       },
-    } satisfies Service;
-    const opaqueConfig = toClientSafeSettings(kokpitConfig(service)).services[0]
-      .widget!.config!;
+    } satisfies KokpitConfig["services"][number];
+    const opaqueConfig = toClientSafeSettings(
+      kokpitConfig(service, "plex")
+    ).services[0].integration!.config;
     const replacement = {
       ...opaqueConfig,
-      url: "http://plex.local:32400",
+      url: "http://plex.local:32400/",
       token: "replacement-token",
     };
-    const resolved = resolveServiceWidgetSecrets(
+    const resolved = resolveServiceIntegrationSecrets(
       [
         {
           ...service,
-          widget: { ...service.widget!, config: replacement },
+          integration: { ...service.integration, config: replacement },
         },
       ],
       [service]
     );
 
-    expect(resolved[0].widget?.config).toEqual({
-      url: "http://plex.local:32400",
+    expect(resolved[0].integration?.config).toEqual({
+      url: "http://plex.local:32400/",
       token: "replacement-token",
     });
   });
 
   it("keeps configs with unregistered fields opaque", () => {
     const service = {
+      id: "10000000-0000-4000-8000-000000000007",
       name: "Plex",
-      widget: {
+      integration: {
         type: "plex",
         config: {
           url: "http://plex.local:32400",
@@ -432,9 +468,9 @@ describe("registered widget config redaction", () => {
           legacy_token: "must-not-reach-browser",
         },
       },
-    } satisfies Service;
-    const redacted = toClientSafeSettings(kokpitConfig(service));
-    const browserConfig = redacted.services[0].widget!.config!;
+    } satisfies KokpitConfig["services"][number];
+    const redacted = toClientSafeSettings(kokpitConfig(service, "plex"));
+    const browserConfig = redacted.services[0].integration!.config;
 
     expect(JSON.stringify(browserConfig)).not.toContain("saved-secret");
     expect(JSON.stringify(browserConfig)).not.toContain(
@@ -444,15 +480,17 @@ describe("registered widget config redaction", () => {
       [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String),
     });
     expect(
-      resolveWidgetConfigSecrets("plex", browserConfig, [service])
-    ).toEqual(service.widget?.config);
+      resolveServiceIntegrationSecrets([
+        { ...service, integration: { ...service.integration, config: browserConfig } },
+      ], [service])[0].integration?.config
+    ).toEqual(service.integration.config);
   });
 });
 
 describe("client-safe settings allowlist", () => {
   it("does not serialize undeclared server-only properties", () => {
     const config = {
-      schema_version: 1,
+      schema_version: 2,
       auth: {
         enabled: false,
         session_ttl_hours: 24,
@@ -462,11 +500,11 @@ describe("client-safe settings allowlist", () => {
       layout: { columns: 4, row_height: 120 },
       services: [
         {
+          id: "10000000-0000-4000-8000-000000000008",
           name: "Plex",
           future_server_secret: "service-secret",
-          widget: {
+          integration: {
             type: "plex",
-            future_server_secret: "widget-secret",
             config: {
               url: "http://plex.local:32400",
               token: "credential-secret",
@@ -474,6 +512,11 @@ describe("client-safe settings allowlist", () => {
           },
         },
       ],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000008",
+        service_id: "10000000-0000-4000-8000-000000000008",
+        future_server_secret: "widget-secret",
+      }],
       future_server_secret: "top-level-secret",
     } as unknown as import("@/config/schema").KokpitConfig;
 
@@ -488,16 +531,18 @@ describe("client-safe settings allowlist", () => {
 });
 
 describe("unregistered widget config redaction", () => {
+  const serviceId = "10000000-0000-4000-8000-000000000009";
   const config = {
-    schema_version: 1 as const,
+    schema_version: 2 as const,
     auth: { enabled: false, session_ttl_hours: 24 },
     appearance: { theme: "dark" as const },
     layout: { columns: 4, row_height: 120 },
     services: [
       {
+        id: serviceId,
         name: "Retired integration",
-        widget: {
-          type: "removed-widget",
+        integration: {
+          type: "removed-integration",
           config: {
             endpoint: "https://retired.local",
             api_key: "unknown-widget-secret",
@@ -505,11 +550,12 @@ describe("unregistered widget config redaction", () => {
         },
       },
     ],
+    service_tiles: [],
   } satisfies import("@/config/schema").KokpitConfig;
 
   it("hides the complete config and restores it from the signed placeholder", () => {
     const redacted = toClientSafeSettings(config);
-    const browserConfig = redacted.services[0].widget!.config!;
+    const browserConfig = redacted.services[0].integration!.config;
 
     expect(JSON.stringify(redacted)).not.toContain("unknown-widget-secret");
     expect(JSON.stringify(redacted)).not.toContain("retired.local");
@@ -519,20 +565,24 @@ describe("unregistered widget config redaction", () => {
       ),
     });
 
-    const restored = resolveServiceWidgetSecrets(
+    const restored = resolveServiceIntegrationSecrets(
       redacted.services,
       config.services
     );
-    expect(restored[0].widget?.config).toEqual(config.services[0].widget?.config);
+    expect(restored[0].integration?.config).toEqual(
+      config.services[0].integration?.config
+    );
   });
 
   it("rejects a malformed opaque config placeholder", () => {
     expect(() =>
-      resolveWidgetConfigSecrets(
-        "removed-widget",
-        { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: "not-a-reference" },
-        config.services
-      )
+      resolveServiceIntegrationSecrets([{
+        ...config.services[0],
+        integration: {
+          ...config.services[0].integration,
+          config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: "not-a-reference" },
+        },
+      }], config.services)
     ).toThrowError(
       expect.objectContaining({ code: "widget_secret_reference_invalid" })
     );
@@ -540,17 +590,19 @@ describe("unregistered widget config redaction", () => {
 
   it("rejects an opaque whole-config reference mixed with regular config", () => {
     expect(() =>
-      resolveWidgetConfigSecrets(
-        "tautulli-activity",
-        {
-          url: "http://tautulli.local:8181",
-          [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(
-            "Retired integration",
-            "removed-widget"
-          ),
+      resolveServiceIntegrationSecrets([{
+        ...config.services[0],
+        integration: {
+          ...config.services[0].integration,
+          config: {
+            url: "http://tautulli.local:8181",
+            [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(
+              serviceId,
+              "removed-widget"
+            ),
+          },
         },
-        config.services
-      )
+      }], config.services)
     ).toThrowError(
       expect.objectContaining({ code: "widget_secret_reference_invalid" })
     );
@@ -643,5 +695,62 @@ describe("opaque integration config redaction", () => {
         [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(serviceId, "plex"),
       } },
     }], savedServices)).toThrowError(expect.objectContaining({ code: "widget_secret_reference_invalid" }));
+  });
+});
+
+describe("opaque tile widget config redaction", () => {
+  const serviceId = "10000000-0000-4000-8000-000000000001";
+  const tileId = "20000000-0000-4000-8000-000000000001";
+  const saved = [{
+    id: tileId,
+    service_id: serviceId,
+    widget: { type: "tautulli-activity", config: { api_key: "tile-secret", sections: ["summary"] } },
+  }] satisfies KokpitConfig["service_tiles"];
+  const config = {
+    schema_version: 2 as const,
+    auth: { enabled: false, session_ttl_hours: 24 },
+    appearance: { theme: "dark" as const },
+    layout: { columns: 4, row_height: 120 },
+    services: [{ id: serviceId, name: "Tautulli" }],
+    service_tiles: saved,
+  } satisfies KokpitConfig;
+
+  it("hides secret-like tile options and restores a signed opaque reference", () => {
+    const safe = toClientSafeSettings(config);
+    const opaque = safe.service_tiles[0].widget!.config!;
+
+    expect(JSON.stringify(safe)).not.toContain("tile-secret");
+    expect(opaque).toEqual({ [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String) });
+    expect(resolveServiceTileWidgetConfigs(safe.service_tiles, saved)).toEqual(saved);
+  });
+
+  it("makes unknown and malformed registered tile configs wholly opaque", () => {
+    const unknown = toClientSafeSettings({ ...config, service_tiles: [{ ...saved[0], widget: { type: "removed", config: { access_key: "secret" } } }] });
+    const malformed = toClientSafeSettings({ ...config, service_tiles: [{ ...saved[0], widget: { ...saved[0].widget!, config: { sections: [{ nested: "value" }] } } }] });
+    expect(unknown.service_tiles[0].widget?.config).toHaveProperty(UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY);
+    expect(malformed.service_tiles[0].widget?.config).toHaveProperty(UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY);
+  });
+
+  it("removes a verified mixed marker when replacing an opaque tile config", () => {
+    const safe = toClientSafeSettings(config);
+    const replacement = [{
+      ...safe.service_tiles[0],
+      widget: {
+        ...safe.service_tiles[0].widget!,
+        config: { ...safe.service_tiles[0].widget!.config!, sections: ["sessions"] },
+      },
+    }];
+
+    expect(resolveServiceTileWidgetConfigs(replacement, saved)[0].widget?.config)
+      .toEqual({ sections: ["sessions"] });
+  });
+
+  it("rejects malformed or wrong-bound tile references", () => {
+    for (const marker of ["invalid", createWidgetConfigReference(tileId, "plex")]) {
+      expect(() => resolveServiceTileWidgetConfigs([{
+        ...saved[0],
+        widget: { ...saved[0].widget!, config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: marker } },
+      }], saved)).toThrowError(expect.objectContaining({ code: "widget_secret_reference_invalid" }));
+    }
   });
 });
