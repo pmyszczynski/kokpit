@@ -22,6 +22,11 @@ import GroupsTab from "./GroupsTab";
 import BookmarksTab from "./BookmarksTab";
 import BookmarkGroupForm from "./BookmarkGroupForm";
 import { sizeLabel } from "./settingsSizeOptions";
+import {
+  persistLegacyServices,
+  projectLegacyServices,
+  normalizeServicesForForm,
+} from "./edit/serviceFormProjection";
 
 type Tab =
   | "appearance"
@@ -125,17 +130,14 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   const [recoveryPending, setRecoveryPending] = useState(false);
 
   // Services
-  const [services, setServices] = useState<Service[]>(config.services);
-  const serviceTiles = useMemo(
-    () => config.service_tiles ?? config.services.map((service, index) => ({
-      id: service.id ?? `legacy-tile-${index}`,
-      service_id: service.id ?? `legacy-service-${index}`,
-      group: (service as Service).group,
-      size: (service as Service).size,
-      widget: (service as Service).widget,
-    })),
-    [config.service_tiles, config.services]
+  const [initialServiceState] = useState(() =>
+    normalizeServicesForForm(config.services, config.service_tiles ?? [])
   );
+  const [persistedServices, setPersistedServices] = useState(initialServiceState.services);
+  const [services, setServices] = useState<Service[]>(() =>
+    projectLegacyServices(initialServiceState.services, initialServiceState.service_tiles)
+  );
+  const [serviceTiles, setServiceTiles] = useState(initialServiceState.service_tiles);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [servicesWritePending, setServicesWritePending] = useState(false);
@@ -397,13 +399,22 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
 
   async function saveServices(next: Service[]) {
     if (servicesSavePendingRef.current) return;
+    const projected = persistLegacyServices(next, persistedServices, serviceTiles);
     servicesSavePendingRef.current = true;
     setServicesWritePending(true);
     setServices(next);
+    setPersistedServices(projected.services);
+    setServiceTiles(projected.service_tiles);
     try {
-      const result = await save("services", next);
+      const result = await saveRaw("services", projected);
       if (Array.isArray(result.config?.services)) {
-        setServices(result.config.services);
+        const refreshed = normalizeServicesForForm(
+          result.config.services,
+          Array.isArray(result.config.service_tiles) ? result.config.service_tiles : []
+        );
+        setServices(projectLegacyServices(refreshed.services, refreshed.service_tiles));
+        setPersistedServices(refreshed.services);
+        setServiceTiles(refreshed.service_tiles);
       }
     } finally {
       servicesSavePendingRef.current = false;

@@ -401,19 +401,21 @@ export function resolveServiceIntegrationSecrets(
   return submitted.map((service) => {
     if (!service.integration) return service;
     const incoming = service.integration.config;
-    const opaque = getOpaqueConfigReference(incoming);
-    if (opaque !== null) {
-      const reference = verifyWidgetConfigReference(opaque);
-      const source = saved.find((candidate) =>
-        candidate.id === service.id &&
-        candidate.integration?.type === service.integration!.type &&
-        widgetConfigReferenceMatches(reference!, service.id, service.integration!.type)
-      );
-      if (!reference || !source?.integration) throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
-      return { ...service, integration: { ...service.integration, config: source.integration.config } };
+    const hasOpaqueReference = Object.prototype.hasOwnProperty.call(
+      incoming,
+      UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY
+    );
+    const source = hasOpaqueReference
+      ? resolveOpaqueIntegrationConfigReference(service, incoming[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY], saved)
+      : saved.find((candidate) =>
+          candidate.id === service.id &&
+          candidate.integration?.type === service.integration!.type
+        );
+    if (hasOpaqueReference && Object.keys(incoming).length === 1) {
+      return { ...service, integration: { ...service.integration, config: source!.integration!.config } };
     }
-    const source = saved.find((candidate) => candidate.id === service.id && candidate.integration?.type === service.integration!.type);
     const resolved = { ...incoming };
+    if (hasOpaqueReference) delete resolved[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
     if (typeof resolved.url === "string") {
       try { resolved.url = new URL(resolved.url.trim()).toString(); } catch { /* schema reports invalid URLs */ }
     }
@@ -429,6 +431,27 @@ export function resolveServiceIntegrationSecrets(
     }
     return { ...service, integration: { ...service.integration, config: resolved } };
   });
+}
+
+function resolveOpaqueIntegrationConfigReference(
+  service: KokpitConfig["services"][number],
+  opaqueReference: unknown,
+  saved: KokpitConfig["services"]
+): KokpitConfig["services"][number] {
+  const reference = verifyWidgetConfigReference(opaqueReference);
+  const integration = service.integration;
+  if (!reference || !integration) {
+    throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+  }
+  const source = saved.find((candidate) =>
+    candidate.id === service.id &&
+    candidate.integration?.type === integration.type &&
+    widgetConfigReferenceMatches(reference, service.id, integration.type)
+  );
+  if (!source?.integration) {
+    throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+  }
+  return source;
 }
 
 /** Resolve a connection-test payload without requiring the browser to choose a Service. */

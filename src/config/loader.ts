@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import path from "path";
 import { parseDocument, stringify } from "yaml";
 import { KokpitConfigSchema, widgetIntegrationRequirement, type KokpitConfig, type Size } from "./schema";
-import { getWidget } from "@/widgets";
+import { splitWidgetConfig } from "@/components/edit/serviceFormProjection";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 2 }));
@@ -11,25 +11,6 @@ let cachedConfig: KokpitConfig | null = null;
 
 type LegacyService = Record<string, unknown> & { name?: unknown; widget?: Record<string, unknown> };
 
-const OPTION_KEYS: Record<string, ReadonlySet<string>> = {
-  "plex": new Set(["fields"]),
-  "sonarr-calendar": new Set(["days"]),
-  "sonarr-queue": new Set(["limit"]),
-  "radarr-queue": new Set(["limit"]),
-  "qbittorrent-torrents": new Set(["limit", "filter"]),
-  "seerr-requests": new Set(["limit", "filter"]),
-  "docker": new Set(["max_items"]),
-  "netdata-cpu": new Set(["history_minutes"]),
-  "netdata-ram": new Set(["history_minutes"]),
-  "netdata-net": new Set(["interface", "history_minutes"]),
-  "netdata-disk-io": new Set(["disk_path", "history_minutes"]),
-  "netdata-disk-space": new Set(["chart_id"]),
-  "netdata-sensor": new Set(["chart_id", "label", "history_minutes"]),
-  "actualbudget-categories": new Set(["limit", "category_ids", "timezone", "hide_income", "hide_empty"]),
-  "actualbudget-accounts": new Set(["account_ids", "timezone", "exclude_closed", "exclude_offbudget"]),
-  "actualbudget-schedules": new Set(["days_ahead", "timezone", "limit"]),
-  "actualbudget-summary": new Set(["timezone", "privacy_mode", "currency", "sections"]),
-};
 
 /** Explicit legacy widget -> reusable integration mapping. */
 export function legacyIntegrationType(widgetType: string): string | null {
@@ -37,16 +18,7 @@ export function legacyIntegrationType(widgetType: string): string | null {
 }
 
 export function splitLegacyWidgetConfig(widgetType: string, value: unknown) {
-  const config = value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : {};
-  const declaredOptionKeys = getWidget(widgetType)?.optionFields?.map((field) => field.key);
-  const optionKeys = declaredOptionKeys
-    ? new Set(declaredOptionKeys)
-    : OPTION_KEYS[widgetType] ?? new Set<string>();
-  const connection: Record<string, unknown> = {};
-  const options: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(config)) (optionKeys.has(key) ? options : connection)[key] = item;
-  return { connection, options };
+  return splitWidgetConfig(widgetType, value);
 }
 
 function legacySize(service: LegacyService): Size | undefined {

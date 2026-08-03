@@ -22,12 +22,11 @@ import type {
   KokpitConfig,
   Service,
 } from "@/config/schema";
-import { widgetIntegrationRequirement } from "@/config/schema";
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
-import { resolveServiceSize } from "@/config/resolve";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import EditBar from "./EditBar";
+import { persistLegacyServices } from "./serviceFormProjection";
 
 export type EditModeStatus =
   | "idle"
@@ -258,67 +257,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   const setServices = useCallback(
     (services: Service[]) => {
       if (!state.draft) return;
-      const previousServices = state.draft.services;
-      const previousTiles = state.draft.service_tiles;
-      const nextServices: KokpitConfig["services"] = [];
-      const nextTiles: KokpitConfig["service_tiles"] = [];
-      services.forEach((input, index) => {
-        const previous = input.id
-          ? previousServices.find((service) => service.id === input.id)
-          : previousServices[index];
-        const id = input.id ?? previous?.id ?? crypto.randomUUID();
-        const legacyWidget = input.widget;
-        const existingTile = previousTiles.find((tile) => tile.service_id === id);
-        const submittedConfig = legacyWidget?.config ?? {};
-        const connectionConfig = previous?.integration
-          ? Object.fromEntries(Object.keys(previous.integration.config).map((key) => [
-              key,
-              Object.prototype.hasOwnProperty.call(submittedConfig, key)
-                ? submittedConfig[key]
-                : previous.integration!.config[key],
-            ]))
-          : submittedConfig;
-        const optionConfig = existingTile?.widget?.config
-          ? Object.fromEntries(Object.keys(existingTile.widget.config).map((key) => [
-              key,
-              Object.prototype.hasOwnProperty.call(submittedConfig, key)
-                ? submittedConfig[key]
-                : existingTile.widget!.config![key],
-            ]))
-          : {};
-        nextServices.push({
-          id,
-          name: input.name,
-          launch_url: input.launch_url ?? input.url,
-          icon: input.icon,
-          description: input.description,
-          category: input.category ?? input.group,
-          integration: legacyWidget
-            ? {
-                type: widgetIntegrationRequirement(legacyWidget.type) ?? legacyWidget.type,
-                config: connectionConfig,
-              }
-            : input.integration ?? previous?.integration,
-        });
-        if (existingTile || input.group || input.size || legacyWidget) {
-          nextTiles.push({
-            id: existingTile?.id ?? crypto.randomUUID(),
-            service_id: id,
-            group: input.group ?? existingTile?.group,
-            size: input.size ?? (input.position ? resolveServiceSize(input) : existingTile?.size),
-            widget: legacyWidget
-              ? {
-                  ...legacyWidget,
-                  config: Object.keys(optionConfig).length ? optionConfig : undefined,
-                }
-              : existingTile?.widget,
-          });
-        }
-        nextTiles.push(...previousTiles.filter((tile) =>
-          tile.service_id === id && tile.id !== existingTile?.id
-        ));
-      });
-      updateDraft({ services: nextServices, service_tiles: nextTiles });
+      updateDraft(persistLegacyServices(services, state.draft.services, state.draft.service_tiles));
     },
     [state.draft, updateDraft]
   );

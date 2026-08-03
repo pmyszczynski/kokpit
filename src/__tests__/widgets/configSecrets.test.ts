@@ -15,6 +15,7 @@ import {
 import {
   toClientSafeSettings,
   resolveServiceWidgetSecrets,
+  resolveServiceIntegrationSecrets,
   resolveWidgetConfigSecrets,
   UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
   WidgetSecretResolutionError,
@@ -24,7 +25,7 @@ import {
   createWidgetConfigReference,
   createWidgetSecretReference,
 } from "@/widgets/secretReference.server";
-import type { Service } from "@/config/schema";
+import type { KokpitConfig, Service } from "@/config/schema";
 
 const component = () => React.createElement("div");
 const baseDefinition = {
@@ -553,5 +554,94 @@ describe("unregistered widget config redaction", () => {
     ).toThrowError(
       expect.objectContaining({ code: "widget_secret_reference_invalid" })
     );
+  });
+});
+
+describe("opaque integration config redaction", () => {
+  const serviceId = "10000000-0000-4000-8000-000000000001";
+  const savedServices: KokpitConfig["services"] = [{
+    id: serviceId,
+    name: "Tautulli",
+    integration: {
+      type: "tautulli",
+      config: { url: { malformed: true }, api_key: "saved-secret" },
+    },
+  }];
+  const savedConfig = {
+    schema_version: 2 as const,
+    auth: { enabled: false, session_ttl_hours: 24 },
+    appearance: { theme: "dark" as const },
+    layout: { columns: 4, row_height: 120 },
+    services: savedServices,
+    service_tiles: [],
+  } satisfies KokpitConfig;
+
+  it("restores a sole opaque marker and permits replacement fields without persisting it", () => {
+    const browserService = toClientSafeSettings(savedConfig).services[0];
+    const opaque = browserService.integration!.config;
+    expect(opaque).toEqual({ [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: expect.any(String) });
+
+    expect(resolveServiceIntegrationSecrets([browserService], savedServices)[0].integration?.config)
+      .toEqual(savedServices[0].integration?.config);
+
+    const replaced = resolveServiceIntegrationSecrets([{
+      ...browserService,
+      integration: {
+        ...browserService.integration!,
+        config: {
+          ...opaque,
+          url: " HTTP://tautulli.local:8181/ ",
+          api_key: "replacement-secret",
+        },
+      },
+    }], savedServices);
+    expect(replaced[0].integration?.config).toEqual({
+      url: "http://tautulli.local:8181/",
+      api_key: "replacement-secret",
+    });
+  });
+
+  it.each([
+    { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: "malformed" },
+    {
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(
+        "20000000-0000-4000-8000-000000000002",
+        "tautulli"
+      ),
+      url: "http://replacement.local",
+    },
+  ])("rejects malformed or wrong-bound opaque integration references", (config) => {
+    expect(() => resolveServiceIntegrationSecrets([{
+      ...savedServices[0],
+      integration: { ...savedServices[0].integration!, config },
+    }], savedServices)).toThrowError(
+      expect.objectContaining({ code: "widget_secret_reference_invalid" })
+    );
+  });
+
+  it("resolves a signed credential after removing a valid mixed opaque marker", () => {
+    const source: KokpitConfig["services"] = [{
+      id: serviceId,
+      name: "Tautulli",
+      integration: { type: "tautulli", config: { url: "http://tautulli.local:8181", api_key: "saved-secret" } },
+    }];
+    const resolved = resolveServiceIntegrationSecrets([{
+      ...source[0],
+      integration: { ...source[0].integration!, config: {
+        [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(serviceId, "tautulli"),
+        url: "http://tautulli.local:8181",
+        api_key: createWidgetSecretReference(serviceId, "tautulli", "api_key"),
+      } },
+    }], source);
+    expect(resolved[0].integration?.config).toEqual({ url: "http://tautulli.local:8181/", api_key: "saved-secret" });
+  });
+
+  it("rejects a same-service opaque marker bound to another integration type", () => {
+    expect(() => resolveServiceIntegrationSecrets([{
+      ...savedServices[0],
+      integration: { ...savedServices[0].integration!, config: {
+        [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: createWidgetConfigReference(serviceId, "plex"),
+      } },
+    }], savedServices)).toThrowError(expect.objectContaining({ code: "widget_secret_reference_invalid" }));
   });
 });

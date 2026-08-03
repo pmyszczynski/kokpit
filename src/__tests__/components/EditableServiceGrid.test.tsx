@@ -23,6 +23,7 @@ vi.mock("@/components/edit/EditModeProvider", () => ({
     pendingEditService,
     clearPendingEditService,
   }),
+  useEditModeOptional: () => null,
 }));
 
 import EditableServiceGrid from "@/components/edit/EditableServiceGrid";
@@ -150,6 +151,27 @@ describe("pendingEditService (broken-widget badge → ServiceForm handoff)", () 
     const nameInput = screen.getByLabelText("Name *") as HTMLInputElement;
     expect(nameInput.value).toBe("Plex");
     expect(clearPendingEditService).toHaveBeenCalledTimes(1);
+  });
+
+  it("merges integration config before focusing the missing widget credential", async () => {
+    const config = cfg();
+    const service = config.services[0];
+    config.services[0] = {
+      ...service,
+      integration: { type: "sonarr", config: { url: "http://sonarr.local" } },
+    };
+    config.service_tiles[0] = {
+      ...config.service_tiles[0],
+      widget: { type: "sonarr-calendar", config: { days: 14 } },
+    };
+    pendingEditService = "Plex";
+
+    await act(async () => {
+      render(<EditableServiceGrid config={config} />);
+    });
+
+    expect(document.getElementById("sf-widget-url")).toHaveValue("http://sonarr.local");
+    expect(document.getElementById("sf-widget-api_key")).toHaveFocus();
   });
 
   it("a pendingEditService naming no service just clears the pending name (no dialog)", async () => {

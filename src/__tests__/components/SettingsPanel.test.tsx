@@ -553,7 +553,7 @@ describe("SettingsPanel - services tab", () => {
     const secondPayload = JSON.parse(
       (fetchMock.mock.calls[1][1] as RequestInit).body as string
     );
-    expect(secondPayload.services[0].widget.config.api_key).toBe(
+    expect(secondPayload.services[0].integration.config.api_key).toBe(
       refreshedReference
     );
   });
@@ -897,7 +897,9 @@ describe("SettingsPanel - groups tab", () => {
     );
     // The Services PATCH must carry the ORIGINAL group name; the rename is still
     // an unsaved Groups draft. (Old eager-cascade behavior would leak "Movies".)
-    const jelly = body.services.find((service: Service) => service.name === "Jellyfin");
+    const jelly = body.service_tiles.find((tile: { service_id: string }) =>
+      tile.service_id === body.services.find((service: Service) => service.name === "Jellyfin")?.id
+    );
     expect(jelly.group).toBe("Media");
     expect(body.groups).toBeUndefined();
   });
