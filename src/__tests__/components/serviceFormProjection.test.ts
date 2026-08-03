@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   persistLegacyServices,
+  projectCatalogServices,
   projectLegacyServices,
   splitWidgetConfig,
 } from "@/components/edit/serviceFormProjection";
@@ -32,6 +33,147 @@ describe("serviceFormProjection", () => {
       expect.objectContaining({ id: tileId, group: "Media", widget: expect.objectContaining({ config: { days: 7 } }) }),
       expect.objectContaining({ id: extraTileId, group: "Queue", widget: expect.objectContaining({ config: { limit: 3 } }) }),
     ]));
+  });
+
+  it("projects dashboard tiles in canonical order without catalog-only phantom rows", () => {
+    const catalogOnlyId = "10000000-0000-4000-8000-000000000099";
+    const services = [
+      { id: serviceId, name: "First" },
+      { id: catalogOnlyId, name: "Catalog only" },
+    ];
+    const tiles = [
+      { id: extraTileId, service_id: serviceId, group: "Second" },
+      { id: tileId, service_id: serviceId, group: "First" },
+    ];
+
+    expect(projectLegacyServices(services, tiles).map((service) => service.tileId))
+      .toEqual([extraTileId, tileId]);
+    expect(projectCatalogServices(services, tiles).map((service) => service.name))
+      .toEqual(["First", "First", "Catalog only"]);
+  });
+
+  it("does not retain a deleted sibling tile from the previous tile list", () => {
+    const services = [{ id: serviceId, name: "Sonarr" }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, group: "Calendar" },
+      { id: extraTileId, service_id: serviceId, group: "Queue" },
+    ];
+
+    const persisted = persistLegacyServices(
+      [projectLegacyServices(services, tiles)[0]],
+      services,
+      tiles
+    );
+
+    expect(persisted.service_tiles.map((tile) => tile.id)).toEqual([tileId]);
+  });
+
+  it("retains a shared integration when one sibling is changed to Generic", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr" } },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar" } },
+      { id: extraTileId, service_id: serviceId, widget: { type: "sonarr-queue" } },
+    ];
+    const inputs = projectLegacyServices(services, tiles);
+    inputs[0] = { ...inputs[0], widget: undefined };
+
+    expect(persistLegacyServices(inputs, services, tiles).services[0].integration)
+      .toEqual(services[0].integration);
+  });
+
+  it("does not let an unedited plain sibling retain a cleared integration", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr" } },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar" } },
+      { id: extraTileId, service_id: serviceId, group: "Plain" },
+    ];
+    const inputs = projectLegacyServices(services, tiles);
+    inputs[0] = { ...inputs[0], widget: undefined };
+
+    expect(persistLegacyServices(inputs, services, tiles).services[0].integration).toBeUndefined();
+  });
+
+  it("clears a shared integration when every sibling is detached", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr" } },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, widget: { type: "sonarr-calendar" } },
+      { id: extraTileId, service_id: serviceId, widget: { type: "sonarr-queue" } },
+    ];
+    const inputs = projectLegacyServices(services, tiles).map((input) => ({
+      ...input,
+      widget: { type: "system-stats", config: { sections: ["cpu"] } },
+    }));
+
+    expect(persistLegacyServices(inputs, services, tiles).services[0].integration).toBeUndefined();
+  });
+
+  it("optionally preserves unrepresented catalog-only services", () => {
+    const catalogOnlyId = "10000000-0000-4000-8000-000000000099";
+    const services = [{ id: serviceId, name: "Tiled" }, { id: catalogOnlyId, name: "Catalog only" }];
+    const tiles = [{ id: tileId, service_id: serviceId }];
+    const inputs = projectLegacyServices(services, tiles);
+
+    expect(persistLegacyServices(inputs, services, tiles).services.map((service) => service.id))
+      .toEqual([serviceId]);
+    expect(persistLegacyServices(inputs, services, tiles, {
+      preserveUnrepresentedCatalogServices: true,
+    }).services.map((service) => service.id)).toEqual([serviceId, catalogOnlyId]);
+  });
+
+  it("preserves a catalog-only integration during a presentation edit", () => {
+    const services = [{
+      id: serviceId,
+      name: "Plex",
+      integration: { type: "plex", config: { url: "http://plex", token: "opaque-ref" } },
+    }];
+    const [input] = projectCatalogServices(services, []);
+    const persisted = persistLegacyServices([
+      {
+        ...input,
+        name: "Plex renamed",
+        group: undefined,
+        size: undefined,
+        widget: undefined,
+      },
+    ], services, []);
+
+    expect(persisted.services).toEqual([
+      expect.objectContaining({
+        name: "Plex renamed",
+        integration: services[0].integration,
+      }),
+    ]);
+    expect(persisted.service_tiles).toEqual([]);
+  });
+
+  it("uses input service order by default but can preserve dashboard catalog order", () => {
+    const secondServiceId = "10000000-0000-4000-8000-000000000002";
+    const services = [
+      { id: serviceId, name: "First" },
+      { id: secondServiceId, name: "Second" },
+    ];
+    const inputs = [
+      { id: secondServiceId, name: "Second" },
+      { id: serviceId, name: "First" },
+    ];
+
+    expect(persistLegacyServices(inputs, services, []).services.map((service) => service.id))
+      .toEqual([secondServiceId, serviceId]);
+    expect(persistLegacyServices(inputs, services, [], {
+      preservePreviousServiceOrder: true,
+    }).services.map((service) => service.id)).toEqual([serviceId, secondServiceId]);
   });
 
   it("persists a new widget service with its integration and tile options", () => {
@@ -391,7 +533,7 @@ describe("serviceFormProjection", () => {
     expect(JSON.stringify({ clone, cloneTile })).not.toContain("secret");
   });
 
-  it("merges connection and tile options for editing, then preserves their boundary and extra tiles", () => {
+  it("merges connection and tile options for editing, then preserves their boundary", () => {
     const services = [{
       id: serviceId,
       name: "Sonarr",
@@ -408,10 +550,9 @@ describe("serviceFormProjection", () => {
 
     const persisted = persistLegacyServices([{ ...input, name: "Sonarr renamed" }], services, service_tiles);
     expect(persisted.services[0]).toMatchObject({ id: serviceId, integration: { config: { url: "http://sonarr.local", api_key: "widget-secret-ref.sonarr" } } });
-    expect(persisted.service_tiles).toEqual(expect.arrayContaining([
+    expect(persisted.service_tiles).toEqual([
       expect.objectContaining({ id: tileId, widget: { type: "sonarr-calendar", config: { days: 14 } } }),
-      expect.objectContaining({ id: extraTileId }),
-    ]));
+    ]);
   });
 
   it("keeps integration-free widget configuration on the tile", () => {
@@ -453,10 +594,9 @@ describe("serviceFormProjection", () => {
     expect(persisted.services[0].integration?.config).toEqual({
       [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque,
     });
-    expect(persisted.service_tiles).toEqual(expect.arrayContaining([
+    expect(persisted.service_tiles).toEqual([
       expect.objectContaining({ id: tileId, widget: expect.objectContaining({ config: { layout: "compact" }, refresh_interval_ms: 60_000 }) }),
-      expect.objectContaining({ id: extraTileId, widget: expect.objectContaining({ config: { layout: "secondary" } }) }),
-    ]));
+    ]);
     expect(resolveServiceIntegrationSecrets(persisted.services, services)[0].integration?.config)
       .toEqual(services[0].integration?.config);
   });

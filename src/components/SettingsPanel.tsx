@@ -24,7 +24,7 @@ import BookmarkGroupForm from "./BookmarkGroupForm";
 import { sizeLabel } from "./settingsSizeOptions";
 import {
   persistLegacyServices,
-  projectLegacyServices,
+  projectCatalogServices,
   normalizeServicesForForm,
 } from "./edit/serviceFormProjection";
 
@@ -135,7 +135,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   );
   const [persistedServices, setPersistedServices] = useState(initialServiceState.services);
   const [services, setServices] = useState<Service[]>(() =>
-    projectLegacyServices(initialServiceState.services, initialServiceState.service_tiles)
+    projectCatalogServices(initialServiceState.services, initialServiceState.service_tiles)
   );
   const [serviceTiles, setServiceTiles] = useState(initialServiceState.service_tiles);
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -412,7 +412,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
           result.config.services,
           Array.isArray(result.config.service_tiles) ? result.config.service_tiles : []
         );
-        setServices(projectLegacyServices(refreshed.services, refreshed.service_tiles));
+        setServices(projectCatalogServices(refreshed.services, refreshed.service_tiles));
         setPersistedServices(refreshed.services);
         setServiceTiles(refreshed.service_tiles);
       }
@@ -606,7 +606,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
               ? result.config.service_tiles
               : fallback.service_tiles
           );
-          setServices(projectLegacyServices(refreshed.services, refreshed.service_tiles));
+          setServices(projectCatalogServices(refreshed.services, refreshed.service_tiles));
           setPersistedServices(refreshed.services);
           setServiceTiles(refreshed.service_tiles);
         }

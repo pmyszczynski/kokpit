@@ -257,7 +257,15 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
   const setServices = useCallback(
     (services: Service[]) => {
       if (!state.draft) return;
-      updateDraft(persistLegacyServices(services, state.draft.services, state.draft.service_tiles));
+      updateDraft(persistLegacyServices(
+        services,
+        state.draft.services,
+        state.draft.service_tiles,
+        {
+          preservePreviousServiceOrder: true,
+          preserveUnrepresentedCatalogServices: true,
+        }
+      ));
     },
     [state.draft, updateDraft]
   );
