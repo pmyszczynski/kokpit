@@ -1,4 +1,4 @@
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import SettingsPanel from "@/components/SettingsPanel";
 import { toClientSafeSettings } from "@/widgets/configSecrets";
 

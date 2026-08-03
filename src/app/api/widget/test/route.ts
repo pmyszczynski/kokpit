@@ -1,7 +1,7 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
-import { getConfig } from "@/config";
+import { getConfig, legacyIntegrationType } from "@/config/server";
 import { getWidget } from "@/widgets";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 import {
@@ -10,7 +10,6 @@ import {
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
 import { publicWidgetFetchError } from "@/widgets/publicFetchError";
-import { legacyIntegrationType } from "@/config/loader";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead

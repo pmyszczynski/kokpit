@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { getConfig } from "@/config";
-import { getConfigPath } from "@/config/loader";
+import { getConfig, getConfigPath } from "@/config/server";
 import { resolveAppearance } from "@/config/theme";
 
 export const metadata: Metadata = {

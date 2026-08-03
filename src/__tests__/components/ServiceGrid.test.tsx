@@ -4,7 +4,7 @@ import type { KokpitConfig, Service } from "@/config/schema";
 
 const getConfig = vi.fn();
 
-vi.mock("@/config", () => ({
+vi.mock("@/config/server", () => ({
   getConfig: () => getConfig(),
 }));
 

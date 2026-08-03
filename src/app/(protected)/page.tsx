@@ -1,4 +1,4 @@
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import ServiceGrid from "@/components/ServiceGrid";
 import DashboardSurface from "@/components/edit/DashboardSurface";
 

@@ -5,7 +5,7 @@ process.env.KOKPIT_DB_PATH = ":memory:";
 process.env.KOKPIT_SESSION_SECRET = "test-secret-32-chars-minimum-length-xx";
 
 // Mock getConfig so no real settings.yaml is needed
-vi.mock("@/config", () => ({
+vi.mock("@/config/server", () => ({
   getConfig: vi.fn().mockReturnValue({
     auth: { enabled: true, session_ttl_hours: 24 },
   }),

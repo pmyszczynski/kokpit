@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
-import { getConfig, invalidateCache, writeConfig } from "@/config";
-import { ConfigRevisionMismatchError } from "@/config/loader";
+import { ConfigRevisionMismatchError, getConfig, invalidateCache, writeConfig } from "@/config/server";
 import {
   BackgroundSchema,
   BookmarkGroupsSchema,

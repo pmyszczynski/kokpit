@@ -1,7 +1,7 @@
 // Populate the widget registry server-side so widget configs can be
 // validated (and size hints looked up) before rendering tiles.
 import "@/integrations";
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import {
   DEFAULT_BOOKMARK_STYLE,
   resolveGroupOrder,

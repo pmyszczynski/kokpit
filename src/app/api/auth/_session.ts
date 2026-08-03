@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { signJWT, SESSION_COOKIE_NAME } from "@/auth";
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 
 export async function createSessionCookie(userId: string): Promise<void> {
   const config = getConfig();

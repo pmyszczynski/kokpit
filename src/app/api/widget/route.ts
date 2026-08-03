@@ -1,11 +1,10 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
-import { getConfig } from "@/config";
+import { getConfig, legacyIntegrationType } from "@/config/server";
 import { getIntegration, getWidget } from "@/widgets";
 import { publicWidgetFetchError } from "@/widgets/publicFetchError";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
-import { legacyIntegrationType } from "@/config/loader";
 
 export async function GET(request: Request) {
   if (!(await isRequestAuthenticated())) {
