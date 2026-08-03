@@ -685,6 +685,36 @@ describe("serviceFormProjection", () => {
     ]);
   });
 
+  it("persists Tautulli display sections as per-tile options", () => {
+    const services = [{
+      id: serviceId,
+      name: "Tautulli",
+      integration: {
+        type: "tautulli",
+        config: { url: "http://tautulli", api_key: "secret" },
+      },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId, widget: { type: "tautulli-activity", config: { sections: ["summary"] } } },
+      { id: extraTileId, service_id: serviceId, widget: { type: "tautulli-activity", config: { sections: ["sessions"] } } },
+    ];
+
+    const persisted = persistLegacyServices(
+      projectLegacyServices(services, tiles),
+      services,
+      tiles
+    );
+
+    expect(persisted.services[0].integration?.config).toEqual({
+      url: "http://tautulli",
+      api_key: "secret",
+    });
+    expect(persisted.service_tiles.map((tile) => tile.widget?.config)).toEqual([
+      { sections: ["summary"] },
+      { sections: ["sessions"] },
+    ]);
+  });
+
   it("keeps integration-free widget configuration on the tile", () => {
     expect(splitWidgetConfig("system-stats", { sections: ["cpu"] })).toEqual({
       connection: {},

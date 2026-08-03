@@ -97,6 +97,26 @@ describe("v1 migration", () => {
     expect(migrated.service_tiles[1].widget?.config).toEqual({ limit: 5 });
   });
 
+  it("keeps Tautulli display sections on each tile before widgets register", () => {
+    const migrated = migrateV1Config({
+      schema_version: 1,
+      services: [
+        { name: "Tautulli", widget: { type: "tautulli-activity", config: { url: "http://tautulli", api_key: "secret", sections: ["summary"] } } },
+        { name: "Tautulli", widget: { type: "tautulli-activity", config: { url: "http://tautulli", api_key: "secret", sections: ["sessions"] } } },
+      ],
+    });
+
+    expect(migrated.services).toHaveLength(1);
+    expect(migrated.services[0].integration?.config).toEqual({
+      url: "http://tautulli",
+      api_key: "secret",
+    });
+    expect(migrated.service_tiles.map((tile) => tile.widget?.config)).toEqual([
+      { sections: ["summary"] },
+      { sections: ["sessions"] },
+    ]);
+  });
+
   it("keeps integration-free widget configuration on the tile", () => {
     const migrated = migrateV1Config({
       schema_version: 1,

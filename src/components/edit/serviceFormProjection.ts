@@ -8,6 +8,7 @@ import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
 import { splitWidgetConfig } from "@/widgets/configBoundary";
 import { isWidgetConfigReferenceEnvelope } from "@/widgets/secretReference";
 import { resolveServiceSize } from "@/config/resolve";
+import { generateUuid } from "@/config/uuid";
 
 export { splitWidgetConfig } from "@/widgets/configBoundary";
 
@@ -156,7 +157,7 @@ export function normalizeServicesForForm(
     delete persisted.tileId;
     return {
       ...persisted,
-      id: persisted.id ?? crypto.randomUUID(),
+      id: persisted.id ?? generateUuid(),
     };
   });
   const normalizedTiles = serviceTiles.length > 0
@@ -164,7 +165,7 @@ export function normalizeServicesForForm(
     : normalizedServices.flatMap((service) => {
       const legacy = service as Service;
       return legacy.group || legacy.size || legacy.widget ? [{
-        id: crypto.randomUUID(),
+        id: generateUuid(),
         service_id: service.id,
         ...(legacy.group ? { group: legacy.group } : {}),
         ...(legacy.size ? { size: legacy.size } : {}),
@@ -187,7 +188,7 @@ export function persistLegacyServices(
     const previous = input.id
       ? previousServices.find((service) => service.id === input.id)
       : previousServices[index];
-    return input.id || previous?.id ? input : { ...input, id: crypto.randomUUID() };
+    return input.id || previous?.id ? input : { ...input, id: generateUuid() };
   });
   const servicesById = new Map<string, KokpitConfig["services"][number]>();
   const service_tiles: ServiceTile[] = [];
@@ -243,7 +244,7 @@ export function persistLegacyServices(
     const previous = input.id
       ? previousServices.find((service) => service.id === input.id)
       : previousServices[index];
-    const id = input.id ?? previous?.id ?? crypto.randomUUID();
+    const id = input.id ?? previous?.id ?? generateUuid();
     const primaryTile = input.tileId
       ? previousTiles.find((tile) => tile.id === input.tileId)
       : previousTiles.find((tile) => tile.service_id === id);
@@ -293,7 +294,7 @@ export function persistLegacyServices(
 
     if (!input.editorCatalogOnly && (!previous || input.tileId || primaryTile || hasDefinedPlacement || hasWidgetTileMutation)) {
       const persistedTile = {
-        id: primaryTile?.id ?? input.tileId ?? crypto.randomUUID(),
+        id: primaryTile?.id ?? input.tileId ?? generateUuid(),
         service_id: id,
         ...((hasInputGroup ? input.group : primaryTile?.group)
           ? { group: hasInputGroup ? input.group : primaryTile?.group }

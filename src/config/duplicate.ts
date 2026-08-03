@@ -8,6 +8,7 @@ import {
   type Service,
 } from "./schema";
 import { isWidgetConfigReference, isWidgetSecretReference } from "@/widgets/secretReference";
+import { generateUuid } from "./uuid";
 
 const UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY = "__kokpit_widget_config_reference__";
 
@@ -66,8 +67,8 @@ export function duplicateService(services: Service[], name: string): Service[] {
   } = original;
   const clone: Service = {
     ...cloneSource,
-    id: crypto.randomUUID(),
-    tileId: crypto.randomUUID(),
+    id: generateUuid(),
+    tileId: generateUuid(),
     name: uniqueCopyName(original.name, services.map((s) => s.name)),
     // Deep-clone the widget so the copy can never mutate the original's
     // nested `config`/`fields` (same guarantee duplicateBookmark gives links).

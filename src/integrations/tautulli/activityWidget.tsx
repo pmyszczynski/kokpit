@@ -1,10 +1,23 @@
 import { registerWidget } from "@/widgets";
-import type { WidgetProps } from "@/widgets";
+import type { WidgetConfigField, WidgetProps } from "@/widgets";
 import {
   fetchActivity,
   TautulliConfigSchema,
 } from "./api";
 import type { TautulliActivityData, TautulliConfig } from "./api";
+
+const TAUTULLI_SECTIONS_FIELD = {
+  key: "sections",
+  label: "Display sections",
+  type: "multiselect",
+  required: true,
+  defaultValue: ["summary", "sessions"],
+  options: [
+    { value: "summary", label: "Summary" },
+    { value: "sessions", label: "Active sessions" },
+  ],
+  description: "Select at least one section.",
+} satisfies WidgetConfigField;
 
 function formatLabel(value: string): string {
   return value
@@ -118,20 +131,10 @@ registerWidget<TautulliConfig, TautulliActivityData>({
       "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/svg/tautulli.svg",
   },
   credentialScopeFields: ["url"],
+  optionFields: [TAUTULLI_SECTIONS_FIELD],
   configFields: [
     { key: "url", label: "URL", type: "url", required: true, placeholder: "http://192.168.1.x:8181" },
     { key: "api_key", label: "API Key", type: "password", required: true },
-    {
-      key: "sections",
-      label: "Display sections",
-      type: "multiselect",
-      required: true,
-      defaultValue: ["summary", "sessions"],
-      options: [
-        { value: "summary", label: "Summary" },
-        { value: "sessions", label: "Active sessions" },
-      ],
-      description: "Select at least one section.",
-    },
+    TAUTULLI_SECTIONS_FIELD,
   ],
 });

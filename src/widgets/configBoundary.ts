@@ -25,6 +25,7 @@ const LEGACY_OPTION_KEYS: Record<string, ReadonlySet<string>> = {
   "actualbudget-summary": new Set([
     "timezone", "privacy_mode", "currency", "sections",
   ]),
+  "tautulli-activity": new Set(["sections"]),
 };
 
 const OPAQUE_CONFIG_REFERENCE_KEY = "__kokpit_widget_config_reference__";
