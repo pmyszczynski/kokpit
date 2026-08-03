@@ -288,7 +288,9 @@ describe("serviceFormProjection", () => {
     }];
     const [projected] = projectLegacyServices(services, tiles);
 
-    expect(projected.widget?.config).toEqual({});
+    expect(projected.widget?.config).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque,
+    });
     expect(projected.editorIntegrationConfig).toEqual({ url: "http://plex", api_key: "secret" });
 
     const persisted = persistLegacyServices([{ ...projected, name: "Plex renamed" }], services, tiles);
@@ -296,6 +298,33 @@ describe("serviceFormProjection", () => {
     expect(persisted.services[0].integration).toEqual(services[0].integration);
     expect(persisted.service_tiles[0].widget?.config).toEqual({
       [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque,
+    });
+  });
+
+  it("keeps an opaque tile reference while editing visible tile options", () => {
+    const opaque = createWidgetConfigReference(tileId, "tautulli-activity");
+    const services = [{ id: serviceId, name: "Tautulli" }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: {
+        type: "tautulli-activity",
+        config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque },
+      },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+
+    const persisted = persistLegacyServices([{
+      ...projected,
+      widget: {
+        ...projected.widget!,
+        config: { ...projected.widget!.config, sections: ["sessions"] },
+      },
+    }], services, tiles);
+
+    expect(persisted.service_tiles[0].widget?.config).toEqual({
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque,
+      sections: ["sessions"],
     });
   });
 

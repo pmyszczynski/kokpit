@@ -161,7 +161,12 @@ export async function PATCH(request: NextRequest) {
       if (error instanceof ConfigRevisionMismatchError) {
         return NextResponse.json(
           { error: "settings.yaml changed since you started editing; reload before saving.", code: "revision_mismatch" },
-          { status: 409, headers: { [CONFIG_REVISION_HEADER]: error.currentRevision } }
+          {
+            status: 409,
+            headers: error.currentRevision
+              ? { [CONFIG_REVISION_HEADER]: error.currentRevision }
+              : undefined,
+          }
         );
       }
       return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });

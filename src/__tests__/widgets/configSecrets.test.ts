@@ -754,7 +754,7 @@ describe("opaque tile widget config redaction", () => {
     expect(malformed.service_tiles[0].widget?.config).toHaveProperty(UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY);
   });
 
-  it("removes a verified mixed marker when replacing an opaque tile config", () => {
+  it("merges a verified mixed marker with opaque saved tile config", () => {
     const safe = toClientSafeSettings(config);
     const replacement = [{
       ...safe.service_tiles[0],
@@ -765,7 +765,7 @@ describe("opaque tile widget config redaction", () => {
     }];
 
     expect(resolveServiceTileWidgetConfigs(replacement, saved)[0].widget?.config)
-      .toEqual({ sections: ["sessions"] });
+      .toEqual({ api_key: "tile-secret", sections: ["sessions"] });
   });
 
   it("rejects malformed or wrong-bound tile references", () => {

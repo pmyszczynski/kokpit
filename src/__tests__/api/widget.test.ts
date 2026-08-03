@@ -1,15 +1,21 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
+
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  const existsSync = vi.fn().mockReturnValue(true);
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
+  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   const mkdirSync = vi.fn();
   return {
     default: { readFileSync, writeFileSync, existsSync, mkdirSync },
     readFileSync,
     writeFileSync,
+    linkSync,
+    unlinkSync,
     existsSync,
     mkdirSync,
   };
@@ -66,7 +72,7 @@ function get(tile_id?: string, widgetType?: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
-  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML);
 });
 

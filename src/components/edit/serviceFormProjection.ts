@@ -118,7 +118,6 @@ function hasPresentationChange(
 /** Projects a persisted v2 service and its editable tile into ServiceForm input. */
 export function toLegacyService(service: KokpitConfig["services"][number], tile?: ServiceTile): Service {
   const tileConfig = tile?.widget?.config;
-  const opaqueTileConfig = tileConfig && hasOpaqueWidgetConfigReference(tileConfig);
   const integrationConfig = service.integration?.config;
   return {
     ...service,
@@ -132,7 +131,7 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
       ...tile.widget,
       // Tile options and Service credentials are separate persisted
       // boundaries. Never synthesize a merged widget config for the editor.
-      ...(tileConfig ? { config: opaqueTileConfig ? {} : tileConfig } : {}),
+      ...(tileConfig ? { config: tileConfig } : {}),
     } } : {}),
     // Catalog context is a presentation fact: this Service has no tile. It
     // must not be inferred from whether it currently has an integration.

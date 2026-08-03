@@ -8,19 +8,30 @@ vi.mock("fs", () => {
   const renameSync = vi.fn();
   const statSync = vi.fn();
   const chmodSync = vi.fn();
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
+    default: {
+      readFileSync, writeFileSync, existsSync, linkSync, mkdirSync, renameSync, statSync, unlinkSync, chmodSync,
+    },
     readFileSync,
     writeFileSync,
     existsSync,
     mkdirSync,
     renameSync,
     statSync,
+    linkSync,
+    unlinkSync,
     chmodSync,
   };
 });
 
+vi.mock("proper-lockfile", () => ({
+  lockSync: vi.fn(() => () => undefined),
+}));
+
 import { readFileSync, writeFileSync } from "fs";
+import { lockSync } from "proper-lockfile";
 import {
   loadConfig,
   getConfig,
@@ -57,6 +68,7 @@ describe("loadConfig", () => {
     expect(config.layout.columns).toBe(4);
     expect(config.layout.row_height).toBe(120);
     expect(config.services).toEqual([]);
+    expect(lockSync).toHaveBeenCalledTimes(1);
   });
 
   it("applies defaults when optional sections are missing", () => {
@@ -89,6 +101,18 @@ describe("loadConfig", () => {
       "schema_version: 2\nappearance:\n  theme: purple"
     );
     expect(() => loadConfig()).toThrow(/^Invalid settings\.yaml/);
+  });
+
+  it("bounds migration retries when the file keeps changing", () => {
+    const first = "services:\n  - name: First\n";
+    const second = "services:\n  - name: Second\n";
+    vi.mocked(readFileSync).mockReset();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      vi.mocked(readFileSync).mockReturnValueOnce(first).mockReturnValueOnce(second);
+    }
+
+    expect(() => loadConfig()).toThrow(/settings changed repeatedly during migration/);
+    expect(readFileSync).toHaveBeenCalledTimes(6);
   });
 });
 
@@ -202,8 +226,9 @@ describe("writeConfig", () => {
 
   it("writes updated values back to the file", () => {
     writeConfig({ appearance: { theme: "light" } });
-    expect(writeFileSync).toHaveBeenCalledTimes(1);
-    const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+    const written = vi.mocked(writeFileSync).mock.calls.find(
+      ([target]) => typeof target === "string" && target.includes(".tmp-")
+    )?.[1] as string;
     expect(written).toContain("light");
   });
 
@@ -212,7 +237,9 @@ describe("writeConfig", () => {
       "# Dashboard config\nschema_version: 2\nappearance:\n  theme: dark\n"
     );
     writeConfig({ appearance: { theme: "light" } });
-    const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
+    const written = vi.mocked(writeFileSync).mock.calls.find(
+      ([target]) => typeof target === "string" && target.includes(".tmp-")
+    )?.[1] as string;
     expect(written).toContain("# Dashboard config");
     expect(written).toContain("light");
   });

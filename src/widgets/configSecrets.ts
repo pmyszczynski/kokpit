@@ -547,7 +547,10 @@ export function resolveServiceTileWidgetConfigs(
     }
     const resolved = { ...config };
     delete resolved[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
-    return { ...tile, widget: { ...tile.widget!, config: resolved } };
+    return {
+      ...tile,
+      widget: { ...tile.widget!, config: { ...source.widget.config, ...resolved } },
+    };
   });
 }
 

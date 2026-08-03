@@ -1,11 +1,15 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 import { NextRequest } from "next/server";
 
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  const existsSync = vi.fn().mockReturnValue(true);
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
+  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   const mkdirSync = vi.fn();
   const renameSync = vi.fn();
   const statSync = vi.fn().mockReturnValue({ mode: 0o100600 });
@@ -14,6 +18,8 @@ vi.mock("node:fs", () => {
     default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
+    linkSync,
+    unlinkSync,
     existsSync,
     mkdirSync,
     renameSync,
@@ -27,7 +33,7 @@ vi.mock("next/headers", () => ({
 
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import {
   WIDGET_SECRET_REFERENCE_KEY,
   WIDGET_SECRET_REFERENCE_PREFIX,
@@ -128,14 +134,14 @@ function patch(body: unknown, headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
 });
 
 describe("PATCH /api/settings – validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -194,7 +200,7 @@ describe("PATCH /api/settings – layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -241,7 +247,7 @@ describe("PATCH /api/settings – appearance & services", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -273,7 +279,7 @@ describe("PATCH /api/settings – opaque tile widget config", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(TILE_SECRET_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -301,7 +307,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -414,7 +420,7 @@ describe("/api/settings – auth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
     process.env.KOKPIT_AUTH_DISABLED = "false";
@@ -449,7 +455,7 @@ describe("GET /api/settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
   });
 
@@ -482,15 +488,52 @@ describe("GET /api/settings", () => {
 
 describe("/api/settings – widget password fields", () => {
   let storedYaml: string;
+  let activeConfig: boolean;
+  let pendingWrites: Map<string, string>;
+  let displacedWrites: Map<string, string>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
     storedYaml = SECRET_YAML;
-    vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(readFileSync).mockImplementation(() => storedYaml);
-    vi.mocked(writeFileSync).mockImplementation((_path, value) => {
-      storedYaml = String(value);
+    activeConfig = true;
+    pendingWrites = new Map();
+    displacedWrites = new Map();
+    vi.mocked(existsSync).mockImplementation((target) => {
+      const key = String(target);
+      if (key.endsWith("settings.yaml")) return activeConfig;
+      if (key.includes("settings.yaml.displaced")) return displacedWrites.has(key);
+      if (key.includes(".tmp-")) return pendingWrites.has(key);
+      return true;
+    });
+    vi.mocked(readFileSync).mockImplementation((target) =>
+      displacedWrites.get(String(target)) ?? storedYaml
+    );
+    vi.mocked(writeFileSync).mockImplementation((target, value) => {
+      if (typeof target === "string" && target.includes(".tmp-")) pendingWrites.set(target, String(value));
+    });
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      const from = String(source);
+      const to = String(destination);
+      if (from.endsWith("settings.yaml")) {
+        displacedWrites.set(to, storedYaml);
+        activeConfig = false;
+      } else if (displacedWrites.has(from) && to.endsWith("settings.yaml")) {
+        storedYaml = displacedWrites.get(from)!;
+        displacedWrites.delete(from);
+        activeConfig = true;
+      }
+    });
+    vi.mocked(linkSync).mockImplementation((source, _destination) => {
+      if (activeConfig) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+      const key = String(source);
+      storedYaml = displacedWrites.get(key) ?? pendingWrites.get(key)!;
+      activeConfig = true;
+    });
+    vi.mocked(unlinkSync).mockImplementation((target) => {
+      const key = String(target);
+      pendingWrites.delete(key);
+      displacedWrites.delete(key);
     });
   });
 
@@ -687,12 +730,58 @@ describe("/api/settings – widget password fields", () => {
 });
 
 describe("PATCH /api/settings – revision conflict (If-Match)", () => {
+  let diskYaml: string;
+  let activeConfig: boolean;
+  let pendingWrites: Map<string, string>;
+  let displacedWrites: Map<string, string>;
+
+  const moveConfig = (source: unknown, destination: unknown) => {
+    const from = String(source);
+    const to = String(destination);
+    if (from.endsWith("settings.yaml")) {
+      displacedWrites.set(to, diskYaml);
+      activeConfig = false;
+    } else if (displacedWrites.has(from) && to.endsWith("settings.yaml")) {
+      diskYaml = displacedWrites.get(from)!;
+      displacedWrites.delete(from);
+      activeConfig = true;
+    }
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
-    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+    diskYaml = BASE_YAML;
+    activeConfig = true;
+    pendingWrites = new Map();
+    displacedWrites = new Map();
+    vi.mocked(existsSync).mockImplementation((target) => {
+      const key = String(target);
+      if (key.endsWith("settings.yaml")) return activeConfig;
+      if (key.includes("settings.yaml.displaced")) return displacedWrites.has(key);
+      if (key.includes(".tmp-")) return pendingWrites.has(key);
+      return true;
+    });
+    vi.mocked(readFileSync).mockImplementation((target) =>
+      displacedWrites.get(String(target)) ?? diskYaml
+    );
+    vi.mocked(writeFileSync).mockImplementation((target, data) => {
+      if (typeof target === "string" && target.includes(".tmp-")) {
+        pendingWrites.set(target, String(data));
+      }
+    });
+    vi.mocked(renameSync).mockImplementation(moveConfig);
+    vi.mocked(linkSync).mockImplementation((source) => {
+      if (activeConfig) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+      const key = String(source);
+      diskYaml = displacedWrites.get(key) ?? pendingWrites.get(key)!;
+      activeConfig = true;
+    });
+    vi.mocked(unlinkSync).mockImplementation((target) => {
+      const key = String(target);
+      pendingWrites.delete(key);
+      displacedWrites.delete(key);
+    });
   });
 
   it("proceeds (200) when no If-Match header is sent (back-compat)", async () => {
@@ -727,25 +816,46 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
 
   it("does not overwrite an external edit made after validation", async () => {
     const externallyEdited = BASE_YAML.replace("theme: dark", "theme: oled");
-    vi.mocked(readFileSync)
-      .mockReturnValueOnce(BASE_YAML)
-      .mockReturnValueOnce(externallyEdited);
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      if (String(source).endsWith("settings.yaml")) diskYaml = externallyEdited;
+      moveConfig(source, destination);
+    });
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { KokpitConfigSchema } = await import("@/config/schema");
+    const { configRevision } = await import("@/config/revision");
+    const { parse } = await import("yaml");
+
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("revision_mismatch");
+    const externalRevision = configRevision(KokpitConfigSchema.parse(parse(externallyEdited)));
+    expect(res.headers.get("X-Config-Revision")).toBe(externalRevision);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+    expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
+
+    const reload = await GET();
+    expect((await reload.json()).appearance.theme).toBe("oled");
+    expect(reload.headers.get("X-Config-Revision")).toBe(externalRevision);
+  });
+
+  it("reports a conflict without a revision when the external edit is temporarily invalid", async () => {
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      if (String(source).endsWith("settings.yaml")) diskYaml = "appearance: [";
+      moveConfig(source, destination);
+    });
     const { PATCH } = await import("../../app/api/settings/route");
 
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
 
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("revision_mismatch");
-    expect(writeFileSync).not.toHaveBeenCalled();
-    expect(renameSync).not.toHaveBeenCalled();
+    expect(res.headers.has("X-Config-Revision")).toBe(false);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+    expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
   });
 
   it("allows only one concurrent PATCH to commit for the same revision", async () => {
-    let diskYaml = BASE_YAML;
-    vi.mocked(readFileSync).mockImplementation(() => diskYaml);
-    vi.mocked(writeFileSync).mockImplementation((_path, data) => {
-      diskYaml = String(data);
-    });
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const revision = (await GET()).headers.get("X-Config-Revision")!;
 

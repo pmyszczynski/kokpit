@@ -117,6 +117,8 @@ docker compose up kokpit-dev
 
 All configuration lives in `settings.yaml` at the project root. The in-app settings panel (accessible via the ⚙ icon in the navbar, with Services, Groups, and Bookmarks tabs) reads from and writes back to this file — changes take effect immediately without a restart. You can also edit the YAML directly.
 
+On first load after the schema-v2 upgrade, Kokpit detects the legacy service shape even when the file has no `schema_version`, migrates it, and keeps the exact original as `settings.yaml.pre-v2.bak`. Configuration writes fail closed under an inter-process lock. If Kokpit is forcibly terminated and a later startup reports a settings-lock timeout, first verify that no Kokpit process or container is using the config volume, then remove only the `settings.yaml.lock` directory; an interrupted `settings.yaml.displaced` transaction is recovered automatically on the next start.
+
 **Add a service tile:**
 
 ```yaml
@@ -195,12 +197,22 @@ The `icon:` field on a service or bookmark link accepts a full image URL, or a s
 
 ```yaml
 services:
-  - name: Sonarr
+  - id: 10000000-0000-4000-8000-000000000004
+    name: Sonarr
     icon: di-sonarr        # dashboard-icons
-  - name: GitHub
+  - id: 10000000-0000-4000-8000-000000000005
+    name: GitHub
     icon: sh-github        # selfh.st icons
-  - name: Home
+  - id: 10000000-0000-4000-8000-000000000006
+    name: Home
     icon: mdi-home         # Material Design Icons
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000004
+    service_id: 10000000-0000-4000-8000-000000000004
+  - id: 20000000-0000-4000-8000-000000000005
+    service_id: 10000000-0000-4000-8000-000000000005
+  - id: 20000000-0000-4000-8000-000000000006
+    service_id: 10000000-0000-4000-8000-000000000006
 ```
 
 - `di-<name>` → [dashboard-icons](https://github.com/homarr-labs/dashboard-icons), `sh-<name>` → [selfh.st](https://selfh.st/icons/), `mdi-<name>` → Material Design Icons.

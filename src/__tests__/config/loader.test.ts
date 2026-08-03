@@ -50,6 +50,17 @@ describe("loadConfig", () => {
     expect(config.services).toEqual([]);
   });
 
+  it("recovers an interrupted install before considering first-run defaults", async () => {
+    const displaced = `${configPath}.displaced`;
+    const source = "schema_version: 2\nappearance:\n  theme: oled\nservices: []\nservice_tiles: []\n";
+    writeFileSync(displaced, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(loadConfig().appearance.theme).toBe("oled");
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+    expect(existsSync(displaced)).toBe(false);
+  });
+
   it("throws a descriptive error listing zod issues for schema-invalid YAML", async () => {
     writeFileSync(
       configPath,
@@ -210,5 +221,233 @@ services:
     expect(config.service_tiles[0].size).toBe("wide");
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
     expect(readFileSync(`${configPath}.v1.bak`, "utf-8")).toContain("schema_version: 1");
+  });
+});
+
+describe("unversioned settings detection", () => {
+  it("migrates an unversioned legacy shape and preserves its exact source", async () => {
+    const source = "services:\n  - name: Legacy\n    url: https://example.com\n    group: Media\n    size: wide\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    const config = loadConfig();
+
+    expect(config.schema_version).toBe(2);
+    expect(config.services[0]).toMatchObject({ name: "Legacy", launch_url: "https://example.com", category: "Media" });
+    expect(config.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
+    expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
+    expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
+  });
+
+  it("preserves legacy service and widget comments in their migrated fields", async () => {
+    const source = [
+      "services:",
+      "  # Keep the operator's service note",
+      "  - name: Legacy # Friendly display name",
+      "    url: https://example.com # Browser destination",
+      "    widget:",
+      "      type: plex # Dashboard widget",
+      "      config:",
+      "        url: http://plex.test:32400 # Internal endpoint",
+      "        token: secret # Rotate this credential",
+      "",
+    ].join("\n");
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    loadConfig();
+
+    const rewritten = readFileSync(configPath, "utf-8");
+    expect(rewritten).toContain("# Keep the operator's service note");
+    expect(rewritten).toContain("name: Legacy # Friendly display name");
+    expect(rewritten).toContain("launch_url: https://example.com # Browser destination");
+    expect(rewritten).toContain("type: plex # Dashboard widget");
+    expect(rewritten).toContain("url: http://plex.test:32400 # Internal endpoint");
+    expect(rewritten).toContain("token: secret # Rotate this credential");
+  });
+
+  it("merges connection comments when legacy cards deduplicate to one service", async () => {
+    const source = [
+      "services:",
+      "  - name: Plex",
+      "    widget:",
+      "      type: plex",
+      "      config:",
+      "        url: http://plex.test:32400",
+      "        token: secret # Primary credential note",
+      "  - name: Plex",
+      "    widget:",
+      "      type: plex",
+      "      config:",
+      "        url: http://plex.test:32400",
+      "        token: secret # Secondary credential note",
+      "",
+    ].join("\n");
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(loadConfig().services).toHaveLength(1);
+    const rewritten = readFileSync(configPath, "utf-8");
+    expect(rewritten).toContain("Primary credential note");
+    expect(rewritten).toContain("Secondary credential note");
+  });
+
+  it("normalizes neutral unversioned settings as schema v2", async () => {
+    const source = "auth:\n  enabled: false\nservices: []\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(loadConfig()).toMatchObject({ schema_version: 2, auth: { enabled: false } });
+    expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
+    expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
+  });
+
+  it("normalizes an empty settings file as schema v2", async () => {
+    writeFileSync(configPath, "", "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(loadConfig().schema_version).toBe(2);
+    expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe("");
+  });
+
+  it("normalizes an unversioned v2 service shape without migrating it", async () => {
+    const source = "# keep this operator comment\nservices:\n  - id: 00000000-0000-4000-8000-000000000001\n    name: Existing service\nservice_tiles: []\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    const config = loadConfig();
+    expect(config.services).toEqual([{ id: "00000000-0000-4000-8000-000000000001", name: "Existing service" }]);
+    expect(config.service_tiles).toEqual([]);
+    expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
+    expect(readFileSync(configPath, "utf-8")).toContain("# keep this operator comment");
+  });
+
+  it("rejects ambiguous mixed shapes without writing or backing up the file", async () => {
+    const source = "services:\n  - id: 00000000-0000-4000-8000-000000000001\n    name: Mixed\n    url: https://example.com\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/Ambiguous mixed legacy and schema v2 service shapes/);
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+    expect(existsSync(`${configPath}.pre-v2.bak`)).toBe(false);
+  });
+
+  it("rejects legacy services mixed with top-level v2 tiles", async () => {
+    const source = "services:\n  - name: Legacy\n    url: https://example.com\nservice_tiles: []\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/Ambiguous mixed legacy and schema v2 service shapes/);
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+    expect(existsSync(`${configPath}.pre-v2.bak`)).toBe(false);
+  });
+
+  it("rejects legacy and v2 entries mixed across the services array", async () => {
+    const source = "services:\n  - name: Legacy\n    group: Media\n  - id: 00000000-0000-4000-8000-000000000001\n    name: V2\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/Ambiguous mixed legacy and schema v2 service shapes/);
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+  });
+
+  it("rejects explicit unsupported schema versions", async () => {
+    writeFileSync(configPath, "schema_version: 3\nservices: []\n", "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/Unsupported version 3/);
+  });
+
+  it("rejects explicit versions that contradict the detected shape", async () => {
+    writeFileSync(
+      configPath,
+      "schema_version: 1\nservices:\n  - id: 00000000-0000-4000-8000-000000000001\n    name: V2\n",
+      "utf-8"
+    );
+    let loader = await freshLoader();
+    expect(() => loader.loadConfig()).toThrow(/Version 1 contradicts the detected schema v2 shape/);
+
+    vi.resetModules();
+    writeFileSync(
+      configPath,
+      "schema_version: 2\nservices:\n  - name: Legacy\n    url: https://example.com\n",
+      "utf-8"
+    );
+    loader = await freshLoader();
+    expect(() => loader.loadConfig()).toThrow(/Version 2 contradicts the detected legacy shape/);
+  });
+
+  it("does not silently drop malformed known legacy fields", async () => {
+    writeFileSync(configPath, "services:\n  - name: Broken\n    size: enormous\n", "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/services\.0\.size/);
+    expect(existsSync(`${configPath}.pre-v2.bak`)).toBe(false);
+  });
+
+  it("does not silently drop unknown legacy service fields", async () => {
+    const source = "services:\n  - name: Extended\n    url: https://example.com\n    custom_target: keep-me\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/services\.0\.custom_target: unsupported legacy field/);
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+    expect(existsSync(`${configPath}.pre-v2.bak`)).toBe(false);
+  });
+
+  it("rejects YAML parser errors before migration touches the file", async () => {
+    const source = "services:\n  - name: First\nservices:\n  - name: Second\n";
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(() => loadConfig()).toThrow(/^Invalid settings\.yaml/);
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+    expect(existsSync(`${configPath}.pre-v2.bak`)).toBe(false);
+  });
+
+  it("preserves shared-section extensions while migrating legacy services", async () => {
+    const source = [
+      "auth:",
+      "  enabled: true",
+      "  users:",
+      "    - admin",
+      "layout:",
+      "  columns: 4",
+      "  custom_breakpoint: 900",
+      "groups:",
+      "  - name: Media",
+      "    custom_group_value: keep-group",
+      "bookmarks:",
+      "  - name: Docs",
+      "    custom_bookmark_value: keep-bookmark",
+      "    links: []",
+      "services:",
+      "  - name: Legacy",
+      "    url: https://example.com",
+      "",
+    ].join("\n");
+    writeFileSync(configPath, source, "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(loadConfig().services[0].name).toBe("Legacy");
+    const rewritten = readFileSync(configPath, "utf-8");
+    expect(rewritten).toContain("users:");
+    expect(rewritten).toContain("custom_breakpoint: 900");
+    expect(rewritten).toContain("custom_group_value: keep-group");
+    expect(rewritten).toContain("custom_bookmark_value: keep-bookmark");
+    expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
+  });
+
+  it("is idempotent after the first structural migration", async () => {
+    writeFileSync(configPath, "services:\n  - name: Legacy\n", "utf-8");
+
+    const { loadConfig, invalidateCache } = await freshLoader();
+    const first = loadConfig();
+    const firstDisk = readFileSync(configPath, "utf-8");
+    invalidateCache();
+    const second = loadConfig();
+
+    expect(second).toEqual(first);
+    expect(readFileSync(configPath, "utf-8")).toBe(firstDisk);
   });
 });
