@@ -196,6 +196,28 @@ describe("pendingEditService (broken-widget badge → ServiceForm handoff)", () 
     expect(document.getElementById("sf-group")).toHaveValue("Later");
   });
 
+  it("falls back to the shared service ID when the requested tile is stale", async () => {
+    const config = cfg();
+    const serviceId = config.services[0].id;
+    config.service_tiles[0] = {
+      ...config.service_tiles[0],
+      service_id: serviceId,
+      group: "Remaining",
+    };
+    pendingEditService = {
+      serviceId,
+      tileId: "20000000-0000-4000-8000-000000000099",
+      name: "Plex",
+    };
+
+    await act(async () => {
+      render(<EditableServiceGrid config={config} />);
+    });
+
+    expect(screen.getByText("Edit Service")).toBeInTheDocument();
+    expect(document.getElementById("sf-group")).toHaveValue("Remaining");
+  });
+
   it("a pendingEditService naming no service just clears the pending name (no dialog)", async () => {
     pendingEditService = "No Such Service";
     await act(async () => {

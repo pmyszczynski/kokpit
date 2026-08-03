@@ -578,6 +578,21 @@ export function resolveIntegrationConfigSecrets(
   config: Record<string, unknown>,
   saved: KokpitConfig["services"]
 ): Record<string, unknown> {
+  const opaqueReference = getOpaqueConfigReference(config);
+  if (opaqueReference !== null) {
+    const reference = verifyWidgetConfigReference(opaqueReference);
+    const source = reference && saved.find((candidate) =>
+      candidate.integration?.type === integrationType &&
+      widgetConfigReferenceMatches(reference, candidate.id, integrationType)
+    );
+    if (!source?.integration) {
+      throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+    }
+    return source.integration.config;
+  }
+  if (Object.prototype.hasOwnProperty.call(config, UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY)) {
+    throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
+  }
   const resolved = { ...config };
   if (hasReservedFieldReferenceEnvelope(config)) {
     const credentialKeys = integrationCredentialFieldKeys(integrationType);

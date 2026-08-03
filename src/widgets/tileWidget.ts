@@ -8,7 +8,8 @@ import {
   type AnyWidgetDefinition,
   type WidgetConfigField,
 } from "@/widgets";
-import { isWidgetSecretReference } from "@/widgets/secretReference";
+import { configForOpaqueConnectionValidation } from "@/widgets/configBoundary";
+import { isWidgetConfigReferenceEnvelope, isWidgetSecretReference } from "@/widgets/secretReference";
 
 /** One Zod issue, reduced to the two fields that are safe to send to a tile. */
 export interface WidgetConfigIssue {
@@ -29,6 +30,8 @@ export interface TileWidget {
 interface ResolveTileWidgetOptions {
   /** Browser edit previews receive signed credential references, not secrets. */
   normalizeSecretReferences?: boolean;
+  /** Browser edit previews may retain an authenticated opaque integration config. */
+  normalizeOpaqueConfigReference?: boolean;
 }
 
 /** Path label used when a Zod issue has no path (whole-object failure). */
@@ -94,15 +97,19 @@ export function resolveTileWidget(
 ): TileWidget | undefined {
   if (!widget) return undefined;
   const def = getWidget(widget.type);
+  const rawConfig = { ...(connection ?? {}), ...(widget.config ?? {}) };
+  const opaqueConnection = Boolean(
+    options?.normalizeOpaqueConfigReference &&
+    isWidgetConfigReferenceEnvelope(connection)
+  );
   const issues = def
     ? widgetConfigIssues(
         def,
-        options?.normalizeSecretReferences
-          ? widgetConfigForValidation(def.configFields, {
-              ...(connection ?? {}),
-              ...(widget.config ?? {}),
-            })
-          : { ...(connection ?? {}), ...(widget.config ?? {}) }
+        opaqueConnection
+          ? configForOpaqueConnectionValidation(def, widget.config ?? {})
+          : options?.normalizeSecretReferences
+            ? widgetConfigForValidation(def.configFields, rawConfig)
+            : rawConfig
       )
     : [];
   return {

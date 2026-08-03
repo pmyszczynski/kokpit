@@ -13,12 +13,45 @@ import {
 } from "@/widgets/configSecrets";
 import { createWidgetConfigReference } from "@/widgets/secretReference.server";
 import { duplicateService } from "@/config/duplicate";
+import "@/integrations";
 
 const serviceId = "10000000-0000-4000-8000-000000000001";
 const tileId = "20000000-0000-4000-8000-000000000001";
 const extraTileId = "20000000-0000-4000-8000-000000000002";
 
 describe("serviceFormProjection", () => {
+  it("projects a catalog-only integration as an editor-only representative without creating a tile", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr.local", api_key: "secret" } },
+    }];
+    const projected = projectCatalogServices(services, []);
+    expect(projected[0]).toMatchObject({
+      editorCatalogOnly: true,
+      widget: {
+        type: "sonarr-queue",
+        config: services[0].integration.config,
+      },
+    });
+
+    const persisted = persistLegacyServices(projected, services, []);
+    expect(persisted.service_tiles).toEqual([]);
+    expect(persisted.services[0].integration).toEqual(services[0].integration);
+
+    const updated = persistLegacyServices([{
+      ...projected[0],
+      widget: {
+        ...projected[0].widget!,
+        config: { url: "http://replacement.local", api_key: "replacement" },
+      },
+    }], services, []);
+    expect(updated.service_tiles).toEqual([]);
+    expect(updated.services[0].integration).toEqual({
+      type: "sonarr",
+      config: { url: "http://replacement.local", api_key: "replacement" },
+    });
+  });
   it("projects and persists every tile of a shared service independently", () => {
     const services = [{ id: serviceId, name: "Sonarr", integration: { type: "sonarr", config: { url: "http://sonarr" } } }];
     const tiles = [
@@ -240,7 +273,7 @@ describe("serviceFormProjection", () => {
   });
 
   it("keeps an opaque known-widget tile config out of the shared integration", () => {
-    const opaque = "widget-config-ref.opaque";
+    const opaque = createWidgetConfigReference(tileId, "plex");
     const services = [{
       id: serviceId,
       name: "Plex",
@@ -267,7 +300,7 @@ describe("serviceFormProjection", () => {
   });
 
   it("preserves an opaque service config beside safe tile options", () => {
-    const opaque = "widget-config-ref.service";
+    const opaque = createWidgetConfigReference(serviceId, "plex");
     const services = [{
       id: serviceId,
       name: "Plex",
@@ -291,7 +324,7 @@ describe("serviceFormProjection", () => {
   });
 
   it("updates the shared connection while replacing an opaque tile config", () => {
-    const opaque = "widget-config-ref.tile";
+    const opaque = createWidgetConfigReference(tileId, "plex");
     const services = [{
       id: serviceId,
       name: "Plex",
@@ -414,6 +447,103 @@ describe("serviceFormProjection", () => {
       type: "plex",
       config: { fields: ["streams"] },
     });
+  });
+
+  it("does not reuse the old integration when switching to a different widget type", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr", api_key: "sonarr-key" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: { type: "sonarr-calendar", config: { days: 7 } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+    const persisted = persistLegacyServices([{
+      ...projected,
+      widget: {
+        type: "plex",
+        config: {},
+      },
+    }], services, tiles);
+
+    expect(persisted.services[0]).toMatchObject({
+      integration: {
+        type: "plex",
+        config: {},
+      },
+    });
+    expect(persisted.service_tiles[0].widget).toEqual({
+      type: "plex",
+      config: {},
+    });
+  });
+
+  it("retains the shared integration when switching within the same integration family", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: { type: "sonarr", config: { url: "http://sonarr", api_key: "sonarr-key" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: { type: "sonarr-calendar", config: { days: 7 } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+    const persisted = persistLegacyServices([{
+      ...projected,
+      widget: {
+        type: "sonarr-queue",
+        config: {},
+      },
+    }], services, tiles);
+
+    expect(persisted.services[0]).toMatchObject({
+      integration: {
+        type: "sonarr",
+        config: { url: "http://sonarr", api_key: "sonarr-key" },
+      },
+    });
+    expect(persisted.service_tiles[0].widget).toEqual({
+      type: "sonarr-queue",
+      config: {},
+    });
+  });
+
+  it("retains a sibling's connection when attaching a plain tile to the same integration", () => {
+    const services = [{
+      id: serviceId,
+      name: "Sonarr",
+      integration: {
+        type: "sonarr",
+        config: { url: "http://sonarr", api_key: "sonarr-key" },
+      },
+    }];
+    const tiles = [
+      { id: tileId, service_id: serviceId },
+      {
+        id: extraTileId,
+        service_id: serviceId,
+        widget: { type: "sonarr-calendar", config: { days: 7 } },
+      },
+    ];
+    const projected = projectLegacyServices(services, tiles);
+    const persisted = persistLegacyServices([
+      {
+        ...projected[0],
+        widget: { type: "sonarr-queue", config: {} },
+      },
+      projected[1],
+    ], services, tiles);
+
+    expect(persisted.services[0].integration).toEqual(services[0].integration);
+    expect(persisted.service_tiles.map((tile) => tile.widget?.type)).toEqual([
+      "sonarr-queue",
+      "sonarr-calendar",
+    ]);
   });
 
   it("round-trips distinct opaque integration and tile configs after a presentation edit", () => {

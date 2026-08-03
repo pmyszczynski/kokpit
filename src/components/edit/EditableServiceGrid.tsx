@@ -66,6 +66,7 @@ import {
   type KokpitConfig,
   type Service,
   type Size,
+  widgetIntegrationRequirement,
 } from "@/config/schema";
 import {
   declareGroup,
@@ -105,6 +106,7 @@ function serviceTileProps(service: Service) {
     description: service.description,
     widget: resolveTileWidget(service.widget, service.integration?.config, {
       normalizeSecretReferences: true,
+      normalizeOpaqueConfigReference: true,
     }),
     size: resolveServiceSize(service, hints?.preferredSize, hints?.minSize),
   };
@@ -398,11 +400,16 @@ export default function EditableServiceGrid({
     const pending = typeof pendingEditService === "string"
       ? { name: pendingEditService }
       : pendingEditService;
-    const service = services.find((s) => {
-      if (pending.tileId != null) return s.tileId === pending.tileId;
-      if (pending.serviceId != null) return s.id === pending.serviceId;
-      return keyEq(s.name, pending.name);
-    });
+    const service =
+      (pending.tileId != null
+        ? services.find((candidate) => candidate.tileId === pending.tileId)
+        : undefined) ??
+      (pending.serviceId != null
+        ? services.find((candidate) => candidate.id === pending.serviceId)
+        : undefined) ??
+      (pending.tileId == null && pending.serviceId == null
+        ? services.find((candidate) => keyEq(candidate.name, pending.name))
+        : undefined);
     // Seeded from the broken-widget badge (not the kebab's Edit item): focus
     // the Widget section so the Zod error is right where the user lands.
     if (service)
@@ -979,6 +986,10 @@ export default function EditableServiceGrid({
           service={service}
           existingGroups={knownGroupNames}
           focusWidget={dialog.focusWidget}
+          siblingIntegrationTypes={services
+            .filter((candidate) => candidate.id === service.id && candidate.tileId !== service.tileId)
+            .flatMap((candidate) => candidate.widget ? [widgetIntegrationRequirement(candidate.widget.type)] : [])
+            .filter((type): type is string => type !== null)}
           onSave={(updated) => {
             handleServiceEditSave(service.id!, service.tileId, updated);
             close();

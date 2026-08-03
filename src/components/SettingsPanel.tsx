@@ -4,7 +4,7 @@
 import "@/integrations";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KokpitConfig, Service, Group, BookmarkGroup } from "@/config/schema";
+import { KokpitConfig, Service, Group, BookmarkGroup, widgetIntegrationRequirement } from "@/config/schema";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import {
   resolveServiceSize,
@@ -1298,6 +1298,12 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
           takenNames={services
             .filter((_, i) => editingIndex === null || i !== editingIndex)
             .map((s) => s.name)}
+          siblingIntegrationTypes={
+            editingIndex === null ? [] : services
+              .filter((candidate, index) => index !== editingIndex && candidate.id === services[editingIndex].id)
+              .flatMap((candidate) => candidate.widget ? [widgetIntegrationRequirement(candidate.widget.type)] : [])
+              .filter((type): type is string => type !== null)
+          }
           onSave={handleServiceSave}
           onClose={closeServiceForm}
         />

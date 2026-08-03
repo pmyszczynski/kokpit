@@ -56,8 +56,11 @@ service_tiles:
 
 const AUTH_ENABLED_YAML = SERVICES_YAML.replace("enabled: false", "enabled: true");
 
-function get(tile_id?: string) {
-  return new Request(`http://localhost/api/widget${tile_id ? `?tile_id=${tile_id}` : ""}`);
+function get(tile_id?: string, widgetType?: string) {
+  const params = new URLSearchParams();
+  if (tile_id) params.set("tile_id", tile_id);
+  if (widgetType) params.set("widget_type", widgetType);
+  return new Request(`http://localhost/api/widget${params.size ? `?${params}` : ""}`);
 }
 
 beforeEach(() => {
@@ -110,6 +113,18 @@ describe("GET /api/widget", () => {
     const res = await GET(get("20000000-0000-4000-8000-000000000001"));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/no widget/i);
+  });
+
+  it("rejects a stale expected widget type before fetching persisted widget data", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(get("20000000-0000-4000-8000-000000000001", "sonarr-calendar"));
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ ok: false, error: "Widget type changed" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 when the stored config fails the widget schema", async () => {

@@ -273,6 +273,8 @@ export type Service = Partial<z.infer<typeof ServiceSchema>> &
     /** Editor-only source config boundaries for a projected v2 tile. */
     editorIntegrationConfig?: Record<string, unknown>;
     editorTileWidgetConfig?: Record<string, unknown>;
+    /** Editor-only representative for a catalog Service without a dashboard tile. */
+    editorCatalogOnly?: boolean;
   };
 export type ServiceTile = z.infer<typeof ServiceTileSchema>;
 export type ServiceWidget = z.infer<typeof ServiceTileWidgetSchema>;

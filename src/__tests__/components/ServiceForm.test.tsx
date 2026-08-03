@@ -4,6 +4,7 @@ import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
 import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
 import {
+  WIDGET_CONFIG_REFERENCE_PREFIX,
   WIDGET_SECRET_REFERENCE_KEY,
   WIDGET_SECRET_REFERENCE_PREFIX,
 } from "@/widgets/secretReference";
@@ -35,6 +36,32 @@ const SAVED_TAUTULLI_SECRET = {
 };
 
 describe("ServiceForm – rendering", () => {
+  it("blocks a tile from changing a shared Service to a different integration", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "Sonarr",
+          widget: {
+            type: "sonarr-calendar",
+            config: { url: "http://sonarr.local", api_key: "secret", days: 7 },
+          },
+        }}
+        existingGroups={[]}
+        siblingIntegrationTypes={["sonarr"]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByText("Save")).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "plex" },
+    });
+
+    expect(screen.getByText(/This Service still has tiles/)).toHaveTextContent(/different integration/i);
+    expect(screen.getByText("Save")).toBeDisabled();
+  });
+
   it('shows "Add Service" for a new service', () => {
     render(
       <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
@@ -1494,6 +1521,105 @@ describe("ServiceForm – test connection", () => {
       },
     });
     expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET_TOKEN);
+  });
+
+  it("treats an opaque catalog integration as configured until replacement starts", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const marker = `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-opaque-config`;
+    const opaqueConfig = { __kokpit_widget_config_reference__: marker };
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          name: "Tautulli",
+          integration: { type: "tautulli", config: opaqueConfig },
+          editorCatalogOnly: true,
+          widget: { type: "tautulli-activity", config: {} },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByText(/Connection is configured but hidden/)).toBeInTheDocument();
+    expect(screen.getByText(/remains outside the dashboard/)).toBeInTheDocument();
+    expect(document.getElementById("sf-widget-url")).toHaveValue("");
+    expect(document.body.innerHTML).not.toContain(marker);
+
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() => expect(screen.getByText("Connection OK")).toBeInTheDocument());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({ type: "tautulli-activity", config: opaqueConfig });
+
+    fireEvent.change(document.getElementById("sf-widget-url")!, {
+      target: { value: "http://replacement.local" },
+    });
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    expect(screen.getByText(/doesn.t match its schema/)).toBeInTheDocument();
+  });
+
+  it("keeps an opaque Service reference out of an ordinary tile config", () => {
+    const onSave = vi.fn();
+    const marker = `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-service-config`;
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Sonarr",
+          integration: {
+            type: "sonarr",
+            config: { __kokpit_widget_config_reference__: marker },
+          },
+          widget: { type: "sonarr-calendar", config: { days: 7 } },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    expect(document.getElementById("sf-widget-days")).toHaveValue(7);
+    fireEvent.submit(screen.getByLabelText("Name *").closest("form")!);
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      widget: {
+        type: "sonarr-calendar",
+        config: { days: 7 },
+        refresh_interval_ms: undefined,
+      },
+    }));
+    expect(JSON.stringify(onSave.mock.calls[0][0])).not.toContain(marker);
+  });
+
+  it("still validates visible tile options when the Service connection is opaque", () => {
+    const marker = `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-service-config`;
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Sonarr",
+          integration: {
+            type: "sonarr",
+            config: { __kokpit_widget_config_reference__: marker },
+          },
+          widget: { type: "sonarr-calendar", config: { days: 31 } },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByText(/Connection is configured but hidden/)).toBeInTheDocument();
+    expect(screen.getByText(/days:/)).toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    expect(document.body.innerHTML).not.toContain(marker);
   });
 
   it("shows the server error message when the test fails", async () => {

@@ -13,7 +13,8 @@ interface UseWidgetResult<TData> {
 
 export function useWidget<TData = unknown>(
   tileId: string,
-  refreshInterval: number = DEFAULT_REFRESH_INTERVAL
+  refreshInterval: number = DEFAULT_REFRESH_INTERVAL,
+  widgetType?: string
 ): UseWidgetResult<TData> {
   const [data, setData] = useState<TData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,8 @@ export function useWidget<TData = unknown>(
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    // Type distinguishes a tile's successive widget instances and protects
+    // against stale server data after an unsaved type change.
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -30,6 +33,7 @@ export function useWidget<TData = unknown>(
 
     try {
       const params = new URLSearchParams({ tile_id: tileId });
+      if (widgetType) params.set("widget_type", widgetType);
       const res = await fetch(`/api/widget?${params}`, {
         signal: controller.signal,
       });
@@ -51,7 +55,7 @@ export function useWidget<TData = unknown>(
         setLoading(false);
       }
     }
-  }, [tileId]);
+  }, [tileId, widgetType]);
 
   useEffect(() => {
     void fetchData();

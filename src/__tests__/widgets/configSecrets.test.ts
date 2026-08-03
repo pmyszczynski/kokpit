@@ -15,8 +15,8 @@ import {
 import {
   toClientSafeSettings,
   resolveServiceIntegrationSecrets,
-  resolveServiceTileWidgetConfigs,
   resolveIntegrationConfigSecrets,
+  resolveServiceTileWidgetConfigs,
   UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
@@ -651,6 +651,29 @@ describe("opaque integration config redaction", () => {
       url: "http://tautulli.local:8181/",
       api_key: "replacement-secret",
     });
+  });
+
+  it("resolves an exact opaque marker for connection testing without exposing its config", () => {
+    const marker = createWidgetConfigReference(serviceId, "tautulli");
+    expect(resolveIntegrationConfigSecrets("tautulli", {
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: marker,
+    }, savedServices)).toEqual(savedServices[0].integration!.config);
+    expect(() => resolveIntegrationConfigSecrets("plex", {
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: marker,
+    }, savedServices)).toThrowError(
+      expect.objectContaining({ code: "widget_secret_reference_invalid" })
+    );
+    expect(() => resolveIntegrationConfigSecrets("tautulli", {
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: "malformed",
+    }, savedServices)).toThrowError(
+      expect.objectContaining({ code: "widget_secret_reference_invalid" })
+    );
+    expect(() => resolveIntegrationConfigSecrets("tautulli", {
+      [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: marker,
+      url: "http://replacement.local",
+    }, savedServices)).toThrowError(
+      expect.objectContaining({ code: "widget_secret_reference_invalid" })
+    );
   });
 
   it.each([

@@ -4,52 +4,14 @@ import {
   type ServiceTile,
   widgetIntegrationRequirement,
 } from "@/config/schema";
-import { getWidget } from "@/widgets";
+import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
+import { splitWidgetConfig } from "@/widgets/configBoundary";
+import { isWidgetConfigReferenceEnvelope } from "@/widgets/secretReference";
 import { resolveServiceSize } from "@/config/resolve";
 
-const OPTION_KEYS: Record<string, ReadonlySet<string>> = {
-  "plex": new Set(["fields"]), "sonarr-calendar": new Set(["days"]),
-  "sonarr-queue": new Set(["limit"]), "radarr-queue": new Set(["limit"]),
-  "qbittorrent-torrents": new Set(["limit", "filter"]), "seerr-requests": new Set(["limit", "filter"]),
-  "docker": new Set(["max_items"]), "netdata-cpu": new Set(["history_minutes"]),
-  "netdata-ram": new Set(["history_minutes"]), "netdata-net": new Set(["interface", "history_minutes"]),
-  "netdata-disk-io": new Set(["disk_path", "history_minutes"]), "netdata-disk-space": new Set(["chart_id"]),
-  "netdata-sensor": new Set(["chart_id", "label", "history_minutes"]),
-  "actualbudget-categories": new Set(["limit", "category_ids", "timezone", "hide_income", "hide_empty"]),
-  "actualbudget-accounts": new Set(["account_ids", "timezone", "exclude_closed", "exclude_offbudget"]),
-  "actualbudget-schedules": new Set(["days_ahead", "timezone", "limit"]),
-  "actualbudget-summary": new Set(["timezone", "privacy_mode", "currency", "sections"]),
-};
+export { splitWidgetConfig } from "@/widgets/configBoundary";
 
-const OPAQUE_WIDGET_CONFIG_REFERENCE_KEY =
-  "__kokpit_widget_config_reference__";
-
-function hasOpaqueWidgetConfigReference(config: Record<string, unknown>): boolean {
-  return Object.prototype.hasOwnProperty.call(
-    config,
-    OPAQUE_WIDGET_CONFIG_REFERENCE_KEY
-  );
-}
-
-export function splitWidgetConfig(widgetType: string, value: unknown) {
-  const config = value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-  if (hasOpaqueWidgetConfigReference(config)) {
-    return { connection: {}, options: config };
-  }
-  if (widgetIntegrationRequirement(widgetType) === null) {
-    return { connection: {}, options: config };
-  }
-  const declaredOptionKeys = getWidget(widgetType)?.optionFields?.map((field) => field.key);
-  const optionKeys = new Set(declaredOptionKeys ?? OPTION_KEYS[widgetType] ?? []);
-  const connection: Record<string, unknown> = {};
-  const options: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(config)) {
-    (optionKeys.has(key) ? options : connection)[key] = item;
-  }
-  return { connection, options };
-}
+const hasOpaqueWidgetConfigReference = isWidgetConfigReferenceEnvelope;
 
 function deriveIntegration(
   input: Service,
@@ -75,12 +37,19 @@ function deriveIntegration(
 
   const integrationType = widgetIntegrationRequirement(widget.type);
   if (integrationType && getWidget(widget.type)) {
+    const primaryRequirement = primaryTile?.widget
+      ? widgetIntegrationRequirement(primaryTile.widget.type)
+      : null;
+    const preservePreviousIntegration = (
+      previous?.integration?.type === integrationType &&
+      (!primaryTile?.widget || primaryRequirement === integrationType)
+    );
     const connection = splitWidgetConfig(widget.type, widget.config).connection;
     if (Object.keys(connection).length === 0) {
-      return {
-        explicit: true,
-        integration: previous?.integration ?? { type: integrationType, config: {} },
-      };
+      if (preservePreviousIntegration) {
+        return { explicit: true, integration: previous?.integration };
+      }
+      return { explicit: true, integration: { type: integrationType, config: {} } };
     }
     return {
       explicit: true,
@@ -119,6 +88,14 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
   const opaqueTileConfig = tileConfig && hasOpaqueWidgetConfigReference(tileConfig);
   const integrationConfig = service.integration?.config;
   const opaqueIntegrationConfig = integrationConfig && hasOpaqueWidgetConfigReference(integrationConfig);
+  const catalogWidget = !tile && service.integration
+    ? getWidgetsWithServiceEditorPreset()
+        .filter((widget) => widgetIntegrationRequirement(widget.id) === service.integration!.type)
+        .sort((left, right) =>
+          (left.configFields?.length ?? 0) - (right.configFields?.length ?? 0) ||
+          left.id.localeCompare(right.id)
+        )[0]
+    : undefined;
   return {
     ...service,
     ...(tile ? { tileId: tile.id } : {}),
@@ -133,7 +110,13 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
         ...(opaqueIntegrationConfig ? {} : integrationConfig ?? {}),
         ...(opaqueTileConfig ? {} : tileConfig ?? {}),
       },
-    } } : {}),
+    } } : catalogWidget ? {
+      editorCatalogOnly: true,
+      widget: {
+        type: catalogWidget.id,
+        config: opaqueIntegrationConfig ? {} : integrationConfig ?? {},
+      },
+    } : {}),
   };
 }
 
@@ -308,7 +291,7 @@ export function persistLegacyServices(
       });
     }
 
-    if (!previous || input.tileId || primaryTile || hasDefinedPlacement || hasWidgetTileMutation) {
+    if (!input.editorCatalogOnly && (!previous || input.tileId || primaryTile || hasDefinedPlacement || hasWidgetTileMutation)) {
       const persistedTile = {
         id: primaryTile?.id ?? input.tileId ?? crypto.randomUUID(),
         service_id: id,

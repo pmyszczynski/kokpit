@@ -101,4 +101,31 @@ describe("useWidget", () => {
 
     expect(capturedSignal?.aborted).toBe(true);
   });
+
+  it("re-fetches when the widget type changes", async () => {
+    const signals: AbortSignal[] = [];
+    const fetchMock = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+      signals.push(options.signal as AbortSignal);
+      return new Promise(() => {});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = renderHook(
+      ({ tileId, widgetType }) => useWidget(tileId, undefined, widgetType),
+      {
+        initialProps: { tileId: "tile-id", widgetType: "sonarr-calendar" },
+      }
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/widget?tile_id=tile-id&widget_type=sonarr-calendar");
+
+    act(() => {
+      rerender({ tileId: "tile-id", widgetType: "sonarr-queue" });
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(signals[0].aborted).toBe(true);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/widget?tile_id=tile-id&widget_type=sonarr-queue");
+  });
 });

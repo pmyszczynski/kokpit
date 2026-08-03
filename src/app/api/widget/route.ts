@@ -14,12 +14,16 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const tileId = searchParams.get("tile_id");
+  const widgetType = searchParams.get("widget_type");
 
   if (!tileId) return NextResponse.json({ ok: false, error: "Missing tile_id parameter" }, { status: 400 });
   const config = getConfig();
   const tile = config.service_tiles.find((candidate) => candidate.id === tileId);
   if (!tile) return NextResponse.json({ ok: false, error: `ServiceTile not found: "${tileId}"` }, { status: 404 });
   if (!tile.widget) return NextResponse.json({ ok: false, error: "ServiceTile has no widget" }, { status: 400 });
+  if (widgetType && tile.widget.type !== widgetType) {
+    return NextResponse.json({ ok: false, error: "Widget type changed" }, { status: 409 });
+  }
   const service = config.services.find((candidate) => candidate.id === tile.service_id);
   if (!service) return NextResponse.json({ ok: false, error: `Service not found for tile "${tileId}"` }, { status: 400 });
   const type = tile.widget.type;

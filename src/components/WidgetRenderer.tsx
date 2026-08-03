@@ -18,7 +18,7 @@ interface WidgetRendererProps {
 // React rules prohibit conditional hook calls, so the guard lives in the parent.
 function KnownWidgetContent({
   widget,
-  type: _type,
+  type,
   tileId,
   refreshInterval,
 }: {
@@ -29,7 +29,8 @@ function KnownWidgetContent({
 }) {
   const { data, loading, error, refresh } = useWidget(
     tileId,
-    refreshInterval ?? widget.refreshInterval
+    refreshInterval ?? widget.refreshInterval,
+    type
   );
 
   if (loading && data === null) {
@@ -65,6 +66,7 @@ function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
 
   return (
     <KnownWidgetContent
+      key={type}
       widget={widget}
       type={type}
       tileId={tileId}
@@ -75,7 +77,7 @@ function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
 
 export function WidgetRenderer(props: WidgetRendererProps) {
   return (
-    <WidgetErrorBoundary widgetType={props.type}>
+    <WidgetErrorBoundary key={props.type} widgetType={props.type}>
       <WidgetContent {...props} />
     </WidgetErrorBoundary>
   );

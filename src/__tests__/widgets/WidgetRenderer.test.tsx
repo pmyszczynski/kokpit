@@ -104,4 +104,48 @@ describe("WidgetRenderer", () => {
     );
     expect(screen.getByText("boom")).toBeInTheDocument();
   });
+
+  it("does not pass old data to a new widget type sharing the same tile", async () => {
+    function OldWidget({ data }: WidgetProps) {
+      return <div>old-widget: {(data as { label: string } | null)?.label}</div>;
+    }
+    function NewWidget({ data }: WidgetProps) {
+      return <div>new-widget: {(data as { label: string } | null)?.label}</div>;
+    }
+    registerWidget({ id: "old-widget", name: "Old", configSchema: z.object({}), fetchData: async () => ({}), component: OldWidget });
+    registerWidget({ id: "new-widget", name: "New", configSchema: z.object({}), fetchData: async () => ({}), component: NewWidget });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ json: () => Promise.resolve({ ok: true, data: { label: "old" } }) } as Response)
+      .mockResolvedValueOnce({ json: () => Promise.resolve({ ok: false, error: "Widget type changed", data: { label: "old" } }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = render(<WidgetRenderer type="old-widget" tileId="tile-id" />);
+    await waitFor(() => expect(screen.getByText("old-widget: old")).toBeInTheDocument());
+
+    rerender(<WidgetRenderer type="new-widget" tileId="tile-id" />);
+
+    expect(screen.queryByText("old-widget: old")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Widget type changed"));
+    expect(screen.queryByText("new-widget: old")).not.toBeInTheDocument();
+  });
+
+  it("recovers from a widget error boundary when the widget type changes", async () => {
+    function CrashingWidget(): never {
+      throw new Error("widget crashed");
+    }
+    function HealthyWidget() {
+      return <div>healthy-widget</div>;
+    }
+    registerWidget({ id: "crashing-widget", name: "Crashing", configSchema: z.object({}), fetchData: async () => ({}), component: CrashingWidget });
+    registerWidget({ id: "healthy-widget", name: "Healthy", configSchema: z.object({}), fetchData: async () => ({}), component: HealthyWidget });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: () => Promise.resolve({ ok: true, data: {} }) } as Response));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { rerender } = render(<WidgetRenderer type="crashing-widget" tileId="tile-id" />);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("widget crashed"));
+
+    rerender(<WidgetRenderer type="healthy-widget" tileId="tile-id" />);
+
+    await waitFor(() => expect(screen.getByText("healthy-widget")).toBeInTheDocument());
+  });
 });

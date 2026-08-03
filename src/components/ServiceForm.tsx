@@ -6,6 +6,7 @@ import {
   Service,
   ServiceWidget,
   Size,
+  widgetIntegrationRequirement,
 } from "@/config/schema";
 import { resolveServiceSize, sizeSatisfies } from "@/config";
 import { resolveIconRef } from "@/config/iconRef";
@@ -16,7 +17,11 @@ import {
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
 import { widgetCredentialScopesMatch } from "@/widgets/credentialScope";
-import { isWidgetSecretReference } from "@/widgets/secretReference";
+import {
+  isWidgetConfigReferenceEnvelope,
+  isWidgetSecretReference,
+} from "@/widgets/secretReference";
+import { configForOpaqueConnectionValidation } from "@/widgets/configBoundary";
 import {
   widgetConfigForValidation,
   widgetConfigIssues,
@@ -29,6 +34,8 @@ interface ServiceFormProps {
   existingGroups: string[];
   /** Service names already in use (excluding the row being edited). */
   takenNames?: string[];
+  /** Non-generic integrations still required by the other tiles of this Service. */
+  siblingIntegrationTypes?: string[];
   /** Prefill the group field for a new service (edit-mode "add here"). */
   initialGroup?: string;
   /**
@@ -517,6 +524,7 @@ export default function ServiceForm({
   initialGroup,
   initialPreset,
   focusWidget = false,
+  siblingIntegrationTypes = [],
   onSave,
   onClose,
 }: ServiceFormProps) {
@@ -571,6 +579,10 @@ export default function ServiceForm({
   const [savedConfigIssues] = useState<WidgetConfigIssue[]>(() => {
     const w = service?.widget;
     if (!w) return [];
+    if (
+      isWidgetConfigReferenceEnvelope(w.config) ||
+      isWidgetConfigReferenceEnvelope(service?.integration?.config)
+    ) return [];
     const def = getWidget(w.type);
     if (!def) return [];
     return widgetConfigIssues(
@@ -608,10 +620,18 @@ export default function ServiceForm({
 
   const activeWidgetType =
     tileType !== "" ? tileType : orphanWidget?.type ?? null;
+  const selectedIntegrationType = activeWidgetType
+    ? widgetIntegrationRequirement(activeWidgetType)
+    : null;
+  const integrationConflict = selectedIntegrationType !== null &&
+    siblingIntegrationTypes.some((type) => type !== selectedIntegrationType);
   const activeRawConfig =
     tileType !== ""
       ? widgetConfig
       : ((orphanWidget?.config as Record<string, unknown>) ?? {});
+  const opaqueConfigHidden =
+    !widgetConfigTouched &&
+    isWidgetConfigReferenceEnvelope(service?.integration?.config);
   const activeCleanedConfig = cleanWidgetConfig(
     activeRawConfig
   );
@@ -643,10 +663,15 @@ export default function ServiceForm({
   const configIssues: WidgetConfigIssue[] = selectedWidgetDef
     ? widgetConfigIssues(
         selectedWidgetDef,
-        widgetConfigForValidation(
-          selectedWidgetDef.configFields,
-          activeCleanedConfig
-        )
+        opaqueConfigHidden
+          ? configForOpaqueConnectionValidation(
+              selectedWidgetDef,
+              activeCleanedConfig
+            )
+          : widgetConfigForValidation(
+              selectedWidgetDef.configFields,
+              activeCleanedConfig
+            )
       )
     : [];
   const widgetConfigValid = selectedWidgetDef
@@ -689,7 +714,12 @@ export default function ServiceForm({
     : [];
 
   function handleWidgetConfigChange(key: string, value: unknown) {
-    setWidgetConfig((prev) => ({ ...prev, [key]: value }));
+    setWidgetConfig((prev) => {
+      const next = { ...prev, [key]: value };
+      if (isWidgetConfigReferenceEnvelope(next)) return next;
+      delete next.__kokpit_widget_config_reference__;
+      return next;
+    });
     setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
   }
@@ -743,7 +773,9 @@ export default function ServiceForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: activeWidgetType,
-          config: activeCleanedConfig,
+          config: opaqueConfigHidden
+            ? service!.integration!.config
+            : activeCleanedConfig,
         }),
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
@@ -915,7 +947,7 @@ export default function ServiceForm({
 
     setNameError(null);
 
-    if (savedCredentialsStale) return;
+    if (savedCredentialsStale || integrationConflict) return;
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
@@ -940,6 +972,7 @@ export default function ServiceForm({
     onSave({
       ...(service?.id ? { id: service.id } : {}),
       ...(service?.tileId ? { tileId: service.tileId } : {}),
+      ...(service?.editorCatalogOnly ? { editorCatalogOnly: true } : {}),
       name: trimmedName,
       url: url.trim() || undefined,
       icon: icon.trim() || undefined,
@@ -1329,7 +1362,21 @@ export default function ServiceForm({
                 role="status"
                 className="settings-form-hint service-form__widget-status service-form__widget-status--active"
               >
-                Widget configured — it will render on the dashboard tile.
+                {service?.editorCatalogOnly
+                  ? "Integration configured — this Service remains outside the dashboard."
+                  : "Widget configured — it will render on the dashboard tile."}
+              </p>
+            )}
+
+            {opaqueConfigHidden && (
+              <p role="status" className="settings-form-hint">
+                Connection is configured but hidden for safety. Enter replacement values to change it.
+              </p>
+            )}
+
+            {integrationConflict && (
+              <p className="settings-form-hint settings-form-hint--error" role="alert">
+                This Service still has tiles that require a different integration. Remove or change those tiles first.
               </p>
             )}
 
@@ -1401,7 +1448,7 @@ export default function ServiceForm({
           <button type="button" className="settings-btn" onClick={handleClose}>
             Cancel
           </button>
-          <button type="submit" className="settings-save-btn">
+          <button type="submit" className="settings-save-btn" disabled={integrationConflict}>
             Save
           </button>
         </div>

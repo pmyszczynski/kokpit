@@ -45,3 +45,15 @@ export function isWidgetConfigReference(value: unknown): value is string {
     value.startsWith(WIDGET_CONFIG_REFERENCE_PREFIX)
   );
 }
+
+/** True only for the browser-safe whole-config envelope. */
+export function isWidgetConfigReferenceEnvelope(
+  value: unknown,
+  key = "__kokpit_widget_config_reference__"
+): value is Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).length === 1 && isWidgetConfigReference(record[key]);
+}
