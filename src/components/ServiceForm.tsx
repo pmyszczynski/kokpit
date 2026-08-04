@@ -765,7 +765,7 @@ export default function ServiceForm({
     ? widgetConfigIssues(
         selectedWidgetDef,
         selectedWidgetRequiresIntegration && !legacyDirectConfig
-          ? widgetValidationConfig
+          ? widgetConfigForValidation(selectedWidgetDef.configFields, widgetValidationConfig)
           : widgetConfigForValidation(selectedWidgetDef.configFields, activeCleanedConfig)
       )
     : [];

@@ -1696,6 +1696,46 @@ describe("ServiceForm – test connection", () => {
     expect(document.body.innerHTML).not.toContain(SAVED_TAUTULLI_SECRET_TOKEN);
   });
 
+  it("validates an integration-backed tile with a saved credential reference", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Tautulli",
+          integration: {
+            type: "tautulli",
+            config: {
+              url: "http://tautulli.local:8181",
+              api_key: SAVED_TAUTULLI_SECRET,
+            },
+          },
+          widget: { type: "tautulli-activity", config: { sections: ["summary"] } },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.queryByText(/doesn.t match its schema/)).not.toBeInTheDocument();
+    expect(screen.getByText("Test connection")).toBeEnabled();
+
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() => expect(screen.getByText("Connection OK")).toBeInTheDocument());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      type: "tautulli-activity",
+      config: {
+        url: "http://tautulli.local:8181",
+        api_key: SAVED_TAUTULLI_SECRET,
+      },
+    });
+  });
+
   it("treats an opaque catalog integration as configured until replacement starts", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),
