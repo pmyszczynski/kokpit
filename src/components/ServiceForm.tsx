@@ -829,10 +829,7 @@ export default function ServiceForm({
 
   function handleWidgetConfigChange(key: string, value: unknown) {
     setWidgetConfig((prev) => {
-      const next = { ...prev, [key]: value };
-      if (isWidgetConfigReferenceEnvelope(next)) return next;
-      delete next.__kokpit_widget_config_reference__;
-      return next;
+      return { ...prev, [key]: value };
     });
     setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });

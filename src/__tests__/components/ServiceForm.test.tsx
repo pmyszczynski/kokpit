@@ -895,9 +895,9 @@ describe("ServiceForm – boolean widget config fields", () => {
 
     const saved = onSave.mock.calls[0][0];
     expect(saved.editorIntegration.config).toBeDefined();
-    expect(Object.keys(saved.editorIntegration.config)).toContain("privacy_mode");
-    expect(typeof saved.editorIntegration.config.privacy_mode).toBe("boolean");
-    expect(saved.editorIntegration.config.privacy_mode).toBe(false);
+    expect(saved.editorIntegration.config).not.toHaveProperty("privacy_mode");
+    expect(typeof saved.widget.config.privacy_mode).toBe("boolean");
+    expect(saved.widget.config.privacy_mode).toBe(false);
   });
 
   it("a lone `false` is enough to count as a configured widget", () => {
@@ -1767,6 +1767,43 @@ describe("ServiceForm – test connection", () => {
       },
     }));
     expect(JSON.stringify(onSave.mock.calls[0][0])).not.toContain(marker);
+  });
+
+  it("keeps an opaque tile reference when changing a visible tile option", () => {
+    const onSave = vi.fn();
+    const marker = `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-tile-config`;
+    render(
+      <ServiceForm
+        service={{
+          id: "10000000-0000-4000-8000-000000000001",
+          tileId: "20000000-0000-4000-8000-000000000001",
+          name: "Tautulli",
+          integration: {
+            type: "tautulli",
+            config: { url: "http://tautulli.local", api_key: "key" },
+          },
+          widget: {
+            type: "tautulli-activity",
+            config: { __kokpit_widget_config_reference__: marker },
+          },
+        }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText("Summary"));
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      widget: expect.objectContaining({
+        config: {
+          __kokpit_widget_config_reference__: marker,
+          sections: ["sessions"],
+        },
+      }),
+    }));
   });
 
   it("keeps an untouched opaque connection usable while editing tile options", async () => {

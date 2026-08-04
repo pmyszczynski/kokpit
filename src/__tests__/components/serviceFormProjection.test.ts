@@ -748,6 +748,57 @@ describe("serviceFormProjection", () => {
     ]);
   });
 
+  it("keeps Actual Budget display settings and each widget's existing options on its tile", () => {
+    const connection = {
+      url: "http://actual-http-api",
+      api_key: "secret",
+      budget_sync_id: "budget-id",
+      encryption_password: "password",
+    };
+    const cases = [
+      ["actualbudget-categories", {
+        limit: 8,
+        category_ids: ["groceries"],
+        timezone: "Europe/Warsaw",
+        hide_income: true,
+        hide_empty: false,
+      }],
+      ["actualbudget-accounts", {
+        account_ids: ["checking"],
+        timezone: "Europe/Warsaw",
+        exclude_closed: true,
+        exclude_offbudget: false,
+      }],
+      ["actualbudget-schedules", {
+        days_ahead: 30,
+        timezone: "Europe/Warsaw",
+        limit: 6,
+      }],
+      ["actualbudget-summary", {
+        timezone: "Europe/Warsaw",
+        sections: ["budget"],
+      }],
+    ] as const;
+
+    for (const [widgetType, existingOptions] of cases) {
+      expect(splitWidgetConfig(widgetType, {
+        ...connection,
+        ...existingOptions,
+        currency: "EUR",
+        locale: "pl-PL",
+        privacy_mode: true,
+      })).toEqual({
+        connection,
+        options: {
+          ...existingOptions,
+          currency: "EUR",
+          locale: "pl-PL",
+          privacy_mode: true,
+        },
+      });
+    }
+  });
+
   it("keeps integration-free widget configuration on the tile", () => {
     expect(splitWidgetConfig("system-stats", { sections: ["cpu"] })).toEqual({
       connection: {},

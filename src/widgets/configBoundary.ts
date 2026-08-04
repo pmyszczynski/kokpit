@@ -17,13 +17,17 @@ const LEGACY_OPTION_KEYS: Record<string, ReadonlySet<string>> = {
   "netdata-sensor": new Set(["chart_id", "label", "history_minutes"]),
   "actualbudget-categories": new Set([
     "limit", "category_ids", "timezone", "hide_income", "hide_empty",
+    "currency", "locale", "privacy_mode",
   ]),
   "actualbudget-accounts": new Set([
     "account_ids", "timezone", "exclude_closed", "exclude_offbudget",
+    "currency", "locale", "privacy_mode",
   ]),
-  "actualbudget-schedules": new Set(["days_ahead", "timezone", "limit"]),
+  "actualbudget-schedules": new Set([
+    "days_ahead", "timezone", "limit", "currency", "locale", "privacy_mode",
+  ]),
   "actualbudget-summary": new Set([
-    "timezone", "privacy_mode", "currency", "sections",
+    "timezone", "privacy_mode", "currency", "locale", "sections",
   ]),
   "tautulli-activity": new Set(["sections"]),
 };
