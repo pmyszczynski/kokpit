@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
+import { migrateV1Config } from "@/config/loader";
 
 // Controllable edit-mode state for DashboardSurface's view↔edit swap.
 let mockState: { active: boolean; draft: KokpitConfig | null } = {
@@ -15,7 +16,7 @@ vi.mock("@/components/edit/EditModeProvider", () => ({
 import DashboardSurface from "@/components/edit/DashboardSurface";
 
 function cfg(): KokpitConfig {
-  return KokpitConfigSchema.parse({
+  return migrateV1Config({
     schema_version: 1,
     services: [{ name: "DraftPlex", url: "https://plex.local", group: "Media" }],
   });

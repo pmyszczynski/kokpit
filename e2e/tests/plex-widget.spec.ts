@@ -2,8 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 import type { MockPlexState } from "../helpers/mock-plex-server";
 import { FIXTURE_SERVICES } from "../helpers/fixture-services";
+import { schemaV2Fixtures } from "../helpers/schema-v2";
 
 const MOCK = "http://localhost:32400";
+const FIXTURES = schemaV2Fixtures(FIXTURE_SERVICES);
 
 /**
  * Warm up Next.js route compilation before the first test.
@@ -12,7 +14,7 @@ const MOCK = "http://localhost:32400";
  */
 test.beforeAll(async ({ request }) => {
   await request.get("/").catch(() => null);
-  await request.get("/api/widget?type=plex&service=Plex").catch(() => null);
+  await request.get(`/api/widget?tile_id=${FIXTURES.service_tiles[0].id}`).catch(() => null);
 });
 
 /**
@@ -23,7 +25,7 @@ test.beforeAll(async ({ request }) => {
 test.beforeEach(async ({ request }) => {
   await request.post(`${MOCK}/__control`, { data: DEFAULT_MOCK_STATE });
   await request.patch("/api/settings", {
-    data: { services: FIXTURE_SERVICES },
+    data: FIXTURES,
   });
 });
 

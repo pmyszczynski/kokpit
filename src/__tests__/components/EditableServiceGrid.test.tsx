@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, screen } from "@testing-library/react";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
+import { migrateV1Config } from "@/config/loader";
 
 // EditableServiceGrid reads the B1 setters from useEditMode; stub the context so
 // the grid can render standalone (drag gestures aren't fired in jsdom — the
@@ -10,7 +11,10 @@ const setGroups = vi.fn();
 const setBookmarks = vi.fn();
 // Mutable so individual tests can seed a pending name before rendering — see
 // the "pendingEditService" describe block below.
-let pendingEditService: string | null = null;
+let pendingEditService:
+  | { serviceId?: string; tileId?: string; name: string }
+  | string
+  | null = null;
 const clearPendingEditService = vi.fn(() => {
   pendingEditService = null;
 });
@@ -22,6 +26,7 @@ vi.mock("@/components/edit/EditModeProvider", () => ({
     pendingEditService,
     clearPendingEditService,
   }),
+  useEditModeOptional: () => null,
 }));
 
 import EditableServiceGrid from "@/components/edit/EditableServiceGrid";
@@ -29,7 +34,7 @@ import ServiceTile from "@/components/ServiceTile";
 import CollapsibleGroup from "@/components/CollapsibleGroup";
 
 function cfg(overrides: Record<string, unknown> = {}): KokpitConfig {
-  return KokpitConfigSchema.parse({
+  return migrateV1Config({
     schema_version: 1,
     groups: [{ name: "Media" }],
     services: [
@@ -149,6 +154,68 @@ describe("pendingEditService (broken-widget badge → ServiceForm handoff)", () 
     const nameInput = screen.getByLabelText("Name *") as HTMLInputElement;
     expect(nameInput.value).toBe("Plex");
     expect(clearPendingEditService).toHaveBeenCalledTimes(1);
+  });
+
+  it("merges integration config before focusing the missing widget credential", async () => {
+    const config = cfg();
+    const service = config.services[0];
+    config.services[0] = {
+      ...service,
+      integration: { type: "sonarr", config: { url: "http://sonarr.local" } },
+    };
+    config.service_tiles[0] = {
+      ...config.service_tiles[0],
+      widget: { type: "sonarr-calendar", config: { days: 14 } },
+    };
+    pendingEditService = "Plex";
+
+    await act(async () => {
+      render(<EditableServiceGrid config={config} />);
+    });
+
+    expect(document.getElementById("sf-widget-url")).toHaveValue("http://sonarr.local");
+    expect(document.getElementById("sf-widget-api_key")).toHaveFocus();
+  });
+
+  it("uses a supplied tile ID ahead of the shared service ID", async () => {
+    const config = cfg();
+    const serviceId = config.services[0].id;
+    const [firstTile] = config.service_tiles;
+    const laterTileId = "20000000-0000-4000-8000-000000000002";
+    config.service_tiles = [
+      { ...firstTile, id: "20000000-0000-4000-8000-000000000001", service_id: serviceId, group: "Media" },
+      { ...firstTile, id: laterTileId, service_id: serviceId, group: "Later" },
+    ];
+    pendingEditService = { serviceId, tileId: laterTileId, name: "Plex" };
+
+    await act(async () => {
+      render(<EditableServiceGrid config={config} />);
+    });
+
+    expect(screen.getByText("Edit Service")).toBeInTheDocument();
+    expect(document.getElementById("sf-group")).toHaveValue("Later");
+  });
+
+  it("falls back to the shared service ID when the requested tile is stale", async () => {
+    const config = cfg();
+    const serviceId = config.services[0].id;
+    config.service_tiles[0] = {
+      ...config.service_tiles[0],
+      service_id: serviceId,
+      group: "Remaining",
+    };
+    pendingEditService = {
+      serviceId,
+      tileId: "20000000-0000-4000-8000-000000000099",
+      name: "Plex",
+    };
+
+    await act(async () => {
+      render(<EditableServiceGrid config={config} />);
+    });
+
+    expect(screen.getByText("Edit Service")).toBeInTheDocument();
+    expect(document.getElementById("sf-group")).toHaveValue("Remaining");
   });
 
   it("a pendingEditService naming no service just clears the pending name (no dialog)", async () => {

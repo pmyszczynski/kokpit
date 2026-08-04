@@ -1,17 +1,29 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
+
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  const existsSync = vi.fn().mockReturnValue(true);
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
+  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
+  const statSync = vi.fn().mockReturnValue({ mode: 0o100644 });
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
+    linkSync,
+    unlinkSync,
     existsSync,
     mkdirSync,
+    renameSync,
+    statSync,
+    chmodSync,
   };
 });
 vi.mock("next/headers", () => ({
@@ -42,7 +54,7 @@ describe("GET /api/ping", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_DISABLED_YAML);
   });
 
@@ -144,7 +156,7 @@ describe("GET /api/ping", () => {
 describe("GET /api/ping – auth", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
     process.env.KOKPIT_AUTH_DISABLED = "false";
   });

@@ -4,7 +4,7 @@ import type { KokpitConfig, Service } from "@/config/schema";
 
 const getConfig = vi.fn();
 
-vi.mock("@/config", () => ({
+vi.mock("@/config/server", () => ({
   getConfig: () => getConfig(),
 }));
 
@@ -27,9 +27,13 @@ function makeService(overrides: Partial<Service> & { name: string }): Service {
 // Minimal config shape ServiceGrid consumes; layout is always present in a
 // parsed config (schema default), so the mock provides it too.
 function makeConfig(
-  overrides: Partial<KokpitConfig> = {}
-): Pick<KokpitConfig, "layout" | "services"> &
-  Partial<Pick<KokpitConfig, "groups" | "bookmarks">> {
+  overrides: Partial<Pick<KokpitConfig, "layout" | "groups" | "bookmarks">> & {
+    services?: Service[];
+  } = {}
+): Pick<KokpitConfig, "layout"> &
+  Partial<Pick<KokpitConfig, "groups" | "bookmarks">> & {
+    services: Service[];
+  } {
   return {
     layout: { columns: 4, row_height: 120 },
     services: [],

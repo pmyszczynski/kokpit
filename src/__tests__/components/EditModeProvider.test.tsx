@@ -8,18 +8,28 @@ import {
   useEditMode,
   type EditModeState,
 } from "@/components/edit/EditModeProvider";
-import { KokpitConfigSchema, type KokpitConfig } from "@/config/schema";
+import type { KokpitConfig } from "@/config/schema";
+import { migrateV1Config } from "@/config/loader";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 function cfg(overrides: Record<string, unknown> = {}): KokpitConfig {
-  return KokpitConfigSchema.parse({
+  const migrated = migrateV1Config({
     schema_version: 1,
     services: [{ name: "Plex", url: "https://plex.local" }],
     ...overrides,
   });
+  return {
+    ...migrated,
+    services: migrated.services.map((service, index) => ({ ...service, id: `10000000-0000-4000-8000-00000000000${index + 1}` })),
+    service_tiles: migrated.service_tiles.map((tile, index) => ({
+      ...tile,
+      id: `20000000-0000-4000-8000-00000000000${index + 1}`,
+      service_id: `10000000-0000-4000-8000-00000000000${index + 1}`,
+    })),
+  };
 }
 
 const active: EditModeState = {
@@ -104,11 +114,11 @@ describe("editModeReducer", () => {
       type: "REQUEST_SERVICE_EDIT",
       name: "Plex",
     });
-    expect(next.pendingEditService).toBe("Plex");
+    expect(next.pendingEditService).toEqual({ name: "Plex" });
   });
 
   it("CLEAR_PENDING_EDIT clears pendingEditService", () => {
-    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    const pending: EditModeState = { ...active, pendingEditService: { name: "Plex" } };
     const next = editModeReducer(pending, { type: "CLEAR_PENDING_EDIT" });
     expect(next.pendingEditService).toBeNull();
   });
@@ -120,16 +130,16 @@ describe("editModeReducer", () => {
   it("pendingEditService survives ENTER_START (regression: fresh state objects)", () => {
     const pending: EditModeState = {
       ...initialEditModeState,
-      pendingEditService: "Plex",
+      pendingEditService: { name: "Plex" },
     };
     const next = editModeReducer(pending, { type: "ENTER_START" });
-    expect(next.pendingEditService).toBe("Plex");
+    expect(next.pendingEditService).toEqual({ name: "Plex" });
   });
 
   it("pendingEditService survives ENTER_SUCCESS (regression: fresh state objects)", () => {
     const pending: EditModeState = {
       ...initialEditModeState,
-      pendingEditService: "Plex",
+      pendingEditService: { name: "Plex" },
       status: "loading",
     };
     const config = cfg();
@@ -138,12 +148,12 @@ describe("editModeReducer", () => {
       config,
       revision: "rev-1",
     });
-    expect(next.pendingEditService).toBe("Plex");
+    expect(next.pendingEditService).toEqual({ name: "Plex" });
     expect(next.active).toBe(true);
   });
 
   it("pendingEditService is dropped by DISCARD", () => {
-    const pending: EditModeState = { ...active, pendingEditService: "Plex" };
+    const pending: EditModeState = { ...active, pendingEditService: { name: "Plex" } };
     expect(
       editModeReducer(pending, { type: "DISCARD" }).pendingEditService
     ).toBeNull();
@@ -152,7 +162,7 @@ describe("editModeReducer", () => {
   it("pendingEditService is dropped by ENTER_ERROR", () => {
     const pending: EditModeState = {
       ...initialEditModeState,
-      pendingEditService: "Plex",
+      pendingEditService: { name: "Plex" },
       status: "loading",
     };
     const next = editModeReducer(pending, {
@@ -183,7 +193,7 @@ describe("changedKeys", () => {
   });
 
   it("lists the changed top-level key", () => {
-    expect(changedKeys(cfg({ services: [] }), cfg())).toEqual(["services"]);
+    expect(changedKeys(cfg({ services: [] }), cfg())).toEqual(["services", "service_tiles"]);
   });
 
   it("is empty for null draft/baseline", () => {
@@ -433,9 +443,9 @@ describe("EditModeProvider (hook flows)", () => {
     const patchCall = fetchMock.mock.calls.find((c) => c[1]?.method === "PATCH");
     expect(patchCall).toBeTruthy();
     const sentBody = JSON.parse(patchCall![1].body as string);
-    expect(sentBody.services).toHaveLength(1);
+    expect(sentBody.service_tiles).toHaveLength(1);
     // 2×2 position → "large", and position is dropped.
-    expect(sentBody.services[0].size).toBe("large");
-    expect(sentBody.services[0].position).toBeUndefined();
+    expect(sentBody.service_tiles[0].size).toBe("large");
+    expect(sentBody.service_tiles[0].position).toBeUndefined();
   });
 });

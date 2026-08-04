@@ -4,7 +4,7 @@
 import "@/integrations";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KokpitConfig, Service, Group, BookmarkGroup } from "@/config/schema";
+import { KokpitConfig, Service, Group, BookmarkGroup, widgetIntegrationRequirement } from "@/config/schema";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import {
   resolveServiceSize,
@@ -14,6 +14,7 @@ import {
 import { getWidgetSizeHints } from "@/widgets";
 import {
   applyGroupCascades,
+  applyServiceTileGroupCascades,
   type GroupCascadeOp,
 } from "@/config/groupCascade";
 import ServiceForm from "./ServiceForm";
@@ -21,6 +22,11 @@ import GroupsTab from "./GroupsTab";
 import BookmarksTab from "./BookmarksTab";
 import BookmarkGroupForm from "./BookmarkGroupForm";
 import { sizeLabel } from "./settingsSizeOptions";
+import {
+  persistLegacyServices,
+  projectCatalogServices,
+  normalizeServicesForForm,
+} from "./edit/serviceFormProjection";
 
 type Tab =
   | "appearance"
@@ -124,7 +130,14 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   const [recoveryPending, setRecoveryPending] = useState(false);
 
   // Services
-  const [services, setServices] = useState<Service[]>(config.services);
+  const [initialServiceState] = useState(() =>
+    normalizeServicesForForm(config.services, config.service_tiles ?? [])
+  );
+  const [persistedServices, setPersistedServices] = useState(initialServiceState.services);
+  const [services, setServices] = useState<Service[]>(() =>
+    projectCatalogServices(initialServiceState.services, initialServiceState.service_tiles)
+  );
+  const [serviceTiles, setServiceTiles] = useState(initialServiceState.service_tiles);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [servicesWritePending, setServicesWritePending] = useState(false);
@@ -386,13 +399,22 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
 
   async function saveServices(next: Service[]) {
     if (servicesSavePendingRef.current) return;
+    const projected = persistLegacyServices(next, persistedServices, serviceTiles);
     servicesSavePendingRef.current = true;
     setServicesWritePending(true);
     setServices(next);
+    setPersistedServices(projected.services);
+    setServiceTiles(projected.service_tiles);
     try {
-      const result = await save("services", next);
+      const result = await saveRaw("services", projected);
       if (Array.isArray(result.config?.services)) {
-        setServices(result.config.services);
+        const refreshed = normalizeServicesForForm(
+          result.config.services,
+          Array.isArray(result.config.service_tiles) ? result.config.service_tiles : []
+        );
+        setServices(projectCatalogServices(refreshed.services, refreshed.service_tiles));
+        setPersistedServices(refreshed.services);
+        setServiceTiles(refreshed.service_tiles);
       }
     } finally {
       servicesSavePendingRef.current = false;
@@ -449,18 +471,22 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     () => applyGroupCascades(services, bookmarks, pendingGroupOps),
     [services, bookmarks, pendingGroupOps]
   );
+  const projectedTiles = useMemo(
+    () => applyServiceTileGroupCascades(serviceTiles, pendingGroupOps),
+    [serviceTiles, pendingGroupOps]
+  );
 
   const undeclaredGroups = useMemo(
     () =>
       resolveGroupOrder({
         layout: config.layout,
-        services: projectedCascade.services,
+        service_tiles: projectedTiles.serviceTiles,
         groups,
         bookmarks: projectedCascade.bookmarks,
       })
         .filter((g) => g.name !== null && !g.declared)
         .map((g) => g.name as string),
-    [config.layout, projectedCascade, groups]
+    [config.layout, projectedTiles, projectedCascade, groups]
   );
 
   const knownGroupNames = useMemo(() => {
@@ -553,13 +579,14 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     // Apply the staged cascade to the CURRENT services/bookmarks so the PATCH
     // carries the renamed/cleared references atomically with the `groups` write.
     const cascade = applyGroupCascades(services, bookmarks, pendingGroupOps);
+    const tileCascade = applyServiceTileGroupCascades(serviceTiles, pendingGroupOps);
     const payload: Record<string, unknown> = {
       groups: cleanGroups,
       layout: buildLayoutPayload(),
     };
-    if (cascade.servicesChanged) payload.services = cascade.services;
+    if (tileCascade.serviceTilesChanged) payload.service_tiles = tileCascade.serviceTiles;
     if (cascade.bookmarksChanged) payload.bookmarks = cascade.bookmarks;
-    if (cascade.servicesChanged) {
+    if (tileCascade.serviceTilesChanged) {
       servicesSavePendingRef.current = true;
       setServicesWritePending(true);
     }
@@ -567,18 +594,27 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
       const result = await saveRaw("groups", payload);
       if (result.ok) {
         // Now — and only now — reflect the cascade in shared state and clear ops.
-        if (cascade.servicesChanged) {
-          setServices(
-            Array.isArray(result.config?.services)
-              ? result.config.services
-              : cascade.services
+        if (tileCascade.serviceTilesChanged) {
+          const fallback = persistLegacyServices(
+            cascade.services,
+            persistedServices,
+            tileCascade.serviceTiles
           );
+          const refreshed = normalizeServicesForForm(
+            Array.isArray(result.config?.services) ? result.config.services : fallback.services,
+            Array.isArray(result.config?.service_tiles)
+              ? result.config.service_tiles
+              : fallback.service_tiles
+          );
+          setServices(projectCatalogServices(refreshed.services, refreshed.service_tiles));
+          setPersistedServices(refreshed.services);
+          setServiceTiles(refreshed.service_tiles);
         }
         if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
         setPendingGroupOps([]);
       }
     } finally {
-      if (cascade.servicesChanged) {
+      if (tileCascade.serviceTilesChanged) {
         servicesSavePendingRef.current = false;
         setServicesWritePending(false);
       }
@@ -1186,7 +1222,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
                 </thead>
                 <tbody>
                   {services.map((svc, i) => (
-                    <tr key={svc.name}>
+                    <tr key={svc.tileId ? `tile:${svc.tileId}` : `service:${svc.id}`}>
                       <td className="service-table__reorder">
                         <button
                           className="settings-icon-btn"
@@ -1259,9 +1295,12 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
         <ServiceForm
           service={editingIndex !== null ? services[editingIndex] : null}
           existingGroups={knownGroupNames}
-          takenNames={services
-            .filter((_, i) => editingIndex === null || i !== editingIndex)
-            .map((s) => s.name)}
+          siblingIntegrationTypes={
+            editingIndex === null ? [] : services
+              .filter((candidate, index) => index !== editingIndex && candidate.id === services[editingIndex].id)
+              .flatMap((candidate) => candidate.widget ? [widgetIntegrationRequirement(candidate.widget.type)] : [])
+              .filter((type): type is string => type !== null)
+          }
           onSave={handleServiceSave}
           onClose={closeServiceForm}
         />

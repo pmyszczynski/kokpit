@@ -1,18 +1,30 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 import { NextRequest } from "next/server";
 
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  const existsSync = vi.fn().mockReturnValue(true);
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
+  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
+  const statSync = vi.fn().mockReturnValue({ mode: 0o100600 });
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
+    linkSync,
+    unlinkSync,
     existsSync,
     mkdirSync,
+    renameSync,
+    statSync,
+    chmodSync,
   };
 });
 vi.mock("next/headers", () => ({
@@ -21,14 +33,14 @@ vi.mock("next/headers", () => ({
 
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import {
   WIDGET_SECRET_REFERENCE_KEY,
   WIDGET_SECRET_REFERENCE_PREFIX,
 } from "@/widgets/secretReference";
 
 const BASE_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -38,10 +50,11 @@ layout:
   columns: 4
   row_height: 120
 services: []
+service_tiles: []
 `.trim();
 
 const VIEWPORT_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -56,60 +69,119 @@ layout:
     columns: 1
     row_height: 80
 services: []
+service_tiles: []
 `.trim();
 
 const SECRET_YAML = `
-schema_version: 1
-auth:
-  enabled: false
-  session_ttl_hours: 24
-appearance:
-  theme: dark
-layout:
-  columns: 4
-  row_height: 120
+schema_version: 2
+auth: { enabled: false, session_ttl_hours: 24 }
+appearance: { theme: dark }
+layout: { columns: 4, row_height: 120 }
 services:
-  - name: Tautulli
-    url: http://tautulli.local:8181
-    widget:
-      type: tautulli-activity
-      config:
-        url: http://tautulli.local:8181
-        api_key: tautulli-secret-value
-        sections:
-          - summary
-  - name: Downloads
-    url: http://qbittorrent.local:8080
-    widget:
-      type: qbittorrent-stats
-      config:
-        url: http://qbittorrent.local:8080
-        username: admin
-        password: qbittorrent-secret-value
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Tautulli
+    launch_url: http://tautulli.local:8181
+    integration:
+      type: tautulli
+      config: { url: http://tautulli.local:8181, api_key: tautulli-secret-value }
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Downloads
+    launch_url: http://qbittorrent.local:8080
+    integration:
+      type: qbittorrent
+      config: { url: http://qbittorrent.local:8080, username: admin, password: qbittorrent-secret-value }
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    widget: { type: tautulli-activity, config: { sections: [summary] } }
+  - id: 20000000-0000-4000-8000-000000000002
+    service_id: 10000000-0000-4000-8000-000000000002
+    widget: { type: qbittorrent-stats }
 `.trim();
 
+const TILE_SECRET_YAML = SECRET_YAML.replace(
+  "config: { sections: [summary] }",
+  "config: { client_secret: tile-secret-value, sections: [summary] }"
+);
+
 const UNKNOWN_WIDGET_SECRET_YAML = `
-schema_version: 1
-auth:
-  enabled: false
-  session_ttl_hours: 24
-appearance:
-  theme: dark
-layout:
-  columns: 4
-  row_height: 120
+schema_version: 2
+auth: { enabled: false, session_ttl_hours: 24 }
+appearance: { theme: dark }
+layout: { columns: 4, row_height: 120 }
 services:
-  - name: Retired integration
-    widget:
+  - id: 10000000-0000-4000-8000-000000000003
+    name: Retired integration
+    integration:
       type: removed-widget
-      config:
-        endpoint: https://retired.local
-        api_key: unknown-widget-secret-value
+      config: { endpoint: https://retired.local, api_key: unknown-widget-secret-value }
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000003
+    service_id: 10000000-0000-4000-8000-000000000003
+    widget: { type: removed-widget }
 `.trim();
 
 type MutableSecretTestService = {
-  widget: { config: Record<string, unknown> };
+  integration: { config: Record<string, unknown> };
 };
+
+function createSettingsFsSimulation(initialYaml: string) {
+  let yaml = initialYaml;
+  let activeConfig = true;
+  const pendingWrites = new Map<string, string>();
+  const displacedWrites = new Map<string, string>();
+
+  const moveConfig = (source: unknown, destination: unknown) => {
+    const from = String(source);
+    const to = String(destination);
+    if (from.endsWith("settings.yaml")) {
+      displacedWrites.set(to, yaml);
+      activeConfig = false;
+    } else if (displacedWrites.has(from) && to.endsWith("settings.yaml")) {
+      yaml = displacedWrites.get(from)!;
+      displacedWrites.delete(from);
+      activeConfig = true;
+    }
+  };
+
+  vi.mocked(existsSync).mockImplementation((target) => {
+    const key = String(target);
+    if (key.endsWith("settings.yaml")) return activeConfig;
+    if (key.includes("settings.yaml.displaced")) return displacedWrites.has(key);
+    if (key.includes(".tmp-")) return pendingWrites.has(key);
+    return true;
+  });
+  vi.mocked(readFileSync).mockImplementation((target) =>
+    displacedWrites.get(String(target)) ?? yaml
+  );
+  vi.mocked(writeFileSync).mockImplementation((target, value) => {
+    if (typeof target === "string" && target.includes(".tmp-")) {
+      pendingWrites.set(target, String(value));
+    }
+  });
+  vi.mocked(renameSync).mockImplementation(moveConfig);
+  vi.mocked(linkSync).mockImplementation((source) => {
+    if (activeConfig) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+    const key = String(source);
+    yaml = displacedWrites.get(key) ?? pendingWrites.get(key)!;
+    activeConfig = true;
+  });
+  vi.mocked(unlinkSync).mockImplementation((target) => {
+    const key = String(target);
+    pendingWrites.delete(key);
+    displacedWrites.delete(key);
+  });
+
+  return {
+    get yaml() {
+      return yaml;
+    },
+    set yaml(value: string) {
+      yaml = value;
+    },
+    moveConfig,
+  };
+}
 
 function patch(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/settings", {
@@ -120,14 +192,14 @@ function patch(body: unknown, headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
 });
 
 describe("PATCH /api/settings – validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -168,7 +240,7 @@ describe("PATCH /api/settings – layout", () => {
   it("returns a bounded 500 when secret resolution fails unexpectedly", async () => {
     vi.doMock("@/widgets/configSecrets", async (importOriginal) => ({
       ...(await importOriginal<typeof import("@/widgets/configSecrets")>()),
-      resolveServiceWidgetSecrets: () => {
+      resolveServiceIntegrationSecrets: () => {
         throw new Error("leaked internal secret resolver detail");
       },
     }));
@@ -186,7 +258,7 @@ describe("PATCH /api/settings – layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -233,7 +305,7 @@ describe("PATCH /api/settings – appearance & services", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -251,7 +323,7 @@ describe("PATCH /api/settings – appearance & services", () => {
     const res = await PATCH(
       patch({
         services: [
-          { name: "Jellyfin", url: "http://jellyfin.local", group: "Media" },
+          { id: "10000000-0000-4000-8000-000000000004", name: "Jellyfin", launch_url: "http://jellyfin.local", category: "Media" },
         ],
       })
     );
@@ -261,11 +333,39 @@ describe("PATCH /api/settings – appearance & services", () => {
   });
 });
 
+describe("PATCH /api/settings – opaque tile widget config", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
+    vi.mocked(readFileSync).mockReturnValue(TILE_SECRET_YAML);
+    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+  });
+
+  it("round-trips a signed opaque tile config without exposing or persisting its marker", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const getRes = await GET();
+    const revision = getRes.headers.get("X-Config-Revision")!;
+    const redacted = await getRes.json();
+
+    expect(JSON.stringify(redacted)).not.toContain("tile-secret-value");
+    expect(redacted.service_tiles[0].widget.config).toHaveProperty("__kokpit_widget_config_reference__");
+
+    const res = await PATCH(patch({ service_tiles: redacted.service_tiles }, { "If-Match": revision }));
+    const responseText = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(writeFileSync).mock.calls[0][1]).toContain("tile-secret-value");
+    expect(vi.mocked(writeFileSync).mock.calls[0][1]).not.toContain("__kokpit_widget_config_reference__");
+    expect(responseText).not.toContain("tile-secret-value");
+  });
+});
+
 describe("PATCH /api/settings – groups, bookmarks & new layout/service fields", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
@@ -354,9 +454,8 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
       patch({
-        services: [
-          { name: "Plex", url: "http://plex.local", size: "large" },
-        ],
+        services: [{ id: "10000000-0000-4000-8000-000000000005", name: "Plex", launch_url: "http://plex.local" }],
+        service_tiles: [{ id: "20000000-0000-4000-8000-000000000005", service_id: "10000000-0000-4000-8000-000000000005", size: "large" }],
       })
     );
     expect(res.status).toBe(200);
@@ -367,7 +466,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   it("returns 400 for an invalid service size", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
-      patch({ services: [{ name: "Plex", size: "huge" }] })
+      patch({ service_tiles: [{ id: "20000000-0000-4000-8000-000000000005", service_id: "10000000-0000-4000-8000-000000000005", size: "huge" }] })
     );
     expect(res.status).toBe(400);
   });
@@ -379,7 +478,7 @@ describe("/api/settings – auth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
     process.env.KOKPIT_AUTH_DISABLED = "false";
@@ -414,7 +513,7 @@ describe("GET /api/settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
   });
 
@@ -446,17 +545,12 @@ describe("GET /api/settings", () => {
 });
 
 describe("/api/settings – widget password fields", () => {
-  let storedYaml: string;
+  let fs: ReturnType<typeof createSettingsFsSimulation>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    storedYaml = SECRET_YAML;
-    vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(readFileSync).mockImplementation(() => storedYaml);
-    vi.mocked(writeFileSync).mockImplementation((_path, value) => {
-      storedYaml = String(value);
-    });
+    fs = createSettingsFsSimulation(SECRET_YAML);
   });
 
   it("redacts every metadata-declared password from GET without changing non-secret config", async () => {
@@ -469,25 +563,25 @@ describe("/api/settings – widget password fields", () => {
     expect(res.status).toBe(200);
     expect(serialized).not.toContain("tautulli-secret-value");
     expect(serialized).not.toContain("qbittorrent-secret-value");
-    expect(json.services[0].widget.config.api_key).toMatchObject({
+    expect(json.services[0].integration.config.api_key).toMatchObject({
       [WIDGET_SECRET_REFERENCE_KEY]: expect.stringMatching(
         new RegExp(`^${WIDGET_SECRET_REFERENCE_PREFIX}`)
       ),
     });
-    expect(json.services[1].widget.config.password).toMatchObject({
+    expect(json.services[1].integration.config.password).toMatchObject({
       [WIDGET_SECRET_REFERENCE_KEY]: expect.stringMatching(
         new RegExp(`^${WIDGET_SECRET_REFERENCE_PREFIX}`)
       ),
     });
-    expect(json.services[0].widget.config.url).toBe(
+    expect(json.services[0].integration.config.url).toBe(
       "http://tautulli.local:8181"
     );
-    expect(json.services[1].widget.config.username).toBe("admin");
+    expect(json.services[1].integration.config.username).toBe("admin");
     expect(writeFileSync).not.toHaveBeenCalled();
   });
 
   it("hides and preserves complete configs for unregistered widget types", async () => {
-    storedYaml = UNKNOWN_WIDGET_SECRET_YAML;
+    fs.yaml = UNKNOWN_WIDGET_SECRET_YAML;
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
@@ -496,7 +590,7 @@ describe("/api/settings – widget password fields", () => {
 
     expect(serialized).not.toContain("unknown-widget-secret-value");
     expect(serialized).not.toContain("retired.local");
-    expect(redacted.services[0].widget.config).toEqual({
+    expect(redacted.services[0].integration.config).toEqual({
       __kokpit_widget_config_reference__: expect.stringMatching(
         /^__KOKPIT_WIDGET_CONFIG_REF__:/
       ),
@@ -509,10 +603,10 @@ describe("/api/settings – widget password fields", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("name: Retired integration renamed");
-    expect(storedYaml).toContain("endpoint: https://retired.local");
-    expect(storedYaml).toContain("api_key: unknown-widget-secret-value");
-    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_CONFIG_REF__:");
+    expect(fs.yaml).toContain("name: Retired integration renamed");
+    expect(fs.yaml).toContain("endpoint: https://retired.local");
+    expect(fs.yaml).toContain("api_key: unknown-widget-secret-value");
+    expect(fs.yaml).not.toContain("__KOKPIT_WIDGET_CONFIG_REF__:");
     expect(responseText).not.toContain("unknown-widget-secret-value");
     expect(responseText).not.toContain("retired.local");
   });
@@ -538,11 +632,11 @@ describe("/api/settings – widget password fields", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("name: Downloads Renamed");
-    expect(storedYaml).toContain("name: Tautulli Renamed");
-    expect(storedYaml).toContain("password: qbittorrent-secret-value");
-    expect(storedYaml).toContain("api_key: tautulli-secret-value");
-    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(fs.yaml).toContain("name: Downloads Renamed");
+    expect(fs.yaml).toContain("name: Tautulli Renamed");
+    expect(fs.yaml).toContain("password: qbittorrent-secret-value");
+    expect(fs.yaml).toContain("api_key: tautulli-secret-value");
+    expect(fs.yaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
     expect(responseText).not.toContain("qbittorrent-secret-value");
     expect(responseText).not.toContain("tautulli-secret-value");
     expect(responseText).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
@@ -554,9 +648,9 @@ describe("/api/settings – widget password fields", () => {
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
-    redacted.services[0].widget.config.url =
+    redacted.services[0].integration.config.url =
       "http://new-tautulli.local:8181";
-    redacted.services[0].widget.config.api_key = "replacement-secret-value";
+    redacted.services[0].integration.config.api_key = "replacement-secret-value";
 
     const res = await PATCH(
       patch({ services: redacted.services }, { "If-Match": revision })
@@ -564,10 +658,10 @@ describe("/api/settings – widget password fields", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("api_key: replacement-secret-value");
-    expect(storedYaml).toContain("url: http://new-tautulli.local:8181");
-    expect(storedYaml).not.toContain("api_key: tautulli-secret-value");
-    expect(storedYaml).toContain("password: qbittorrent-secret-value");
+    expect(fs.yaml).toContain("api_key: replacement-secret-value");
+    expect(fs.yaml).toContain("url: http://new-tautulli.local:8181");
+    expect(fs.yaml).not.toContain("api_key: tautulli-secret-value");
+    expect(fs.yaml).toContain("password: qbittorrent-secret-value");
     expect(responseText).not.toContain("replacement-secret-value");
     expect(responseText).not.toContain("qbittorrent-secret-value");
     expect(responseText).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
@@ -578,25 +672,24 @@ describe("/api/settings – widget password fields", () => {
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
-    redacted.services[0].widget.config.url =
+    redacted.services[0].integration.config.url =
       " HTTP://TAUTULLI.LOCAL:8181/#dashboard ";
-    redacted.services[0].widget.config.sections = ["sessions"];
+    redacted.service_tiles[0].widget.config.sections = ["sessions"];
 
     const res = await PATCH(
-      patch({ services: redacted.services }, { "If-Match": revision })
+      patch({ services: redacted.services, service_tiles: redacted.service_tiles }, { "If-Match": revision })
     );
-
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("api_key: tautulli-secret-value");
-    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(fs.yaml).toContain("api_key: tautulli-secret-value");
+    expect(fs.yaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
   });
 
   it.each([
     ["endpoint", (services: MutableSecretTestService[]) => {
-      services[0].widget.config.url = "http://attacker.invalid:8181";
+      services[0].integration.config.url = "http://attacker.invalid:8181";
     }],
     ["qBittorrent username", (services: MutableSecretTestService[]) => {
-      services[1].widget.config.username = "other-admin";
+      services[1].integration.config.username = "other-admin";
     }],
   ])("rejects a saved secret when %s scope changes and writes nothing", async (_label, change) => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
@@ -621,7 +714,7 @@ describe("/api/settings – widget password fields", () => {
   it("rejects malformed references with a stable safe code and no write", async () => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const redacted = await (await GET()).json();
-    redacted.services[0].widget.config.api_key = {
+    redacted.services[0].integration.config.api_key = {
       [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
     };
     vi.mocked(writeFileSync).mockClear();
@@ -638,7 +731,7 @@ describe("/api/settings – widget password fields", () => {
   it("keeps the revision-conflict check ahead of secret resolution", async () => {
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const redacted = await (await GET()).json();
-    redacted.services[0].widget.config.api_key = {
+    redacted.services[0].integration.config.api_key = {
       [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
     };
 
@@ -653,12 +746,12 @@ describe("/api/settings – widget password fields", () => {
 });
 
 describe("PATCH /api/settings – revision conflict (If-Match)", () => {
+  let fs: ReturnType<typeof createSettingsFsSimulation>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
-    vi.mocked(writeFileSync).mockImplementation(() => undefined);
+    fs = createSettingsFsSimulation(BASE_YAML);
   });
 
   it("proceeds (200) when no If-Match header is sent (back-compat)", async () => {
@@ -689,5 +782,59 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
     expect(writeFileSync).not.toHaveBeenCalled();
     // The 409 carries the true current revision for the client's Reload path.
     expect(res.headers.get("X-Config-Revision")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("does not overwrite an external edit made after validation", async () => {
+    const externallyEdited = BASE_YAML.replace("theme: dark", "theme: oled");
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      if (String(source).endsWith("settings.yaml")) fs.yaml = externallyEdited;
+      fs.moveConfig(source, destination);
+    });
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { KokpitConfigSchema } = await import("@/config/schema");
+    const { configRevision } = await import("@/config/revision");
+    const { parse } = await import("yaml");
+
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("revision_mismatch");
+    const externalRevision = configRevision(KokpitConfigSchema.parse(parse(externallyEdited)));
+    expect(res.headers.get("X-Config-Revision")).toBe(externalRevision);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+    expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
+
+    const reload = await GET();
+    expect((await reload.json()).appearance.theme).toBe("oled");
+    expect(reload.headers.get("X-Config-Revision")).toBe(externalRevision);
+  });
+
+  it("reports a conflict without a revision when the external edit is temporarily invalid", async () => {
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      if (String(source).endsWith("settings.yaml")) fs.yaml = "appearance: [";
+      fs.moveConfig(source, destination);
+    });
+    const { PATCH } = await import("../../app/api/settings/route");
+
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("revision_mismatch");
+    expect(res.headers.has("X-Config-Revision")).toBe(false);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+    expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
+  });
+
+  it("allows only one concurrent PATCH to commit for the same revision", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const revision = (await GET()).headers.get("X-Config-Revision")!;
+
+    const responses = await Promise.all([
+      PATCH(patch({ appearance: { theme: "light" } }, { "If-Match": revision })),
+      PATCH(patch({ appearance: { theme: "oled" } }, { "If-Match": revision })),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
   });
 });

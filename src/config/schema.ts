@@ -21,27 +21,53 @@ export type Size = z.infer<typeof SizeEnum>;
 
 // Inline widget attached to a service tile (type + API credentials + optional field filter).
 // Position lives on the parent ServiceSchema, not here.
-const ServiceWidgetSchema = z.object({
+export const ServiceTileWidgetSchema = z.object({
   type: z.string(),
   config: z.record(z.string(), z.unknown()).optional(),
   fields: z.array(z.string()).optional(),
   refresh_interval_ms: z.number().int().min(5000).optional(),
 });
 
-const ServiceSchema = z.object({
-  name: z.string(),
-  url: z.string().url().optional(),
+export const IntegrationSchema = z.object({
+  type: z.string().min(1),
+  config: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const ServiceSchema = z.object({
+  id: z.uuid(),
+  name: z.string().trim().min(1),
+  launch_url: z.url().optional(),
   icon: z.string().optional(),
   description: z.string().optional(),
-  group: z.string().optional(),
-  // Tile size preset. Intentionally no schema default: the effective size is
-  // computed at resolve time (see resolveServiceSize in ./resolve) so omitted
-  // values stay omitted in YAML round-trips.
-  size: SizeEnum.optional(),
-  /** @deprecated Use `size` + array order; see WidgetPositionSchema. */
-  position: WidgetPositionSchema.optional(),
-  widget: ServiceWidgetSchema.optional(),
+  category: z.string().optional(),
+  integration: IntegrationSchema.optional(),
 });
+
+export const ServiceTileSchema = z.object({
+  id: z.uuid(),
+  service_id: z.uuid(),
+  group: z.string().optional(),
+  size: SizeEnum.optional(),
+  widget: ServiceTileWidgetSchema.optional(),
+});
+
+/** Persisted compatibility invariant used before the runtime registry loads. */
+export function widgetIntegrationRequirement(type: string): string | null {
+  if (type === "system-stats") return null;
+  if (type.startsWith("actualbudget-")) return "actualbudget";
+  if (type.startsWith("qbittorrent-")) return "qbittorrent";
+  if (type.startsWith("netdata-")) return "netdata";
+  const known: Record<string, string> = {
+    "plex": "plex", "sabnzbd": "sabnzbd", "docker": "docker",
+    "immich-stats": "immich", "prowlarr-stats": "prowlarr",
+    "radarr-queue": "radarr", "radarr-stats": "radarr",
+    "seerr-requests": "seerr", "seerr-stats": "seerr",
+    "sonarr-calendar": "sonarr", "sonarr-queue": "sonarr",
+    "tautulli-activity": "tautulli", "tdarr-stats": "tdarr",
+    "unraid-stats": "unraid",
+  };
+  return known[type] ?? null;
+}
 
 /** Declared dashboard group. Array order in `groups:` is display order. */
 export const GroupSchema = z.object({
@@ -145,7 +171,7 @@ export const BookmarkGroupsSchema = z
 
 export const KokpitConfigSchema = z
   .object({
-    schema_version: z.literal(1),
+    schema_version: z.literal(2),
     auth: z
       .object({
         enabled: z.boolean().default(false),
@@ -192,36 +218,75 @@ export const KokpitConfigSchema = z
     // render time (see resolveGroupOrder in ./resolve).
     groups: GroupsSchema.optional(),
     services: z.array(ServiceSchema).default([]),
+    service_tiles: z.array(ServiceTileSchema).default([]),
     bookmarks: BookmarkGroupsSchema.optional(),
   })
+  .catchall(z.unknown())
   .superRefine((data, ctx) => {
     const seen = new Set<string>();
     for (let i = 0; i < data.services.length; i++) {
       const svc = data.services[i];
-      const key = serviceNameUniquenessKey(svc.name);
-      if (key === "") {
+      if (seen.has(svc.id)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Service name cannot be empty or whitespace only",
-          path: ["services", i, "name"],
-        });
-        continue;
-      }
-      if (seen.has(key)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate service name "${svc.name.trim()}"`,
-          path: ["services", i, "name"],
+          message: `Duplicate Service ID "${svc.id}"`,
+          path: ["services", i, "id"],
         });
       } else {
-        seen.add(key);
+        seen.add(svc.id);
+      }
+    }
+    const tileIds = new Set<string>();
+    for (let i = 0; i < data.service_tiles.length; i++) {
+      const tile = data.service_tiles[i];
+      if (tileIds.has(tile.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate ServiceTile ID "${tile.id}"`, path: ["service_tiles", i, "id"] });
+      tileIds.add(tile.id);
+      if (!seen.has(tile.service_id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `ServiceTile references missing Service "${tile.service_id}"`, path: ["service_tiles", i, "service_id"] });
+      const service = data.services.find((candidate) => candidate.id === tile.service_id);
+      if (tile.widget && service) {
+        const required = widgetIntegrationRequirement(tile.widget.type);
+        if (required !== null && service.integration?.type !== required) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Widget "${tile.widget.type}" requires integration "${required}"`, path: ["service_tiles", i, "service_id"] });
+        for (const key of Object.keys(tile.widget.config ?? {})) {
+          if (Object.prototype.hasOwnProperty.call(service.integration?.config ?? {}, key)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Tile option "${key}" conflicts with Service integration configuration`, path: ["service_tiles", i, "widget", "config", key] });
+          }
+        }
       }
     }
   });
 
 export type KokpitConfig = z.infer<typeof KokpitConfigSchema>;
-export type Service = z.infer<typeof ServiceSchema>;
-export type ServiceWidget = z.infer<typeof ServiceWidgetSchema>;
+/**
+ * Editor input accepted by legacy component call-sites while the UI migration
+ * is in progress. Persisted Services are always validated by ServiceSchema;
+ * the optional legacy presentation keys are never part of that schema.
+ */
+export type Service = Partial<z.infer<typeof ServiceSchema>> &
+  Pick<z.infer<typeof ServiceSchema>, "name"> & {
+    url?: string;
+    group?: string;
+    size?: Size;
+    position?: WidgetPosition;
+    widget?: ServiceWidget;
+    /** Editor-only identity of the projected tile; never persisted on Service. */
+    tileId?: string;
+    /** Editor-only source config boundaries for a projected v2 tile. */
+    editorIntegrationConfig?: Record<string, unknown>;
+    editorTileWidgetConfig?: Record<string, unknown>;
+    /**
+     * Editor-only command for the Service-level integration. Tile widgets are
+     * deliberately independent in schema v2, so persistence must never infer
+     * this from `widget`.
+     */
+    editorIntegration?:
+      | { command: "preserve" }
+      | { command: "clear" }
+      | { command: "set"; type: string; config: Record<string, unknown> };
+    /** Editor-only representative for a catalog Service without a dashboard tile. */
+    editorCatalogOnly?: boolean;
+  };
+export type ServiceTile = z.infer<typeof ServiceTileSchema>;
+export type ServiceWidget = z.infer<typeof ServiceTileWidgetSchema>;
 /** @deprecated See WidgetPositionSchema. */
 export type WidgetPosition = z.infer<typeof WidgetPositionSchema>;
 export type Group = z.infer<typeof GroupSchema>;

@@ -10,7 +10,7 @@ import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
 
 interface WidgetRendererProps {
   type: string;
-  serviceName: string;
+  tileId: string;
   refreshInterval?: number;
 }
 
@@ -19,18 +19,18 @@ interface WidgetRendererProps {
 function KnownWidgetContent({
   widget,
   type,
-  serviceName,
+  tileId,
   refreshInterval,
 }: {
   widget: WidgetDefinition;
   type: string;
-  serviceName: string;
+  tileId: string;
   refreshInterval?: number;
 }) {
   const { data, loading, error, refresh } = useWidget(
-    type,
-    serviceName,
-    refreshInterval ?? widget.refreshInterval
+    tileId,
+    refreshInterval ?? widget.refreshInterval,
+    type
   );
 
   if (loading && data === null) {
@@ -53,7 +53,7 @@ function KnownWidgetContent({
   return <Component data={data} loading={loading} error={error} refresh={refresh} />;
 }
 
-function WidgetContent({ type, serviceName, refreshInterval }: WidgetRendererProps) {
+function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
   const widget = getWidget(type);
 
   if (!widget) {
@@ -66,9 +66,10 @@ function WidgetContent({ type, serviceName, refreshInterval }: WidgetRendererPro
 
   return (
     <KnownWidgetContent
+      key={type}
       widget={widget}
       type={type}
-      serviceName={serviceName}
+      tileId={tileId}
       refreshInterval={refreshInterval}
     />
   );
@@ -76,7 +77,7 @@ function WidgetContent({ type, serviceName, refreshInterval }: WidgetRendererPro
 
 export function WidgetRenderer(props: WidgetRendererProps) {
   return (
-    <WidgetErrorBoundary widgetType={props.type}>
+    <WidgetErrorBoundary key={props.type} widgetType={props.type}>
       <WidgetContent {...props} />
     </WidgetErrorBoundary>
   );

@@ -6,7 +6,7 @@ import {
   Service,
   ServiceWidget,
   Size,
-  serviceNameUniquenessKey,
+  widgetIntegrationRequirement,
 } from "@/config/schema";
 import { resolveServiceSize, sizeSatisfies } from "@/config";
 import { resolveIconRef } from "@/config/iconRef";
@@ -17,15 +17,25 @@ import {
 } from "@/widgets";
 import type { WidgetConfigField } from "@/widgets";
 import { widgetCredentialScopesMatch } from "@/widgets/credentialScope";
-import { isWidgetSecretReference } from "@/widgets/secretReference";
-import { widgetConfigIssues, type WidgetConfigIssue } from "@/widgets/tileWidget";
+import {
+  isWidgetConfigReferenceEnvelope,
+  isWidgetSecretReference,
+  WIDGET_CONFIG_REFERENCE_KEY,
+} from "@/widgets/secretReference";
+import { configForOpaqueConnectionValidation, splitWidgetConfig } from "@/widgets/configBoundary";
+import { widgetOptionKeys } from "@/widgets/configBoundary";
+import {
+  widgetConfigForValidation,
+  widgetConfigIssues,
+  type WidgetConfigIssue,
+} from "@/widgets/tileWidget";
 import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
   service: Service | null;
   existingGroups: string[];
-  /** Service names already in use (excluding the row being edited). */
-  takenNames?: string[];
+  /** Non-generic integrations still required by the other tiles of this Service. */
+  siblingIntegrationTypes?: string[];
   /** Prefill the group field for a new service (edit-mode "add here"). */
   initialGroup?: string;
   /**
@@ -110,23 +120,6 @@ function cleanWidgetConfig(
     cleaned[key] = value;
   }
   return cleaned;
-}
-
-function widgetConfigForValidation(
-  fields: WidgetConfigField[] | undefined,
-  config: Record<string, unknown>
-): Record<string, unknown> {
-  if (!fields) return config;
-  const validationConfig = { ...config };
-  for (const field of fields) {
-    if (
-      field.type === "password" &&
-      isWidgetSecretReference(validationConfig[field.key])
-    ) {
-      validationConfig[field.key] = "saved-credential";
-    }
-  }
-  return validationConfig;
 }
 
 type TestStatus =
@@ -527,10 +520,10 @@ function WidgetConfigFields({
 export default function ServiceForm({
   service,
   existingGroups,
-  takenNames = [],
   initialGroup,
   initialPreset,
   focusWidget = false,
+  siblingIntegrationTypes = [],
   onSave,
   onClose,
 }: ServiceFormProps) {
@@ -565,9 +558,8 @@ export default function ServiceForm({
   });
   const [nameError, setNameError] = useState<string | null>(null);
 
-  const [tileType, setTileType] = useState(
-    initial.tileType || (presetEditor ? initialPreset ?? "" : "")
-  );
+  const initialTileType = initial.tileType || (presetEditor ? initialPreset ?? "" : "");
+  const [tileType, setTileType] = useState(initialTileType);
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
   const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
@@ -575,6 +567,32 @@ export default function ServiceForm({
   // tile type) in this dialog session. Distinguishes "showing the saved
   // config's problems" from "showing live edit feedback" below.
   const [widgetConfigTouched, setWidgetConfigTouched] = useState(false);
+  // Schema v2 separates the Service integration from the tile widget. Keep
+  // its edit command in independent state so changing presentation never
+  // accidentally mutates credentials (and vice versa).
+  const legacyWidgetIntegrationType = service?.widget
+    ? widgetIntegrationRequirement(service.widget.type)
+    : initialTileType
+      ? widgetIntegrationRequirement(initialTileType)
+      : null;
+  const initialIntegrationType = (service?.integration?.type ?? legacyWidgetIntegrationType) &&
+    getWidgetsWithServiceEditorPreset().some(
+      (widget) => widgetIntegrationRequirement(widget.id) === (service?.integration?.type ?? legacyWidgetIntegrationType)
+    )
+    ? service?.integration?.type ?? legacyWidgetIntegrationType!
+    : "";
+  const [integrationType, setIntegrationType] = useState(initialIntegrationType);
+  const initialIntegrationConfig = (
+    service?.editorIntegrationConfig ??
+    service?.integration?.config ??
+    (service?.widget
+      ? splitWidgetConfig(service.widget.type, service.widget.config).connection
+      : {})
+  ) as Record<string, unknown>;
+  const [integrationConfig, setIntegrationConfig] = useState<Record<string, unknown>>(
+    initialIntegrationConfig
+  );
+  const [integrationTouched, setIntegrationTouched] = useState(false);
   // The issues the RAW saved config (settings.yaml, pre-`cleanWidgetConfig`)
   // fails against its widget schema — i.e. exactly what made the tile show
   // its warning badge. Computed once on mount (not recomputed as the user
@@ -585,13 +603,23 @@ export default function ServiceForm({
   const [savedConfigIssues] = useState<WidgetConfigIssue[]>(() => {
     const w = service?.widget;
     if (!w) return [];
+    if (
+      isWidgetConfigReferenceEnvelope(w.config) ||
+      isWidgetConfigReferenceEnvelope(service?.integration?.config)
+    ) return [];
     const def = getWidget(w.type);
     if (!def) return [];
+    const initialConnection = service?.editorIntegrationConfig ??
+      service?.integration?.config ??
+      splitWidgetConfig(w.type, w.config).connection;
     return widgetConfigIssues(
       def,
       widgetConfigForValidation(
         def.configFields,
-        (w.config as Record<string, unknown>) ?? {}
+        {
+          ...(initialConnection as Record<string, unknown>),
+          ...((w.config as Record<string, unknown>) ?? {}),
+        }
       )
     );
   });
@@ -608,6 +636,14 @@ export default function ServiceForm({
   const iconSearchRequestId = useRef(0);
 
   const presetWidgets = getWidgetsWithServiceEditorPreset();
+  const integrationWidgets = presetWidgets.filter(
+    (widget) => widgetIntegrationRequirement(widget.id) !== null
+  );
+  const integrationRepresentatives = integrationWidgets.filter(
+    (widget, index) => integrationWidgets.findIndex(
+      (candidate) => widgetIntegrationRequirement(candidate.id) === widgetIntegrationRequirement(widget.id)
+    ) === index
+  );
 
   const selectedWidgetDef =
     tileType !== ""
@@ -622,51 +658,120 @@ export default function ServiceForm({
 
   const activeWidgetType =
     tileType !== "" ? tileType : orphanWidget?.type ?? null;
+  const selectedIntegrationType = activeWidgetType
+    ? widgetIntegrationRequirement(activeWidgetType)
+    : null;
+  const requestedIntegrationType = integrationType || null;
+  const requiredIntegrationTypes = [
+    ...(selectedIntegrationType ? [selectedIntegrationType] : []),
+    ...siblingIntegrationTypes,
+  ];
+  const integrationConflict = requiredIntegrationTypes.some(
+    (type) => type !== requestedIntegrationType
+  );
   const activeRawConfig =
     tileType !== ""
       ? widgetConfig
       : ((orphanWidget?.config as Record<string, unknown>) ?? {});
+  const opaqueConfigHidden =
+    !integrationTouched && isWidgetConfigReferenceEnvelope(service?.integration?.config);
+  const selectedIntegrationDef = integrationType === ""
+    ? null
+    : integrationRepresentatives.find(
+      (widget) => widgetIntegrationRequirement(widget.id) === integrationType
+    ) ?? null;
+  const integrationFields = selectedIntegrationDef?.configFields?.filter(
+    (field) => !widgetOptionKeys(selectedIntegrationDef.id).has(field.key)
+  ) ?? [];
+  const cleanedIntegrationConfig = cleanWidgetConfig(integrationConfig);
+  const integrationConfigIssues = selectedIntegrationDef
+    ? widgetConfigIssues(
+      selectedIntegrationDef,
+      opaqueConfigHidden
+        ? configForOpaqueConnectionValidation(selectedIntegrationDef, cleanedIntegrationConfig)
+        : widgetConfigForValidation(
+            selectedIntegrationDef.configFields,
+            cleanedIntegrationConfig
+          )
+    )
+    : [];
+  const integrationConfigValid = selectedIntegrationDef
+    ? integrationConfigIssues.length === 0
+    : true;
   const activeCleanedConfig = cleanWidgetConfig(
     activeRawConfig
   );
+  // Direct/legacy callers still supply a merged widget config. Keep that
+  // input surface compatible; all projected v2 rows carry integration config
+  // separately and therefore take the boundary-aware path below.
+  const legacyDirectConfig = Boolean(
+    service &&
+    !service.tileId &&
+    !service.editorCatalogOnly &&
+    !service.integration &&
+    !service.editorIntegrationConfig
+  );
+  const selectedWidgetRequiresIntegration = selectedWidgetDef
+    ? widgetIntegrationRequirement(selectedWidgetDef.id) !== null
+    : false;
   const originalWidgetConfig =
     service?.widget?.type === activeWidgetType
       ? ((service.widget.config as Record<string, unknown>) ?? {})
       : null;
-  const retainedSavedSecret = selectedWidgetDef?.configFields?.some(
+  const credentialDefinition = legacyDirectConfig
+    ? selectedWidgetDef
+    : selectedIntegrationDef;
+  const credentialOriginalConfig = legacyDirectConfig
+    ? originalWidgetConfig
+    : ((service?.editorIntegrationConfig ?? service?.integration?.config ?? {}) as Record<string, unknown>);
+  const credentialActiveConfig = legacyDirectConfig
+    ? activeCleanedConfig
+    : cleanedIntegrationConfig;
+  const retainedSavedSecret = credentialDefinition?.configFields?.some(
     (field) =>
       field.type === "password" &&
-      isWidgetSecretReference(activeRawConfig[field.key])
+      isWidgetSecretReference(credentialActiveConfig[field.key])
   ) ?? false;
   // Signed references are intentionally opaque to the browser. The only
   // client-side decision is whether their original and current destinations
   // normalize to the same registry-declared credential scope.
   const savedCredentialsStale =
     retainedSavedSecret &&
-    (!activeWidgetType ||
-      !originalWidgetConfig ||
+    (!credentialDefinition ||
+      !credentialOriginalConfig ||
       !widgetCredentialScopesMatch(
-        activeWidgetType,
-        originalWidgetConfig,
-        activeCleanedConfig
+        credentialDefinition.id,
+        credentialOriginalConfig,
+        credentialActiveConfig
       ));
   // Mirrors the dashboard's rule: the widget renders only when its config
   // passes the schema. Unknown types can't be validated client-side. Uses the
   // same shared mapper as the tile badge (src/widgets/tileWidget.ts) so the
   // dialog's error list always matches what the badge's tooltip says.
+  const widgetFields = selectedWidgetDef?.configFields?.filter(
+    (field) => legacyDirectConfig || !selectedWidgetRequiresIntegration || widgetOptionKeys(selectedWidgetDef.id).has(field.key)
+  ) ?? [];
+  const widgetValidationConfig = selectedWidgetDef && selectedWidgetRequiresIntegration
+    ? {
+      ...(opaqueConfigHidden
+        ? configForOpaqueConnectionValidation(selectedWidgetDef, cleanedIntegrationConfig)
+        : cleanedIntegrationConfig),
+      ...activeCleanedConfig,
+    }
+    : activeCleanedConfig;
   const configIssues: WidgetConfigIssue[] = selectedWidgetDef
     ? widgetConfigIssues(
         selectedWidgetDef,
-        widgetConfigForValidation(
-          selectedWidgetDef.configFields,
-          activeCleanedConfig
-        )
+        selectedWidgetRequiresIntegration && !legacyDirectConfig
+          ? widgetConfigForValidation(selectedWidgetDef.configFields, widgetValidationConfig)
+          : widgetConfigForValidation(selectedWidgetDef.configFields, activeCleanedConfig)
       )
     : [];
   const widgetConfigValid = selectedWidgetDef
     ? configIssues.length === 0 && !savedCredentialsStale
     : null;
-  const widgetConfigEmpty = Object.keys(activeCleanedConfig).length === 0;
+  const widgetConfigEmpty = Object.keys(activeCleanedConfig).length === 0 &&
+    Object.keys(cleanedIntegrationConfig).length === 0;
   // An entirely empty config right after picking a widget type is the
   // expected starting point, not a mistake — listing every "Required" issue
   // at that moment is a wall of red text for no benefit, so the friendly
@@ -702,8 +807,28 @@ export default function ServiceForm({
     ? displayedWidgetIssues
     : [];
 
+  function handleIntegrationConfigChange(key: string, value: unknown) {
+    setIntegrationConfig((prev) => {
+      const next = { ...prev, [key]: value };
+      if (isWidgetConfigReferenceEnvelope(next)) return next;
+      delete next[WIDGET_CONFIG_REFERENCE_KEY];
+      return next;
+    });
+    setIntegrationTouched(true);
+    setTestStatus({ state: "idle" });
+  }
+
+  function handleIntegrationTypeChange(nextType: string) {
+    setIntegrationTouched(true);
+    setIntegrationType(nextType);
+    setIntegrationConfig({});
+    setTestStatus({ state: "idle" });
+  }
+
   function handleWidgetConfigChange(key: string, value: unknown) {
-    setWidgetConfig((prev) => ({ ...prev, [key]: value }));
+    setWidgetConfig((prev) => {
+      return { ...prev, [key]: value };
+    });
     setWidgetConfigTouched(true);
     setTestStatus({ state: "idle" });
   }
@@ -735,6 +860,12 @@ export default function ServiceForm({
     setWidgetConfig({});
     setRefreshInterval("");
     const def = getWidget(newTile);
+    const requiredIntegration = widgetIntegrationRequirement(newTile);
+    if (requiredIntegration && integrationType !== requiredIntegration) {
+      setIntegrationType(requiredIntegration);
+      setIntegrationConfig({});
+      setIntegrationTouched(true);
+    }
     // Clear an explicit size the new widget can't satisfy; fall back to Auto.
     if (def?.minSize && size !== "" && !sizeSatisfies(size, def.minSize)) {
       setSize("");
@@ -749,15 +880,27 @@ export default function ServiceForm({
   }
 
   async function handleTestConnection() {
-    if (!activeWidgetType || savedCredentialsStale) return;
+    // Keep testing a newly picked tile available before its Service
+    // integration is explicitly selected. Persistence still uses only the
+    // editorIntegration command above.
+    const testDefinition = legacyDirectConfig
+      ? selectedWidgetDef
+      : selectedIntegrationDef ?? selectedWidgetDef;
+    if (!testDefinition || savedCredentialsStale || integrationConflict) return;
     setTestStatus({ state: "testing" });
     try {
       const res = await fetch("/api/widget/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: activeWidgetType,
-          config: activeCleanedConfig,
+          type: testDefinition.id,
+          config: selectedIntegrationDef && !legacyDirectConfig && opaqueConfigHidden
+            ? service!.integration!.config
+            : selectedIntegrationDef && !legacyDirectConfig
+              ? cleanedIntegrationConfig
+              : selectedWidgetRequiresIntegration
+                ? { ...cleanedIntegrationConfig, ...activeCleanedConfig }
+                : activeCleanedConfig,
         }),
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
@@ -927,14 +1070,9 @@ export default function ServiceForm({
       return;
     }
 
-    const nameKey = serviceNameUniquenessKey(trimmedName);
-    if (takenNames.some((n) => serviceNameUniquenessKey(n) === nameKey)) {
-      setNameError("A service with this name already exists.");
-      return;
-    }
     setNameError(null);
 
-    if (savedCredentialsStale) return;
+    if (savedCredentialsStale || integrationConflict) return;
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
@@ -956,7 +1094,24 @@ export default function ServiceForm({
       };
     }
 
+    const requiredTileIntegration = tileType
+      ? widgetIntegrationRequirement(tileType)
+      : null;
+    const editorIntegration = legacyDirectConfig
+      ? undefined
+      : integrationTouched
+        ? integrationType === ""
+          ? { command: "clear" as const }
+          : { command: "set" as const, type: integrationType, config: cleanedIntegrationConfig }
+        : integrationType && !service?.integration && requiredTileIntegration === integrationType
+          ? { command: "set" as const, type: integrationType, config: cleanedIntegrationConfig }
+          : { command: "preserve" as const };
+
     onSave({
+      ...(service?.id ? { id: service.id } : {}),
+      ...(service?.tileId ? { tileId: service.tileId } : {}),
+      ...(service?.editorCatalogOnly ? { editorCatalogOnly: true } : {}),
+      ...(editorIntegration ? { editorIntegration } : {}),
       name: trimmedName,
       url: url.trim() || undefined,
       icon: icon.trim() || undefined,
@@ -988,7 +1143,7 @@ export default function ServiceForm({
           ✕
         </button>
       </div>
-      <form onSubmit={handleSubmit} className="service-form">
+      <form onSubmit={handleSubmit} className="service-form" noValidate>
         <div className="service-form__body">
         <div className="settings-form-row">
           <label htmlFor="sf-tile-type">Tile type</label>
@@ -1006,6 +1161,82 @@ export default function ServiceForm({
             ))}
           </select>
         </div>
+
+        {!legacyDirectConfig && (
+          <>
+            <div className="service-form__section-divider">
+              <span>Integration</span>
+            </div>
+            <div className="settings-form-row">
+              <label htmlFor="sf-integration-type">Integration</label>
+              <select
+                id="sf-integration-type"
+                className="settings-input"
+                value={integrationType}
+                onChange={(e) => handleIntegrationTypeChange(e.target.value)}
+              >
+                <option value="">None</option>
+                {integrationRepresentatives.map((widget) => {
+                  const type = widgetIntegrationRequirement(widget.id)!;
+                  return <option key={type} value={type}>{widget.name}</option>;
+                })}
+              </select>
+            </div>
+          </>
+        )}
+        {selectedIntegrationDef && !legacyDirectConfig && (
+          <>
+            {integrationFields.length > 0 && (
+              <WidgetConfigFields
+                key={`integration:${integrationType}`}
+                fields={integrationFields}
+                config={integrationConfig}
+                initialConfig={initialIntegrationConfig}
+                savedCredentialsStale={savedCredentialsStale}
+                onChange={handleIntegrationConfigChange}
+                issues={integrationConfigIssues}
+                issueKind="live"
+              />
+            )}
+            {opaqueConfigHidden && (
+              <p role="status" className="settings-form-hint">
+                Connection is configured but hidden for safety. Enter replacement values to change it.
+              </p>
+            )}
+            <div className="service-form__test-row">
+              <button
+                type="button"
+                className="settings-btn"
+                onClick={handleTestConnection}
+                disabled={
+                  testStatus.state === "testing" ||
+                  !integrationConfigValid ||
+                  widgetConfigValid === false ||
+                  savedCredentialsStale ||
+                  integrationConflict
+                }
+              >
+                {testStatus.state === "testing" ? "Testing…" : "Test connection"}
+              </button>
+              {testStatus.state === "success" && (
+                <span className="service-form__test-result service-form__test-result--success" role="status">
+                  Connection OK
+                </span>
+              )}
+              {testStatus.state === "error" && (
+                <span className="service-form__test-result service-form__test-result--error" role="alert">
+                  {testStatus.message}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {integrationConflict && (
+          <p className="settings-form-hint settings-form-hint--error" role="alert">
+            This Service still has tiles that require a different integration. Remove or change those tiles first.
+          </p>
+        )}
 
         {orphanWidget && (
           <p className="settings-form-hint">
@@ -1244,11 +1475,10 @@ export default function ServiceForm({
               </p>
             )}
 
-            {selectedWidgetDef?.configFields &&
-              selectedWidgetDef.configFields.length > 0 && (
+            {widgetFields.length > 0 && (
                 <WidgetConfigFields
                   key={activeWidgetType}
-                  fields={selectedWidgetDef.configFields}
+                  fields={widgetFields}
                   config={tileType !== "" ? widgetConfig : orphanConfig}
                   initialConfig={originalWidgetConfig ?? {}}
                   savedCredentialsStale={savedCredentialsStale}
@@ -1346,7 +1576,9 @@ export default function ServiceForm({
                 role="status"
                 className="settings-form-hint service-form__widget-status service-form__widget-status--active"
               >
-                Widget configured — it will render on the dashboard tile.
+                {service?.editorCatalogOnly
+                  ? "Integration configured — this Service remains outside the dashboard."
+                  : "Widget configured — it will render on the dashboard tile."}
               </p>
             )}
 
@@ -1382,13 +1614,16 @@ export default function ServiceForm({
               </p>
             )}
 
-            <div className="service-form__test-row">
+            {(!selectedIntegrationDef || legacyDirectConfig) && <div className="service-form__test-row">
               <button
                 type="button"
                 className="settings-btn"
                 onClick={handleTestConnection}
                 disabled={
-                  testStatus.state === "testing" || widgetConfigValid === false
+                  testStatus.state === "testing" ||
+                  widgetConfigValid === false ||
+                  savedCredentialsStale ||
+                  integrationConflict
                 }
               >
                 {testStatus.state === "testing" ? "Testing…" : "Test connection"}
@@ -1409,7 +1644,7 @@ export default function ServiceForm({
                   {testStatus.message}
                 </span>
               )}
-            </div>
+            </div>}
           </>
         )}
         </div>
@@ -1418,7 +1653,11 @@ export default function ServiceForm({
           <button type="button" className="settings-btn" onClick={handleClose}>
             Cancel
           </button>
-          <button type="submit" className="settings-save-btn">
+          <button
+            type="submit"
+            className="settings-save-btn"
+            disabled={integrationConflict || savedCredentialsStale}
+          >
             Save
           </button>
         </div>

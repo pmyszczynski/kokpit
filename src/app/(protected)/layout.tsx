@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import Navbar from "@/components/Navbar";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
 

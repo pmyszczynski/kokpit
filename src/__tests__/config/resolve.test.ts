@@ -15,9 +15,24 @@ import {
 } from "@/config/schema";
 
 function makeConfig(partial: Record<string, unknown>): KokpitConfig {
-  const r = KokpitConfigSchema.safeParse({ schema_version: 1, ...partial });
+  const r = KokpitConfigSchema.safeParse({
+    schema_version: 2,
+    services: [],
+    service_tiles: [],
+    ...partial,
+  });
   if (!r.success) throw new Error(r.error.message);
   return r.data;
+}
+
+const serviceId = "00000000-0000-4000-8000-000000000001";
+
+function tile(group?: string, id = "00000000-0000-4000-8000-000000000002") {
+  return {
+    id,
+    service_id: serviceId,
+    ...(group === undefined ? {} : { group }),
+  };
 }
 
 describe("resolveServiceSize", () => {
@@ -176,10 +191,8 @@ describe("resolveGroupOrder", () => {
   it("keeps declared groups in array order (not alphabetical)", () => {
     const config = makeConfig({
       groups: [{ name: "Zebra" }, { name: "Alpha" }],
-      services: [
-        { name: "A", group: "Alpha" },
-        { name: "Z", group: "Zebra" },
-      ],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("Alpha"), tile("Zebra", "00000000-0000-4000-8000-000000000003")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([
       "Zebra",
@@ -190,11 +203,8 @@ describe("resolveGroupOrder", () => {
   it("auto-appends undeclared referenced groups alphabetically after declared ones", () => {
     const config = makeConfig({
       groups: [{ name: "Media" }],
-      services: [
-        { name: "A", group: "Zulu" },
-        { name: "B", group: "Bravo" },
-        { name: "C", group: "Media" },
-      ],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("Zulu"), tile("Bravo", "00000000-0000-4000-8000-000000000003"), tile("Media", "00000000-0000-4000-8000-000000000004")],
     });
     const order = resolveGroupOrder(config);
     expect(order.map((g) => g.name)).toEqual(["Media", "Bravo", "Zulu"]);
@@ -204,7 +214,8 @@ describe("resolveGroupOrder", () => {
   it("matches declared names case-insensitively (no duplicate section)", () => {
     const config = makeConfig({
       groups: [{ name: "Media" }],
-      services: [{ name: "A", group: "media" }],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("media")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual(["Media"]);
   });
@@ -224,7 +235,8 @@ describe("resolveGroupOrder", () => {
   it("places the ungrouped section last by default", () => {
     const config = makeConfig({
       groups: [{ name: "Media" }],
-      services: [{ name: "A", group: "Media" }, { name: "B" }],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("Media"), tile(undefined, "00000000-0000-4000-8000-000000000003")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([
       "Media",
@@ -236,7 +248,8 @@ describe("resolveGroupOrder", () => {
     const config = makeConfig({
       layout: { columns: 4, row_height: 120, ungrouped: "first" },
       groups: [{ name: "Media" }],
-      services: [{ name: "A", group: "Media" }, { name: "B" }],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("Media"), tile(undefined, "00000000-0000-4000-8000-000000000003")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([
       null,
@@ -246,14 +259,16 @@ describe("resolveGroupOrder", () => {
 
   it("omits the ungrouped section when every service has a group", () => {
     const config = makeConfig({
-      services: [{ name: "A", group: "Media" }],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("Media")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual(["Media"]);
   });
 
   it("treats a whitespace-only group reference as ungrouped", () => {
     const config = makeConfig({
-      services: [{ name: "A", group: "  " }],
+      services: [{ id: serviceId, name: "A" }],
+      service_tiles: [tile("  ")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([null]);
   });

@@ -1,10 +1,11 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
-import { getConfig } from "@/config";
+import { getConfig, legacyIntegrationType } from "@/config/server";
 import { getWidget } from "@/widgets";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 import {
+  resolveIntegrationConfigSecrets,
   resolveWidgetConfigSecrets,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
@@ -42,11 +43,15 @@ export async function POST(request: Request) {
 
   let resolvedConfig: unknown;
   try {
-    resolvedConfig = resolveWidgetConfigSecrets(
-      type,
-      config ?? {},
-      getConfig().services
-    );
+    const savedServices = getConfig().services;
+    const integrationType = legacyIntegrationType(type);
+    resolvedConfig = integrationType && savedServices.some((service) => service.integration)
+      ? resolveIntegrationConfigSecrets(
+          integrationType,
+          (config ?? {}) as Record<string, unknown>,
+          savedServices
+        )
+      : resolveWidgetConfigSecrets(type, config ?? {}, savedServices);
   } catch (error) {
     if (error instanceof WidgetSecretResolutionError) {
       return NextResponse.json(

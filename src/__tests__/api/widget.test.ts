@@ -1,15 +1,21 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
+
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  const existsSync = vi.fn().mockReturnValue(true);
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
+  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   const mkdirSync = vi.fn();
   return {
     default: { readFileSync, writeFileSync, existsSync, mkdirSync },
     readFileSync,
     writeFileSync,
+    linkSync,
+    unlinkSync,
     existsSync,
     mkdirSync,
   };
@@ -20,10 +26,8 @@ vi.mock("next/headers", () => ({
 
 import { existsSync, readFileSync } from "node:fs";
 
-// Fixture services: one valid Plex widget, one with an incomplete config,
-// and one with a widget type that isn't registered.
 const SERVICES_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -33,46 +37,42 @@ layout:
   columns: 4
   row_height: 120
 services:
-  - name: Plex
-    url: http://plex.local
-    widget:
-      type: plex
-      config:
-        url: http://plex.test:32400
-        token: t
-  - name: Broken Plex
-    widget:
-      type: plex
-      config:
-        url: http://plex.test:32400
-  - name: Mystery
-    widget:
-      type: not-a-real-widget
-  - name: Tautulli
-    widget:
-      type: tautulli-activity
-      config:
-        url: http://tautulli.test:8181
-        api_key: tautulli-route-secret
-  - name: Unraid
-    widget:
-      type: unraid-stats
-      config:
-        url: http://unraid.test
-        api_key: saved-unraid-secret
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Plex
+    integration: { type: plex, config: { url: http://plex.test:32400, token: t } }
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Broken Plex
+    integration: { type: plex, config: { url: http://plex.test:32400 } }
+  - id: 10000000-0000-4000-8000-000000000003
+    name: Mystery
+    integration: { type: not-a-real-widget, config: {} }
+  - id: 10000000-0000-4000-8000-000000000004
+    name: Tautulli
+    integration: { type: tautulli, config: { url: http://tautulli.test:8181, api_key: tautulli-route-secret } }
+  - id: 10000000-0000-4000-8000-000000000005
+    name: Unraid
+    integration: { type: unraid, config: { url: http://unraid.test, api_key: saved-unraid-secret } }
+service_tiles:
+  - { id: 20000000-0000-4000-8000-000000000001, service_id: 10000000-0000-4000-8000-000000000001, widget: { type: plex } }
+  - { id: 20000000-0000-4000-8000-000000000002, service_id: 10000000-0000-4000-8000-000000000002, widget: { type: plex } }
+  - { id: 20000000-0000-4000-8000-000000000003, service_id: 10000000-0000-4000-8000-000000000003, widget: { type: not-a-real-widget } }
+  - { id: 20000000-0000-4000-8000-000000000004, service_id: 10000000-0000-4000-8000-000000000004, widget: { type: tautulli-activity } }
+  - { id: 20000000-0000-4000-8000-000000000005, service_id: 10000000-0000-4000-8000-000000000005, widget: { type: unraid-stats } }
 `.trim();
 
 const AUTH_ENABLED_YAML = SERVICES_YAML.replace("enabled: false", "enabled: true");
 
-function get(params: Record<string, string>) {
-  const qs = new URLSearchParams(params).toString();
-  return new Request(`http://localhost/api/widget?${qs}`);
+function get(tile_id?: string, widgetType?: string) {
+  const params = new URLSearchParams();
+  if (tile_id) params.set("tile_id", tile_id);
+  if (widgetType) params.set("widget_type", widgetType);
+  return new Request(`http://localhost/api/widget${params.size ? `?${params}` : ""}`);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
-  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML);
 });
 
@@ -89,37 +89,53 @@ afterEach(async () => {
 });
 
 describe("GET /api/widget", () => {
-  it("returns 400 when the type parameter is missing", async () => {
+  it("returns 400 when the tile_id parameter is missing", async () => {
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ service: "Plex" }));
+    const res = await GET(get());
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/missing type/i);
+    expect((await res.json()).error).toMatch(/missing tile_id/i);
   });
 
-  it("returns 400 when the service parameter is missing", async () => {
+  it("returns 404 when the tile does not exist", async () => {
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex" }));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/missing service/i);
+    const res = await GET(get("20000000-0000-4000-8000-000000000099"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toMatch(/not found/i);
   });
 
   it("returns 404 for an unknown widget type", async () => {
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "not-a-real-widget", service: "Mystery" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000003"));
     expect(res.status).toBe(404);
     expect((await res.json()).error).toMatch(/unknown widget type/i);
   });
 
-  it("returns 404 when the service does not exist in settings", async () => {
+  it("returns 400 when a tile has no widget", async () => {
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex", service: "Nope" }));
-    expect(res.status).toBe(404);
-    expect((await res.json()).error).toMatch(/service not found/i);
+    vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML.replace(
+      "widget: { type: plex }",
+      "size: normal"
+    ));
+    const res = await GET(get("20000000-0000-4000-8000-000000000001"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/no widget/i);
+  });
+
+  it("rejects a stale expected widget type before fetching persisted widget data", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(get("20000000-0000-4000-8000-000000000001", "sonarr-calendar"));
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ ok: false, error: "Widget type changed" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 when the stored config fails the widget schema", async () => {
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex", service: "Broken Plex" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000002"));
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/invalid widget config/i);
@@ -136,7 +152,7 @@ describe("GET /api/widget", () => {
       } as Response)
     );
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex", service: "Plex" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000001"));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
@@ -149,7 +165,7 @@ describe("GET /api/widget", () => {
       vi.fn().mockResolvedValue({ ok: false, status: 502 } as Response)
     );
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex", service: "Plex" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000001"));
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("Widget fetch failed");
   });
@@ -168,7 +184,7 @@ describe("GET /api/widget", () => {
     );
     const { GET } = await import("../../app/api/widget/route");
 
-    const res = await GET(get({ type: "unraid-stats", service: "Unraid" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000005"));
     const responseText = await res.text();
 
     expect(res.status).toBe(500);
@@ -187,7 +203,7 @@ describe("GET /api/widget", () => {
     const { GET } = await import("../../app/api/widget/route");
 
     const res = await GET(
-      get({ type: "tautulli-activity", service: "Tautulli" })
+      get("20000000-0000-4000-8000-000000000004")
     );
     const responseText = await res.text();
 
@@ -207,7 +223,7 @@ describe("GET /api/widget", () => {
       vi.fn().mockImplementation(() => new Promise(() => {}))
     );
     const { GET } = await import("../../app/api/widget/route");
-    const resPromise = GET(get({ type: "plex", service: "Plex" }));
+    const resPromise = GET(get("20000000-0000-4000-8000-000000000001"));
     await vi.advanceTimersByTimeAsync(5001);
     const res = await resPromise;
     expect(res.status).toBe(504);
@@ -230,7 +246,7 @@ describe("GET /api/widget", () => {
       )
     );
     const { GET } = await import("../../app/api/widget/route");
-    const resPromise = GET(get({ type: "plex", service: "Plex" }));
+    const resPromise = GET(get("20000000-0000-4000-8000-000000000001"));
     await vi.advanceTimersByTimeAsync(5001);
     const res = await resPromise;
     expect(res.status).toBe(504);
@@ -257,11 +273,14 @@ describe("GET /api/widget", () => {
       fetchTimeoutMs: 9000,
     });
     vi.mocked(readFileSync).mockReturnValue(
-      SERVICES_YAML +
-        "\n  - name: SlowSidecar\n    widget:\n      type: __slow-sidecar__\n"
+      SERVICES_YAML.replace(
+        "service_tiles:",
+        "  - id: 10000000-0000-4000-8000-000000000006\n    name: SlowSidecar\nservice_tiles:"
+      ) +
+        "\n  - { id: 20000000-0000-4000-8000-000000000006, service_id: 10000000-0000-4000-8000-000000000006, widget: { type: __slow-sidecar__ } }"
     );
     const { GET } = await import("../../app/api/widget/route");
-    const resPromise = GET(get({ type: "__slow-sidecar__", service: "SlowSidecar" }));
+    const resPromise = GET(get("20000000-0000-4000-8000-000000000006"));
 
     let settled = false;
     resPromise.then(() => {
@@ -293,7 +312,7 @@ describe("GET /api/widget – auth", () => {
 
   it("returns 401 without a session when auth is enabled", async () => {
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex", service: "Plex" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000001"));
     expect(res.status).toBe(401);
     expect((await res.json()).error).toMatch(/unauthorized/i);
   });
@@ -301,7 +320,7 @@ describe("GET /api/widget – auth", () => {
   it("proceeds without a session when KOKPIT_AUTH_DISABLED is set", async () => {
     process.env.KOKPIT_AUTH_DISABLED = "true";
     const { GET } = await import("../../app/api/widget/route");
-    const res = await GET(get({ type: "plex", service: "Ghost" }));
+    const res = await GET(get("20000000-0000-4000-8000-000000000099"));
     // Auth passed; fails later on service lookup instead.
     expect(res.status).toBe(404);
   });

@@ -3,11 +3,12 @@ import type { KokpitConfig } from "@/config";
 import { resolveAppearance, resolveBackgroundVars } from "@/config/theme";
 
 const base: KokpitConfig = {
-  schema_version: 1,
+  schema_version: 2,
   auth: { enabled: false, session_ttl_hours: 24 },
   appearance: { theme: "dark" },
   layout: { columns: 4, row_height: 120 },
   services: [],
+  service_tiles: [],
 };
 
 describe("resolveAppearance", () => {

@@ -10,16 +10,15 @@ vi.mock("next/navigation", () => ({
 interface StubServiceFormProps {
   service: Service | null;
   existingGroups: string[];
-  takenNames?: string[];
   onSave: (service: Service) => void;
   onClose: () => void;
 }
 
 vi.mock("@/components/ServiceForm", () => ({
-  default: ({ service, existingGroups, takenNames, onSave, onClose }: StubServiceFormProps) => (
+  default: ({ service, existingGroups, onSave, onClose }: StubServiceFormProps) => (
     <div data-testid="service-form-stub">
       <div data-testid="service-form-stub-props">
-        {JSON.stringify({ service, existingGroups, takenNames })}
+        {JSON.stringify({ service, existingGroups })}
       </div>
       <button onClick={() => onSave({ name: "NewSvc", url: "http://new.local" })}>
         StubSave
@@ -36,17 +35,37 @@ vi.mock("@/components/ServiceForm", () => ({
 
 import SettingsPanel from "@/components/SettingsPanel";
 
-function makeConfig(overrides: Partial<KokpitConfig> = {}): KokpitConfig {
+type LegacyServiceFixture = Service;
+
+function makeConfig(
+  overrides: Partial<Omit<KokpitConfig, "services" | "service_tiles">> & {
+    services?: LegacyServiceFixture[];
+  } = {}
+): KokpitConfig {
+  const legacyServices = overrides.services ?? [
+    { name: "Jellyfin", url: "http://jellyfin.local", group: "Media" },
+    { name: "Portainer", url: "http://portainer.local" },
+  ];
+  const services = legacyServices.map((service, index) => ({
+    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    name: service.name,
+    ...(service.url ? { launch_url: service.url } : {}),
+  }));
+  const service_tiles = legacyServices.map((service, index) => ({
+    id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    service_id: services[index].id,
+    ...(service.group ? { group: service.group } : {}),
+    ...(service.size ? { size: service.size } : {}),
+    ...(service.widget ? { widget: service.widget } : {}),
+  }));
   return {
-    schema_version: 1,
+    schema_version: 2,
     auth: { enabled: true, session_ttl_hours: 24 },
     appearance: { theme: "dark", custom_css: "" },
     layout: { columns: 4, row_height: 120 },
-    services: [
-      { name: "Jellyfin", url: "http://jellyfin.local", group: "Media" },
-      { name: "Portainer", url: "http://portainer.local" },
-    ],
     ...overrides,
+    services,
+    service_tiles,
   };
 }
 
@@ -434,7 +453,35 @@ describe("SettingsPanel - services tab", () => {
     expect(rows).toHaveLength(3);
   });
 
-  it("opens the add-service form with no service and the right existing groups/taken names", () => {
+  it("uses each tile identity for rows that reference the same service", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const config = makeConfig({
+      services: [{ name: "Jellyfin", url: "http://jellyfin.local" }],
+    });
+    config.service_tiles = [
+      {
+        id: "10000000-0000-4000-8000-000000000001",
+        service_id: config.services[0].id,
+        group: "Media",
+      },
+      {
+        id: "10000000-0000-4000-8000-000000000002",
+        service_id: config.services[0].id,
+        group: "Favorites",
+      },
+    ];
+
+    render(<SettingsPanel config={config} />);
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+
+    expect(screen.getAllByText("Jellyfin")).toHaveLength(2);
+    expect(consoleError.mock.calls.flat().join(" ")).not.toContain(
+      "Encountered two children with the same key"
+    );
+  });
+
+  it("opens the add-service form with no service and the right existing groups", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig()} />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
@@ -443,10 +490,9 @@ describe("SettingsPanel - services tab", () => {
     const props = JSON.parse(screen.getByTestId("service-form-stub-props").textContent!);
     expect(props.service).toBeNull();
     expect(props.existingGroups).toEqual(["Media"]);
-    expect(props.takenNames).toEqual(["Jellyfin", "Portainer"]);
   });
 
-  it("opens the edit-service form with the selected service and excludes it from takenNames", () => {
+  it("opens the edit-service form with the selected service", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig()} />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
@@ -455,7 +501,6 @@ describe("SettingsPanel - services tab", () => {
 
     const props = JSON.parse(screen.getByTestId("service-form-stub-props").textContent!);
     expect(props.service.name).toBe("Jellyfin");
-    expect(props.takenNames).toEqual(["Portainer"]);
   });
 
   it("adds a new service to state and saves it via PATCH", async () => {
@@ -553,7 +598,7 @@ describe("SettingsPanel - services tab", () => {
     const secondPayload = JSON.parse(
       (fetchMock.mock.calls[1][1] as RequestInit).body as string
     );
-    expect(secondPayload.services[0].widget.config.api_key).toBe(
+    expect(secondPayload.services[0].integration.config.api_key).toBe(
       refreshedReference
     );
   });
@@ -724,8 +769,8 @@ describe("SettingsPanel - groups tab", () => {
     });
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.groups[0].name).toBe("Movies");
-    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
-    expect(jelly.group).toBe("Movies");
+    const jellyTile = body.service_tiles[0];
+    expect(jellyTile.group).toBe("Movies");
     expect(body.bookmarks[0].placement.group).toBe("Movies");
   });
 
@@ -761,8 +806,8 @@ describe("SettingsPanel - groups tab", () => {
 
   it("uses redacted service state returned by a successful group cascade", async () => {
     const initial = groupsConfig();
-    initial.services[0] = {
-      ...initial.services[0],
+    initial.service_tiles[0] = {
+      ...initial.service_tiles[0],
       widget: {
         type: "tautulli-activity",
         config: {
@@ -774,20 +819,20 @@ describe("SettingsPanel - groups tab", () => {
     const responseConfig = {
       ...initial,
       groups: [{ name: "Movies" }, { name: "Infra" }],
-      services: initial.services.map((service) =>
-        service.name === "Jellyfin"
+      service_tiles: initial.service_tiles.map((tile) =>
+        tile.service_id === initial.services[0].id
           ? {
-              ...service,
+              ...tile,
               group: "Movies",
               widget: {
-                ...service.widget!,
+                ...tile.widget!,
                 config: {
-                  ...service.widget!.config,
+                  ...tile.widget!.config,
                   api_key: "server-redacted-reference",
                 },
               },
             }
-          : service
+          : tile
       ),
     };
     vi.stubGlobal(
@@ -827,8 +872,8 @@ describe("SettingsPanel - groups tab", () => {
     });
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.groups.map((g: { name: string }) => g.name)).toEqual(["Infra"]);
-    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
-    expect(jelly.group).toBeUndefined();
+    const jellyTile = body.service_tiles[0];
+    expect(jellyTile.group).toBeUndefined();
     expect(body.bookmarks[0].placement).toBeUndefined();
   });
 
@@ -897,7 +942,9 @@ describe("SettingsPanel - groups tab", () => {
     );
     // The Services PATCH must carry the ORIGINAL group name; the rename is still
     // an unsaved Groups draft. (Old eager-cascade behavior would leak "Movies".)
-    const jelly = body.services.find((s: Service) => s.name === "Jellyfin");
+    const jelly = body.service_tiles.find((tile: { service_id: string }) =>
+      tile.service_id === body.services.find((service: Service) => service.name === "Jellyfin")?.id
+    );
     expect(jelly.group).toBe("Media");
     expect(body.groups).toBeUndefined();
   });
@@ -948,7 +995,7 @@ describe("SettingsPanel - groups tab", () => {
     );
     expect(body.groups[0].name).toBe("Movies");
     expect(
-      body.services.find((s: Service) => s.name === "Jellyfin").group
+      body.service_tiles[0].group
     ).toBe("Movies");
     expect(body.bookmarks[0].placement.group).toBe("Movies");
   });
@@ -994,7 +1041,7 @@ describe("SettingsPanel - groups tab", () => {
     );
     expect(body.groups[0].name).toBe("media");
     expect(
-      body.services.find((s: Service) => s.name === "Jellyfin").group
+      body.service_tiles[0].group
     ).toBe("media");
     const dev = body.bookmarks.find((b: { name: string }) => b.name === "Dev");
     expect(dev.placement.group).toBe("media");

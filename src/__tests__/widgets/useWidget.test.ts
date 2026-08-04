@@ -14,7 +14,7 @@ describe("useWidget", () => {
       "fetch",
       vi.fn().mockReturnValue(new Promise(() => {})) // never resolves
     );
-    const { result } = renderHook(() => useWidget("test", "TestService"));
+    const { result } = renderHook(() => useWidget("tile-id"));
     expect(result.current.loading).toBe(true);
     expect(result.current.data).toBeNull();
     expect(result.current.error).toBeNull();
@@ -28,7 +28,7 @@ describe("useWidget", () => {
       } as Response)
     );
 
-    const { result } = renderHook(() => useWidget<{ value: number }>("test", "TestService"));
+    const { result } = renderHook(() => useWidget<{ value: number }>("tile-id"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -44,7 +44,7 @@ describe("useWidget", () => {
       } as Response)
     );
 
-    const { result } = renderHook(() => useWidget("test", "TestService"));
+    const { result } = renderHook(() => useWidget("tile-id"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -58,7 +58,7 @@ describe("useWidget", () => {
       vi.fn().mockRejectedValue(new Error("Network error"))
     );
 
-    const { result } = renderHook(() => useWidget("test", "TestService"));
+    const { result } = renderHook(() => useWidget("tile-id"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -72,7 +72,7 @@ describe("useWidget", () => {
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
-    renderHook(() => useWidget("test", "TestService", 5_000));
+    renderHook(() => useWidget("tile-id", 5_000));
 
     await act(async () => {
       await Promise.resolve();
@@ -96,9 +96,62 @@ describe("useWidget", () => {
       })
     );
 
-    const { unmount } = renderHook(() => useWidget("test", "TestService"));
+    const { unmount } = renderHook(() => useWidget("tile-id"));
     unmount();
 
     expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it("re-fetches when the widget type changes", async () => {
+    const signals: AbortSignal[] = [];
+    const fetchMock = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+      signals.push(options.signal as AbortSignal);
+      return new Promise(() => {});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = renderHook(
+      ({ tileId, widgetType }) => useWidget(tileId, undefined, widgetType),
+      {
+        initialProps: { tileId: "tile-id", widgetType: "sonarr-calendar" },
+      }
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/widget?tile_id=tile-id&widget_type=sonarr-calendar");
+
+    act(() => {
+      rerender({ tileId: "tile-id", widgetType: "sonarr-queue" });
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(signals[0].aborted).toBe(true);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/widget?tile_id=tile-id&widget_type=sonarr-queue");
+  });
+
+  it("clears the previous result when the tile or widget identity changes", async () => {
+    let resolveNext: ((value: Response) => void) | undefined;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ ok: true, data: { widget: "old" } }),
+      } as Response)
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveNext = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ tileId, widgetType }) => useWidget<{ widget: string }>(tileId, undefined, widgetType),
+      { initialProps: { tileId: "old-tile", widgetType: "sonarr-calendar" } }
+    );
+    await waitFor(() => expect(result.current.data).toEqual({ widget: "old" }));
+
+    rerender({ tileId: "new-tile", widgetType: "sonarr-queue" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(result.current.data).toBeNull();
+
+    await act(async () => {
+      resolveNext?.({ json: () => Promise.resolve({ ok: true, data: { widget: "new" } }) } as Response);
+    });
+    await waitFor(() => expect(result.current.data).toEqual({ widget: "new" }));
   });
 });

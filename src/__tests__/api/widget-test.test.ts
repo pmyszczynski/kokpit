@@ -1,17 +1,29 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
+
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
   const writeFileSync = vi.fn();
-  const existsSync = vi.fn().mockReturnValue(true);
+  const linkSync = vi.fn();
+  const unlinkSync = vi.fn();
+  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
+  const statSync = vi.fn().mockReturnValue({ mode: 0o100644 });
+  const chmodSync = vi.fn();
   return {
-    default: { readFileSync, writeFileSync, existsSync, mkdirSync },
+    default: { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync, chmodSync },
     readFileSync,
     writeFileSync,
+    linkSync,
+    unlinkSync,
     existsSync,
     mkdirSync,
+    renameSync,
+    statSync,
+    chmodSync,
   };
 });
 vi.mock("next/headers", () => ({
@@ -84,7 +96,7 @@ function post(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
-  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
 });
 
@@ -242,7 +254,7 @@ describe("POST /api/widget/test", () => {
     );
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const redactedConfig = settings.services[0].widget.config;
+    const redactedConfig = settings.services[0].integration.config;
     expect(JSON.stringify(redactedConfig)).not.toContain(
       "saved-tautulli-secret"
     );
@@ -264,7 +276,7 @@ describe("POST /api/widget/test", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const redactedConfig = settings.services[0].widget.config;
+    const redactedConfig = settings.services[0].integration.config;
     redactedConfig.url = "http://attacker.invalid:8181";
 
     const { POST } = await import("../../app/api/widget/test/route");
@@ -289,7 +301,7 @@ describe("POST /api/widget/test", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const reference = settings.services[0].widget.config.api_key as Record<
+    const reference = settings.services[0].integration.config.api_key as Record<
       string,
       string
     >;
@@ -303,7 +315,7 @@ describe("POST /api/widget/test", () => {
     for (const [type, config] of [
       [
         "tautulli-activity",
-        { ...settings.services[0].widget.config, api_key: forged },
+        { ...settings.services[0].integration.config, api_key: forged },
       ],
       [
         "plex",
@@ -442,7 +454,7 @@ describe("POST /api/widget/test", () => {
     );
     const { GET } = await import("../../app/api/settings/route");
     const settings = await (await GET()).json();
-    const redactedConfig = settings.services[0].widget.config;
+    const redactedConfig = settings.services[0].integration.config;
     expect(JSON.stringify(redactedConfig)).not.toContain(
       "saved-unraid-secret"
     );

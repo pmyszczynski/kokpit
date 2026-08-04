@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import { getAuthUser, SESSION_COOKIE_NAME } from "./session";
 
 /**

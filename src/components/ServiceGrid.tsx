@@ -1,7 +1,7 @@
 // Populate the widget registry server-side so widget configs can be
 // validated (and size hints looked up) before rendering tiles.
 import "@/integrations";
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import {
   DEFAULT_BOOKMARK_STYLE,
   resolveGroupOrder,
@@ -32,19 +32,21 @@ function resolveBookmarkSize(bookmark: BookmarkGroup): Size {
   return style === "list" ? "tall" : "normal";
 }
 
-function renderServiceTile(service: Service) {
-  const hints = service.widget
-    ? getWidgetSizeHints(service.widget.type)
+function renderServiceTile({ service, tile }: { service: Service; tile: import("@/config/schema").ServiceTile }) {
+  const hints = tile.widget
+    ? getWidgetSizeHints(tile.widget.type)
     : undefined;
   return (
     <ServiceTile
-      key={`service:${service.name}`}
+      key={`tile:${tile.id}`}
+      tileId={tile.id}
+      serviceId={service.id}
       name={service.name}
-      url={service.url}
+      url={service.launch_url}
       icon={service.icon}
       description={service.description}
-      widget={resolveTileWidget(service.widget)}
-      size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
+      widget={resolveTileWidget(tile.widget, service.integration?.config)}
+      size={resolveServiceSize(tile, hints?.preferredSize, hints?.minSize)}
     />
   );
 }
@@ -83,7 +85,22 @@ function TileGrid({
 
 export default function ServiceGrid() {
   const config = getConfig();
-  const services = config.services;
+  const serviceTiles = config.service_tiles ?? config.services.map((service, index) => ({
+    id: service.id ?? `legacy-tile-${index}`,
+    service_id: service.id ?? `legacy-service-${index}`,
+    group: (service as Service).group,
+    size: (service as Service).size,
+    widget: (service as Service).widget,
+  }));
+  const normalizedServices = config.service_tiles ? config.services : config.services.map((service, index) => ({
+    ...service,
+    id: service.id ?? `legacy-service-${index}`,
+    launch_url: service.launch_url ?? (service as Service).url,
+  }));
+  const services = serviceTiles.flatMap((tile) => {
+    const service = normalizedServices.find((candidate) => candidate.id === tile.service_id);
+    return service ? [{ service, tile }] : [];
+  });
   const bookmarks = config.bookmarks ?? [];
 
   if (services.length === 0 && bookmarks.length === 0) {
@@ -92,17 +109,17 @@ export default function ServiceGrid() {
 
   // Bucket services by normalized group key (matches resolveGroupOrder's
   // case-insensitive group matching).
-  const ungrouped: Service[] = [];
-  const servicesByGroup = new Map<string, Service[]>();
-  for (const service of services) {
-    const groupName = service.group?.trim() ?? "";
+  const ungrouped: typeof services = [];
+  const servicesByGroup = new Map<string, typeof services>();
+  for (const entry of services) {
+    const groupName = entry.tile.group?.trim() ?? "";
     if (groupName === "") {
-      ungrouped.push(service);
+      ungrouped.push(entry);
       continue;
     }
     const key = serviceNameUniquenessKey(groupName);
     const existing = servicesByGroup.get(key) ?? [];
-    existing.push(service);
+    existing.push(entry);
     servicesByGroup.set(key, existing);
   }
 
@@ -125,7 +142,7 @@ export default function ServiceGrid() {
 
   // Declared `groups:` order, auto-appended referenced groups, and the
   // implicit ungrouped section placed per `layout.ungrouped`.
-  const sections = resolveGroupOrder(config);
+  const sections = resolveGroupOrder({ ...config, service_tiles: serviceTiles });
 
   return (
     <>

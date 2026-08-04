@@ -1,31 +1,13 @@
 import type {
   KokpitConfig,
-  Service,
-  ServiceWidget,
+  ServiceTile,
 } from "@/config/schema";
 
 /** A widget configuration after server-side credential redaction. */
-export type ClientSafeWidget = Pick<
-  ServiceWidget,
-  "type" | "fields" | "refresh_interval_ms"
-> & {
-  /** Contains only editable non-secret values and opaque credential references. */
-  config?: Record<string, unknown>;
-};
+export type ClientSafeWidget = NonNullable<ServiceTile["widget"]>;
 
 /** A service that is safe to serialize to an authenticated browser client. */
-export type ClientSafeService = Pick<
-  Service,
-  | "name"
-  | "url"
-  | "icon"
-  | "description"
-  | "group"
-  | "size"
-  | "position"
-> & {
-  widget?: ClientSafeWidget;
-};
+export type ClientSafeService = KokpitConfig["services"][number];
 
 /**
  * Settings that have passed through the server-side credential-redaction
@@ -40,6 +22,4 @@ export type ClientSafeSettings = Pick<
   | "layout"
   | "groups"
   | "bookmarks"
-> & {
-  services: ClientSafeService[];
-};
+> & { services: ClientSafeService[]; service_tiles: ServiceTile[] };

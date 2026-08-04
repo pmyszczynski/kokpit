@@ -17,7 +17,7 @@
     "test:e2e:ui": "playwright test --ui",
     "start:standalone": "sh -c 'f=$(find .next/standalone -name server.js | grep -v node_modules | head -1); [ -n \"$f\" ] || { echo \"Error: server.js not found — run npm run build first\" >&2; exit 1; }; node \"$f\"'",
     "test:e2e:auth": "npm run build && playwright test --config playwright.auth.config.ts",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc --project tsconfig.test.json",
     "reset-password": "node scripts/reset-password.js"
   },
   "dependencies": {
@@ -32,6 +32,7 @@
     "jsdom": "^25.0.1",
     "next": "^15.5.21",
     "otplib": "^13.3.0",
+    "proper-lockfile": "^4.1.2",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -48,6 +49,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^22.20.1",
+    "@types/proper-lockfile": "^4.1.4",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -17,7 +17,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-vi.mock("@/config", () => ({
+vi.mock("@/config/server", () => ({
   getConfig: vi.fn().mockReturnValue({
     auth: { enabled: true, session_ttl_hours: 24 },
   }),

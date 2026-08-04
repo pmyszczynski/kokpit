@@ -34,7 +34,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    exclude: [...configDefaults.exclude, "**/e2e/**"],
+    testTimeout: 10_000,
+    exclude: [
+      ...configDefaults.exclude,
+      "**/e2e/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

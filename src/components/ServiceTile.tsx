@@ -89,9 +89,13 @@ function WarningTriangle() {
  */
 function WidgetConfigBadge({
   name,
+  serviceId,
+  tileId,
   issues,
 }: {
   name: string;
+  serviceId?: string;
+  tileId?: string;
   issues: WidgetConfigIssue[];
 }) {
   const editMode = useEditModeOptional();
@@ -114,7 +118,9 @@ function WidgetConfigBadge({
     );
   }
 
-  const openEditor = () => editMode.requestServiceEdit(name);
+  const openEditor = () => editMode.requestServiceEdit(
+    serviceId || tileId ? { serviceId, tileId, name } : name
+  );
 
   return (
     <span
@@ -145,6 +151,8 @@ function WidgetConfigBadge({
 }
 
 interface ServiceTileProps {
+  tileId?: string;
+  serviceId?: string;
   name: string;
   url?: string;
   icon?: string;
@@ -253,7 +261,7 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
+export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
   const className =
     `service-tile service-tile--${size}` +
     (drag ? " service-tile--editable" : "") +
@@ -293,7 +301,7 @@ export default function ServiceTile({ name, url, icon, description, widget, size
        * reporting.
        */}
       {invalidIssues ? (
-        <WidgetConfigBadge name={name} issues={invalidIssues} />
+        <WidgetConfigBadge name={name} serviceId={serviceId} tileId={tileId} issues={invalidIssues} />
       ) : (
         url && <StatusDot url={url} preview={preview} />
       )}
@@ -323,12 +331,16 @@ export default function ServiceTile({ name, url, icon, description, widget, size
             <span className="service-tile__widget-preview" aria-hidden="true">
               {widget.type}
             </span>
-          ) : (
+          ) : tileId ? (
             <WidgetRenderer
               type={widget.type}
-              serviceName={name}
+              tileId={tileId}
               refreshInterval={widget.refresh_interval_ms}
             />
+          ) : (
+            <div className="widget-error" role="alert">
+              <span className="widget-error__label">Missing tile identifier</span>
+            </div>
           )}
         </div>
       )}

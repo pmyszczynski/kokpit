@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
@@ -8,14 +8,34 @@ layout:
   columns: 4
   row_height: 120
 services:
-  - name: Plex
-    url: http://localhost:32400
-    widget:
-      type: plex
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Sonarr
+    launch_url: http://localhost:8001
+    integration:
+      type: sonarr
       config:
-        url: http://localhost:32400
-        token: test-token
-        fields:
-          - streams
-          - transcodes
-          - library_movies
+        url: http://localhost:8001/
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Prowlarr
+    launch_url: http://localhost:8002
+    integration:
+      type: prowlarr
+      config:
+        url: http://localhost:8002/
+        api_key: test-key
+  - id: 10000000-0000-4000-8000-000000000003
+    name: Grafana
+    launch_url: http://localhost:3001
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    widget:
+      type: sonarr-queue
+  - id: 20000000-0000-4000-8000-000000000002
+    service_id: 10000000-0000-4000-8000-000000000002
+    widget:
+      type: prowlarr-stats
+  - id: 20000000-0000-4000-8000-000000000003
+    service_id: 10000000-0000-4000-8000-000000000003
+groups: []
+bookmarks: []

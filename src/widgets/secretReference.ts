@@ -21,6 +21,10 @@ export type WidgetSecretReferencePlaceholder = {
 export const WIDGET_CONFIG_REFERENCE_PREFIX =
   "__KOKPIT_WIDGET_CONFIG_REF__:";
 
+/** The sole browser-visible key for an opaque widget config. */
+export const WIDGET_CONFIG_REFERENCE_KEY =
+  "__kokpit_widget_config_reference__";
+
 /** True for an exact field-reference envelope, including malformed tokens. */
 export function isWidgetSecretReference(
   value: unknown
@@ -44,4 +48,16 @@ export function isWidgetConfigReference(value: unknown): value is string {
     typeof value === "string" &&
     value.startsWith(WIDGET_CONFIG_REFERENCE_PREFIX)
   );
+}
+
+/** True only for the browser-safe whole-config envelope. */
+export function isWidgetConfigReferenceEnvelope(
+  value: unknown,
+  key = WIDGET_CONFIG_REFERENCE_KEY
+): value is Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).length === 1 && isWidgetConfigReference(record[key]);
 }

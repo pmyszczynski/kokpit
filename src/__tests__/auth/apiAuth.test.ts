@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/config", () => ({
+vi.mock("@/config/server", () => ({
   getConfig: vi.fn(),
 }));
 vi.mock("next/headers", () => ({
@@ -13,7 +13,7 @@ vi.mock("@/auth/session", () => ({
 }));
 
 import { cookies } from "next/headers";
-import { getConfig } from "@/config";
+import { getConfig } from "@/config/server";
 import { getAuthUser } from "@/auth/session";
 import { isRequestAuthenticated } from "@/auth/apiAuth";
 import type { KokpitConfig } from "@/config";

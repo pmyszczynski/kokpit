@@ -4,9 +4,33 @@
 // unit-tested (the component just calls these + stages the result).
 import {
   serviceNameUniquenessKey,
+  widgetIntegrationRequirement,
   type BookmarkGroup,
   type Service,
 } from "./schema";
+import { isWidgetConfigReference, isWidgetSecretReference } from "@/widgets/secretReference";
+import { generateUuid } from "./uuid";
+
+const UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY = "__kokpit_widget_config_reference__";
+
+function cloneConfigWithoutReferences(value: unknown): unknown {
+  if (isWidgetSecretReference(value)) return undefined;
+  if (isWidgetConfigReference(value)) return undefined;
+  if (Array.isArray(value)) {
+    return value
+      .map(cloneConfigWithoutReferences)
+      .filter((item) => item !== undefined);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => key !== UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY)
+        .map(([key, item]) => [key, cloneConfigWithoutReferences(item)])
+        .filter(([, item]) => item !== undefined)
+    );
+  }
+  return value;
+}
 
 /**
  * A unique copy name for `base` that collides with none of `taken`
@@ -33,11 +57,42 @@ function indexByName<T extends { name: string }>(items: T[], name: string): numb
  * unknown.
  */
 export function duplicateService(services: Service[], name: string): Service[] {
-  const idx = indexByName(services, name);
-  if (idx === -1) return services;
-  const original = services[idx];
+  const idx = services.findIndex((service) => service.tileId === name || service.id === name);
+  const resolvedIndex = idx === -1 ? indexByName(services, name) : idx;
+  if (resolvedIndex === -1) return services;
+  const original = services[resolvedIndex];
+  const {
+    editorIntegrationConfig: _editorIntegrationConfig,
+    editorTileWidgetConfig: _editorTileWidgetConfig,
+    editorIntegration: _editorIntegration,
+    ...cloneSource
+  } = original;
   const clone: Service = {
-    ...original,
+    ...cloneSource,
+    id: generateUuid(),
+    tileId: generateUuid(),
+    ...(original.editorIntegration
+      ? original.editorIntegration.command === "set"
+        ? {
+            editorIntegration: {
+              command: "set" as const,
+              type: original.editorIntegration.type,
+              config: cloneConfigWithoutReferences(original.editorIntegration.config) as Record<string, unknown>,
+            },
+          }
+        : { editorIntegration: { ...original.editorIntegration } }
+      : original.integration || original.editorIntegrationConfig
+      ? {
+          editorIntegration: {
+            command: "set" as const,
+            type: original.integration?.type ??
+              (original.widget ? widgetIntegrationRequirement(original.widget.type) ?? "" : ""),
+            config: cloneConfigWithoutReferences(
+              original.editorIntegrationConfig ?? original.integration?.config ?? {}
+            ) as Record<string, unknown>,
+          },
+        }
+      : {}),
     name: uniqueCopyName(original.name, services.map((s) => s.name)),
     // Deep-clone the widget so the copy can never mutate the original's
     // nested `config`/`fields` (same guarantee duplicateBookmark gives links).
@@ -46,7 +101,7 @@ export function duplicateService(services: Service[], name: string): Service[] {
           widget: {
             ...original.widget,
             ...(original.widget.config
-              ? { config: { ...original.widget.config } }
+              ? { config: cloneConfigWithoutReferences(original.widget.config) as Record<string, unknown> }
               : {}),
             ...(original.widget.fields
               ? { fields: [...original.widget.fields] }
@@ -56,7 +111,7 @@ export function duplicateService(services: Service[], name: string): Service[] {
       : {}),
   };
   const next = [...services];
-  next.splice(idx + 1, 0, clone);
+  next.splice(resolvedIndex + 1, 0, clone);
   return next;
 }
 

@@ -53,10 +53,43 @@ export interface ServiceEditorPreset {
   defaultIconUrl: string;
 }
 
+export interface IntegrationDefinition<TConnection = Record<string, unknown>> {
+  id: string;
+  connectionSchema: z.ZodType<TConnection>;
+  connectionFields: WidgetConfigField[];
+  credentialScopeFields: string[];
+  testConnection?: (config: TConnection, signal?: AbortSignal) => Promise<void>;
+}
+
+// Heterogeneous registry entries intentionally erase their generic payload.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const integrationRegistry = new Map<string, IntegrationDefinition<any>>();
+export function registerIntegration<TConnection>(definition: IntegrationDefinition<TConnection>): void {
+  if (integrationRegistry.has(definition.id)) throw new Error(`Integration "${definition.id}" is already registered`);
+  if (definition.connectionFields.some((field) => field.type === "password") && definition.credentialScopeFields.length === 0) throw new Error(`Integration "${definition.id}" must declare a nonempty credential scope`);
+  for (const key of definition.credentialScopeFields) {
+    const field = definition.connectionFields.find((candidate) => candidate.key === key);
+    if (!field || (field.type !== "url" && field.type !== "text")) {
+      throw new Error(`Integration "${definition.id}" has an invalid credential scope field "${key}"`);
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  integrationRegistry.set(definition.id, definition as IntegrationDefinition<any>);
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getIntegration(id: string): IntegrationDefinition<any> | undefined { return integrationRegistry.get(id); }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getAllIntegrations(): IntegrationDefinition<any>[] { return [...integrationRegistry.values()]; }
+
 export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unknown> {
   id: string;
   name: string;
   configSchema: z.ZodType<TConfig>;
+  /** Schema-v2 reusable integration requirement; null denotes an informational widget. */
+  integrationType?: string | null;
+  /** Schema-v2 per-tile options. New definitions should prefer this over configSchema. */
+  optionsSchema?: z.ZodType<Record<string, unknown>>;
+  optionFields?: Exclude<WidgetConfigField, { type: "password" }>[];
   /** fetchData receives an AbortSignal so the caller can cancel a timed-out request. */
   fetchData: (config: TConfig, signal?: AbortSignal) => Promise<TData>;
   /** Refresh interval in milliseconds. Defaults to 30_000. */
@@ -159,4 +192,5 @@ export function getWidgetSizeHints(id: string): WidgetSizeHints | undefined {
 /** Removes all registered widgets. Intended for use in tests only. */
 export function clearRegistry(): void {
   widgetRegistry.clear();
+  integrationRegistry.clear();
 }

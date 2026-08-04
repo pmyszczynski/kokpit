@@ -1,15 +1,27 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 import { registerWidget, clearRegistry } from "@/widgets";
-import type { AnyWidgetDefinition } from "@/widgets";
+import type { AnyWidgetDefinition, WidgetConfigField } from "@/widgets";
 import { widgetConfigIssues, resolveTileWidget } from "@/widgets/tileWidget";
+import {
+  WIDGET_CONFIG_REFERENCE_PREFIX,
+  WIDGET_SECRET_REFERENCE_KEY,
+  WIDGET_SECRET_REFERENCE_PREFIX,
+} from "@/widgets/secretReference";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeWidget(id: string, configSchema: z.ZodType<any> = z.object({})): AnyWidgetDefinition {
+function makeWidget(
+  id: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  configSchema: z.ZodType<any> = z.object({}),
+  configFields?: WidgetConfigField[],
+  credentialScopeFields?: string[]
+): AnyWidgetDefinition {
   return {
     id,
     name: `Widget ${id}`,
     configSchema,
+    configFields,
+    credentialScopeFields,
     fetchData: async () => ({}),
     component: () => null,
   };
@@ -122,6 +134,119 @@ describe("resolveTileWidget", () => {
       refresh_interval_ms: 5000,
     });
     expect(result).not.toHaveProperty("invalid");
+  });
+
+  it("validates raw credential references by default and normalizes them only for edit previews", () => {
+    registerWidget(
+      makeWidget(
+        "credentialed",
+        z.object({ url: z.string().url(), api_key: z.string().min(1) }),
+        [
+          { key: "url", label: "URL", type: "url", required: true },
+          { key: "api_key", label: "API key", type: "password", required: true },
+        ],
+        ["url"]
+      )
+    );
+    const reference = `${WIDGET_SECRET_REFERENCE_PREFIX}signed-reference`;
+    const widget = {
+      type: "credentialed",
+      config: {
+        url: "http://service.local",
+        api_key: { [WIDGET_SECRET_REFERENCE_KEY]: reference },
+      },
+    };
+
+    const serverResult = resolveTileWidget(widget);
+    expect(serverResult?.invalid).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "api_key" })])
+    );
+
+    const editPreview = resolveTileWidget(widget, undefined, {
+      normalizeSecretReferences: true,
+    });
+
+    expect(editPreview).toEqual({ type: "credentialed" });
+    expect(JSON.stringify(editPreview)).not.toContain(reference);
+  });
+
+  it("accepts opaque integration references only for client-safe edit previews", () => {
+    registerWidget(
+      makeWidget(
+        "opaque-credentialed",
+        z.object({
+          url: z.string().url(),
+          api_key: z.string().min(1),
+          days: z.number().max(30).optional(),
+        }),
+        [
+          { key: "url", label: "URL", type: "url", required: true },
+          { key: "api_key", label: "API key", type: "password", required: true },
+        ],
+        ["url"]
+      )
+    );
+    const reference = `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-reference`;
+    const connection = { __kokpit_widget_config_reference__: reference };
+    const widget = { type: "opaque-credentialed", config: { days: 7 } };
+
+    expect(resolveTileWidget(widget, connection)?.invalid).toBeDefined();
+
+    const editPreview = resolveTileWidget(widget, connection, {
+      normalizeOpaqueConfigReference: true,
+    });
+    expect(editPreview).toEqual({ type: "opaque-credentialed" });
+    expect(JSON.stringify(editPreview)).not.toContain(reference);
+
+    const invalidPreview = resolveTileWidget(
+      { type: "opaque-credentialed", config: { days: 31 } },
+      connection,
+      { normalizeOpaqueConfigReference: true }
+    );
+    expect(invalidPreview?.invalid).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "days" })])
+    );
+  });
+
+  it("does not invent invalid values for optional hidden connection fields", () => {
+    registerWidget(
+      makeWidget(
+        "actualbudget-accounts",
+        z.object({
+          url: z.string().url(),
+          api_key: z.string().min(1),
+          budget_sync_id: z.string().min(1),
+          currency: z.string().length(3).default("USD"),
+          exclude_closed: z.boolean().default(true),
+        }),
+        [
+          { key: "url", label: "URL", type: "url", required: true },
+          { key: "api_key", label: "API key", type: "password", required: true },
+          { key: "budget_sync_id", label: "Budget", type: "text", required: true },
+          { key: "currency", label: "Currency", type: "text", required: false },
+          { key: "exclude_closed", label: "Hide closed", type: "boolean", required: false },
+        ],
+        ["url", "budget_sync_id"]
+      )
+    );
+    const connection = {
+      __kokpit_widget_config_reference__:
+        `${WIDGET_CONFIG_REFERENCE_PREFIX}signed-reference`,
+    };
+
+    expect(resolveTileWidget(
+      { type: "actualbudget-accounts", config: { exclude_closed: false } },
+      connection,
+      { normalizeOpaqueConfigReference: true }
+    )).toEqual({ type: "actualbudget-accounts" });
+
+    expect(resolveTileWidget(
+      { type: "actualbudget-accounts", config: { exclude_closed: "yes" } },
+      connection,
+      { normalizeOpaqueConfigReference: true }
+    )?.invalid).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "exclude_closed" })])
+    );
   });
 
   it("known type + invalid config: sanitized widget with populated `invalid`", () => {

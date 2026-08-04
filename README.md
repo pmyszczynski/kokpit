@@ -117,14 +117,20 @@ docker compose up kokpit-dev
 
 All configuration lives in `settings.yaml` at the project root. The in-app settings panel (accessible via the ⚙ icon in the navbar, with Services, Groups, and Bookmarks tabs) reads from and writes back to this file — changes take effect immediately without a restart. You can also edit the YAML directly.
 
+On first load after the schema-v2 upgrade, Kokpit detects the legacy service shape even when the file has no `schema_version`, migrates it, and keeps the exact original as `settings.yaml.pre-v2.bak`. Configuration writes fail closed under an inter-process lock. If Kokpit is forcibly terminated and a later startup reports a settings-lock timeout, first verify that no Kokpit process or container is using the config volume, then remove only the `settings.yaml.lock` directory; an interrupted `settings.yaml.displaced` transaction is recovered automatically on the next start.
+
 **Add a service tile:**
 
 ```yaml
 services:
-  - name: Jellyfin
-    url: http://192.168.1.10:8096
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Jellyfin
+    launch_url: http://192.168.1.10:8096
     icon: jellyfin
     description: Media server
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
     group: Media
 ```
 
@@ -132,8 +138,12 @@ services:
 
 ```yaml
 services:
-  - name: Plex
-    url: http://192.168.1.10:32400
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Plex
+    launch_url: http://192.168.1.10:32400
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000002
+    service_id: 10000000-0000-4000-8000-000000000002
     size: large  # normal (default) | wide | tall | large
 ```
 
@@ -149,11 +159,15 @@ groups:
   - name: Downloads
 
 services:
-  - name: Jellyfin
+  - id: 10000000-0000-4000-8000-000000000003
+    name: Jellyfin
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000003
+    service_id: 10000000-0000-4000-8000-000000000003
     group: Media
 ```
 
-Array order in `groups:` is display order. A group referenced by a service but not listed here is auto-appended (today's alphabetical behavior), so this block is optional. Ungrouped services render as their own section, placed first or last via `layout.ungrouped: first | last` (default `last`). Groups are collapsible on the dashboard; the `collapsed` key only sets the default — collapse state itself is remembered per device. The Groups tab in the settings panel covers reordering, renaming (cascades to member services), declaring, deleting, and setting these options.
+Array order in `groups:` is display order. A group referenced by a service tile but not listed here is auto-appended (today's alphabetical behavior), so this block is optional. Ungrouped tiles render as their own section, placed first or last via `layout.ungrouped: first | last` (default `last`). Groups are collapsible on the dashboard; the `collapsed` key only sets the default — collapse state itself is remembered per device. The Groups tab in the settings panel covers reordering, renaming (cascades to member tiles), declaring, deleting, and setting these options.
 
 **Add a bookmarks tile:**
 
@@ -183,12 +197,22 @@ The `icon:` field on a service or bookmark link accepts a full image URL, or a s
 
 ```yaml
 services:
-  - name: Sonarr
+  - id: 10000000-0000-4000-8000-000000000004
+    name: Sonarr
     icon: di-sonarr        # dashboard-icons
-  - name: GitHub
+  - id: 10000000-0000-4000-8000-000000000005
+    name: GitHub
     icon: sh-github        # selfh.st icons
-  - name: Home
+  - id: 10000000-0000-4000-8000-000000000006
+    name: Home
     icon: mdi-home         # Material Design Icons
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000004
+    service_id: 10000000-0000-4000-8000-000000000004
+  - id: 20000000-0000-4000-8000-000000000005
+    service_id: 10000000-0000-4000-8000-000000000005
+  - id: 20000000-0000-4000-8000-000000000006
+    service_id: 10000000-0000-4000-8000-000000000006
 ```
 
 - `di-<name>` → [dashboard-icons](https://github.com/homarr-labs/dashboard-icons), `sh-<name>` → [selfh.st](https://selfh.st/icons/), `mdi-<name>` → Material Design Icons.
@@ -277,18 +301,27 @@ Widgets display live data from your self-hosted services directly on a service t
 **Two ways to configure a widget:**
 
 - **In-app:** open Settings → Services → edit a service → expand the Widget section, pick a type, fill in the fields, and save.
-- **YAML:** add a `widget` block to the service entry in `settings.yaml`.
+- **YAML:** add an integration to a reusable `service`, then attach the widget
+  and its display options to a `service_tile` in `settings.yaml`.
 
 The general YAML shape is:
 
 ```yaml
 services:
-  - name: My Service
-    url: http://192.168.1.10:PORT
+  - id: 10000000-0000-4000-8000-000000000001
+    name: My Service
+    launch_url: http://192.168.1.10:PORT
+    integration:
+      type: <integration-id>
+      config:
+        # connection fields, including credentials
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
     widget:
       type: <widget-id>
       config:
-        # widget-specific fields (see each widget below)
+        # widget-specific display options
       refresh_interval_ms: 30000  # optional, minimum 5000
 ```
 
@@ -308,14 +341,21 @@ Displays live playback and library statistics from a Plex Media Server.
 
 ```yaml
 services:
-  - name: Plex
-    url: http://192.168.1.10:32400
+  - id: 10000000-0000-4000-8000-000000000020
+    name: Plex
+    launch_url: http://192.168.1.10:32400
     icon: plex
-    widget:
+    integration:
       type: plex
       config:
         url: http://192.168.1.10:32400
         token: YOUR_PLEX_TOKEN
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000020
+    service_id: 10000000-0000-4000-8000-000000000020
+    widget:
+      type: plex
+      config:
         fields:
           - streams
           - transcodes
@@ -364,15 +404,20 @@ Displays current Plex activity from Tautulli.
 
 ```yaml
 services:
-  - name: Tautulli
-    url: http://192.168.1.x:8181
-    group: Media
-    size: tall
-    widget:
-      type: tautulli-activity
+  - id: 10000000-0000-4000-8000-000000000021
+    name: Tautulli
+    launch_url: http://192.168.1.x:8181
+    integration:
+      type: tautulli
       config:
         url: http://192.168.1.x:8181
         api_key: <your-tautulli-api-key>
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000021
+    service_id: 10000000-0000-4000-8000-000000000021
+    widget:
+      type: tautulli-activity
+      config:
         sections:
           - summary
           - sessions
@@ -414,14 +459,21 @@ Shows upcoming episode air dates for the configured number of days ahead.
 
 ```yaml
 services:
-  - name: Sonarr
-    url: http://192.168.1.10:8989
+  - id: 10000000-0000-4000-8000-000000000022
+    name: Sonarr
+    launch_url: http://192.168.1.10:8989
     icon: sonarr
-    widget:
-      type: sonarr-calendar
+    integration:
+      type: sonarr
       config:
         url: http://192.168.1.10:8989
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000022
+    service_id: 10000000-0000-4000-8000-000000000022
+    widget:
+      type: sonarr-calendar
+      config:
         days: 7
 ```
 
@@ -439,14 +491,20 @@ Shows active downloads with progress bars, status, and ETA.
 
 ```yaml
 services:
-  - name: Sonarr
-    url: http://192.168.1.10:8989
+  - id: 10000000-0000-4000-8000-000000000023
+    name: Sonarr
+    launch_url: http://192.168.1.10:8989
     icon: sonarr
-    widget:
-      type: sonarr-queue
+    integration:
+      type: sonarr
       config:
         url: http://192.168.1.10:8989
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000023
+    service_id: 10000000-0000-4000-8000-000000000023
+    widget:
+      type: sonarr-queue
 ```
 
 
@@ -470,14 +528,20 @@ Displays a six-stat grid showing the state of your movie library.
 
 ```yaml
 services:
-  - name: Radarr
-    url: http://192.168.1.10:7878
+  - id: 10000000-0000-4000-8000-000000000024
+    name: Radarr
+    launch_url: http://192.168.1.10:7878
     icon: radarr
-    widget:
-      type: radarr-stats
+    integration:
+      type: radarr
       config:
         url: http://192.168.1.10:7878
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000024
+    service_id: 10000000-0000-4000-8000-000000000024
+    widget:
+      type: radarr-stats
 ```
 
 
@@ -506,14 +570,20 @@ Shows active movie downloads with progress bars, status, and ETA.
 
 ```yaml
 services:
-  - name: Radarr
-    url: http://192.168.1.10:7878
+  - id: 10000000-0000-4000-8000-000000000025
+    name: Radarr
+    launch_url: http://192.168.1.10:7878
     icon: radarr
-    widget:
-      type: radarr-queue
+    integration:
+      type: radarr
       config:
         url: http://192.168.1.10:7878
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000025
+    service_id: 10000000-0000-4000-8000-000000000025
+    widget:
+      type: radarr-queue
 ```
 
 
@@ -537,14 +607,20 @@ Shows a four-stat grid: total indexers, enabled indexers, failing indexers (high
 
 ```yaml
 services:
-  - name: Prowlarr
-    url: http://192.168.1.10:9696
+  - id: 10000000-0000-4000-8000-000000000026
+    name: Prowlarr
+    launch_url: http://192.168.1.10:9696
     icon: prowlarr
-    widget:
-      type: prowlarr-stats
+    integration:
+      type: prowlarr
       config:
         url: http://192.168.1.10:9696
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000026
+    service_id: 10000000-0000-4000-8000-000000000026
+    widget:
+      type: prowlarr-stats
 ```
 
 
@@ -579,15 +655,21 @@ Displays current download/upload speed and session totals.
 
 ```yaml
 services:
-  - name: qBittorrent
-    url: http://192.168.1.10:8080
+  - id: 10000000-0000-4000-8000-000000000027
+    name: qBittorrent
+    launch_url: http://192.168.1.10:8080
     icon: qbittorrent
-    widget:
-      type: qbittorrent-stats
+    integration:
+      type: qbittorrent
       config:
         url: http://192.168.1.10:8080
         username: admin
         password: YOUR_PASSWORD
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000027
+    service_id: 10000000-0000-4000-8000-000000000027
+    widget:
+      type: qbittorrent-stats
 ```
 
 
@@ -606,13 +688,19 @@ Shows a scrollable list of all torrents with a progress bar and per-torrent down
 
 ```yaml
 services:
-  - name: qBittorrent Torrents
-    widget:
-      type: qbittorrent-torrents
+  - id: 10000000-0000-4000-8000-000000000028
+    name: qBittorrent Torrents
+    integration:
+      type: qbittorrent
       config:
         url: http://192.168.1.10:8080
         username: admin
         password: YOUR_PASSWORD
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000028
+    service_id: 10000000-0000-4000-8000-000000000028
+    widget:
+      type: qbittorrent-torrents
 ```
 
 Takes the same `url` / `username` / `password` fields as `qbittorrent-stats`.
@@ -627,14 +715,20 @@ Displays download queue speed, item count, and total queue size.
 
 ```yaml
 services:
-  - name: SABnzbd
-    url: http://192.168.1.10:8080
+  - id: 10000000-0000-4000-8000-000000000029
+    name: SABnzbd
+    launch_url: http://192.168.1.10:8080
     icon: sabnzbd
-    widget:
+    integration:
       type: sabnzbd
       config:
         url: http://192.168.1.10:8080
         apikey: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000029
+    service_id: 10000000-0000-4000-8000-000000000029
+    widget:
+      type: sabnzbd
 ```
 
 
@@ -660,14 +754,20 @@ Displays a four-stat grid summarising the current state of all media requests.
 
 ```yaml
 services:
-  - name: Seerr
-    url: http://192.168.1.10:5055
+  - id: 10000000-0000-4000-8000-000000000030
+    name: Seerr
+    launch_url: http://192.168.1.10:5055
     icon: seerr
-    widget:
-      type: seerr-stats
+    integration:
+      type: seerr
       config:
         url: http://192.168.1.10:5055
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000030
+    service_id: 10000000-0000-4000-8000-000000000030
+    widget:
+      type: seerr-stats
 ```
 
 
@@ -694,12 +794,18 @@ Shows a scrollable list of the 15 most recently submitted requests. Each row dis
 
 ```yaml
 services:
-  - name: Seerr Requests
-    widget:
-      type: seerr-requests
+  - id: 10000000-0000-4000-8000-000000000031
+    name: Seerr Requests
+    integration:
+      type: seerr
       config:
         url: http://192.168.1.10:5055
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000031
+    service_id: 10000000-0000-4000-8000-000000000031
+    widget:
+      type: seerr-requests
 ```
 
 
@@ -725,14 +831,20 @@ Displays photos, videos, total storage usage, photo storage usage, and video sto
 
 ```yaml
 services:
-  - name: Immich
-    url: http://192.168.1.10:2283
+  - id: 10000000-0000-4000-8000-000000000032
+    name: Immich
+    launch_url: http://192.168.1.10:2283
     icon: immich
-    widget:
-      type: immich-stats
+    integration:
+      type: immich
       config:
         url: http://192.168.1.10:2283/api
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000032
+    service_id: 10000000-0000-4000-8000-000000000032
+    widget:
+      type: immich-stats
 ```
 
 
@@ -782,28 +894,48 @@ Seven composable widgets showing live system metrics from a [Netdata](https://ww
 
 ```yaml
 services:
-  - name: CPU
+  - id: 10000000-0000-4000-8000-000000000052
+    name: CPU
+    launch_url: http://192.168.1.10:19999
+    integration:
+      type: netdata
+      config:
+        url: http://192.168.1.10:19999
+  - id: 10000000-0000-4000-8000-000000000053
+    name: RAM
+    launch_url: http://192.168.1.10:19999
+    integration:
+      type: netdata
+      config:
+        url: http://192.168.1.10:19999
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000052
+    service_id: 10000000-0000-4000-8000-000000000052
     widget:
       type: netdata-cpu
-      config:
-        url: http://192.168.1.10:19999
-
-  - name: RAM
+  - id: 20000000-0000-4000-8000-000000000053
+    service_id: 10000000-0000-4000-8000-000000000053
     widget:
       type: netdata-ram
-      config:
-        url: http://192.168.1.10:19999
 ```
 
 `netdata-disk-space` additionally accepts an optional `chart_id` (default `disk_space._`, the root filesystem) to target another mounted volume:
 
 ```yaml
 services:
-  - name: Disk Space
+  - id: 10000000-0000-4000-8000-000000000054
+    name: Disk Space
+    launch_url: http://192.168.1.10:19999
+    integration:
+      type: netdata
+      config:
+        url: http://192.168.1.10:19999
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000054
+    service_id: 10000000-0000-4000-8000-000000000054
     widget:
       type: netdata-disk-space
       config:
-        url: http://192.168.1.10:19999
         chart_id: disk_space._mnt_storage
 ```
 
@@ -811,11 +943,19 @@ services:
 
 ```yaml
 services:
-  - name: CPU Temp
+  - id: 10000000-0000-4000-8000-000000000055
+    name: CPU Temp
+    launch_url: http://192.168.1.10:19999
+    integration:
+      type: netdata
+      config:
+        url: http://192.168.1.10:19999
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000055
+    service_id: 10000000-0000-4000-8000-000000000055
     widget:
       type: netdata-sensor
       config:
-        url: http://192.168.1.10:19999
         chart_id: sensors.coretemp_isa_0000
         label: CPU Temp
 ```
@@ -834,14 +974,20 @@ Displays array state, used/total storage, disk count, disk errors, and parity ch
 
 ```yaml
 services:
-  - name: Unraid
-    url: http://192.168.1.10
+  - id: 10000000-0000-4000-8000-000000000033
+    name: Unraid
+    launch_url: http://192.168.1.10
     icon: unraid
-    widget:
-      type: unraid-stats
+    integration:
+      type: unraid
       config:
         url: http://192.168.1.10
         api_key: YOUR_API_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000033
+    service_id: 10000000-0000-4000-8000-000000000033
+    widget:
+      type: unraid-stats
 ```
 
 
@@ -877,14 +1023,20 @@ Shows a six-stat grid: transcode queue count, health checks in queue, errored it
 
 ```yaml
 services:
-  - name: Tdarr
-    url: http://192.168.1.10:8265
+  - id: 10000000-0000-4000-8000-000000000034
+    name: Tdarr
+    launch_url: http://192.168.1.10:8265
     icon: tdarr
-    widget:
-      type: tdarr-stats
+    integration:
+      type: tdarr
       config:
         url: http://192.168.1.10:8265
         apikey: YOUR_API_KEY_IF_ENABLED
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000034
+    service_id: 10000000-0000-4000-8000-000000000034
+    widget:
+      type: tdarr-stats
 ```
 
 
@@ -950,8 +1102,8 @@ Then pin the sidecar's image tag to match your Actual server's version line (e.g
 
 **Two different URLs, on purpose**, and they are resolved by different things:
 
-- The service-level `url` is where **your browser** navigates when you click the tile, so it must be reachable from your machine — a LAN address or hostname like `http://192.168.1.x:5006`, pointing at your Actual Budget server. A Docker service name such as `actual-server` will *not* work here: it only resolves between containers, so the tile would fail to open even though the widget loads fine.
-- `widget.config.url` is fetched **server-side by Kokpit**, so it can use Docker DNS (`http://actual-http-api:5007`) and should point at the sidecar, never at Actual Budget itself.
+- The service's `launch_url` is where **your browser** navigates when you click the tile, so it must be reachable from your machine — a LAN address or hostname like `http://192.168.1.x:5006`, pointing at your Actual Budget server. A Docker service name such as `actual-server` will *not* work here: it only resolves between containers, so the tile would fail to open even though the widget loads fine.
+- `service.integration.config.url` is fetched **server-side by Kokpit**, so it can use Docker DNS (`http://actual-http-api:5007`) and should point at the sidecar, never at Actual Budget itself.
 
 Pointing both at the sidecar gives you a tile that opens raw JSON instead of your budget.
 
@@ -961,20 +1113,27 @@ Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of ove
 
 ```yaml
 services:
-  - name: Actual Budget
-    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+  - id: 10000000-0000-4000-8000-000000000035
+    name: Actual Budget
+    launch_url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
-    widget:
-      type: actualbudget-summary
+    integration:
+      type: actualbudget
       config:
         url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000035
+    service_id: 10000000-0000-4000-8000-000000000035
+    widget:
+      type: actualbudget-summary
+      config:
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
         # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
-        # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
 
 #### `actualbudget-categories`
@@ -983,15 +1142,23 @@ Shows per-category spending vs. budget as a sorted list with progress bars and c
 
 ```yaml
 services:
-  - name: Budget Categories
-    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+  - id: 10000000-0000-4000-8000-000000000036
+    name: Budget Categories
+    launch_url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
-    widget:
-      type: actualbudget-categories
+    integration:
+      type: actualbudget
       config:
         url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000036
+    service_id: 10000000-0000-4000-8000-000000000036
+    widget:
+      type: actualbudget-categories
+      config:
         # limit: 8                    # optional; top N categories by spend (1–50, default: 8)
         # hide_income: true           # optional; exclude income categories (default: true)
         # hide_empty: true            # optional; exclude categories with no budget/spend (default: true)
@@ -999,7 +1166,6 @@ services:
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
         # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
-        # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
 
 #### `actualbudget-accounts`
@@ -1008,23 +1174,30 @@ Lists all accounts with their current balance, filtered by closed/off-budget sta
 
 ```yaml
 services:
-  - name: Budget Accounts
-    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+  - id: 10000000-0000-4000-8000-000000000037
+    name: Budget Accounts
+    launch_url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
-    widget:
-      type: actualbudget-accounts
+    integration:
+      type: actualbudget
       config:
         url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+        # (no timezone field here — this widget's balances aren't resolved
+        #  against a date, so nothing in it reads config.timezone)
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000037
+    service_id: 10000000-0000-4000-8000-000000000037
+    widget:
+      type: actualbudget-accounts
+      config:
         # exclude_closed: true        # optional; hide closed accounts (default: true)
         # exclude_offbudget: false    # optional; hide off-budget accounts (default: false)
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
-        # encryption_password: ""     # optional; only for E2E-encrypted budgets
-        # (no timezone field here — this widget's balances aren't resolved
-        #  against a date, so nothing in it reads config.timezone)
 ```
 
 #### `actualbudget-schedules`
@@ -1033,22 +1206,29 @@ Shows upcoming bills and income rules, sorted by due date, with relative due dat
 
 ```yaml
 services:
-  - name: Budget Schedule
-    url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
+  - id: 10000000-0000-4000-8000-000000000038
+    name: Budget Schedule
+    launch_url: http://192.168.1.x:5006     # your Actual Budget server, reachable from your browser
     icon: di-actual-budget
-    widget:
-      type: actualbudget-schedules
+    integration:
+      type: actualbudget
       config:
         url: http://actual-http-api:5007   # the sidecar — what the widget fetches from
         api_key: your-sidecar-api-key
         budget_sync_id: your-sync-id
+        # encryption_password: ""     # optional; only for E2E-encrypted budgets
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000038
+    service_id: 10000000-0000-4000-8000-000000000038
+    widget:
+      type: actualbudget-schedules
+      config:
         # limit: 6                    # optional; top N schedules (1–50, default: 6)
         # days_ahead: 30              # optional; schedules due within N days (1–365, default: 30)
         # currency: USD               # optional; ISO 4217 code (default: USD)
         # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
         # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
-        # encryption_password: ""     # optional; only for E2E-encrypted budgets
 ```
 
 **Config fields (shared across all four widgets):**
@@ -1115,8 +1295,15 @@ The image's entrypoint automatically grants its non-root runtime user membership
 
 ```yaml
 services:
-  - name: Docker
+  - id: 10000000-0000-4000-8000-000000000050
+    name: Docker
     icon: docker
+    integration:
+      type: docker
+      config: {}
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000050
+    service_id: 10000000-0000-4000-8000-000000000050
     widget:
       type: docker
       config: {}
@@ -1168,8 +1355,12 @@ services:
 
 ```yaml
 services:
-  - name: System
+  - id: 10000000-0000-4000-8000-000000000051
+    name: System
     icon: mdi-server
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000051
+    service_id: 10000000-0000-4000-8000-000000000051
     widget:
       type: system-stats
       config:

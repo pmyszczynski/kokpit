@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { schemaV2Fixtures } from "../helpers/schema-v2";
 
 /**
  * Edit mode (Phase B, work packages B1-B3): enter/exit/discard/save with
@@ -19,6 +20,7 @@ const EDIT_SERVICES = [
   { name: "Grafana", url: "http://localhost:3001" },
 ];
 const EDIT_GROUPS = [{ name: "Media" }];
+const EDIT_FIXTURES = schemaV2Fixtures(EDIT_SERVICES);
 
 test.describe("edit mode", () => {
   test.beforeAll(async ({ request }) => {
@@ -29,7 +31,7 @@ test.describe("edit mode", () => {
   test.beforeEach(async ({ request }) => {
     const res = await request.patch("/api/settings", {
       data: {
-        services: EDIT_SERVICES,
+        ...EDIT_FIXTURES,
         groups: EDIT_GROUPS,
         bookmarks: [],
         appearance: { theme: "dark", custom_css: undefined },
@@ -283,10 +285,12 @@ test.describe("edit mode", () => {
     // second admin (or the file watcher) picking up a hand-edit.
     const outOfBand = await request.patch("/api/settings", {
       data: {
-        services: [
-          ...EDIT_SERVICES.filter((s) => s.name !== "Grafana"),
-          { name: "Grafana Renamed", url: "http://localhost:3001" },
-        ],
+        ...EDIT_FIXTURES,
+        services: EDIT_FIXTURES.services.map((service) =>
+          service.name === "Grafana"
+            ? { ...service, name: "Grafana Renamed" }
+            : service,
+        ),
         groups: EDIT_GROUPS,
       },
     });

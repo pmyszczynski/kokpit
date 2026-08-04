@@ -4,6 +4,8 @@ import {
   duplicateService,
   duplicateBookmark,
 } from "@/config/duplicate";
+import { createWidgetConfigReference } from "@/widgets/secretReference.server";
+import { WIDGET_SECRET_REFERENCE_KEY, WIDGET_SECRET_REFERENCE_PREFIX } from "@/widgets/secretReference";
 import {
   applyGroupCascades,
   renameGroupPatch,
@@ -11,7 +13,7 @@ import {
   declareGroup,
   setGroupColumns,
 } from "@/config/groupCascade";
-import type { BookmarkGroup, Group, Service } from "@/config/schema";
+import type { BookmarkGroup, Group, Service, ServiceTile } from "@/config/schema";
 
 describe("uniqueCopyName", () => {
   it("appends ' copy' when free", () => {
@@ -41,6 +43,18 @@ describe("duplicateService", () => {
     expect(next[1]).not.toBe(services[0]);
   });
 
+  it("uses a fresh service id when duplicating by immutable identity", () => {
+    const withDuplicateNames: Service[] = [
+      { id: "10000000-0000-4000-8000-000000000001", name: "Plex" },
+      { id: "10000000-0000-4000-8000-000000000002", name: "Plex" },
+    ];
+    const next = duplicateService(withDuplicateNames, withDuplicateNames[1].id!);
+    expect(next[0]).toBe(withDuplicateNames[0]);
+    expect(next[1]).toBe(withDuplicateNames[1]);
+    expect(next[2].id).not.toBe(withDuplicateNames[1].id);
+    expect(next[2].name).toBe("Plex copy");
+  });
+
   it("clones nested widget config as a fresh object", () => {
     const withWidget: Service[] = [
       { name: "Plex", widget: { type: "plex", config: { url: "x" } } },
@@ -60,6 +74,57 @@ describe("duplicateService", () => {
     const next = duplicateService(withFields, "Plex");
     expect(next[1].widget?.fields).not.toBe(withFields[0].widget?.fields);
     expect(next[1].widget?.fields).toEqual(["a", "b"]);
+  });
+
+  it("strips credential and opaque config references from a projected copy", () => {
+    const source: Service[] = [{
+      id: "10000000-0000-4000-8000-000000000001",
+      tileId: "20000000-0000-4000-8000-000000000001",
+      name: "Sonarr",
+      widget: { type: "sonarr-calendar", config: {
+        url: "http://sonarr",
+        api_key: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}signed` },
+        __kokpit_widget_config_reference__: createWidgetConfigReference("x", "unknown"),
+        nested: { api_key: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}nested` } },
+        days: 7,
+      } },
+    }];
+    const copy = duplicateService(source, source[0].tileId!)[1];
+    expect(copy).toMatchObject({ name: "Sonarr copy" });
+    expect(copy.id).not.toBe(source[0].id);
+    expect(copy.tileId).not.toBe(source[0].tileId);
+    expect(copy.widget?.config).toEqual({ url: "http://sonarr", nested: {}, days: 7 });
+  });
+
+  it("rebuilds an editor integration set command without credential references", () => {
+    const source: Service[] = [{
+      name: "Sonarr",
+      editorIntegration: {
+        command: "set",
+        type: "sonarr",
+        config: {
+          url: "http://sonarr",
+          api_key: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}signed` },
+          nested: { token: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}nested` } },
+        },
+      },
+    }];
+
+    const copy = duplicateService(source, "Sonarr")[1];
+
+    expect(copy.editorIntegration).toEqual({
+      command: "set",
+      type: "sonarr",
+      config: { url: "http://sonarr", nested: {} },
+    });
+    expect(copy.editorIntegration).not.toBe(source[0].editorIntegration);
+  });
+
+  it("preserves editor integration clear and preserve commands", () => {
+    for (const command of ["clear", "preserve"] as const) {
+      const copy = duplicateService([{ name: "Plex", editorIntegration: { command } }], "Plex")[1];
+      expect(copy.editorIntegration).toEqual({ command });
+    }
   });
 
   it("no-ops on an unknown name", () => {
@@ -127,36 +192,40 @@ describe("applyGroupCascades", () => {
 
 describe("renameGroupPatch / deleteGroupPatch (minimal patches)", () => {
   const groups: Group[] = [{ name: "Media" }, { name: "Infra" }];
-  const services: Service[] = [{ name: "Plex", group: "Media" }];
+  const serviceTiles: ServiceTile[] = [{
+    id: "10000000-0000-4000-8000-000000000001",
+    service_id: "10000000-0000-4000-8000-000000000002",
+    group: "Media",
+  }];
   const bookmarks: BookmarkGroup[] = [
     { name: "Dev", links: [], placement: { group: "Media" } },
   ];
 
   it("rename patches groups + services + bookmarks together", () => {
     const patch = renameGroupPatch(
-      { groups, services, bookmarks },
+      { groups, service_tiles: serviceTiles, bookmarks },
       "Media",
       "Streaming"
     );
     expect(patch.groups?.map((g) => g.name)).toEqual(["Streaming", "Infra"]);
-    expect(patch.services?.[0].group).toBe("Streaming");
+    expect(patch.service_tiles?.[0].group).toBe("Streaming");
     expect(patch.bookmarks?.[0].placement?.group).toBe("Streaming");
   });
 
   it("rename of an undeclared group omits the groups key", () => {
     const patch = renameGroupPatch(
-      { groups: [], services, bookmarks },
+      { groups: [], service_tiles: serviceTiles, bookmarks },
       "Media",
       "Streaming"
     );
     expect(patch.groups).toBeUndefined();
-    expect(patch.services?.[0].group).toBe("Streaming");
+    expect(patch.service_tiles?.[0].group).toBe("Streaming");
   });
 
   it("delete patches the groups drop + cascade clears", () => {
-    const patch = deleteGroupPatch({ groups, services, bookmarks }, "Media");
+    const patch = deleteGroupPatch({ groups, service_tiles: serviceTiles, bookmarks }, "Media");
     expect(patch.groups?.map((g) => g.name)).toEqual(["Infra"]);
-    expect(patch.services?.[0].group).toBeUndefined();
+    expect(patch.service_tiles?.[0].group).toBeUndefined();
     expect(patch.bookmarks?.[0].placement).toBeUndefined();
   });
 });

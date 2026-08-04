@@ -5,8 +5,10 @@ import {
   FIXTURE_GROUPS,
   FIXTURE_BOOKMARKS,
 } from "../helpers/fixture-services";
+import { schemaV2Fixtures } from "../helpers/schema-v2";
 
 const MOCK = "http://localhost:32400";
+const FIXTURES = schemaV2Fixtures(FIXTURE_SERVICES);
 
 /**
  * Visual regression: catches CSS/layout/theme regressions that DOM assertions
@@ -21,7 +23,7 @@ test.describe("visual regression", () => {
     await request.post(`${MOCK}/__control`, { data: DEFAULT_MOCK_STATE });
     await request.patch("/api/settings", {
       data: {
-        services: FIXTURE_SERVICES,
+        ...FIXTURES,
         groups: FIXTURE_GROUPS,
         bookmarks: FIXTURE_BOOKMARKS,
         appearance: { theme: "dark", custom_css: undefined },

@@ -1,11 +1,4 @@
 export {
-  getConfig,
-  loadConfig,
-  writeConfig,
-  getConfigPath,
-  invalidateCache,
-} from "./loader";
-export {
   KokpitConfigSchema,
   SizeEnum,
   GroupSchema,
