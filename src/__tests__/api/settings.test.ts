@@ -125,6 +125,64 @@ type MutableSecretTestService = {
   integration: { config: Record<string, unknown> };
 };
 
+function createSettingsFsSimulation(initialYaml: string) {
+  let yaml = initialYaml;
+  let activeConfig = true;
+  const pendingWrites = new Map<string, string>();
+  const displacedWrites = new Map<string, string>();
+
+  const moveConfig = (source: unknown, destination: unknown) => {
+    const from = String(source);
+    const to = String(destination);
+    if (from.endsWith("settings.yaml")) {
+      displacedWrites.set(to, yaml);
+      activeConfig = false;
+    } else if (displacedWrites.has(from) && to.endsWith("settings.yaml")) {
+      yaml = displacedWrites.get(from)!;
+      displacedWrites.delete(from);
+      activeConfig = true;
+    }
+  };
+
+  vi.mocked(existsSync).mockImplementation((target) => {
+    const key = String(target);
+    if (key.endsWith("settings.yaml")) return activeConfig;
+    if (key.includes("settings.yaml.displaced")) return displacedWrites.has(key);
+    if (key.includes(".tmp-")) return pendingWrites.has(key);
+    return true;
+  });
+  vi.mocked(readFileSync).mockImplementation((target) =>
+    displacedWrites.get(String(target)) ?? yaml
+  );
+  vi.mocked(writeFileSync).mockImplementation((target, value) => {
+    if (typeof target === "string" && target.includes(".tmp-")) {
+      pendingWrites.set(target, String(value));
+    }
+  });
+  vi.mocked(renameSync).mockImplementation(moveConfig);
+  vi.mocked(linkSync).mockImplementation((source) => {
+    if (activeConfig) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+    const key = String(source);
+    yaml = displacedWrites.get(key) ?? pendingWrites.get(key)!;
+    activeConfig = true;
+  });
+  vi.mocked(unlinkSync).mockImplementation((target) => {
+    const key = String(target);
+    pendingWrites.delete(key);
+    displacedWrites.delete(key);
+  });
+
+  return {
+    get yaml() {
+      return yaml;
+    },
+    set yaml(value: string) {
+      yaml = value;
+    },
+    moveConfig,
+  };
+}
+
 function patch(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/settings", {
     method: "PATCH",
@@ -487,54 +545,12 @@ describe("GET /api/settings", () => {
 });
 
 describe("/api/settings – widget password fields", () => {
-  let storedYaml: string;
-  let activeConfig: boolean;
-  let pendingWrites: Map<string, string>;
-  let displacedWrites: Map<string, string>;
+  let fs: ReturnType<typeof createSettingsFsSimulation>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    storedYaml = SECRET_YAML;
-    activeConfig = true;
-    pendingWrites = new Map();
-    displacedWrites = new Map();
-    vi.mocked(existsSync).mockImplementation((target) => {
-      const key = String(target);
-      if (key.endsWith("settings.yaml")) return activeConfig;
-      if (key.includes("settings.yaml.displaced")) return displacedWrites.has(key);
-      if (key.includes(".tmp-")) return pendingWrites.has(key);
-      return true;
-    });
-    vi.mocked(readFileSync).mockImplementation((target) =>
-      displacedWrites.get(String(target)) ?? storedYaml
-    );
-    vi.mocked(writeFileSync).mockImplementation((target, value) => {
-      if (typeof target === "string" && target.includes(".tmp-")) pendingWrites.set(target, String(value));
-    });
-    vi.mocked(renameSync).mockImplementation((source, destination) => {
-      const from = String(source);
-      const to = String(destination);
-      if (from.endsWith("settings.yaml")) {
-        displacedWrites.set(to, storedYaml);
-        activeConfig = false;
-      } else if (displacedWrites.has(from) && to.endsWith("settings.yaml")) {
-        storedYaml = displacedWrites.get(from)!;
-        displacedWrites.delete(from);
-        activeConfig = true;
-      }
-    });
-    vi.mocked(linkSync).mockImplementation((source, _destination) => {
-      if (activeConfig) throw Object.assign(new Error("exists"), { code: "EEXIST" });
-      const key = String(source);
-      storedYaml = displacedWrites.get(key) ?? pendingWrites.get(key)!;
-      activeConfig = true;
-    });
-    vi.mocked(unlinkSync).mockImplementation((target) => {
-      const key = String(target);
-      pendingWrites.delete(key);
-      displacedWrites.delete(key);
-    });
+    fs = createSettingsFsSimulation(SECRET_YAML);
   });
 
   it("redacts every metadata-declared password from GET without changing non-secret config", async () => {
@@ -565,7 +581,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("hides and preserves complete configs for unregistered widget types", async () => {
-    storedYaml = UNKNOWN_WIDGET_SECRET_YAML;
+    fs.yaml = UNKNOWN_WIDGET_SECRET_YAML;
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
@@ -587,10 +603,10 @@ describe("/api/settings – widget password fields", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("name: Retired integration renamed");
-    expect(storedYaml).toContain("endpoint: https://retired.local");
-    expect(storedYaml).toContain("api_key: unknown-widget-secret-value");
-    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_CONFIG_REF__:");
+    expect(fs.yaml).toContain("name: Retired integration renamed");
+    expect(fs.yaml).toContain("endpoint: https://retired.local");
+    expect(fs.yaml).toContain("api_key: unknown-widget-secret-value");
+    expect(fs.yaml).not.toContain("__KOKPIT_WIDGET_CONFIG_REF__:");
     expect(responseText).not.toContain("unknown-widget-secret-value");
     expect(responseText).not.toContain("retired.local");
   });
@@ -616,11 +632,11 @@ describe("/api/settings – widget password fields", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("name: Downloads Renamed");
-    expect(storedYaml).toContain("name: Tautulli Renamed");
-    expect(storedYaml).toContain("password: qbittorrent-secret-value");
-    expect(storedYaml).toContain("api_key: tautulli-secret-value");
-    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(fs.yaml).toContain("name: Downloads Renamed");
+    expect(fs.yaml).toContain("name: Tautulli Renamed");
+    expect(fs.yaml).toContain("password: qbittorrent-secret-value");
+    expect(fs.yaml).toContain("api_key: tautulli-secret-value");
+    expect(fs.yaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
     expect(responseText).not.toContain("qbittorrent-secret-value");
     expect(responseText).not.toContain("tautulli-secret-value");
     expect(responseText).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
@@ -642,10 +658,10 @@ describe("/api/settings – widget password fields", () => {
     const responseText = await res.text();
 
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("api_key: replacement-secret-value");
-    expect(storedYaml).toContain("url: http://new-tautulli.local:8181");
-    expect(storedYaml).not.toContain("api_key: tautulli-secret-value");
-    expect(storedYaml).toContain("password: qbittorrent-secret-value");
+    expect(fs.yaml).toContain("api_key: replacement-secret-value");
+    expect(fs.yaml).toContain("url: http://new-tautulli.local:8181");
+    expect(fs.yaml).not.toContain("api_key: tautulli-secret-value");
+    expect(fs.yaml).toContain("password: qbittorrent-secret-value");
     expect(responseText).not.toContain("replacement-secret-value");
     expect(responseText).not.toContain("qbittorrent-secret-value");
     expect(responseText).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
@@ -664,8 +680,8 @@ describe("/api/settings – widget password fields", () => {
       patch({ services: redacted.services, service_tiles: redacted.service_tiles }, { "If-Match": revision })
     );
     expect(res.status).toBe(200);
-    expect(storedYaml).toContain("api_key: tautulli-secret-value");
-    expect(storedYaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(fs.yaml).toContain("api_key: tautulli-secret-value");
+    expect(fs.yaml).not.toContain("__KOKPIT_WIDGET_SECRET_REF__:");
   });
 
   it.each([
@@ -730,58 +746,12 @@ describe("/api/settings – widget password fields", () => {
 });
 
 describe("PATCH /api/settings – revision conflict (If-Match)", () => {
-  let diskYaml: string;
-  let activeConfig: boolean;
-  let pendingWrites: Map<string, string>;
-  let displacedWrites: Map<string, string>;
-
-  const moveConfig = (source: unknown, destination: unknown) => {
-    const from = String(source);
-    const to = String(destination);
-    if (from.endsWith("settings.yaml")) {
-      displacedWrites.set(to, diskYaml);
-      activeConfig = false;
-    } else if (displacedWrites.has(from) && to.endsWith("settings.yaml")) {
-      diskYaml = displacedWrites.get(from)!;
-      displacedWrites.delete(from);
-      activeConfig = true;
-    }
-  };
+  let fs: ReturnType<typeof createSettingsFsSimulation>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    diskYaml = BASE_YAML;
-    activeConfig = true;
-    pendingWrites = new Map();
-    displacedWrites = new Map();
-    vi.mocked(existsSync).mockImplementation((target) => {
-      const key = String(target);
-      if (key.endsWith("settings.yaml")) return activeConfig;
-      if (key.includes("settings.yaml.displaced")) return displacedWrites.has(key);
-      if (key.includes(".tmp-")) return pendingWrites.has(key);
-      return true;
-    });
-    vi.mocked(readFileSync).mockImplementation((target) =>
-      displacedWrites.get(String(target)) ?? diskYaml
-    );
-    vi.mocked(writeFileSync).mockImplementation((target, data) => {
-      if (typeof target === "string" && target.includes(".tmp-")) {
-        pendingWrites.set(target, String(data));
-      }
-    });
-    vi.mocked(renameSync).mockImplementation(moveConfig);
-    vi.mocked(linkSync).mockImplementation((source) => {
-      if (activeConfig) throw Object.assign(new Error("exists"), { code: "EEXIST" });
-      const key = String(source);
-      diskYaml = displacedWrites.get(key) ?? pendingWrites.get(key)!;
-      activeConfig = true;
-    });
-    vi.mocked(unlinkSync).mockImplementation((target) => {
-      const key = String(target);
-      pendingWrites.delete(key);
-      displacedWrites.delete(key);
-    });
+    fs = createSettingsFsSimulation(BASE_YAML);
   });
 
   it("proceeds (200) when no If-Match header is sent (back-compat)", async () => {
@@ -817,8 +787,8 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
   it("does not overwrite an external edit made after validation", async () => {
     const externallyEdited = BASE_YAML.replace("theme: dark", "theme: oled");
     vi.mocked(renameSync).mockImplementation((source, destination) => {
-      if (String(source).endsWith("settings.yaml")) diskYaml = externallyEdited;
-      moveConfig(source, destination);
+      if (String(source).endsWith("settings.yaml")) fs.yaml = externallyEdited;
+      fs.moveConfig(source, destination);
     });
     const { GET, PATCH } = await import("../../app/api/settings/route");
     const { KokpitConfigSchema } = await import("@/config/schema");
@@ -841,8 +811,8 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
 
   it("reports a conflict without a revision when the external edit is temporarily invalid", async () => {
     vi.mocked(renameSync).mockImplementation((source, destination) => {
-      if (String(source).endsWith("settings.yaml")) diskYaml = "appearance: [";
-      moveConfig(source, destination);
+      if (String(source).endsWith("settings.yaml")) fs.yaml = "appearance: [";
+      fs.moveConfig(source, destination);
     });
     const { PATCH } = await import("../../app/api/settings/route");
 

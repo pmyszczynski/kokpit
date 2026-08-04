@@ -4,6 +4,28 @@ import { chmodSync, mkdtempSync, rmSync, existsSync, readFileSync, statSync, wri
 import { tmpdir } from "os";
 import path from "path";
 
+const fsHooks = vi.hoisted(() => ({
+  beforeRename: undefined as ((oldPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
+  afterRename: undefined as ((oldPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
+  beforeLink: undefined as ((existingPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
+}));
+
+vi.mock("fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs")>();
+  return {
+    ...actual,
+    renameSync: (...args: Parameters<typeof actual.renameSync>) => {
+      fsHooks.beforeRename?.(args[0], args[1]);
+      actual.renameSync(...args);
+      fsHooks.afterRename?.(args[0], args[1]);
+    },
+    linkSync: (...args: Parameters<typeof actual.linkSync>) => {
+      fsHooks.beforeLink?.(args[0], args[1]);
+      return actual.linkSync(...args);
+    },
+  };
+});
+
 let tempDir: string;
 let configPath: string;
 
@@ -15,6 +37,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  fsHooks.beforeRename = undefined;
+  fsHooks.afterRename = undefined;
+  fsHooks.beforeLink = undefined;
   delete process.env.KOKPIT_CONFIG_PATH;
   rmSync(tempDir, { recursive: true, force: true });
   vi.resetModules();
@@ -110,6 +135,71 @@ services: []
 });
 
 describe("writeConfig", () => {
+  it("throws a restoration failure instead of reporting a revision mismatch", async () => {
+    const { loadConfig, writeConfig } = await freshLoader();
+    loadConfig();
+    const displaced = `${configPath}.displaced`;
+    fsHooks.afterRename = (oldPath, newPath) => {
+      if (oldPath === configPath && newPath === displaced) {
+        writeFileSync(displaced, "schema_version: 2\nappearance:\n  theme: oled\n", "utf-8");
+      }
+    };
+    fsHooks.beforeLink = (existingPath, newPath) => {
+      if (existingPath === displaced && newPath === configPath) {
+        throw Object.assign(new Error("restore failed"), { code: "EPERM" });
+      }
+    };
+    expect(() => writeConfig({ appearance: { theme: "light" } })).toThrow(/restore failed/);
+  });
+
+  it("throws a conflicting transaction preservation failure after an EEXIST collision", async () => {
+    const { loadConfig, writeConfig } = await freshLoader();
+    loadConfig();
+    const displaced = `${configPath}.displaced`;
+    fsHooks.afterRename = (oldPath, newPath) => {
+      if (oldPath === configPath && newPath === displaced) {
+        writeFileSync(displaced, "schema_version: 2\nappearance:\n  theme: oled\n", "utf-8");
+      }
+    };
+    fsHooks.beforeLink = (existingPath, newPath) => {
+      if (existingPath === displaced && newPath === configPath) {
+        throw Object.assign(new Error("collision"), { code: "EEXIST" });
+      }
+    };
+    fsHooks.beforeRename = (oldPath, newPath) => {
+      if (oldPath === displaced && String(newPath).startsWith(`${displaced}.conflict-`)) {
+        throw Object.assign(new Error("preserve failed"), { code: "EPERM" });
+      }
+    };
+
+    expect(() => writeConfig({ appearance: { theme: "light" } })).toThrow(/preserve failed/);
+  });
+
+  it("does not mask an installation failure with a restoration failure", async () => {
+    const { loadConfig, writeConfig } = await freshLoader();
+    loadConfig();
+    const displaced = `${configPath}.displaced`;
+    fsHooks.beforeLink = (existingPath, newPath) => {
+      if (existingPath === displaced && newPath === configPath) {
+        throw Object.assign(new Error("restore failed"), { code: "EPERM" });
+      }
+      if (newPath === configPath) {
+        throw Object.assign(new Error("install failed"), { code: "EIO" });
+      }
+    };
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      expect(() => writeConfig({ appearance: { theme: "light" } })).toThrow(/install failed/);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[kokpit] could not restore settings transaction:",
+        expect.objectContaining({ code: "EPERM" })
+      );
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
   it("preserves an existing file mode and creates restrictive files", async () => {
     writeFileSync(configPath, "schema_version: 2\nservices: []\nservice_tiles: []\n", "utf-8");
     chmodSync(configPath, 0o640);

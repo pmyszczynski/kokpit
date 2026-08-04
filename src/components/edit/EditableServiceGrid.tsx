@@ -1004,7 +1004,6 @@ export default function EditableServiceGrid({
         <ServiceForm
           service={null}
           existingGroups={knownGroupNames}
-          takenNames={services.map((s) => s.name)}
           initialGroup={dialog.group ?? undefined}
           initialPreset={dialog.preset}
           onSave={(created) => {

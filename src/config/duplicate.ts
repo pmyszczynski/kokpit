@@ -64,13 +64,24 @@ export function duplicateService(services: Service[], name: string): Service[] {
   const {
     editorIntegrationConfig: _editorIntegrationConfig,
     editorTileWidgetConfig: _editorTileWidgetConfig,
+    editorIntegration: _editorIntegration,
     ...cloneSource
   } = original;
   const clone: Service = {
     ...cloneSource,
     id: generateUuid(),
     tileId: generateUuid(),
-    ...(original.integration || original.editorIntegrationConfig
+    ...(original.editorIntegration
+      ? original.editorIntegration.command === "set"
+        ? {
+            editorIntegration: {
+              command: "set" as const,
+              type: original.editorIntegration.type,
+              config: cloneConfigWithoutReferences(original.editorIntegration.config) as Record<string, unknown>,
+            },
+          }
+        : { editorIntegration: { ...original.editorIntegration } }
+      : original.integration || original.editorIntegrationConfig
       ? {
           editorIntegration: {
             command: "set" as const,

@@ -128,4 +128,30 @@ describe("useWidget", () => {
     expect(signals[0].aborted).toBe(true);
     expect(fetchMock.mock.calls[1][0]).toBe("/api/widget?tile_id=tile-id&widget_type=sonarr-queue");
   });
+
+  it("clears the previous result when the tile or widget identity changes", async () => {
+    let resolveNext: ((value: Response) => void) | undefined;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ ok: true, data: { widget: "old" } }),
+      } as Response)
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveNext = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ tileId, widgetType }) => useWidget<{ widget: string }>(tileId, undefined, widgetType),
+      { initialProps: { tileId: "old-tile", widgetType: "sonarr-calendar" } }
+    );
+    await waitFor(() => expect(result.current.data).toEqual({ widget: "old" }));
+
+    rerender({ tileId: "new-tile", widgetType: "sonarr-queue" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(result.current.data).toBeNull();
+
+    await act(async () => {
+      resolveNext?.({ json: () => Promise.resolve({ ok: true, data: { widget: "new" } }) } as Response);
+    });
+    await waitFor(() => expect(result.current.data).toEqual({ widget: "new" }));
+  });
 });

@@ -263,24 +263,6 @@ describe("ServiceForm – rendering", () => {
 });
 
 describe("ServiceForm – submission", () => {
-  it("allows a name that matches an existing service", () => {
-    const onSave = vi.fn();
-    render(
-      <ServiceForm
-        service={null}
-        existingGroups={[]}
-        takenNames={["Plex"]}
-        onSave={onSave}
-        onClose={noop}
-      />
-    );
-    fireEvent.change(screen.getByLabelText("Name *"), {
-      target: { value: "plex" },
-    });
-    fireEvent.click(screen.getByText("Save"));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "plex" }));
-  });
-
   it("calls onSave with the entered name", () => {
     const onSave = vi.fn();
     render(
@@ -1116,6 +1098,26 @@ describe("ServiceForm – saved config vs. live edits", () => {
 });
 
 describe("ServiceForm – focusWidget", () => {
+  it("hides the integration selector for a legacy direct-config service", () => {
+    render(
+      <ServiceForm
+        service={{
+          name: "My Plex",
+          widget: {
+            type: "plex",
+            config: { url: "http://plex.local:32400", token: "secret" },
+          },
+        }}
+        existingGroups={[]}
+        onSave={noop}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.queryByLabelText("Integration")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Server URL *")).toHaveValue("http://plex.local:32400");
+  });
+
   it("focuses the first invalid widget config field on mount", () => {
     render(
       <ServiceForm

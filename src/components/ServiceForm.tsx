@@ -20,6 +20,7 @@ import { widgetCredentialScopesMatch } from "@/widgets/credentialScope";
 import {
   isWidgetConfigReferenceEnvelope,
   isWidgetSecretReference,
+  WIDGET_CONFIG_REFERENCE_KEY,
 } from "@/widgets/secretReference";
 import { configForOpaqueConnectionValidation, splitWidgetConfig } from "@/widgets/configBoundary";
 import { widgetOptionKeys } from "@/widgets/configBoundary";
@@ -33,8 +34,6 @@ import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 interface ServiceFormProps {
   service: Service | null;
   existingGroups: string[];
-  /** Service names already in use (excluding the row being edited). */
-  takenNames?: string[];
   /** Non-generic integrations still required by the other tiles of this Service. */
   siblingIntegrationTypes?: string[];
   /** Prefill the group field for a new service (edit-mode "add here"). */
@@ -521,7 +520,6 @@ function WidgetConfigFields({
 export default function ServiceForm({
   service,
   existingGroups,
-  takenNames: _takenNames = [],
   initialGroup,
   initialPreset,
   focusWidget = false,
@@ -813,7 +811,7 @@ export default function ServiceForm({
     setIntegrationConfig((prev) => {
       const next = { ...prev, [key]: value };
       if (isWidgetConfigReferenceEnvelope(next)) return next;
-      delete next.__kokpit_widget_config_reference__;
+      delete next[WIDGET_CONFIG_REFERENCE_KEY];
       return next;
     });
     setIntegrationTouched(true);
@@ -1164,24 +1162,28 @@ export default function ServiceForm({
           </select>
         </div>
 
-        <div className="service-form__section-divider">
-          <span>Integration</span>
-        </div>
-        <div className="settings-form-row">
-          <label htmlFor="sf-integration-type">Integration</label>
-          <select
-            id="sf-integration-type"
-            className="settings-input"
-            value={integrationType}
-            onChange={(e) => handleIntegrationTypeChange(e.target.value)}
-          >
-            <option value="">None</option>
-            {integrationRepresentatives.map((widget) => {
-              const type = widgetIntegrationRequirement(widget.id)!;
-              return <option key={type} value={type}>{widget.name}</option>;
-            })}
-          </select>
-        </div>
+        {!legacyDirectConfig && (
+          <>
+            <div className="service-form__section-divider">
+              <span>Integration</span>
+            </div>
+            <div className="settings-form-row">
+              <label htmlFor="sf-integration-type">Integration</label>
+              <select
+                id="sf-integration-type"
+                className="settings-input"
+                value={integrationType}
+                onChange={(e) => handleIntegrationTypeChange(e.target.value)}
+              >
+                <option value="">None</option>
+                {integrationRepresentatives.map((widget) => {
+                  const type = widgetIntegrationRequirement(widget.id)!;
+                  return <option key={type} value={type}>{widget.name}</option>;
+                })}
+              </select>
+            </div>
+          </>
+        )}
         {selectedIntegrationDef && !legacyDirectConfig && (
           <>
             {integrationFields.length > 0 && (

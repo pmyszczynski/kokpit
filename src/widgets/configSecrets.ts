@@ -12,6 +12,7 @@ import { getAllWidgets, getIntegration, getWidget } from "@/widgets";
 import { integrationCredentialScopesMatch, widgetCredentialScopesMatch } from "./credentialScope";
 import {
   isWidgetSecretReference,
+  WIDGET_CONFIG_REFERENCE_KEY,
   WIDGET_SECRET_REFERENCE_KEY,
 } from "./secretReference";
 import {
@@ -23,9 +24,8 @@ import {
   widgetSecretReferenceMatches,
 } from "./secretReference.server";
 
-/** The sole browser-visible key for an opaque unknown-widget config. */
-export const UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY =
-  "__kokpit_widget_config_reference__";
+/** @deprecated Use WIDGET_CONFIG_REFERENCE_KEY from secretReference. */
+export const UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY = WIDGET_CONFIG_REFERENCE_KEY;
 
 export type WidgetSecretResolutionErrorCode =
   | "widget_secret_reference_invalid"
@@ -58,9 +58,9 @@ function credentialFieldKeys(widgetType: string): string[] {
 
 function integrationCredentialFieldKeys(integrationType: string): Set<string> {
   const integration = getIntegration(integrationType);
-  const fields = integration?.connectionFields ?? getAllWidgets().find(
-    (widget) => widgetIntegrationRequirement(widget.id) === integrationType
-  )?.configFields ?? [];
+  const fields = integration?.connectionFields ?? getAllWidgets()
+    .filter((widget) => widgetIntegrationRequirement(widget.id) === integrationType)
+    .flatMap((widget) => widget.configFields ?? []);
   return new Set(fields.filter((field) => field.type === "password").map((field) => field.key));
 }
 

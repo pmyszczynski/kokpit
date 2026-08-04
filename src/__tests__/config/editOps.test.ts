@@ -96,6 +96,37 @@ describe("duplicateService", () => {
     expect(copy.widget?.config).toEqual({ url: "http://sonarr", nested: {}, days: 7 });
   });
 
+  it("rebuilds an editor integration set command without credential references", () => {
+    const source: Service[] = [{
+      name: "Sonarr",
+      editorIntegration: {
+        command: "set",
+        type: "sonarr",
+        config: {
+          url: "http://sonarr",
+          api_key: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}signed` },
+          nested: { token: { [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}nested` } },
+        },
+      },
+    }];
+
+    const copy = duplicateService(source, "Sonarr")[1];
+
+    expect(copy.editorIntegration).toEqual({
+      command: "set",
+      type: "sonarr",
+      config: { url: "http://sonarr", nested: {} },
+    });
+    expect(copy.editorIntegration).not.toBe(source[0].editorIntegration);
+  });
+
+  it("preserves editor integration clear and preserve commands", () => {
+    for (const command of ["clear", "preserve"] as const) {
+      const copy = duplicateService([{ name: "Plex", editorIntegration: { command } }], "Plex")[1];
+      expect(copy.editorIntegration).toEqual({ command });
+    }
+  });
+
   it("no-ops on an unknown name", () => {
     expect(duplicateService(services, "Nope")).toBe(services);
   });

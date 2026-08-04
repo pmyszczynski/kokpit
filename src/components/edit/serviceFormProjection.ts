@@ -110,7 +110,30 @@ function integrationsMatch(
   left: KokpitConfig["services"][number]["integration"] | undefined,
   right: KokpitConfig["services"][number]["integration"] | undefined
 ): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  if (left === right) return true;
+  if (!left || !right || left.type !== right.type) return false;
+  return structurallyEqual(left.config, right.config);
+}
+
+function structurallyEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => structurallyEqual(value, right[index]));
+  }
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) =>
+      Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+      structurallyEqual(leftRecord[key], rightRecord[key])
+    );
 }
 
 function hasPresentationChange(
@@ -310,9 +333,10 @@ export function persistLegacyServices(
     const previousTileConfig = input.editorTileWidgetConfig ?? primaryTile?.widget?.config;
     const preserveOpaqueTileConfig = Boolean(
       primaryTile &&
+      widget &&
+      primaryTile.widget?.type === widget.type &&
       previousTileConfig &&
       hasOpaqueWidgetConfigReference(previousTileConfig) &&
-      widget &&
       Object.keys(split!.options).length === 0
     );
     const integration = integrationsByServiceId.get(id);
@@ -385,8 +409,9 @@ export function persistLegacyServices(
   }
 
   if (options.preserveUnrepresentedCatalogServices) {
+    const representedServiceIds = new Set(service_tiles.map((tile) => tile.service_id));
     for (const service of previousServices) {
-      if (!servicesById.has(service.id) && !previousTiles.some((tile) => tile.service_id === service.id)) {
+      if (!servicesById.has(service.id) && !representedServiceIds.has(service.id)) {
         servicesById.set(service.id, service);
       }
     }

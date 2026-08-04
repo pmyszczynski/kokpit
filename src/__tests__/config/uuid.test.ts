@@ -11,10 +11,10 @@ describe("generateUuid", () => {
     expect(id).toMatch(UUID_V4);
   });
 
-  it("falls back to secure random byte generation if randomUUID is missing", () => {
+  it("falls back to secure random byte generation if randomUUID is missing", ({ skip }) => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
     if (!descriptor?.configurable) {
-      return;
+      skip();
     }
 
     let callCount = 0;
@@ -41,10 +41,10 @@ describe("generateUuid", () => {
     }
   });
 
-  it("fails rather than generating a weak identifier when Web Crypto is unavailable", () => {
+  it("fails rather than generating a weak identifier when Web Crypto is unavailable", ({ skip }) => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
     if (!descriptor?.configurable) {
-      return;
+      skip();
     }
 
     try {

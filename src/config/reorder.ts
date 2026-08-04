@@ -81,6 +81,30 @@ function withServiceGroup(service: Service, targetGroup: string | null): Service
   return { ...service, group: targetGroup };
 }
 
+/** Move the service at `index` using the shared regrouping and insertion rules. */
+function moveServiceAtIndexToGroup(
+  services: Service[],
+  index: number,
+  targetGroup: string | null,
+  targetIndex: number
+): Service[] {
+  if (index === -1) return services;
+
+  const moving = withServiceGroup(services[index], targetGroup);
+  const rest = services.filter((_, serviceIndex) => serviceIndex !== index);
+  const targetKey = normalizeGroup(targetGroup);
+  const memberPositions: number[] = [];
+  rest.forEach((service, serviceIndex) => {
+    if (normalizeGroup(service.group) === targetKey) {
+      memberPositions.push(serviceIndex);
+    }
+  });
+
+  const next = [...rest];
+  next.splice(insertionIndex(memberPositions, targetIndex, rest.length), 0, moving);
+  return next;
+}
+
 /**
  * Move a service tile to `targetGroup` at `targetIndex` (0-based position among
  * that group's members, computed WITHOUT the moving item — the caller derives
@@ -98,20 +122,7 @@ export function moveServiceToGroup(
   targetIndex: number
 ): Service[] {
   const index = indexByName(services, serviceName);
-  if (index === -1) return services;
-
-  const moving = withServiceGroup(services[index], targetGroup);
-  const rest = services.filter((_, i) => i !== index);
-
-  const targetKey = normalizeGroup(targetGroup);
-  const memberPositions: number[] = [];
-  rest.forEach((s, i) => {
-    if (normalizeGroup(s.group) === targetKey) memberPositions.push(i);
-  });
-
-  const next = [...rest];
-  next.splice(insertionIndex(memberPositions, targetIndex, rest.length), 0, moving);
-  return next;
+  return moveServiceAtIndexToGroup(services, index, targetGroup, targetIndex);
 }
 
 /**
@@ -125,19 +136,7 @@ export function moveServiceByIdToGroup(
   targetIndex: number
 ): Service[] {
   const index = services.findIndex((service) => service.id === serviceId);
-  if (index === -1) return services;
-
-  const moving = withServiceGroup(services[index], targetGroup);
-  const rest = services.filter((_, i) => i !== index);
-  const targetKey = normalizeGroup(targetGroup);
-  const memberPositions: number[] = [];
-  rest.forEach((service, i) => {
-    if (normalizeGroup(service.group) === targetKey) memberPositions.push(i);
-  });
-
-  const next = [...rest];
-  next.splice(insertionIndex(memberPositions, targetIndex, rest.length), 0, moving);
-  return next;
+  return moveServiceAtIndexToGroup(services, index, targetGroup, targetIndex);
 }
 
 /** Tile-aware editor counterpart for projected v2 Services. */
@@ -147,18 +146,11 @@ export function moveServiceByIdentityToGroup(
   targetGroup: string | null,
   targetIndex: number
 ): Service[] {
-  const index = services.findIndex((service) => service.tileId === identity || (!service.tileId && service.id === identity));
-  if (index === -1) return services;
-  const moving = withServiceGroup(services[index], targetGroup);
-  const rest = services.filter((_, i) => i !== index);
-  const targetKey = normalizeGroup(targetGroup);
-  const memberPositions: number[] = [];
-  rest.forEach((service, i) => {
-    if (normalizeGroup(service.group) === targetKey) memberPositions.push(i);
-  });
-  const next = [...rest];
-  next.splice(insertionIndex(memberPositions, targetIndex, rest.length), 0, moving);
-  return next;
+  const index = services.findIndex(
+    (service) =>
+      service.tileId === identity || (!service.tileId && service.id === identity)
+  );
+  return moveServiceAtIndexToGroup(services, index, targetGroup, targetIndex);
 }
 
 /** Return `bookmark` with `placement.group` set to `targetGroup` (or cleared). */

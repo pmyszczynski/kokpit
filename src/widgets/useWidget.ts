@@ -58,6 +58,7 @@ export function useWidget<TData = unknown>(
   }, [tileId, widgetType]);
 
   useEffect(() => {
+    setData(null);
     void fetchData();
     const interval =
       refreshInterval > 0

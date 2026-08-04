@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   moveServiceByIdToGroup,
+  moveServiceByIdentityToGroup,
   moveServiceToGroup,
   moveBookmarkToGroup,
   reorderGroups,
@@ -150,6 +151,34 @@ describe("moveServiceByIdToGroup", () => {
       "10000000-0000-4000-8000-000000000001",
       "10000000-0000-4000-8000-000000000003",
     ]);
+  });
+});
+
+describe("moveServiceByIdentityToGroup", () => {
+  it("uses tile identity before falling back to the persisted ID", () => {
+    const services: Service[] = [
+      svc("Plex", "Media", {
+        id: "10000000-0000-4000-8000-000000000001",
+        tileId: "tile-plex",
+      }),
+      svc("Radarr", "Media", {
+        id: "10000000-0000-4000-8000-000000000002",
+      }),
+    ];
+
+    expect(
+      moveServiceByIdentityToGroup(services, "tile-plex", "Media", 1).map(
+        (service) => service.name
+      )
+    ).toEqual(["Radarr", "Plex"]);
+    expect(
+      moveServiceByIdentityToGroup(
+        services,
+        "10000000-0000-4000-8000-000000000002",
+        "Media",
+        0
+      ).map((service) => service.name)
+    ).toEqual(["Radarr", "Plex"]);
   });
 });
 

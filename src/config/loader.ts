@@ -14,7 +14,7 @@ import path from "path";
 import { lockSync } from "proper-lockfile";
 import { isMap, isNode, isScalar, isSeq, parseDocument, stringify, type Node, type YAMLMap } from "yaml";
 import { KokpitConfigSchema, widgetIntegrationRequirement, type KokpitConfig, type Size } from "./schema";
-import { splitWidgetConfig } from "@/components/edit/serviceFormProjection";
+import { splitWidgetConfig } from "@/widgets/configBoundary";
 import { canonicalJSONString } from "./canonicalJson";
 import { configRevision } from "./revision";
 
@@ -350,6 +350,7 @@ function recoverInterruptedInstall(): void {
 function installConfigIfSourceUnchanged(source: string, temp: string): boolean {
   recoverInterruptedInstall();
   let installed = false;
+  let primaryError: unknown;
   renameSync(CONFIG_PATH, CONFIG_DISPLACED_PATH);
   try {
     if (readFileSync(CONFIG_DISPLACED_PATH, "utf-8") !== source) return false;
@@ -367,15 +368,35 @@ function installConfigIfSourceUnchanged(source: string, temp: string): boolean {
     try { unlinkSync(CONFIG_DISPLACED_PATH); }
     catch (error) { console.error("[kokpit] could not remove completed settings transaction:", error); }
     return true;
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
     if (!installed && existsSync(CONFIG_DISPLACED_PATH)) {
+      const reportOrThrowCleanupFailure = (message: string, error: unknown) => {
+        if (primaryError !== undefined) {
+          console.error(message, error);
+          return;
+        }
+        throw error;
+      };
       try {
         linkSync(CONFIG_DISPLACED_PATH, CONFIG_PATH);
         try { unlinkSync(CONFIG_DISPLACED_PATH); }
         catch (error) { console.error("[kokpit] could not remove restored settings transaction:", error); }
       } catch (error) {
-        if (!hasErrorCode(error, "EEXIST")) throw error;
-        renameSync(CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.conflict-${randomUUID()}`);
+        if (!hasErrorCode(error, "EEXIST")) {
+          reportOrThrowCleanupFailure("[kokpit] could not restore settings transaction:", error);
+        } else {
+          try {
+            renameSync(CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.conflict-${randomUUID()}`);
+          } catch (cleanupError) {
+            reportOrThrowCleanupFailure(
+              "[kokpit] could not preserve conflicting settings transaction:",
+              cleanupError
+            );
+          }
+        }
       }
     }
   }

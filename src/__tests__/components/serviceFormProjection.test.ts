@@ -164,6 +164,22 @@ describe("serviceFormProjection", () => {
     }).services.map((service) => service.id)).toEqual([serviceId, catalogOnlyId]);
   });
 
+  it("preserves a previously tiled catalog Service after its last tile is deleted", () => {
+    const services = [{
+      id: serviceId,
+      name: "Plex",
+      integration: { type: "plex", config: { url: "http://plex", token: "secret" } },
+    }];
+    const tiles = [{ id: tileId, service_id: serviceId, widget: { type: "plex" } }];
+
+    const persisted = persistLegacyServices([], services, tiles, {
+      preserveUnrepresentedCatalogServices: true,
+    });
+
+    expect(persisted.services).toEqual(services);
+    expect(persisted.service_tiles).toEqual([]);
+  });
+
   it("preserves a catalog-only integration during a presentation edit", () => {
     const services = [{
       id: serviceId,
@@ -326,6 +342,24 @@ describe("serviceFormProjection", () => {
       [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque,
       sections: ["sessions"],
     });
+  });
+
+  it("does not preserve an opaque tile config when the widget type changes", () => {
+    const opaque = createWidgetConfigReference(tileId, "plex");
+    const services = [{ id: serviceId, name: "Plex" }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      widget: { type: "plex", config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: opaque } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+
+    const persisted = persistLegacyServices([{
+      ...projected,
+      widget: { type: "system-stats", config: {} },
+    }], services, tiles);
+
+    expect(persisted.service_tiles[0].widget).toEqual({ type: "system-stats", config: {} });
   });
 
   it("preserves an opaque service config beside safe tile options", () => {
@@ -1108,5 +1142,27 @@ describe("serviceFormProjection", () => {
         config: { url: "http://new", api_key: "new" },
       });
     }
+  });
+
+  it("treats structurally equal nested integration configs as the same command", () => {
+    const config = { url: "http://sonarr", headers: { authorization: "token", accept: "json" } };
+    const reorderedConfig = { headers: { accept: "json", authorization: "token" }, url: "http://sonarr" };
+    const inputs = [
+      {
+        id: serviceId,
+        name: "Sonarr",
+        editorIntegration: { command: "set" as const, type: "sonarr", config },
+      },
+      {
+        id: serviceId,
+        name: "Sonarr",
+        editorIntegration: { command: "set" as const, type: "sonarr", config: reorderedConfig },
+      },
+    ];
+
+    expect(persistLegacyServices(inputs, [], []).services[0].integration).toEqual({
+      type: "sonarr",
+      config,
+    });
   });
 });

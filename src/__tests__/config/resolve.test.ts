@@ -27,9 +27,9 @@ function makeConfig(partial: Record<string, unknown>): KokpitConfig {
 
 const serviceId = "00000000-0000-4000-8000-000000000001";
 
-function tile(group?: string) {
+function tile(group?: string, id = "00000000-0000-4000-8000-000000000002") {
   return {
-    id: "00000000-0000-4000-8000-000000000002",
+    id,
     service_id: serviceId,
     ...(group === undefined ? {} : { group }),
   };
@@ -192,7 +192,7 @@ describe("resolveGroupOrder", () => {
     const config = makeConfig({
       groups: [{ name: "Zebra" }, { name: "Alpha" }],
       services: [{ id: serviceId, name: "A" }],
-      service_tiles: [tile("Alpha"), { ...tile("Zebra"), id: "00000000-0000-4000-8000-000000000003" }],
+      service_tiles: [tile("Alpha"), tile("Zebra", "00000000-0000-4000-8000-000000000003")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([
       "Zebra",
@@ -204,7 +204,7 @@ describe("resolveGroupOrder", () => {
     const config = makeConfig({
       groups: [{ name: "Media" }],
       services: [{ id: serviceId, name: "A" }],
-      service_tiles: [tile("Zulu"), { ...tile("Bravo"), id: "00000000-0000-4000-8000-000000000003" }, { ...tile("Media"), id: "00000000-0000-4000-8000-000000000004" }],
+      service_tiles: [tile("Zulu"), tile("Bravo", "00000000-0000-4000-8000-000000000003"), tile("Media", "00000000-0000-4000-8000-000000000004")],
     });
     const order = resolveGroupOrder(config);
     expect(order.map((g) => g.name)).toEqual(["Media", "Bravo", "Zulu"]);
@@ -236,7 +236,7 @@ describe("resolveGroupOrder", () => {
     const config = makeConfig({
       groups: [{ name: "Media" }],
       services: [{ id: serviceId, name: "A" }],
-      service_tiles: [tile("Media"), { ...tile(), id: "00000000-0000-4000-8000-000000000003" }],
+      service_tiles: [tile("Media"), tile(undefined, "00000000-0000-4000-8000-000000000003")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([
       "Media",
@@ -249,7 +249,7 @@ describe("resolveGroupOrder", () => {
       layout: { columns: 4, row_height: 120, ungrouped: "first" },
       groups: [{ name: "Media" }],
       services: [{ id: serviceId, name: "A" }],
-      service_tiles: [tile("Media"), { ...tile(), id: "00000000-0000-4000-8000-000000000003" }],
+      service_tiles: [tile("Media"), tile(undefined, "00000000-0000-4000-8000-000000000003")],
     });
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([
       null,

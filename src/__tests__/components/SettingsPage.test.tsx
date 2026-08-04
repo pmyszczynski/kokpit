@@ -6,7 +6,7 @@ vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 
 vi.mock("node:fs", () => {
   const readFileSync = vi.fn();
-  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
+  const existsSync = vi.fn((path?: unknown) => !isDisplacedConfigPath(path));
   const writeFileSync = vi.fn();
   const linkSync = vi.fn();
   const unlinkSync = vi.fn();
@@ -31,6 +31,10 @@ vi.mock("@/components/SettingsPanel", () => ({
   default: () => null,
 }));
 
+function isDisplacedConfigPath(path: unknown) {
+  return String(path ?? "").includes("settings.yaml.displaced");
+}
+
 const SECRET_YAML = `
 schema_version: 1
 auth:
@@ -53,7 +57,7 @@ services:
 describe("protected settings server component", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
+    vi.mocked(existsSync).mockImplementation((path?: unknown) => !isDisplacedConfigPath(path));
     vi.mocked(readFileSync).mockReturnValue(SECRET_YAML);
   });
 

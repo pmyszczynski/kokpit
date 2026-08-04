@@ -10,16 +10,15 @@ vi.mock("next/navigation", () => ({
 interface StubServiceFormProps {
   service: Service | null;
   existingGroups: string[];
-  takenNames?: string[];
   onSave: (service: Service) => void;
   onClose: () => void;
 }
 
 vi.mock("@/components/ServiceForm", () => ({
-  default: ({ service, existingGroups, takenNames, onSave, onClose }: StubServiceFormProps) => (
+  default: ({ service, existingGroups, onSave, onClose }: StubServiceFormProps) => (
     <div data-testid="service-form-stub">
       <div data-testid="service-form-stub-props">
-        {JSON.stringify({ service, existingGroups, takenNames })}
+        {JSON.stringify({ service, existingGroups })}
       </div>
       <button onClick={() => onSave({ name: "NewSvc", url: "http://new.local" })}>
         StubSave
@@ -482,7 +481,7 @@ describe("SettingsPanel - services tab", () => {
     );
   });
 
-  it("opens the add-service form with no service and the right existing groups/taken names", () => {
+  it("opens the add-service form with no service and the right existing groups", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig()} />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
@@ -491,10 +490,9 @@ describe("SettingsPanel - services tab", () => {
     const props = JSON.parse(screen.getByTestId("service-form-stub-props").textContent!);
     expect(props.service).toBeNull();
     expect(props.existingGroups).toEqual(["Media"]);
-    expect(props.takenNames).toEqual(["Jellyfin", "Portainer"]);
   });
 
-  it("opens the edit-service form with the selected service and excludes it from takenNames", () => {
+  it("opens the edit-service form with the selected service", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig()} />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
@@ -503,7 +501,6 @@ describe("SettingsPanel - services tab", () => {
 
     const props = JSON.parse(screen.getByTestId("service-form-stub-props").textContent!);
     expect(props.service.name).toBe("Jellyfin");
-    expect(props.takenNames).toEqual(["Portainer"]);
   });
 
   it("adds a new service to state and saves it via PATCH", async () => {

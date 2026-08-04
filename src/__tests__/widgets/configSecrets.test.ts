@@ -551,7 +551,7 @@ describe("unregistered widget config redaction", () => {
       },
     ],
     service_tiles: [],
-  } satisfies import("@/config/schema").KokpitConfig;
+  } satisfies KokpitConfig;
 
   it("hides the complete config and restores it from the signed placeholder", () => {
     const redacted = toClientSafeSettings(config);

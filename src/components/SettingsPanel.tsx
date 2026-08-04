@@ -1295,9 +1295,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
         <ServiceForm
           service={editingIndex !== null ? services[editingIndex] : null}
           existingGroups={knownGroupNames}
-          takenNames={services
-            .filter((_, i) => editingIndex === null || i !== editingIndex)
-            .map((s) => s.name)}
           siblingIntegrationTypes={
             editingIndex === null ? [] : services
               .filter((candidate, index) => index !== editingIndex && candidate.id === services[editingIndex].id)

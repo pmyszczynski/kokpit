@@ -1,5 +1,6 @@
 import { widgetIntegrationRequirement } from "@/config/schema";
 import { getWidget, type AnyWidgetDefinition, type WidgetConfigField } from "./index";
+import { WIDGET_CONFIG_REFERENCE_KEY } from "./secretReference";
 
 const LEGACY_OPTION_KEYS: Record<string, ReadonlySet<string>> = {
   plex: new Set(["fields"]),
@@ -32,10 +33,9 @@ const LEGACY_OPTION_KEYS: Record<string, ReadonlySet<string>> = {
   "tautulli-activity": new Set(["sections"]),
 };
 
-const OPAQUE_CONFIG_REFERENCE_KEY = "__kokpit_widget_config_reference__";
-
 export function widgetOptionKeys(widgetType: string): ReadonlySet<string> {
   const declared = getWidget(widgetType)?.optionFields?.map((field) => field.key);
+  // An explicitly empty optionFields list intentionally disables legacy defaults.
   return new Set(declared ?? LEGACY_OPTION_KEYS[widgetType] ?? []);
 }
 
@@ -43,7 +43,7 @@ export function splitWidgetConfig(widgetType: string, value: unknown) {
   const config = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
-  if (Object.prototype.hasOwnProperty.call(config, OPAQUE_CONFIG_REFERENCE_KEY)) {
+  if (Object.prototype.hasOwnProperty.call(config, WIDGET_CONFIG_REFERENCE_KEY)) {
     return { connection: {}, options: config };
   }
   if (widgetIntegrationRequirement(widgetType) === null) {
