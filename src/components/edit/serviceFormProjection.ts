@@ -93,6 +93,16 @@ function deriveIntegration(
     };
   }
 
+  const preservesExistingIntegrationFreeWidget = Boolean(
+    previous?.integration &&
+    primaryTile?.widget?.type === widget.type &&
+    getWidget(widget.type) &&
+    integrationType === null
+  );
+  if (preservesExistingIntegrationFreeWidget) {
+    return { explicit: false, command: false, integration: previous?.integration };
+  }
+
   return { explicit: true, command: false, integration: undefined };
 }
 

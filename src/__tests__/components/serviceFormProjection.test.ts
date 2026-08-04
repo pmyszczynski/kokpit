@@ -905,6 +905,36 @@ describe("serviceFormProjection", () => {
     expect(persisted.service_tiles[0].widget?.config).toEqual({ sections: ["cpu"] });
   });
 
+  it("preserves a reusable integration when repositioning an existing integration-free tile", () => {
+    const services = [{
+      id: serviceId,
+      name: "System",
+      integration: { type: "sonarr", config: { url: "http://sonarr.local", api_key: "secret" } },
+    }];
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      group: "System",
+      size: "normal" as const,
+      widget: { type: "system-stats", config: { sections: ["cpu"] } },
+    }];
+    const [projected] = projectLegacyServices(services, tiles);
+
+    const persisted = persistLegacyServices([{
+      ...projected,
+      group: "Infrastructure",
+      size: "wide",
+    }], services, tiles);
+
+    expect(persisted.services[0].integration).toEqual(services[0].integration);
+    expect(persisted.service_tiles[0]).toMatchObject({
+      id: tileId,
+      group: "Infrastructure",
+      size: "wide",
+      widget: { type: "system-stats", config: { sections: ["cpu"] } },
+    });
+  });
+
   it("honors explicit clears from the service form without restoring prior tile state", () => {
     const services = [{
       id: serviceId,
