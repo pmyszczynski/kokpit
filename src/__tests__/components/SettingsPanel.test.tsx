@@ -454,6 +454,34 @@ describe("SettingsPanel - services tab", () => {
     expect(rows).toHaveLength(3);
   });
 
+  it("uses each tile identity for rows that reference the same service", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const config = makeConfig({
+      services: [{ name: "Jellyfin", url: "http://jellyfin.local" }],
+    });
+    config.service_tiles = [
+      {
+        id: "10000000-0000-4000-8000-000000000001",
+        service_id: config.services[0].id,
+        group: "Media",
+      },
+      {
+        id: "10000000-0000-4000-8000-000000000002",
+        service_id: config.services[0].id,
+        group: "Favorites",
+      },
+    ];
+
+    render(<SettingsPanel config={config} />);
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+
+    expect(screen.getAllByText("Jellyfin")).toHaveLength(2);
+    expect(consoleError.mock.calls.flat().join(" ")).not.toContain(
+      "Encountered two children with the same key"
+    );
+  });
+
   it("opens the add-service form with no service and the right existing groups/taken names", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig()} />);

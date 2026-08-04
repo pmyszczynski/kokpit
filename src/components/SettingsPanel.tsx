@@ -1222,7 +1222,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
                 </thead>
                 <tbody>
                   {services.map((svc, i) => (
-                    <tr key={svc.name}>
+                    <tr key={svc.tileId ? `tile:${svc.tileId}` : `service:${svc.id}`}>
                       <td className="service-table__reorder">
                         <button
                           className="settings-icon-btn"
