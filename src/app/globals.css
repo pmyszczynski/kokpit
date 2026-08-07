@@ -304,20 +304,9 @@ button {
 /* Outer grid: stacked full-width sections only (no fixed row height — avoids stretching group headers). */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(var(--layout-columns-desktop, 4), minmax(0, 1fr));
-  gap: var(--gap);
-}
-
-@media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 480px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
-  }
+  width: 340px;
+  margin-inline: auto;
+  gap: 8px;
 }
 
 /* Inner grid: actual service tiles with fixed row height (inherits layout vars from .dashboard-grid).
@@ -327,27 +316,27 @@ button {
 .dashboard-tile-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(var(--group-columns, var(--layout-columns-desktop, 4)), minmax(0, 1fr));
-  grid-auto-rows: var(--layout-row-height-desktop, 120px);
+  grid-template-columns: repeat(3, 108px);
+  grid-auto-rows: 60px;
   grid-auto-flow: dense;
-  gap: var(--gap);
+  gap: 8px;
 }
 
-@media (max-width: 768px) {
-  .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--group-columns, var(--layout-columns-tablet, var(--layout-columns-desktop, 2))), minmax(0, 1fr));
-    grid-auto-rows: var(--layout-row-height-tablet, var(--layout-row-height-desktop, 120px));
-  }
+@media (min-width: 736px) {
+  .dashboard-grid { width: 688px; }
+  .dashboard-tile-grid { grid-template-columns: repeat(6, 108px); }
 }
-
-@media (max-width: 480px) {
-  /* The per-group --group-columns override is intentionally ignored on
-     phones: mobile always uses the mobile column count so every tile can
-     collapse to a full-width single cell (no-horizontal-overflow invariant). */
-  .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
-    grid-auto-rows: var(--layout-row-height-mobile, var(--layout-row-height-desktop, 120px));
-  }
+@media (min-width: 1084px) {
+  .dashboard-grid { width: 1036px; }
+  .dashboard-tile-grid { grid-template-columns: repeat(9, 108px); }
+}
+@media (min-width: 1432px) {
+  .dashboard-grid { width: 1384px; }
+  .dashboard-tile-grid { grid-template-columns: repeat(12, 108px); }
+}
+@media (min-width: 1780px) {
+  .dashboard-grid { width: 1732px; }
+  .dashboard-tile-grid { grid-template-columns: repeat(15, 108px); }
 }
 
 /* === SERVICE TILES === */
@@ -373,6 +362,11 @@ button {
   cursor: pointer;
   min-width: 0; /* grid item: allow shrinking below content width (RC3) */
   min-height: 0; /* grid item: spans must not stretch past their tracks */
+  width: var(--tile-width);
+  height: var(--tile-height);
+  grid-column: span var(--tile-columns);
+  grid-row: span var(--tile-rows);
+  overflow: hidden;
 }
 
 /* Hover lift: subtle translate + existing shadow token. High-contrast theme
@@ -384,43 +378,45 @@ button {
   box-shadow: var(--shadow-sm);
 }
 
-/* === TILE SIZE PRESETS === */
+/* === LEGACY BOOKMARK SIZE PRESETS (bookmarks leave in KOK-83 follow-up) === */
 /* Col×row spans per SIZE_SPANS (src/config/resolve.ts):
    normal 1×1 (base, no rule needed), wide 2×1, tall 1×2, large 2×2.
    Shared by service tiles and bookmark tiles. */
-.service-tile--wide,
-.service-tile--large,
 .bookmark-tile--wide,
 .bookmark-tile--large {
   grid-column: span 2;
 }
 
-.service-tile--tall,
-.service-tile--large,
 .bookmark-tile--tall,
 .bookmark-tile--large {
   grid-row: span 2;
 }
 
-@media (max-width: 768px) {
-  /* Column spans collapse to full width so a 2-col span can never create an
-     oversized implicit track when the tablet/mobile column count is 1. */
-  .service-tile--wide,
-  .service-tile--large,
-  .bookmark-tile--wide,
-  .bookmark-tile--large {
-    grid-column: 1 / -1;
+@media (max-width: 735px) {
+  .dashboard-tile-grid > .service-tile {
+    width: var(--mobile-tile-width, 340px);
+    height: var(--mobile-tile-height, 60px);
+    grid-column: span var(--mobile-tile-columns, 3);
+    grid-row: span var(--mobile-tile-rows, 1);
   }
-}
-
-@media (max-width: 480px) {
-  /* Phones: every size preset collapses to a full-width single cell
-     (no-horizontal-overflow e2e invariant); bookmark tiles full-width too. */
-  .dashboard-tile-grid > .service-tile,
+  .service-tile--mobile-fallback .service-tile__widget,
+  .service-tile--mobile-fallback .service-tile__description { display: none; }
   .dashboard-tile-grid > .bookmark-tile {
     grid-column: 1 / -1;
     grid-row: auto;
   }
+}
+
+.service-tile__mobile-widget { display: none; }
+@media (max-width: 735px) {
+  .service-tile:has(.service-tile__mobile-widget) > :not(.service-tile__mobile-widget) { display: none; }
+  .service-tile__mobile-widget { display: block; min-width: 0; min-height: 0; overflow: hidden; }
+}
+
+@media (max-width: 387px) {
+  .dashboard-grid { width: calc(100vw - 48px); }
+  .dashboard-tile-grid { width: 340px; transform-origin: left top; }
+  .dashboard-grid { overflow: hidden; }
 }
 
 .service-tile__icon {

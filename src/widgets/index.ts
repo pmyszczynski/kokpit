@@ -1,12 +1,17 @@
 import type React from "react";
 import type { z } from "zod";
 import type { Size } from "@/config/schema";
+import type { TileDimensions, TileFootprint } from "@/layout/grid";
+import { isTileFootprint } from "@/layout/grid";
 
 export interface WidgetProps<TData = unknown> {
   data: TData | null;
   error: string | null;
   loading: boolean;
   refresh: () => void;
+  /** Always supplied by WidgetRenderer; optional only for direct legacy renders. */
+  footprint?: TileFootprint;
+  dimensions?: TileDimensions;
 }
 
 export type WidgetConfigFieldType =
@@ -95,6 +100,13 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   /** Refresh interval in milliseconds. Defaults to 30_000. */
   refreshInterval?: number;
   component: React.ComponentType<WidgetProps<TData>>;
+  /** Exact desktop canvases implemented by this widget. */
+  supportedFootprints?: Array<TileFootprint & { label?: string }>;
+  /** Mobile support is explicit; desktop renderers are never reused implicitly. */
+  mobile?: {
+    footprint: TileFootprint;
+    component: React.ComponentType<WidgetProps<TData>>;
+  };
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
   /** Schema-supported non-secret fields kept on save but not shown in the editor. */
@@ -130,6 +142,12 @@ const widgetRegistry = new Map<string, AnyWidgetDefinition>();
 export function registerWidget<TConfig = Record<string, unknown>, TData = unknown>(
   def: WidgetDefinition<TConfig, TData>
 ): void {
+  if (def.supportedFootprints?.some((footprint) => !isTileFootprint(footprint))) {
+    throw new Error(`Widget "${def.id}" declares an invalid footprint`);
+  }
+  if (def.mobile && (!isTileFootprint(def.mobile.footprint) || def.mobile.footprint.columnSpan > 3)) {
+    throw new Error(`Widget "${def.id}" declares an invalid mobile footprint`);
+  }
   const fields = def.configFields ?? [];
   const hasPassword = fields.some((field) => field.type === "password");
   if (hasPassword) {

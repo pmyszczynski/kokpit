@@ -6,6 +6,8 @@ import { resolveIconRef } from "@/config/iconRef";
 import type { TileWidget, WidgetConfigIssue } from "@/widgets/tileWidget";
 import { useEditModeOptional } from "./edit/EditModeProvider";
 import { WidgetRenderer } from "./WidgetRenderer";
+import { dimensionsForFootprint, GENERIC_SERVICE_FOOTPRINT, type TileFootprint } from "@/layout/grid";
+import { getWidget } from "@/widgets";
 
 // The client-safe widget slice now lives next to the resolver that builds it
 // (src/widgets/tileWidget.ts); re-exported here so the long-standing
@@ -166,6 +168,8 @@ interface ServiceTileProps {
    * simply gets the extra room on wide/tall/large.
    */
   size?: Size;
+  /** Persisted exact canvas. Legacy size is used only at the migration boundary. */
+  footprint?: TileFootprint;
   /**
    * Preview/edit rendering: suppress all background polling (status ping and
    * widget data). The tile still shows icon/name/description and a static
@@ -261,9 +265,17 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
+export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
+  const definition = widget ? getWidget(widget.type) : undefined;
+  const resolvedFootprint = footprint ?? (widget
+    ? definition?.supportedFootprints?.[0] ?? { columnSpan: 3, rowSpan: 2 }
+    : GENERIC_SERVICE_FOOTPRINT);
+  const dimensions = dimensionsForFootprint(resolvedFootprint);
+  const mobileFootprint = definition?.mobile?.footprint ?? GENERIC_SERVICE_FOOTPRINT;
+  const mobileDimensions = dimensionsForFootprint(mobileFootprint);
   const className =
     `service-tile service-tile--${size}` +
+    (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
     (drag ? " service-tile--editable" : "") +
     (drag?.dragging ? " service-tile--dragging" : "");
 
@@ -326,7 +338,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         <span className="service-tile__description">{description}</span>
       )}
       {widget && !invalidIssues && (
-        <div className="service-tile__widget" data-widget-type={widget.type}>
+        <div className="service-tile__widget service-tile__desktop-widget" data-widget-type={widget.type}>
           {preview ? (
             <span className="service-tile__widget-preview" aria-hidden="true">
               {widget.type}
@@ -336,12 +348,19 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
               type={widget.type}
               tileId={tileId}
               refreshInterval={widget.refresh_interval_ms}
+              footprint={resolvedFootprint}
             />
           ) : (
             <div className="widget-error" role="alert">
               <span className="widget-error__label">Missing tile identifier</span>
             </div>
           )}
+        </div>
+      )}
+      {widget && definition?.mobile && !invalidIssues && tileId && !preview && (
+        <div className="service-tile__mobile-widget" data-widget-type={widget.type}>
+          <WidgetRenderer type={widget.type} tileId={tileId}
+            refreshInterval={widget.refresh_interval_ms} footprint={mobileFootprint} mobile />
         </div>
       )}
     </>
@@ -351,7 +370,10 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
     return (
       <a
         ref={drag?.nodeRef}
-        style={drag?.style}
+        style={{ ...drag?.style, "--tile-columns": resolvedFootprint.columnSpan, "--tile-rows": resolvedFootprint.rowSpan,
+          "--tile-width": `${dimensions.width}px`, "--tile-height": `${dimensions.height}px`,
+          "--mobile-tile-columns": mobileFootprint.columnSpan, "--mobile-tile-rows": mobileFootprint.rowSpan,
+          "--mobile-tile-width": `${mobileDimensions.width}px`, "--mobile-tile-height": `${mobileDimensions.height}px` } as React.CSSProperties}
         href={url}
         target="_blank"
         rel="noopener noreferrer"
@@ -366,7 +388,11 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   }
 
   return (
-    <div ref={drag?.nodeRef} style={drag?.style} className={className}>
+    <div ref={drag?.nodeRef} style={{ ...drag?.style, "--tile-columns": resolvedFootprint.columnSpan,
+      "--tile-rows": resolvedFootprint.rowSpan, "--tile-width": `${dimensions.width}px`,
+      "--tile-height": `${dimensions.height}px`, "--mobile-tile-columns": mobileFootprint.columnSpan,
+      "--mobile-tile-rows": mobileFootprint.rowSpan, "--mobile-tile-width": `${mobileDimensions.width}px`,
+      "--mobile-tile-height": `${mobileDimensions.height}px` } as React.CSSProperties} className={className}>
       {inner}
     </div>
   );

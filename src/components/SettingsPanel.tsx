@@ -108,13 +108,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   const bgFileInputRef = useRef<HTMLInputElement>(null);
 
   // Layout
-  const [columns, setColumns] = useState(config.layout.columns);
-  const [rowHeight, setRowHeight] = useState(config.layout.row_height);
-  const [tabletColumns, setTabletColumns] = useState(config.layout.tablet?.columns?.toString() ?? "");
-  const [tabletRowHeight, setTabletRowHeight] = useState(config.layout.tablet?.row_height?.toString() ?? "");
-  const [mobileColumns, setMobileColumns] = useState(config.layout.mobile?.columns?.toString() ?? "");
-  const [mobileRowHeight, setMobileRowHeight] = useState(config.layout.mobile?.row_height?.toString() ?? "");
-  const [layoutViewport, setLayoutViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   // Auth
   const [sessionTtl, setSessionTtl] = useState(config.auth.session_ttl_hours);
@@ -313,25 +306,10 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     return saveRaw(section, { [section]: data });
   }
 
-  // Layout PATCH requires columns + row_height; ungrouped (edited on the Groups
-  // tab) is folded in so a layout save never drops it. Omitted when "last"
-  // (the default) so YAML round-trips stay clean and unchanged configs don't
-  // gain the key.
+  // Geometry is application-owned. Only organizational layout state persists.
   function buildLayoutPayload() {
-    function parseViewport(cols: string, rh: string) {
-      const c = parseInt(cols);
-      const r = parseInt(rh);
-      const obj: Record<string, number> = {};
-      if (!isNaN(c) && c > 0) obj.columns = c;
-      if (!isNaN(r) && r > 0) obj.row_height = r;
-      return Object.keys(obj).length > 0 ? obj : undefined;
-    }
     return {
-      columns,
-      row_height: rowHeight,
       ungrouped: ungrouped === "first" ? ("first" as const) : undefined,
-      tablet: parseViewport(tabletColumns, tabletRowHeight),
-      mobile: parseViewport(mobileColumns, mobileRowHeight),
     };
   }
 
@@ -876,111 +854,10 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
           <section className="settings-section">
             <h2 className="settings-section__title">Layout</h2>
 
-            <div className="layout-viewport-tabs">
-              {(["desktop", "tablet", "mobile"] as const).map((vp) => (
-                <button
-                  key={vp}
-                  type="button"
-                  className={`layout-viewport-tab${layoutViewport === vp ? " layout-viewport-tab--active" : ""}`}
-                  onClick={() => setLayoutViewport(vp)}
-                >
-                  {vp.charAt(0).toUpperCase() + vp.slice(1)}
-                </button>
-              ))}
-            </div>
-
-            {layoutViewport === "desktop" && (
-              <>
-                <div className="settings-form-row">
-                  <label htmlFor="columns">Columns</label>
-                  <input
-                    id="columns"
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={columns}
-                    onChange={(e) => setColumns(Math.max(1, Math.min(12, Number(e.target.value))))}
-                    className="settings-input settings-input--narrow"
-                  />
-                </div>
-                <div className="settings-form-row">
-                  <label htmlFor="row-height">Row height (px)</label>
-                  <input
-                    id="row-height"
-                    type="number"
-                    min={60}
-                    max={400}
-                    value={rowHeight}
-                    onChange={(e) => setRowHeight(Math.max(60, Number(e.target.value)))}
-                    className="settings-input settings-input--narrow"
-                  />
-                </div>
-              </>
-            )}
-
-            {layoutViewport === "tablet" && (
-              <>
-                <p className="settings-hint">Leave blank to use the Desktop value.</p>
-                <div className="settings-form-row">
-                  <label htmlFor="tablet-columns">Columns</label>
-                  <input
-                    id="tablet-columns"
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={tabletColumns}
-                    onChange={(e) => setTabletColumns(e.target.value)}
-                    placeholder={String(columns)}
-                    className="settings-input settings-input--narrow"
-                  />
-                </div>
-                <div className="settings-form-row">
-                  <label htmlFor="tablet-row-height">Row height (px)</label>
-                  <input
-                    id="tablet-row-height"
-                    type="number"
-                    min={60}
-                    max={400}
-                    value={tabletRowHeight}
-                    onChange={(e) => setTabletRowHeight(e.target.value)}
-                    placeholder={String(rowHeight)}
-                    className="settings-input settings-input--narrow"
-                  />
-                </div>
-              </>
-            )}
-
-            {layoutViewport === "mobile" && (
-              <>
-                <p className="settings-hint">Leave blank to use the Desktop value.</p>
-                <div className="settings-form-row">
-                  <label htmlFor="mobile-columns">Columns</label>
-                  <input
-                    id="mobile-columns"
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={mobileColumns}
-                    onChange={(e) => setMobileColumns(e.target.value)}
-                    placeholder={String(columns)}
-                    className="settings-input settings-input--narrow"
-                  />
-                </div>
-                <div className="settings-form-row">
-                  <label htmlFor="mobile-row-height">Row height (px)</label>
-                  <input
-                    id="mobile-row-height"
-                    type="number"
-                    min={60}
-                    max={400}
-                    value={mobileRowHeight}
-                    onChange={(e) => setMobileRowHeight(e.target.value)}
-                    placeholder={String(rowHeight)}
-                    className="settings-input settings-input--narrow"
-                  />
-                </div>
-              </>
-            )}
+            <p className="settings-hint">
+              Tile geometry is fixed at 108 × 60 px units with an 8 px gap.
+              The viewport automatically selects 3, 6, 9, 12, or 15 columns.
+            </p>
 
             <div className="settings-actions">
               <SaveButton status={saveStatus.layout} onSave={handleSaveLayout} />

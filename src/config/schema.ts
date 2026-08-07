@@ -48,6 +48,10 @@ export const ServiceTileSchema = z.object({
   service_id: z.uuid(),
   group: z.string().optional(),
   size: SizeEnum.optional(),
+  footprint: z.object({
+    columnSpan: z.number().int().positive(),
+    rowSpan: z.number().int().positive(),
+  }).optional(),
   widget: ServiceTileWidgetSchema.optional(),
 });
 

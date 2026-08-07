@@ -17,6 +17,7 @@ import { KokpitConfigSchema, widgetIntegrationRequirement, type KokpitConfig, ty
 import { splitWidgetConfig } from "@/widgets/configBoundary";
 import { canonicalJSONString } from "./canonicalJson";
 import { configRevision } from "./revision";
+import { GENERIC_SERVICE_FOOTPRINT } from "@/layout/grid";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const CONFIG_DISPLACED_PATH = `${CONFIG_PATH}.displaced`;
@@ -27,6 +28,41 @@ const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 2 })
 let cachedConfig: KokpitConfig | null = null;
 
 type LegacyService = Record<string, unknown> & { name?: unknown; widget?: Record<string, unknown> };
+
+const LEGACY_WIDGET_FOOTPRINTS: Record<string, { columnSpan: number; rowSpan: number }> = {
+  normal: { columnSpan: 3, rowSpan: 2 },
+  wide: { columnSpan: 6, rowSpan: 2 },
+  tall: { columnSpan: 3, rowSpan: 4 },
+  large: { columnSpan: 6, rowSpan: 4 },
+};
+
+/** One-way KOK-83 migration. It preserves tile identity/order/configuration. */
+export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConfig {
+  const tiles = Array.isArray(raw.service_tiles) ? raw.service_tiles.map((entry) => {
+    if (!isRecord(entry)) return entry;
+    const { size, ...tile } = entry;
+    if (isRecord(entry.footprint)) return tile;
+    const footprint = entry.widget
+      ? LEGACY_WIDGET_FOOTPRINTS[String(size ?? "normal")] ?? LEGACY_WIDGET_FOOTPRINTS.normal
+      : GENERIC_SERVICE_FOOTPRINT;
+    return { ...tile, footprint };
+  }) : raw.service_tiles;
+  const oldLayout = isRecord(raw.layout) ? raw.layout : {};
+  const layout = oldLayout.ungrouped === "first" ? { ungrouped: "first" } : {};
+  const groups = Array.isArray(raw.groups) ? raw.groups.map((entry) => {
+    if (!isRecord(entry)) return entry;
+    const { columns: _columns, ...group } = entry;
+    return group;
+  }) : raw.groups;
+  return KokpitConfigSchema.parse({ ...raw, layout, groups, service_tiles: tiles });
+}
+
+function needsFixedGridMigration(raw: Record<string, unknown>): boolean {
+  const layout = isRecord(raw.layout) ? raw.layout : {};
+  if (["columns", "row_height", "tablet", "mobile"].some((key) => key in layout)) return true;
+  if (Array.isArray(raw.groups) && raw.groups.some((group) => isRecord(group) && "columns" in group)) return true;
+  return Array.isArray(raw.service_tiles) && raw.service_tiles.some((tile) => isRecord(tile) && !("footprint" in tile));
+}
 
 
 /** Explicit legacy widget -> reusable integration mapping. */
@@ -407,7 +443,7 @@ export function getConfigPath(): string { return CONFIG_PATH; }
 function rewriteConfig(
   source: string,
   replacement: string,
-  backupSuffix: ".v1.bak" | ".pre-v2.bak"
+  backupSuffix: ".v1.bak" | ".pre-v2.bak" | ".pre-fixed-grid.bak"
 ): boolean {
   if (readFileSync(CONFIG_PATH, "utf-8") !== source) return false;
   const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
@@ -463,6 +499,14 @@ function loadConfigAttempt(): KokpitConfig | null {
   } else if (hasVersion && version === 2) {
     if (shape === "legacy" || shape === "mixed") {
       throw new Error("Invalid settings.yaml:\n  • schema_version: Version 2 contradicts the detected legacy shape");
+    }
+    if (needsFixedGridMigration(parsed)) {
+      config = migrateFixedGridConfig(parsed);
+      document.set("layout", config.layout.ungrouped === "first" ? { ungrouped: "first" } : {});
+      document.set("groups", config.groups);
+      document.set("service_tiles", config.service_tiles);
+      if (!rewriteConfig(source, document.toString(), ".pre-fixed-grid.bak")) return null;
+      return config;
     }
     const result = KokpitConfigSchema.safeParse(parsed);
     if (!result.success) throw new Error(`Invalid settings.yaml:\n${validationError(result.error)}`);

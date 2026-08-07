@@ -1,0 +1,20 @@
+import { describe, expect, it } from "vitest";
+import { migrateFixedGridConfig } from "@/config/loader";
+
+describe("fixed-grid config migration", () => {
+  it("removes dynamic geometry and preserves service tile data", () => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const tileId = "20000000-0000-4000-8000-000000000002";
+    const migrated = migrateFixedGridConfig({
+      schema_version: 2,
+      layout: { columns: 7, row_height: 155, tablet: { columns: 2 }, ungrouped: "first" },
+      groups: [{ name: "Media", columns: 11, collapsed: true }],
+      services: [{ id: serviceId, name: "Plex", launch_url: "https://plex.local" }],
+      service_tiles: [{ id: tileId, service_id: serviceId, group: "Media", size: "wide", widget: { type: "unknown", config: { view: "queue" } } }],
+    });
+    expect(migrated.service_tiles[0]).toMatchObject({ id: tileId, service_id: serviceId, group: "Media", footprint: { columnSpan: 6, rowSpan: 2 }, widget: { config: { view: "queue" } } });
+    expect(migrated.service_tiles[0]).not.toHaveProperty("size");
+    expect(migrated.groups).toEqual([{ name: "Media", collapsed: true }]);
+    expect(migrated.layout.ungrouped).toBe("first");
+  });
+});
