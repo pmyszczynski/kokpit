@@ -210,41 +210,20 @@ describe("SettingsPanel - appearance tab", () => {
 });
 
 describe("SettingsPanel - layout tab", () => {
-  it("shows desktop columns/row-height inputs with config values", () => {
+  it("describes fixed application-owned geometry without override inputs", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={makeConfig({ layout: { columns: 6, row_height: 150 } })} />);
     fireEvent.click(screen.getByRole("button", { name: "Layout" }));
-    expect(screen.getByLabelText("Columns")).toHaveValue(6);
-    expect(screen.getByLabelText("Row height (px)")).toHaveValue(150);
+    expect(screen.getByText(/108 × 60 px units with an 8 px gap/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Columns")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Row height (px)")).not.toBeInTheDocument();
   });
 
-  it("switches to the tablet viewport sub-tab and shows tablet inputs", () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Layout" }));
-    fireEvent.click(screen.getByRole("button", { name: "Tablet" }));
-    expect(screen.getByLabelText("Columns")).toBeInTheDocument();
-    expect(screen.getByLabelText("Row height (px)")).toBeInTheDocument();
-  });
-
-  it("switches to the mobile viewport sub-tab and shows mobile inputs", () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Layout" }));
-    fireEvent.click(screen.getByRole("button", { name: "Mobile" }));
-    expect(screen.getByLabelText("Columns")).toBeInTheDocument();
-    expect(screen.getByLabelText("Row height (px)")).toBeInTheDocument();
-  });
-
-  it("saves layout settings including parsed tablet overrides", async () => {
+  it("saves only organizational layout state", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
     render(<SettingsPanel config={makeConfig()} />);
     fireEvent.click(screen.getByRole("button", { name: "Layout" }));
-    fireEvent.click(screen.getByRole("button", { name: "Tablet" }));
-    fireEvent.change(screen.getByLabelText("Columns"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Row height (px)"), { target: { value: "100" } });
-
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
     });
@@ -254,12 +233,7 @@ describe("SettingsPanel - layout tab", () => {
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({
-          layout: {
-            columns: 4,
-            row_height: 120,
-            tablet: { columns: 2, row_height: 100 },
-            mobile: undefined,
-          },
+          layout: { ungrouped: undefined },
         }),
       })
     );
@@ -891,35 +865,24 @@ describe("SettingsPanel - groups tab", () => {
     expect(body.layout.ungrouped).toBe("first");
   });
 
-  it("persists a per-group collapsed default and column override", async () => {
+  it("persists a per-group collapsed default without geometry", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
     gotoGroups();
     const mediaRow = screen.getByLabelText("Group name for Media").closest<HTMLElement>(".groups-row")!;
     fireEvent.click(within(mediaRow).getByLabelText("Collapsed by default"));
-    fireEvent.change(within(mediaRow).getByLabelText("Columns for Media"), {
-      target: { value: "3" },
-    });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
     });
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.groups[0]).toEqual({ name: "Media", collapsed: true, columns: 3 });
+    expect(body.groups[0]).toEqual({ name: "Media", collapsed: true });
   });
 
-  it("clamps a typed per-group columns value to the input's max of 12", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
-    vi.stubGlobal("fetch", fetchMock);
+  it("does not expose per-group column controls", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(<SettingsPanel config={groupsConfig()} />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
-    fireEvent.change(screen.getByLabelText("Columns for Media"), {
-      target: { value: "99" },
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    });
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.groups[0].columns).toBe(12);
+    expect(screen.queryByLabelText("Columns for Media")).not.toBeInTheDocument();
   });
 
   it("does not leak an unsaved group rename into a Services-tab save", async () => {

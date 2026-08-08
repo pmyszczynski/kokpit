@@ -332,6 +332,30 @@ function setMigratedServiceNodes(
   document.set("service_tiles", serviceTiles);
 }
 
+function setFixedGridNodes(
+  document: ReturnType<typeof parseSettingsDocument>,
+  config: KokpitConfig
+): void {
+  let layoutNode = document.get("layout", true);
+  if (!isMap(layoutNode)) {
+    document.set("layout", document.createNode({}));
+    layoutNode = document.get("layout", true);
+  }
+  if (!isMap(layoutNode)) throw new Error("Unable to create fixed-grid layout mapping");
+  for (const key of ["columns", "row_height", "tablet", "mobile"]) {
+    layoutNode.delete(key);
+  }
+  if (config.layout.ungrouped === "first") layoutNode.set("ungrouped", "first");
+  else layoutNode.delete("ungrouped");
+  for (let index = 0; index < (config.groups?.length ?? 0); index += 1) {
+    document.deleteIn(["groups", index, "columns"]);
+  }
+  for (const [index, tile] of config.service_tiles.entries()) {
+    document.deleteIn(["service_tiles", index, "size"]);
+    document.setIn(["service_tiles", index, "footprint"], tile.footprint);
+  }
+}
+
 function waitForConfigLock(deadline: number): void {
   if (Date.now() >= deadline) {
     throw new Error(
@@ -493,10 +517,11 @@ function loadConfigAttempt(): KokpitConfig | null {
     if (shape === "v2" || shape === "mixed") {
       throw new Error("Invalid settings.yaml:\n  • schema_version: Version 1 contradicts the detected schema v2 shape");
     }
-    try { config = migrateV1Config(parsed as Record<string, unknown>); }
+    try { config = migrateFixedGridConfig(migrateV1Config(parsed as Record<string, unknown>) as unknown as Record<string, unknown>); }
     catch (error) { throw new Error(`Unable to migrate ${CONFIG_PATH} from schema v1: ${error instanceof Error ? error.message : String(error)}`); }
     document.set("schema_version", 2);
     setMigratedServiceNodes(document, config);
+    setFixedGridNodes(document, config);
     if (!rewriteConfig(source, document.toString(), ".v1.bak")) return null;
   } else if (hasVersion && version === 2) {
     if (shape === "legacy" || shape === "mixed") {
@@ -504,9 +529,7 @@ function loadConfigAttempt(): KokpitConfig | null {
     }
     if (needsFixedGridMigration(parsed)) {
       config = migrateFixedGridConfig(parsed);
-      document.set("layout", config.layout.ungrouped === "first" ? { ungrouped: "first" } : {});
-      document.set("groups", config.groups);
-      document.set("service_tiles", config.service_tiles);
+      setFixedGridNodes(document, config);
       if (!rewriteConfig(source, document.toString(), ".pre-fixed-grid.bak")) return null;
       return config;
     }
@@ -521,6 +544,7 @@ function loadConfigAttempt(): KokpitConfig | null {
       config = shape === "legacy"
         ? migrateV1Config(parsed)
         : KokpitConfigSchema.parse({ ...parsed, schema_version: 2 });
+      config = migrateFixedGridConfig(config as unknown as Record<string, unknown>);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(shape === "legacy"
@@ -531,6 +555,7 @@ function loadConfigAttempt(): KokpitConfig | null {
     if (shape === "legacy") {
       setMigratedServiceNodes(document, config);
     }
+    setFixedGridNodes(document, config);
     if (!rewriteConfig(source, document.toString(), ".pre-v2.bak")) return null;
   }
   return config;

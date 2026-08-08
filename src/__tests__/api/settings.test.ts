@@ -46,9 +46,7 @@ auth:
   session_ttl_hours: 24
 appearance:
   theme: dark
-layout:
-  columns: 4
-  row_height: 120
+layout: {}
 services: []
 service_tiles: []
 `.trim();
@@ -60,14 +58,7 @@ auth:
   session_ttl_hours: 24
 appearance:
   theme: dark
-layout:
-  columns: 4
-  row_height: 120
-  tablet:
-    columns: 2
-  mobile:
-    columns: 1
-    row_height: 80
+layout: {}
 services: []
 service_tiles: []
 `.trim();
@@ -76,7 +67,7 @@ const SECRET_YAML = `
 schema_version: 2
 auth: { enabled: false, session_ttl_hours: 24 }
 appearance: { theme: dark }
-layout: { columns: 4, row_height: 120 }
+layout: {}
 services:
   - id: 10000000-0000-4000-8000-000000000001
     name: Tautulli
@@ -93,9 +84,11 @@ services:
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000001
     service_id: 10000000-0000-4000-8000-000000000001
+    footprint: { columnSpan: 3, rowSpan: 2 }
     widget: { type: tautulli-activity, config: { sections: [summary] } }
   - id: 20000000-0000-4000-8000-000000000002
     service_id: 10000000-0000-4000-8000-000000000002
+    footprint: { columnSpan: 3, rowSpan: 2 }
     widget: { type: qbittorrent-stats }
 `.trim();
 
@@ -108,7 +101,7 @@ const UNKNOWN_WIDGET_SECRET_YAML = `
 schema_version: 2
 auth: { enabled: false, session_ttl_hours: 24 }
 appearance: { theme: dark }
-layout: { columns: 4, row_height: 120 }
+layout: {}
 services:
   - id: 10000000-0000-4000-8000-000000000003
     name: Retired integration
@@ -118,6 +111,7 @@ services:
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000003
     service_id: 10000000-0000-4000-8000-000000000003
+    footprint: { columnSpan: 3, rowSpan: 2 }
     widget: { type: removed-widget }
 `.trim();
 
@@ -263,26 +257,27 @@ describe("PATCH /api/settings – layout", () => {
     vi.mocked(writeFileSync).mockImplementation(() => undefined);
   });
 
-  it("saves desktop-only layout and returns 200", async () => {
+  it("drops deprecated desktop geometry and returns 200", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(patch({ layout: { columns: 6, row_height: 150 } }));
     expect(res.status).toBe(200);
     expect(writeFileSync).toHaveBeenCalledTimes(1);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
-    expect(written).toContain("6");
+    expect(written).toContain("layout: {}");
+    expect(written).not.toContain("row_height");
   });
 
-  it("saves layout with tablet override", async () => {
+  it("drops deprecated tablet geometry", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
       patch({ layout: { columns: 4, row_height: 120, tablet: { columns: 2 } } })
     );
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
-    expect(written).toContain("tablet");
+    expect(written).not.toContain("tablet");
   });
 
-  it("saves layout with both tablet and mobile overrides", async () => {
+  it("drops all deprecated viewport geometry", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
       patch({
@@ -296,8 +291,8 @@ describe("PATCH /api/settings – layout", () => {
     );
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
-    expect(written).toContain("tablet");
-    expect(written).toContain("mobile");
+    expect(written).not.toContain("tablet");
+    expect(written).not.toContain("mobile");
   });
 });
 
@@ -460,7 +455,9 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
     );
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
-    expect(written).toContain("size: large");
+    expect(written).not.toContain("size: large");
+    expect(written).toContain("columnSpan: 3");
+    expect(written).toContain("rowSpan: 1");
   });
 
   it("returns 400 for an invalid service size", async () => {
@@ -526,14 +523,13 @@ describe("GET /api/settings", () => {
     expect(json.appearance.theme).toBe("dark");
   });
 
-  it("returns viewport layout overrides when configured", async () => {
+  it("does not return per-viewport layout overrides", async () => {
     vi.mocked(readFileSync).mockReturnValue(VIEWPORT_YAML);
     const { GET } = await import("../../app/api/settings/route");
     const res = await GET();
     const json = await res.json();
-    expect(json.layout.tablet?.columns).toBe(2);
-    expect(json.layout.mobile?.columns).toBe(1);
-    expect(json.layout.mobile?.row_height).toBe(80);
+    expect(json.layout.tablet).toBeUndefined();
+    expect(json.layout.mobile).toBeUndefined();
   });
 
   it("returns a stable X-Config-Revision header (HMAC-SHA256 hex)", async () => {

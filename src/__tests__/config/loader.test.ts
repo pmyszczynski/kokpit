@@ -261,11 +261,14 @@ describe("writeConfig", () => {
 
     // Arrays of maps must serialize as valid YAML that parses back losslessly.
     const reloaded = getConfig();
-    expect(reloaded.groups).toEqual(groups);
+    expect(reloaded.groups).toEqual([
+      { name: "Media", collapsed: true },
+      { name: "Downloads" },
+    ]);
     expect(reloaded.bookmarks).toEqual(bookmarks);
   });
 
-  it("round-trips service_tiles[].size and layout.ungrouped", async () => {
+  it("migrates service_tiles[].size while round-tripping layout.ungrouped", async () => {
     const { loadConfig, getConfig, writeConfig } = await freshLoader();
     loadConfig();
 
@@ -281,7 +284,8 @@ describe("writeConfig", () => {
 
     const reloaded = getConfig();
     expect(reloaded.layout.ungrouped).toBe("first");
-    expect(reloaded.service_tiles[0].size).toBe("large");
+    expect(reloaded.service_tiles[0].size).toBeUndefined();
+    expect(reloaded.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
   });
 });
 
@@ -308,7 +312,8 @@ services:
     expect(config.service_tiles).toHaveLength(2);
     expect(config.services[0]).toMatchObject({ name: "Legacy Tile" });
     expect(config.service_tiles[0].group).toBeUndefined();
-    expect(config.service_tiles[0].size).toBe("wide");
+    expect(config.service_tiles[0].size).toBeUndefined();
+    expect(config.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
     expect(readFileSync(`${configPath}.v1.bak`, "utf-8")).toContain("schema_version: 1");
   });
@@ -324,7 +329,7 @@ describe("unversioned settings detection", () => {
 
     expect(config.schema_version).toBe(2);
     expect(config.services[0]).toMatchObject({ name: "Legacy", launch_url: "https://example.com", category: "Media" });
-    expect(config.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
+    expect(config.service_tiles[0]).toMatchObject({ group: "Media", footprint: { columnSpan: 3, rowSpan: 1 } });
     expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
   });
