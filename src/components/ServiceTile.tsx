@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Size } from "@/config/schema";
 import { resolveIconRef } from "@/config/iconRef";
 import type { TileWidget, WidgetConfigIssue } from "@/widgets/tileWidget";
 import { useEditModeOptional } from "./edit/EditModeProvider";
 import { WidgetRenderer } from "./WidgetRenderer";
-import { dimensionsForFootprint, GENERIC_SERVICE_FOOTPRINT, type TileFootprint } from "@/layout/grid";
+import { dimensionsForFootprint, GENERIC_SERVICE_FOOTPRINT, legacyWidgetFootprint, type TileFootprint } from "@/layout/grid";
 import { getWidget } from "@/widgets";
 
 // The client-safe widget slice now lives next to the resolver that builds it
@@ -190,6 +190,23 @@ interface ServiceTileProps {
 
 type PingStatus = "pending" | "ok" | "error";
 
+const MOBILE_GRID_QUERY = "(max-width: 719px)";
+
+function subscribeToMobileGrid(listener: () => void) {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(MOBILE_GRID_QUERY);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+function useMobileGrid(): boolean {
+  return useSyncExternalStore(
+    subscribeToMobileGrid,
+    () => typeof window.matchMedia === "function" && window.matchMedia(MOBILE_GRID_QUERY).matches,
+    () => false
+  );
+}
+
 function StatusDot({ url, preview }: { url: string; preview?: boolean }) {
   const [status, setStatus] = useState<PingStatus>("pending");
 
@@ -268,11 +285,12 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
 export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
   const definition = widget ? getWidget(widget.type) : undefined;
   const resolvedFootprint = footprint ?? (widget
-    ? definition?.supportedFootprints?.[0] ?? { columnSpan: 3, rowSpan: 2 }
+    ? definition?.supportedFootprints?.[0] ?? legacyWidgetFootprint(size)
     : GENERIC_SERVICE_FOOTPRINT);
   const dimensions = dimensionsForFootprint(resolvedFootprint);
   const mobileFootprint = definition?.mobile?.footprint ?? GENERIC_SERVICE_FOOTPRINT;
   const mobileDimensions = dimensionsForFootprint(mobileFootprint);
+  const useMobileRenderer = useMobileGrid() && definition?.mobile != null;
   const className =
     `service-tile service-tile--${size}` +
     (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
@@ -337,8 +355,8 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
       {description && (
         <span className="service-tile__description">{description}</span>
       )}
-      {widget && !invalidIssues && (
-        <div className="service-tile__widget service-tile__desktop-widget" data-widget-type={widget.type}>
+      {widget && !invalidIssues && !useMobileRenderer && (
+        <div className="service-tile__widget" data-widget-type={widget.type}>
           {preview ? (
             <span className="service-tile__widget-preview" aria-hidden="true">
               {widget.type}
@@ -357,8 +375,8 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
           )}
         </div>
       )}
-      {widget && definition?.mobile && !invalidIssues && tileId && !preview && (
-        <div className="service-tile__mobile-widget" data-widget-type={widget.type}>
+      {widget && useMobileRenderer && !invalidIssues && tileId && !preview && (
+        <div className="service-tile__widget" data-widget-type={widget.type}>
           <WidgetRenderer type={widget.type} tileId={tileId}
             refreshInterval={widget.refresh_interval_ms} footprint={mobileFootprint} mobile />
         </div>

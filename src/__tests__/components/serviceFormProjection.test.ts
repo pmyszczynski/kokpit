@@ -992,7 +992,11 @@ describe("serviceFormProjection", () => {
     }], services, tiles);
 
     expect(persisted.services[0].integration).toBeUndefined();
-    expect(persisted.service_tiles[0]).toEqual({ id: tileId, service_id: serviceId });
+    expect(persisted.service_tiles[0]).toEqual({
+      id: tileId,
+      service_id: serviceId,
+      footprint: { columnSpan: 3, rowSpan: 1 },
+    });
   });
 
   it("keeps prior tile fields when an input truly omits them", () => {

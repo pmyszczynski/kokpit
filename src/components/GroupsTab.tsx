@@ -14,7 +14,6 @@ interface GroupsTabProps {
   onReorder: (from: number, to: number) => void;
   onRename: (oldName: string, newName: string) => void;
   onToggleCollapsed: (index: number) => void;
-  onColumnsChange: (index: number, columns: number | undefined) => void;
   onDelete: (index: number) => void;
   onDeclare: (name: string) => void;
   onAdd: (name: string) => void;
@@ -30,7 +29,6 @@ function GroupRow({
   onReorder,
   onRename,
   onToggleCollapsed,
-  onColumnsChange,
   onDelete,
 }: {
   group: Group;
@@ -40,7 +38,6 @@ function GroupRow({
   onReorder: (from: number, to: number) => void;
   onRename: (oldName: string, newName: string) => void;
   onToggleCollapsed: (index: number) => void;
-  onColumnsChange: (index: number, columns: number | undefined) => void;
   onDelete: (index: number) => void;
 }) {
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -102,26 +99,6 @@ function GroupRow({
         Collapsed by default
       </label>
 
-      <input
-        type="number"
-        min={1}
-        max={12}
-        className="settings-input settings-input--narrow"
-        aria-label={`Columns for ${group.name}`}
-        placeholder="Inherit"
-        value={group.columns ?? ""}
-        onChange={(e) => {
-          const v = e.target.value;
-          const n = parseInt(v, 10);
-          // Clamp to the input's own declared range [1, 12] so a typed value
-          // (which the number input doesn't clamp) can't set absurd columns.
-          onColumnsChange(
-            index,
-            v === "" || isNaN(n) || n < 1 ? undefined : Math.min(n, 12)
-          );
-        }}
-      />
-
       {confirmDelete ? (
         <span className="groups-row__actions">
           <button
@@ -160,7 +137,6 @@ export default function GroupsTab({
   onReorder,
   onRename,
   onToggleCollapsed,
-  onColumnsChange,
   onDelete,
   onDeclare,
   onAdd,
@@ -194,7 +170,6 @@ export default function GroupsTab({
               onReorder={onReorder}
               onRename={onRename}
               onToggleCollapsed={onToggleCollapsed}
-              onColumnsChange={onColumnsChange}
               onDelete={onDelete}
             />
           ))}

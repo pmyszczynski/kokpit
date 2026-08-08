@@ -17,4 +17,18 @@ describe("fixed-grid config migration", () => {
     expect(migrated.groups).toEqual([{ name: "Media", collapsed: true }]);
     expect(migrated.layout.ungrouped).toBe("first");
   });
+
+  it("normalizes malformed persisted spans instead of reviving fluid geometry", () => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const migrated = migrateFixedGridConfig({
+      schema_version: 2,
+      services: [{ id: serviceId, name: "Plex" }],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000002",
+        service_id: serviceId,
+        footprint: { columnSpan: 99.7, rowSpan: 0 },
+      }],
+    });
+    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 15, rowSpan: 1 });
+  });
 });

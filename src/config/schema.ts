@@ -43,15 +43,17 @@ export const ServiceSchema = z.object({
   integration: IntegrationSchema.optional(),
 });
 
+export const TileFootprintSchema = z.object({
+  columnSpan: z.number().int().min(1).max(15),
+  rowSpan: z.number().int().positive(),
+});
+
 export const ServiceTileSchema = z.object({
   id: z.uuid(),
   service_id: z.uuid(),
   group: z.string().optional(),
   size: SizeEnum.optional(),
-  footprint: z.object({
-    columnSpan: z.number().int().positive(),
-    rowSpan: z.number().int().positive(),
-  }).optional(),
+  footprint: TileFootprintSchema.optional(),
   widget: ServiceTileWidgetSchema.optional(),
 });
 
@@ -270,6 +272,7 @@ export type Service = Partial<z.infer<typeof ServiceSchema>> &
     url?: string;
     group?: string;
     size?: Size;
+    footprint?: z.infer<typeof TileFootprintSchema>;
     position?: WidgetPosition;
     widget?: ServiceWidget;
     /** Editor-only identity of the projected tile; never persisted on Service. */

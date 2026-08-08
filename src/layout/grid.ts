@@ -2,6 +2,8 @@
 export const GRID_UNIT_WIDTH = 108 as const;
 export const GRID_UNIT_HEIGHT = 60 as const;
 export const GRID_GAP = 8 as const;
+/** `.shell-main` has 16px padding on both sides. */
+export const DASHBOARD_OUTER_PADDING = 32 as const;
 
 export const GRID_PRESET_COLUMNS = {
   mobile: 3,
@@ -28,10 +30,20 @@ export const GENERIC_SERVICE_FOOTPRINT: TileFootprint = {
   rowSpan: 1,
 };
 
+/** Temporary boundary for widgets awaiting their individual fixed-canvas migration. */
+export function legacyWidgetFootprint(size?: "normal" | "wide" | "tall" | "large"): TileFootprint {
+  switch (size) {
+    case "wide": return { columnSpan: 6, rowSpan: 2 };
+    case "tall": return { columnSpan: 3, rowSpan: 4 };
+    case "large": return { columnSpan: 6, rowSpan: 4 };
+    default: return { columnSpan: 3, rowSpan: 2 };
+  }
+}
+
 export function isTileFootprint(value: unknown): value is TileFootprint {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<TileFootprint>;
-  return Number.isInteger(candidate.columnSpan) && candidate.columnSpan! > 0
+  return Number.isInteger(candidate.columnSpan) && candidate.columnSpan! > 0 && candidate.columnSpan! <= 15
     && Number.isInteger(candidate.rowSpan) && candidate.rowSpan! > 0;
 }
 
@@ -55,4 +67,9 @@ export function presetForAvailableWidth(width: number): GridPreset {
   if (width >= gridWidth(9)) return "desktop";
   if (width >= gridWidth(6)) return "tablet";
   return "mobile";
+}
+
+/** Viewport width at which a preset's exact grid fits inside the page shell. */
+export function breakpointForColumns(columns: number): number {
+  return gridWidth(columns) + DASHBOARD_OUTER_PADDING;
 }

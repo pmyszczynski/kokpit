@@ -309,10 +309,7 @@ button {
   gap: 8px;
 }
 
-/* Inner grid: actual service tiles with fixed row height (inherits layout vars from .dashboard-grid).
-   --group-columns is a per-group override (groups[].columns in settings.yaml)
-   set inline by ServiceGrid; it falls back to the viewport layout columns.
-   grid-auto-flow: dense backfills the gaps that wide/tall/large spans leave. */
+/* Inner grid: exact fixed tracks. Groups never alter this geometry. */
 .dashboard-tile-grid {
   display: grid;
   grid-column: 1 / -1;
@@ -322,19 +319,20 @@ button {
   gap: 8px;
 }
 
-@media (min-width: 736px) {
+/* Thresholds are exact grid widths plus .shell-main's 32px inline padding. */
+@media (min-width: 720px) {
   .dashboard-grid { width: 688px; }
   .dashboard-tile-grid { grid-template-columns: repeat(6, 108px); }
 }
-@media (min-width: 1084px) {
+@media (min-width: 1068px) {
   .dashboard-grid { width: 1036px; }
   .dashboard-tile-grid { grid-template-columns: repeat(9, 108px); }
 }
-@media (min-width: 1432px) {
+@media (min-width: 1416px) {
   .dashboard-grid { width: 1384px; }
   .dashboard-tile-grid { grid-template-columns: repeat(12, 108px); }
 }
-@media (min-width: 1780px) {
+@media (min-width: 1764px) {
   .dashboard-grid { width: 1732px; }
   .dashboard-tile-grid { grid-template-columns: repeat(15, 108px); }
 }
@@ -392,7 +390,7 @@ button {
   grid-row: span 2;
 }
 
-@media (max-width: 735px) {
+@media (max-width: 719px) {
   .dashboard-tile-grid > .service-tile {
     width: var(--mobile-tile-width, 340px);
     height: var(--mobile-tile-height, 60px);
@@ -407,16 +405,14 @@ button {
   }
 }
 
-.service-tile__mobile-widget { display: none; }
-@media (max-width: 735px) {
-  .service-tile:has(.service-tile__mobile-widget) > :not(.service-tile__mobile-widget) { display: none; }
-  .service-tile__mobile-widget { display: block; min-width: 0; min-height: 0; overflow: hidden; }
+/* Preserve the canonical 340px mobile grid by reclaiming shell padding first. */
+@media (max-width: 371px) {
+  .shell-main { padding-inline: 0; }
 }
-
-@media (max-width: 387px) {
-  .dashboard-grid { width: calc(100vw - 48px); }
-  .dashboard-tile-grid { width: 340px; transform-origin: left top; }
-  .dashboard-grid { overflow: hidden; }
+/* Sub-340px devices are the sole compatibility case; tracks remain canonical. */
+@media (max-width: 339px) {
+  .dashboard-grid { width: 100vw; overflow: hidden; }
+  .dashboard-tile-grid { width: 340px; }
 }
 
 .service-tile__icon {

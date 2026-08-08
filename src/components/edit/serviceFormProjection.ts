@@ -9,6 +9,7 @@ import { splitWidgetConfig } from "@/widgets/configBoundary";
 import { isWidgetConfigReferenceEnvelope } from "@/widgets/secretReference";
 import { resolveServiceSize } from "@/config/resolve";
 import { generateUuid } from "@/config/uuid";
+import { GENERIC_SERVICE_FOOTPRINT, legacyWidgetFootprint } from "@/layout/grid";
 
 export { splitWidgetConfig } from "@/widgets/configBoundary";
 
@@ -160,6 +161,7 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
     url: service.launch_url,
     ...(tile?.group ? { group: tile.group } : {}),
     ...(tile?.size ? { size: tile.size } : {}),
+    ...(tile?.footprint ? { footprint: { ...tile.footprint } } : {}),
     ...(tile?.widget ? { widget: {
       ...tile.widget,
       // Tile options and Service credentials are separate persisted
@@ -216,11 +218,12 @@ export function normalizeServicesForForm(
     ? serviceTiles
     : normalizedServices.flatMap((service) => {
       const legacy = service as Service;
-      return legacy.group || legacy.size || legacy.widget ? [{
+      return legacy.group || legacy.size || legacy.footprint || legacy.widget ? [{
         id: generateUuid(),
         service_id: service.id,
         ...(legacy.group ? { group: legacy.group } : {}),
         ...(legacy.size ? { size: legacy.size } : {}),
+        ...(legacy.footprint ? { footprint: { ...legacy.footprint } } : {}),
         ...(legacy.widget ? { widget: legacy.widget } : {}),
       }] : [];
     });
@@ -364,6 +367,11 @@ export function persistLegacyServices(
       const persistedTile = {
         id: primaryTile?.id ?? input.tileId ?? generateUuid(),
         service_id: id,
+        footprint: primaryTile?.footprint
+          ? { ...primaryTile.footprint }
+          : input.widget
+            ? getWidget(input.widget.type)?.supportedFootprints?.[0] ?? legacyWidgetFootprint(input.size)
+            : GENERIC_SERVICE_FOOTPRINT,
         ...((hasInputGroup ? input.group : primaryTile?.group)
           ? { group: hasInputGroup ? input.group : primaryTile?.group }
           : {}),

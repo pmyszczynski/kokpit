@@ -187,6 +187,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
       service_id: tile.service_id,
       group: tile.group,
       size: tile.size,
+      footprint: tile.footprint ? { ...tile.footprint } : undefined,
       widget: tile.widget
         ? {
             ...tile.widget,

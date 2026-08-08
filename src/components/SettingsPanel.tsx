@@ -529,12 +529,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     );
   }
 
-  function handleGroupColumnsChange(index: number, columns: number | undefined) {
-    setGroups((prev) =>
-      prev.map((g, i) => (i === index ? { ...g, columns } : g))
-    );
-  }
-
   function handleGroupDelete(index: number) {
     const removed = groups[index];
     setGroups((prev) => prev.filter((_, i) => i !== index));
@@ -1057,7 +1051,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
             onReorder={handleGroupReorder}
             onRename={handleGroupRename}
             onToggleCollapsed={handleGroupToggleCollapsed}
-            onColumnsChange={handleGroupColumnsChange}
             onDelete={handleGroupDelete}
             onDeclare={handleGroupDeclare}
             onAdd={handleGroupAdd}

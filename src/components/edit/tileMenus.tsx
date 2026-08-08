@@ -187,28 +187,21 @@ export function BookmarkTileMenu({
 export function GroupKebab({
   name,
   declared,
-  columns,
   onRename,
-  onColumns,
   onDelete,
   onAddService,
   onDeclare,
 }: {
   name: string;
   declared: boolean;
-  columns?: number;
   /** Returns false when the new name is rejected (duplicate/blank). */
   onRename: (oldName: string, newName: string) => boolean;
-  onColumns: (columns: number | undefined) => void;
   onDelete: () => void;
   onAddService: () => void;
   onDeclare: () => void;
 }) {
   const [renameDraft, setRenameDraft] = useState(name);
   const [renameError, setRenameError] = useState<string | null>(null);
-  const [columnsDraft, setColumnsDraft] = useState(
-    columns != null ? String(columns) : ""
-  );
 
   function commitRename(close: () => void) {
     const trimmed = renameDraft.trim();
@@ -223,17 +216,6 @@ export function GroupKebab({
     } else {
       setRenameError("A group with that name already exists.");
     }
-  }
-
-  function commitColumns(close: () => void) {
-    const trimmed = columnsDraft.trim();
-    if (trimmed === "") {
-      onColumns(undefined);
-    } else {
-      const n = parseInt(trimmed, 10);
-      onColumns(isNaN(n) || n < 1 ? undefined : Math.min(n, 12));
-    }
-    close();
   }
 
   return (
@@ -276,37 +258,6 @@ export function GroupKebab({
               </p>
             )}
           </div>
-
-          {declared && (
-            <div className="kebab-menu__section">
-              <span className="kebab-menu__label">Columns</span>
-              <div className="kebab-menu__field">
-                <input
-                  type="number"
-                  min={1}
-                  max={12}
-                  className="settings-input settings-input--narrow"
-                  aria-label={`Columns for ${name}`}
-                  placeholder="Inherit"
-                  value={columnsDraft}
-                  onChange={(e) => setColumnsDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      commitColumns(close);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="settings-btn"
-                  onClick={() => commitColumns(close)}
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          )}
 
           <button
             type="button"
