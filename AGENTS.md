@@ -76,9 +76,6 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 ## CI on Pull Requests
 
-**PR default:** Open pull requests as ready for review. Use a draft only when
-the user explicitly asks for one.
-
 `.github/workflows/ci.yml` (Lint, Type-check, Unit tests, E2E) triggers on
 `pull_request` with an explicit `types:` list: the three defaults (`opened`,
 `synchronize`, `reopened`) plus `ready_for_review`. What that means in practice:
