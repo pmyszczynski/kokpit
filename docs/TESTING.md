@@ -1,10 +1,13 @@
 # Testing
 
-Three layers, run in this order in CI (`.github/workflows/ci.yml`):
+CI runs lint, type-check, and unit tests as separate jobs. The E2E job then runs
+the browser suites in this order (`.github/workflows/ci.yml`):
 
-1. **Unit tests** (Vitest + Testing Library + jsdom) — `npm test` / `npm run test:coverage`
-2. **E2E tests** (Playwright, real Next.js dev server + mocked upstream services) — `npm run test:e2e`
-3. **Auth E2E tests** (Playwright, production build) — `npm run test:e2e:auth`
+1. **E2E tests** (Playwright, real Next.js dev server + mocked upstream services) — `npm run test:e2e`
+2. **Auth E2E tests** (Playwright, production build) — `npm run test:e2e:auth`
+
+**Unit tests** use Vitest + Testing Library + jsdom and run as
+`npm test` / `npm run test:coverage`.
 
 ## Unit tests
 

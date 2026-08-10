@@ -25,7 +25,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Define `settings.yaml` schema: services, widgets, layout, auth, appearance
   - Parser that reads and writes YAML without destroying comments or formatting
   - Schema validator with clear error messages on startup
-  - Config watcher — hot-reload on file change in dev
+  - Config watcher — hot-reload on file change
 
 - [X] `P0` **Authentication system**
   - Username/password auth with bcrypt hashing
@@ -41,7 +41,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - App layout: top navbar, optional sidebar, main grid canvas
   - CSS variable system for full theme overridability
   - Default modern dark theme (ship at least 1 light + 1 dark built-in)
-  - Custom CSS injection slot (`appearance.customCss` in YAML)
+  - Custom CSS injection slot (`appearance.custom_css` in YAML)
 
 - [x] `P1` **Service tiles (app links)**
   - Clickable tiles: icon, label, URL, optional description
@@ -62,7 +62,8 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 - [x] `P0` **Widget system architecture**
   - Plugin-like widget API: each widget has a config schema, async data fetcher, and render component
-  - Widgets declared in `settings.yaml` under `widgets:`
+  - Widgets attached to `service_tiles:` in `settings.yaml`; reusable
+    connections live on `services[].integration`
   - Error states, loading states, and refresh intervals per widget
 
 - [x] `P0` **Plex integration** — live stats on tile (active streams, transcodes)
@@ -100,7 +101,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 - [x] `P2` **Bookmarks & groups**
   - [x] Bookmark links separate from service tiles
-  - [x] Grouped into named sections/tabs
+  - [x] Grouped into named collapsible sections
   - [x] Drag-to-reorder within groups — shipped with dashboard edit mode (Phase 3 `P0`, UX redesign Phase B)
 
 ---
@@ -155,7 +156,8 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 - [ ] `P2` **Mobile-responsive layout**
   - [x] Responsive breakpoints for tablet and mobile (per-breakpoint column/row-height overrides; size presets collapse gracefully at 768px/480px since v0.5.0)
   - [ ] Optional separate mobile layout config — *partially done: tablet/mobile can override columns and row height; a full per-device layout (own order/sizes) remains open*
-  - [ ] PWA manifest for home screen installation
+  - [x] Web app manifest for home screen installation
+  - [ ] Offline support / service worker
 
 ---
 
