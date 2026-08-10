@@ -5,7 +5,7 @@
 # settings.yaml is gitignored — your credentials stay local.
 #
 # The in-app UI reads from and writes back to settings.yaml.
-# Changes take effect without restarting the server (dev mode).
+# Changes take effect without restarting the server.
 #
 # Schema version: 2
 # ═══════════════════════════════════════════════════════════════
@@ -13,7 +13,8 @@
 schema_version: 2
 
 # ─── Auth ────────────────────────────────────────────────────
-# When auth.enabled is true, all routes require a valid session.
+# When auth.enabled is true, the dashboard and protected APIs require a valid
+# session. Login, setup, recovery, and /api/health remain public.
 # ─────────────────────────────────────────────────────────────
 auth:
   enabled: true # Set false to disable auth (or use KOKPIT_AUTH_DISABLED=true env var)
