@@ -286,6 +286,41 @@ describe("writeConfig", () => {
     expect(reloaded.service_tiles[0].size).toBeUndefined();
     expect(reloaded.service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 4 });
   });
+
+  it("rewrites a known widget's unsupported persisted footprint", async () => {
+    const { z } = await import("zod");
+    const { clearRegistry, registerWidget } = await import("@/widgets");
+    registerWidget({
+      id: "fixed-grid-supported-test",
+      name: "Supported test",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      supportedFootprints: [{ columnSpan: 6, rowSpan: 2 }],
+    });
+    writeFileSync(configPath, [
+      "schema_version: 2",
+      "services:",
+      "  - id: 00000000-0000-4000-8000-000000000001",
+      "    name: Test",
+      "service_tiles:",
+      "  - id: 00000000-0000-4000-8000-000000000002",
+      "    service_id: 00000000-0000-4000-8000-000000000001",
+      "    footprint: { columnSpan: 3, rowSpan: 1 }",
+      "    widget: { type: fixed-grid-supported-test }",
+      "",
+    ].join("\n"), "utf-8");
+
+    try {
+      const { loadConfig } = await freshLoader();
+      expect(loadConfig().service_tiles[0].footprint)
+        .toEqual({ columnSpan: 6, rowSpan: 2 });
+      expect(readFileSync(configPath, "utf-8"))
+        .toContain("columnSpan: 6");
+    } finally {
+      clearRegistry();
+    }
+  });
 });
 
 describe("v1 migration", () => {

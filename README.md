@@ -134,7 +134,7 @@ service_tiles:
     group: Media
 ```
 
-**Set a tile size:**
+**Set a tile footprint:**
 
 ```yaml
 services:
@@ -144,10 +144,12 @@ services:
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000002
     service_id: 10000000-0000-4000-8000-000000000002
-    size: large  # normal (default) | wide | tall | large
+    footprint:
+      columnSpan: 6
+      rowSpan: 4
 ```
 
-Sizes are col×row spans in the dashboard grid: `normal` 1×1, `wide` 2×1, `tall` 1×2, `large` 2×2. When omitted, a widget's preferred size is used, falling back to `normal`. The legacy `position: {col, row, width, height}` field is **deprecated** — it's still parsed (and migrated to an equivalent size on load) but logs a deprecation warning; use `size` plus array order instead. Both `size` and array order can also be set from the Services tab in the settings panel.
+The dashboard uses non-configurable 108×60px units with an 8px gap and automatically exposes 3, 6, 9, 12, or 15 columns as the viewport grows. A footprint is the exact number of those units a tile occupies. Plain cards default to 3×1 (or 3×2 when they have a description); widgets use their preferred/minimum canvas. The editor's `normal`, `wide`, `tall`, and `large` choices map widget canvases to 3×2, 6×2, 3×4, and 6×4. Legacy `size`, `position`, `layout.columns`, `layout.row_height`, and per-group `columns` values are migrated to fixed footprints or removed on load.
 
 **Group services into ordered sections:**
 
@@ -155,7 +157,6 @@ Sizes are col×row spans in the dashboard grid: `normal` 1×1, `wide` 2×1, `tal
 groups:
   - name: Media
     collapsed: false  # default expanded; live state is saved per-browser
-    columns: 4        # optional per-group column override
   - name: Downloads
 
 services:
@@ -266,7 +267,7 @@ While editing:
 - **Reorder tiles** by dragging them — within a group, or across groups (dropping a tile into another group's grid reassigns it there). Drag a group's header to reorder whole groups. Dragging uses an 8px pointer-activation threshold so taps and scrolling don't start a drag, which is also what makes it work on touch. Full keyboard support too: Tab to a tile's drag handle, press Space to pick it up, arrow keys to move it, Space again to drop.
 - **Configure a tile** from its kebab menu: **Edit** opens the same service/bookmark form used elsewhere, **Size** switches between `normal` / `wide` / `tall` / `large` (sizes below a widget's minimum are greyed out), plus **Duplicate** and **Remove**.
 - **Add a tile** with the **+ Add** button — a blank service, one of the widget presets, or a bookmark group, dropped into whichever group you opened it from.
-- **Manage a group** from its header kebab: rename (cascades to every member service and bookmark, and carries over the collapse state), set or clear a per-group column override, or delete it (members become ungrouped). A group that exists only because a service referenced its name gets a **Declare group** action first — that's what makes it orderable.
+- **Manage a group** from its header kebab: rename (cascades to every member service and bookmark, and carries over the collapse state), declare it for ordering, or delete it (members become ungrouped).
 - **Save or discard** from the persistent edit bar. It tracks how many top-level sections changed; **Save & exit** writes everything in a single atomic request to `settings.yaml`, **Discard** drops the staged changes and returns to the live dashboard.
 
 **Conflict safety:** edit mode captures the config revision when you enter. If `settings.yaml` changes on disk while you're editing — a hand edit, another tab saving first — Save is rejected instead of silently overwriting, and the edit bar shows a "changed on disk" notice with a **Reload** action to pull the new version before you try again.

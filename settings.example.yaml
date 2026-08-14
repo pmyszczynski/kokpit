@@ -34,11 +34,12 @@ appearance:
   #   blur: 12              # blur-behind radius (px)
   #   brightness: 0.7       # 0–1, dims the image
   #   opacity: 0.4          # 0–1, theme-tinted overlay on top of the background
+# Fixed dashboard geometry: 108×60px units, 8px gaps, and automatic
+# 3/6/9/12/15-column breakpoints. Track counts and heights are not configurable.
 layout:
-  columns: 4
-  row_height: 120 # pixels
-  # ungrouped: last       # Where the implicit "ungrouped" section renders:
-  #                       # first | last (default: last)
+  # Where the implicit ungrouped section renders: first | last
+  # (default: last).
+  ungrouped: last
 
 # ─── Groups (optional) ────────────────────────────────────────
 # Ordered group declarations — array order is display order.
@@ -48,7 +49,6 @@ layout:
 # groups:
 #   - name: Media
 #     collapsed: false    # default expanded; live state is per-browser
-#     columns: 4          # optional per-group column override
 #   - name: Downloads
 #   - name: Infrastructure
 
@@ -59,12 +59,14 @@ layout:
 services: []
 service_tiles: []
 
-# Tile sizing: every service_tile accepts an optional size preset —
-#   size: normal | wide | tall | large   (normal = 1×1, wide = 2×1,
-#   tall = 1×2, large = 2×2). When omitted, the widget's preferred
-#   size applies (e.g. queue/list widgets suggest "tall"), falling
-#   back to "normal". The legacy position: field is DEPRECATED —
-#   use size: plus array order instead.
+# Fixed tile sizing: service_tiles may declare an exact footprint:
+#   footprint:
+#     columnSpan: 6
+#     rowSpan: 4
+# Plain cards default to 3×1, or 3×2 when they have a description.
+# Widgets use their preferred/minimum canvas when footprint is omitted.
+# Legacy size and position fields are migrated to footprints on load;
+# use footprint plus array order for hand-edited YAML.
 #
 # Schema-v2 example entries (uncomment and fill in your values). Services own
 # reusable connections; tiles own placement and widget-specific options:
@@ -81,7 +83,9 @@ service_tiles: []
 #   - id: 20000000-0000-4000-8000-000000000001
 #     service_id: 10000000-0000-4000-8000-000000000001
 #     group: Media
-#     size: large
+#     footprint:
+#       columnSpan: 6
+#       rowSpan: 4
 #     widget:
 #       type: plex
 #       config:
@@ -104,7 +108,9 @@ service_tiles: []
 #   - id: 20000000-0000-4000-8000-000000000002
 #     service_id: 10000000-0000-4000-8000-000000000002
 #     group: Media
-#     size: tall
+#     footprint:
+#       columnSpan: 3
+#       rowSpan: 4
 #     widget:
 #       type: tautulli-activity
 #       config:

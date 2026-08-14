@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import ServiceTile from "@/components/ServiceTile";
 import type { WidgetConfigIssue } from "@/widgets/tileWidget";
 import { z } from "zod";
-import { registerWidget } from "@/widgets";
+import { clearRegistry, registerWidget } from "@/widgets";
 
 // The broken-widget badge reads edit-mode availability via
 // useEditModeOptional(), independently of any wrapping <EditModeProvider> (it
@@ -35,6 +35,7 @@ describe("ServiceTile", () => {
     vi.restoreAllMocks();
     editModeOptional.current = null;
     vi.unstubAllGlobals();
+    clearRegistry();
   });
 
   it("renders the service name", async () => {
@@ -128,7 +129,6 @@ describe("ServiceTile", () => {
       render(
         <ServiceTile
           name="Jellyfin"
-          footprint={{ columnSpan: 3, rowSpan: 2 }}
           url="http://192.168.1.10:8096"
           description="Media server"
         />
@@ -144,7 +144,7 @@ describe("ServiceTile", () => {
     expect(screen.queryByText(/media/i)).not.toBeInTheDocument();
   });
 
-  it("hides descriptions in one-row footprints", async () => {
+  it("hides descriptions in explicitly compact one-row footprints", async () => {
     await act(async () => {
       render(
         <ServiceTile

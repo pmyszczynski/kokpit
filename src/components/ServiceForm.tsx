@@ -548,11 +548,9 @@ export default function ServiceForm({
   // drop of the deprecated `position` field.
   const [size, setSize] = useState<Size | "">(() => {
     if (service?.size) return service.size;
-    if (service?.position) {
-      const min = service.widget
-        ? getWidget(service.widget.type)?.minSize
-        : undefined;
-      return resolveServiceSize(service, undefined, min);
+    if (service?.position || service?.footprint) {
+      const definition = service.widget ? getWidget(service.widget.type) : undefined;
+      return resolveServiceSize(service, definition?.preferredSize, definition?.minSize);
     }
     return "";
   });

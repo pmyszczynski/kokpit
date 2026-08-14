@@ -1032,6 +1032,35 @@ describe("serviceFormProjection", () => {
     expect(resized.service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
   });
 
+  it("uses consistent fixed footprints for plain normal and described cards", () => {
+    const services = [{ id: serviceId, name: "Plain" }];
+    const compact = persistLegacyServices([{
+      id: serviceId,
+      name: "Plain",
+      size: "normal",
+    }], services, []);
+    expect(compact.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
+
+    const described = persistLegacyServices([{
+      id: serviceId,
+      name: "Plain",
+      description: "Visible details",
+      size: "normal",
+    }], services, []);
+    expect(described.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+  });
+
+  it("uses a widget's preferred and minimum size for an automatic footprint", () => {
+    const services = [{ id: serviceId, name: "Sonarr" }];
+    const persisted = persistLegacyServices([{
+      id: serviceId,
+      name: "Sonarr",
+      widget: { type: "sonarr-queue" },
+    }], services, []);
+
+    expect(persisted.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
+  });
+
   it("clears a catalog-only integration without creating a presentation tile", () => {
     const services = [{
       id: serviceId,

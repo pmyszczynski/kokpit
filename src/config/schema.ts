@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * @deprecated Legacy absolute-position field. Kept parseable so existing
- * configs keep loading; new configs should use `services[].size` + array
+ * configs keep loading; new configs should use tile footprints plus array
  * order instead. Will be removed at the next `schema_version` bump.
  */
 export const WidgetPositionSchema = z.object({
@@ -13,8 +13,8 @@ export const WidgetPositionSchema = z.object({
 });
 
 /**
- * Named tile size presets (col×row spans in the dashboard grid):
- * normal = 1×1, wide = 2×1, tall = 1×2, large = 2×2.
+ * Legacy/editor tile-size names. Fixed widget canvases map normal/wide/tall/
+ * large to 3×2, 6×2, 3×4, and 6×4 grid units respectively.
  */
 export const SizeEnum = z.enum(["normal", "wide", "tall", "large"]);
 export type Size = z.infer<typeof SizeEnum>;

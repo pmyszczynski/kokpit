@@ -51,4 +51,34 @@ describe("fixed-grid config migration", () => {
     expect(migrated.service_tiles[0]).toMatchObject({ footprint });
     expect(migrated.service_tiles[0]).not.toHaveProperty("size");
   });
+
+  it("materializes a built-in widget's preferred and minimum canvas", () => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const migrated = migrateFixedGridConfig({
+      schema_version: 2,
+      services: [{ id: serviceId, name: "Sonarr", integration: { type: "sonarr", config: {} } }],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000002",
+        service_id: serviceId,
+        widget: { type: "sonarr-queue" },
+      }],
+    });
+
+    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
+  });
+
+  it("allocates a second row to a described plain card", () => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const migrated = migrateFixedGridConfig({
+      schema_version: 2,
+      services: [{ id: serviceId, name: "Plex", description: "Media server" }],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000002",
+        service_id: serviceId,
+        footprint: { columnSpan: 3, rowSpan: 1 },
+      }],
+    });
+
+    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+  });
 });

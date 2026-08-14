@@ -36,7 +36,3 @@ Screenshot tests catch CSS/layout/theme regressions that DOM assertions can't â€
 
   Review the resulting PNG diff before committing it. Normal CI never accepts new baselines automatically.
 - When the regular E2E job finds a mismatch, it preserves the failure report first, regenerates all 15 visual baselines in that same runner, and uploads them as the `playwright-visual-snapshots` artifact. Download that artifact into `e2e/tests` instead of regenerating locally.
-
-## Known limitation found while adding visual coverage
-
-The default layout (`row_height: 120`, see `settings.example.yaml` / `src/config/schema.ts`) visually clips a widget's stat values when it renders 3+ stats (observed with the Plex widget in the fixture dashboard). Not fixed here since it's a design/config question, not a regression â€” worth revisiting.

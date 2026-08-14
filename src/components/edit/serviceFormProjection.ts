@@ -364,16 +364,34 @@ export function persistLegacyServices(
     }
 
     if (!input.editorCatalogOnly && (!previous || input.tileId || primaryTile || hasDefinedPlacement || hasWidgetTileMutation)) {
+      const definition = widget ? getWidget(widget.type) : undefined;
+      const sizeSource = hasInputSize
+        ? input.size ? { size: input.size } : {}
+        : input.position || input.footprint
+          ? input
+          : primaryTile ?? {};
+      const effectiveSize = resolveServiceSize(
+        sizeSource,
+        definition?.preferredSize,
+        definition?.minSize
+      );
       const resolvedSize = hasInputSize
         ? input.size
         : input.position
-          ? resolveServiceSize(input)
+          ? effectiveSize
           : primaryTile?.size;
+      const hintedWidgetFootprint = legacyWidgetFootprint(effectiveSize);
+      const supportedFootprints = definition?.supportedFootprints;
       const defaultFootprint = widget
-        ? getWidget(widget.type)?.supportedFootprints?.[0] ?? legacyWidgetFootprint(resolvedSize)
-        : resolvedSize
-          ? legacyWidgetFootprint(resolvedSize)
-          : GENERIC_SERVICE_FOOTPRINT;
+        ? supportedFootprints?.find((candidate) =>
+            candidate.columnSpan === hintedWidgetFootprint.columnSpan &&
+            candidate.rowSpan === hintedWidgetFootprint.rowSpan
+          ) ?? supportedFootprints?.[0] ?? hintedWidgetFootprint
+        : effectiveSize !== "normal"
+          ? legacyWidgetFootprint(effectiveSize)
+          : input.description
+            ? legacyWidgetFootprint("normal")
+            : GENERIC_SERVICE_FOOTPRINT;
       const sizeChanged = hasInputSize && input.size !== primaryTile?.size;
       const widgetChanged = hasInputWidget && widget?.type !== primaryTile?.widget?.type;
       const footprint = sizeChanged || widgetChanged

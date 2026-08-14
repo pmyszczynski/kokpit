@@ -298,7 +298,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   const definition = widget ? getWidget(widget.type) : undefined;
   const resolvedFootprint = widget
     ? resolveWidgetFootprint(definition?.supportedFootprints, footprint, size)
-    : footprint ?? GENERIC_SERVICE_FOOTPRINT;
+    : footprint ?? (description ? legacyWidgetFootprint("normal") : GENERIC_SERVICE_FOOTPRINT);
   const dimensions = dimensionsForFootprint(resolvedFootprint);
   const mobileFootprint = definition?.mobile?.footprint ?? GENERIC_SERVICE_FOOTPRINT;
   const mobileDimensions = dimensionsForFootprint(mobileFootprint);

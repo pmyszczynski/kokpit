@@ -403,7 +403,8 @@ button {
 
 @media (max-width: 719px) {
   .dashboard-tile-grid > .service-tile {
-    width: 340px;
+    width: var(--mobile-tile-width, 340px);
+    height: var(--mobile-tile-height, 60px);
     grid-column: span min(var(--mobile-tile-columns, 3), 3);
     grid-row: span var(--mobile-tile-rows, 1);
   }
@@ -411,7 +412,7 @@ button {
   .service-tile--mobile-fallback .service-tile__description { display: none; }
 
   .tile-drag-overlay .service-tile {
-    width: 340px;
+    width: var(--mobile-tile-width, 340px);
     height: var(--mobile-tile-height, 60px);
     grid-column: span min(var(--mobile-tile-columns, 3), 3);
     grid-row: span var(--mobile-tile-rows, 1);

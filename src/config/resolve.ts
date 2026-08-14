@@ -35,9 +35,10 @@ export function sizeSatisfies(size: Size, min: Size): boolean {
  * 2. legacy `service.position` spans, mapped to the nearest preset
  *    (width ≥ 2 && height ≥ 2 → large; width ≥ 2 → wide; height ≥ 2 → tall;
  *    else normal)
- * 3. the widget's `preferredSize` hint (caller looks it up via
+ * 3. a persisted fixed-grid footprint that exactly matches a legacy preset
+ * 4. the widget's `preferredSize` hint (caller looks it up via
  *    `getWidgetSizeHints` from `@/widgets`)
- * 4. `normal`
+ * 5. `normal`
  *
  * The result is then clamped up to `widgetMinSize` when declared: a
  * hand-edited config with an explicit `size` below the widget's floor still
@@ -45,7 +46,7 @@ export function sizeSatisfies(size: Size, min: Size): boolean {
  * options. When no `widgetMinSize` is given, behavior is unchanged.
  */
 export function resolveServiceSize(
-  service: Pick<Service, "size" | "position">,
+  service: Pick<Service, "size" | "position" | "footprint">,
   widgetPreferredSize?: Size,
   widgetMinSize?: Size
 ): Size {
@@ -58,6 +59,13 @@ export function resolveServiceSize(
       if (wide) return "wide";
       if (tall) return "tall";
       return DEFAULT_SIZE;
+    }
+    if (service.footprint) {
+      const { columnSpan, rowSpan } = service.footprint;
+      if (columnSpan === 6 && rowSpan === 4) return "large";
+      if (columnSpan === 6 && rowSpan === 2) return "wide";
+      if (columnSpan === 3 && rowSpan === 4) return "tall";
+      if (columnSpan === 3 && (rowSpan === 1 || rowSpan === 2)) return "normal";
     }
     return widgetPreferredSize ?? DEFAULT_SIZE;
   })();

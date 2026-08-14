@@ -69,6 +69,20 @@ describe("resolveServiceSize", () => {
     ).toBe("wide");
   });
 
+  it.each([
+    [{ columnSpan: 3, rowSpan: 1 }, "normal"],
+    [{ columnSpan: 3, rowSpan: 2 }, "normal"],
+    [{ columnSpan: 6, rowSpan: 2 }, "wide"],
+    [{ columnSpan: 3, rowSpan: 4 }, "tall"],
+    [{ columnSpan: 6, rowSpan: 4 }, "large"],
+  ] as const)("maps a migrated footprint %o back to size %s", (footprint, expected) => {
+    expect(resolveServiceSize({ footprint })).toBe(expected);
+  });
+
+  it("uses the widget hint for a custom footprint that is not a legacy preset", () => {
+    expect(resolveServiceSize({ footprint: { columnSpan: 9, rowSpan: 3 } }, "tall")).toBe("tall");
+  });
+
   it("falls back to the widget preferred size", () => {
     expect(resolveServiceSize({}, "tall")).toBe("tall");
   });
