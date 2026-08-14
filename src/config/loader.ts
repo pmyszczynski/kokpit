@@ -34,9 +34,16 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
   const tiles = Array.isArray(raw.service_tiles) ? raw.service_tiles.map((entry) => {
     if (!isRecord(entry)) return entry;
     const { size, footprint: savedFootprint, ...tile } = entry;
+    const legacySize = ["normal", "wide", "tall", "large"].includes(String(size))
+      ? size as Size
+      : undefined;
+    // Plain compact cards use the new generic 3×1 canvas, while their former
+    // wide/tall/large variants retain the equivalent fixed widget canvases.
     const fallback = entry.widget
-      ? legacyWidgetFootprint(["normal", "wide", "tall", "large"].includes(String(size)) ? size as Size : undefined)
-      : GENERIC_SERVICE_FOOTPRINT;
+      ? legacyWidgetFootprint(legacySize)
+      : legacySize && legacySize !== "normal"
+        ? legacyWidgetFootprint(legacySize)
+        : GENERIC_SERVICE_FOOTPRINT;
     const normalizeSpan = (value: unknown, fallbackValue: number, maximum?: number) => {
       const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
       return Math.min(maximum ?? Number.MAX_SAFE_INTEGER, Math.max(1, numeric));
@@ -62,7 +69,7 @@ function needsFixedGridMigration(raw: Record<string, unknown>): boolean {
   if (["columns", "row_height", "tablet", "mobile"].some((key) => key in layout)) return true;
   if (Array.isArray(raw.groups) && raw.groups.some((group) => isRecord(group) && "columns" in group)) return true;
   return Array.isArray(raw.service_tiles) && raw.service_tiles.some(
-    (tile) => isRecord(tile) && !isTileFootprint(tile.footprint)
+    (tile) => isRecord(tile) && ("size" in tile || !isTileFootprint(tile.footprint))
   );
 }
 
@@ -609,9 +616,6 @@ export function writeConfig(
     fixedGridUpdates.layout = (updates.layout.ungrouped === "first"
       ? { ungrouped: "first" }
       : {}) as KokpitConfig["layout"];
-  }
-  if (updates.groups) {
-    fixedGridUpdates.groups = updates.groups.map(({ columns: _columns, ...group }) => group);
   }
   if (updates.service_tiles) {
     fixedGridUpdates.service_tiles = migrateFixedGridConfig({

@@ -208,10 +208,10 @@ describe("ServiceGrid", () => {
     expect(children[1].classList.contains("service-group")).toBe(true);
   });
 
-  it("ignores per-group column overrides in fixed-grid geometry", async () => {
+  it("renders declared groups without inline geometry overrides", async () => {
     getConfig.mockReturnValue(
       makeConfig({
-        groups: [{ name: "Media", columns: 6 }],
+        groups: [{ name: "Media" }],
         services: [makeService({ name: "Plex", group: "Media" })],
       })
     );

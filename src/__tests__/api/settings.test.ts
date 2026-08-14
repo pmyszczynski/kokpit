@@ -58,7 +58,11 @@ auth:
   session_ttl_hours: 24
 appearance:
   theme: dark
-layout: {}
+layout:
+  columns: 9
+  row_height: 88
+  tablet: { columns: 6, row_height: 72 }
+  mobile: { columns: 3, row_height: 60 }
 services: []
 service_tiles: []
 `.trim();
@@ -209,19 +213,6 @@ describe("PATCH /api/settings – validation", () => {
     expect((await res.json()).error).toMatch(/invalid json/i);
   });
 
-  it("returns 400 when layout.columns is zero", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
-    const res = await PATCH(patch({ layout: { columns: 0, row_height: 120 } }));
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 400 when tablet.columns is zero", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
-    const res = await PATCH(
-      patch({ layout: { columns: 4, row_height: 120, tablet: { columns: 0 } } })
-    );
-    expect(res.status).toBe(400);
-  });
 
   it("returns 400 for unknown theme value", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
@@ -456,8 +447,8 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
     expect(written).not.toContain("size: large");
-    expect(written).toContain("columnSpan: 3");
-    expect(written).toContain("rowSpan: 1");
+    expect(written).toContain("columnSpan: 6");
+    expect(written).toContain("rowSpan: 4");
   });
 
   it("returns 400 for an invalid service size", async () => {
@@ -519,7 +510,7 @@ describe("GET /api/settings", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.layout.columns).toBe(4);
+    expect(json.layout).toEqual({});
     expect(json.appearance.theme).toBe("dark");
   });
 
@@ -530,6 +521,7 @@ describe("GET /api/settings", () => {
     const json = await res.json();
     expect(json.layout.tablet).toBeUndefined();
     expect(json.layout.mobile).toBeUndefined();
+    expect(json.layout.columns).toBeUndefined();
   });
 
   it("returns a stable X-Config-Revision header (HMAC-SHA256 hex)", async () => {

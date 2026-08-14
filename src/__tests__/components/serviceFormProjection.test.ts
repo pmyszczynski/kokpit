@@ -1006,6 +1006,32 @@ describe("serviceFormProjection", () => {
     expect(persisted.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
   });
 
+  it("honors copied input geometry and recomputes it after an explicit size change", () => {
+    const services = [{ id: serviceId, name: "Plex" }];
+    const copied = persistLegacyServices([{
+      id: serviceId,
+      tileId: "20000000-0000-4000-8000-000000000099",
+      name: "Plex copy",
+      footprint: { columnSpan: 9, rowSpan: 3 },
+    }], services, []);
+    expect(copied.service_tiles[0].footprint).toEqual({ columnSpan: 9, rowSpan: 3 });
+
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      size: "normal" as const,
+      footprint: { columnSpan: 3, rowSpan: 2 },
+    }];
+    const resized = persistLegacyServices([{
+      id: serviceId,
+      tileId,
+      name: "Plex",
+      size: "wide",
+      footprint: { columnSpan: 3, rowSpan: 2 },
+    }], services, tiles);
+    expect(resized.service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+  });
+
   it("clears a catalog-only integration without creating a presentation tile", () => {
     const services = [{
       id: serviceId,

@@ -282,15 +282,28 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
+function resolveWidgetFootprint(
+  supportedFootprints: readonly TileFootprint[] | undefined,
+  footprint: TileFootprint | undefined,
+  size: Size
+): TileFootprint {
+  const fallback = supportedFootprints?.[0] ?? legacyWidgetFootprint(size);
+  if (!footprint || !supportedFootprints || supportedFootprints.some((candidate) =>
+    candidate.columnSpan === footprint.columnSpan && candidate.rowSpan === footprint.rowSpan
+  )) return footprint ?? fallback;
+  return fallback;
+}
+
 export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
   const definition = widget ? getWidget(widget.type) : undefined;
-  const resolvedFootprint = footprint ?? (widget
-    ? definition?.supportedFootprints?.[0] ?? legacyWidgetFootprint(size)
-    : GENERIC_SERVICE_FOOTPRINT);
+  const resolvedFootprint = widget
+    ? resolveWidgetFootprint(definition?.supportedFootprints, footprint, size)
+    : footprint ?? GENERIC_SERVICE_FOOTPRINT;
   const dimensions = dimensionsForFootprint(resolvedFootprint);
   const mobileFootprint = definition?.mobile?.footprint ?? GENERIC_SERVICE_FOOTPRINT;
   const mobileDimensions = dimensionsForFootprint(mobileFootprint);
-  const useMobileRenderer = useMobileGrid() && definition?.mobile != null;
+  const mobileGrid = useMobileGrid();
+  const useMobileRenderer = mobileGrid && definition?.mobile != null;
   const className =
     `service-tile service-tile--${size}` +
     (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
@@ -352,10 +365,10 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         <ServiceIcon icon={icon} url={url} name={name} />
         <span className="service-tile__name">{name}</span>
       </div>
-      {description && (
+      {description && resolvedFootprint.rowSpan > 1 && (
         <span className="service-tile__description">{description}</span>
       )}
-      {widget && !invalidIssues && !useMobileRenderer && (
+      {widget && !invalidIssues && !mobileGrid && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
           {preview ? (
             <span className="service-tile__widget-preview" aria-hidden="true">
@@ -375,10 +388,20 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
           )}
         </div>
       )}
-      {widget && useMobileRenderer && !invalidIssues && tileId && !preview && (
+      {widget && useMobileRenderer && !invalidIssues && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
-          <WidgetRenderer type={widget.type} tileId={tileId}
-            refreshInterval={widget.refresh_interval_ms} footprint={mobileFootprint} mobile />
+          {preview ? (
+            <span className="service-tile__widget-preview" aria-hidden="true">
+              {widget.type}
+            </span>
+          ) : tileId ? (
+            <WidgetRenderer type={widget.type} tileId={tileId}
+              refreshInterval={widget.refresh_interval_ms} footprint={mobileFootprint} mobile />
+          ) : (
+            <div className="widget-error" role="alert">
+              <span className="widget-error__label">Missing tile identifier</span>
+            </div>
+          )}
         </div>
       )}
     </>

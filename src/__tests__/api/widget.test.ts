@@ -111,8 +111,8 @@ describe("GET /api/widget", () => {
   it("returns 400 when a tile has no widget", async () => {
     const { GET } = await import("../../app/api/widget/route");
     vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML.replace(
-      "widget: { type: plex }",
-      "size: normal"
+      ", widget: { type: plex }",
+      ""
     ));
     const res = await GET(get("20000000-0000-4000-8000-000000000001"));
     expect(res.status).toBe(400);

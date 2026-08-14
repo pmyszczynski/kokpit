@@ -80,8 +80,6 @@ export const GroupSchema = z.object({
   name: z.string(),
   /** Default collapsed state; live state is persisted per-browser. */
   collapsed: z.boolean().optional(),
-  /** Per-group column override. */
-  columns: z.number().int().positive().optional(),
 });
 
 export const BookmarkLinkSchema = z.object({
@@ -199,8 +197,11 @@ export const KokpitConfigSchema = z
       .default({ theme: "dark" }),
     layout: z
       .object({
-        columns: z.number().int().positive().default(4),
-        row_height: z.number().int().positive().default(120),
+        // Deprecated geometry fields remain parseable until the migration has
+        // rewritten an existing settings.yaml, but are never given defaults
+        // and are stripped by migrateFixedGridConfig/writeConfig.
+        columns: z.number().int().positive().optional(),
+        row_height: z.number().int().positive().optional(),
         // Placement of the implicit "ungrouped" section. No schema default:
         // resolveGroupOrder applies the "last" default so omitted values stay
         // omitted in YAML round-trips.
@@ -218,7 +219,7 @@ export const KokpitConfigSchema = z
           })
           .optional(),
       })
-      .default({ columns: 4, row_height: 120 }),
+      .default({}),
     // Ordered group declarations — array order is display order. Groups
     // referenced by services but not declared here are auto-appended at
     // render time (see resolveGroupOrder in ./resolve).

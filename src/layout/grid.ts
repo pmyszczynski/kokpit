@@ -2,18 +2,6 @@
 export const GRID_UNIT_WIDTH = 108 as const;
 export const GRID_UNIT_HEIGHT = 60 as const;
 export const GRID_GAP = 8 as const;
-/** `.shell-main` has 16px padding on both sides. */
-export const DASHBOARD_OUTER_PADDING = 32 as const;
-
-export const GRID_PRESET_COLUMNS = {
-  mobile: 3,
-  tablet: 6,
-  desktop: 9,
-  large: 12,
-  wide: 15,
-} as const;
-
-export type GridPreset = keyof typeof GRID_PRESET_COLUMNS;
 
 export interface TileFootprint {
   columnSpan: number;
@@ -53,23 +41,4 @@ export function dimensionsForFootprint(footprint: TileFootprint): TileDimensions
     width: footprint.columnSpan * GRID_UNIT_WIDTH + (footprint.columnSpan - 1) * GRID_GAP,
     height: footprint.rowSpan * GRID_UNIT_HEIGHT + (footprint.rowSpan - 1) * GRID_GAP,
   };
-}
-
-export function gridWidth(columns: number): number {
-  if (!Number.isInteger(columns) || columns < 1) throw new TypeError("Grid columns must be a positive integer");
-  return dimensionsForFootprint({ columnSpan: columns, rowSpan: 1 }).width;
-}
-
-/** Select the largest canonical grid that fits; narrow screens retain 3 columns. */
-export function presetForAvailableWidth(width: number): GridPreset {
-  if (width >= gridWidth(15)) return "wide";
-  if (width >= gridWidth(12)) return "large";
-  if (width >= gridWidth(9)) return "desktop";
-  if (width >= gridWidth(6)) return "tablet";
-  return "mobile";
-}
-
-/** Viewport width at which a preset's exact grid fits inside the page shell. */
-export function breakpointForColumns(columns: number): number {
-  return gridWidth(columns) + DASHBOARD_OUTER_PADDING;
 }

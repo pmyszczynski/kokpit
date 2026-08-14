@@ -217,26 +217,7 @@ describe("SettingsPanel - layout tab", () => {
     expect(screen.getByText(/108 × 60 px units with an 8 px gap/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Columns")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Row height (px)")).not.toBeInTheDocument();
-  });
-
-  it("saves only organizational layout state", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Layout" }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/settings",
-      expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({
-          layout: { ungrouped: undefined },
-        }),
-      })
-    );
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 });
 

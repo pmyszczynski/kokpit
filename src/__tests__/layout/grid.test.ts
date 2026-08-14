@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dimensionsForFootprint,
-  GRID_GAP,
-  GRID_PRESET_COLUMNS,
-  GRID_UNIT_HEIGHT,
-  GRID_UNIT_WIDTH,
-  breakpointForColumns,
-  presetForAvailableWidth,
+  GRID_GAP, GRID_UNIT_HEIGHT, GRID_UNIT_WIDTH,
 } from "@/layout/grid";
 
 describe("fixed dashboard geometry", () => {
@@ -23,13 +18,4 @@ describe("fixed dashboard geometry", () => {
     }
   });
 
-  it("selects only the five viewport-owned presets", () => {
-    expect(GRID_PRESET_COLUMNS).toEqual({ mobile: 3, tablet: 6, desktop: 9, large: 12, wide: 15 });
-    expect([339, 340, 687, 688, 1036, 1384, 1732].map(presetForAvailableWidth))
-      .toEqual(["mobile", "mobile", "mobile", "tablet", "desktop", "large", "wide"]);
-  });
-
-  it("derives CSS thresholds from grid widths and fixed shell padding", () => {
-    expect([3, 6, 9, 12, 15].map(breakpointForColumns)).toEqual([372, 720, 1068, 1416, 1764]);
-  });
 });

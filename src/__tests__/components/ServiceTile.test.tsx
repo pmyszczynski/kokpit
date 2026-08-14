@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import ServiceTile from "@/components/ServiceTile";
 import type { WidgetConfigIssue } from "@/widgets/tileWidget";
+import { z } from "zod";
+import { registerWidget } from "@/widgets";
 
 // The broken-widget badge reads edit-mode availability via
 // useEditModeOptional(), independently of any wrapping <EditModeProvider> (it
@@ -32,6 +34,7 @@ describe("ServiceTile", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     editModeOptional.current = null;
+    vi.unstubAllGlobals();
   });
 
   it("renders the service name", async () => {
@@ -125,6 +128,7 @@ describe("ServiceTile", () => {
       render(
         <ServiceTile
           name="Jellyfin"
+          footprint={{ columnSpan: 3, rowSpan: 2 }}
           url="http://192.168.1.10:8096"
           description="Media server"
         />
@@ -138,6 +142,62 @@ describe("ServiceTile", () => {
       render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     expect(screen.queryByText(/media/i)).not.toBeInTheDocument();
+  });
+
+  it("hides descriptions in one-row footprints", async () => {
+    await act(async () => {
+      render(
+        <ServiceTile
+          name="Jellyfin"
+          url="http://192.168.1.10:8096"
+          description="Compact tile description"
+          footprint={{ columnSpan: 3, rowSpan: 1 }}
+        />
+      );
+    });
+
+    expect(screen.queryByText("Compact tile description")).not.toBeInTheDocument();
+
+  });
+  it("falls back to a widget-supported footprint and previews it on mobile", async () => {
+    registerWidget({
+      id: "footprint-test-widget",
+      name: "Footprint test",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      supportedFootprints: [{ columnSpan: 6, rowSpan: 2 }],
+      mobile: {
+        footprint: { columnSpan: 3, rowSpan: 1 },
+        component: () => null,
+      },
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          tileId="tile-id"
+          name="Plex"
+          url="http://plex.local"
+          widget={{ type: "footprint-test-widget" }}
+          footprint={{ columnSpan: 3, rowSpan: 1 }}
+          preview
+        />
+      ));
+    });
+    expect(container.querySelector("a")?.style.getPropertyValue("--tile-columns")).toBe("6");
+
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile tileId="tile-id" name="Plex" widget={{ type: "footprint-test-widget" }} preview />
+      ));
+    });
+    expect(container.querySelector(".service-tile__widget-preview")).not.toBeNull();
   });
 
   it("renders the icon prop as an img", async () => {

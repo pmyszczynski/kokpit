@@ -64,8 +64,7 @@ describe("loadConfig", () => {
     expect(config.auth.enabled).toBe(false);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
-    expect(config.layout.columns).toBe(4);
-    expect(config.layout.row_height).toBe(120);
+    expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);
     expect(lockSync).toHaveBeenCalledTimes(1);
   });
@@ -76,8 +75,7 @@ describe("loadConfig", () => {
     expect(config.auth.enabled).toBe(true);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
-    expect(config.layout.columns).toBe(4);
-    expect(config.layout.row_height).toBe(120);
+    expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);
   });
 

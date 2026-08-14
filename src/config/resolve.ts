@@ -98,8 +98,6 @@ export interface ResolvedGroup {
   declared: boolean;
   /** Default collapsed state (live state is a per-browser preference). */
   collapsed: boolean;
-  /** Per-group column override, when declared. */
-  columns?: number;
 }
 
 /**
@@ -130,7 +128,6 @@ export function resolveGroupOrder(
       name: group.name,
       declared: true,
       collapsed: group.collapsed ?? false,
-      columns: group.columns,
     });
   }
 

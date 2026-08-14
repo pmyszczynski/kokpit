@@ -170,11 +170,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
       background: config.appearance.background ? { ...config.appearance.background } : undefined,
     },
     layout: {
-      columns: config.layout.columns,
-      row_height: config.layout.row_height,
       ungrouped: config.layout.ungrouped,
-      tablet: config.layout.tablet ? { ...config.layout.tablet } : undefined,
-      mobile: config.layout.mobile ? { ...config.layout.mobile } : undefined,
     },
     groups: config.groups?.map((group) => ({ ...group })),
     bookmarks: config.bookmarks?.map((group) => ({

@@ -235,13 +235,11 @@ function SortableBookmarkTile({
 
 function DroppableTileGrid({
   containerId,
-  columns,
   itemIds,
   activeIsTile,
   children,
 }: {
   containerId: string;
-  columns?: number;
   itemIds: string[];
   activeIsTile: boolean;
   children: React.ReactNode;
@@ -250,16 +248,12 @@ function DroppableTileGrid({
     id: containerId,
     data: { type: "container", containerId } satisfies ContainerData,
   });
-  const style =
-    columns != null
-      ? ({ "--group-columns": columns } as React.CSSProperties)
-      : undefined;
   const className =
     "dashboard-tile-grid" +
     (isOver && activeIsTile ? " dashboard-tile-grid--drop-active" : "");
   return (
     <SortableContext items={itemIds} strategy={rectSortingStrategy}>
-      <div ref={setNodeRef} className={className} style={style}>
+      <div ref={setNodeRef} className={className}>
         {children}
       </div>
     </SortableContext>
@@ -865,7 +859,6 @@ export default function EditableServiceGrid({
           const grid = (
             <DroppableTileGrid
               containerId={containerId}
-              columns={section.columns}
               itemIds={sectionItemIds(sectionServices, sectionBookmarks)}
               activeIsTile={activeIsTile}
             >

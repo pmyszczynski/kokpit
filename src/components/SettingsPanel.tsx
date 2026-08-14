@@ -367,10 +367,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     }
   }
 
-  function handleSaveLayout() {
-    save("layout", buildLayoutPayload());
-  }
-
   function handleSaveAuth() {
     save("auth", { enabled: config.auth.enabled, session_ttl_hours: sessionTtl });
   }
@@ -546,7 +542,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     const cleanGroups = groups.map((g) => ({
       name: g.name,
       ...(g.collapsed ? { collapsed: true } : {}),
-      ...(g.columns ? { columns: g.columns } : {}),
     }));
     // Apply the staged cascade to the CURRENT services/bookmarks so the PATCH
     // carries the renamed/cleared references atomically with the `groups` write.
@@ -852,10 +847,6 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
               Tile geometry is fixed at 108 × 60 px units with an 8 px gap.
               The viewport automatically selects 3, 6, 9, 12, or 15 columns.
             </p>
-
-            <div className="settings-actions">
-              <SaveButton status={saveStatus.layout} onSave={handleSaveLayout} />
-            </div>
           </section>
         )}
 

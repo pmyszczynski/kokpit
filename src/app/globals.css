@@ -238,7 +238,7 @@ button {
 }
 
 .shell-main {
-  padding: var(--gap);
+  padding: 16px;
   /* Backstop (RC1): without an explicit overflow-x, the CSS overflow spec
      computes it to `auto` because overflow-y is non-visible, turning this
      into a silent horizontal scroll container that hides real overflow from
@@ -312,6 +312,7 @@ button {
 /* Inner grid: exact fixed tracks. Groups never alter this geometry. */
 .dashboard-tile-grid {
   display: grid;
+  --active-grid-columns: 3;
   grid-column: 1 / -1;
   grid-template-columns: repeat(3, 108px);
   grid-auto-rows: 60px;
@@ -322,19 +323,31 @@ button {
 /* Thresholds are exact grid widths plus .shell-main's 32px inline padding. */
 @media (min-width: 720px) {
   .dashboard-grid { width: 688px; }
-  .dashboard-tile-grid { grid-template-columns: repeat(6, 108px); }
+  .dashboard-tile-grid {
+    --active-grid-columns: 6;
+    grid-template-columns: repeat(6, 108px);
+  }
 }
 @media (min-width: 1068px) {
   .dashboard-grid { width: 1036px; }
-  .dashboard-tile-grid { grid-template-columns: repeat(9, 108px); }
+  .dashboard-tile-grid {
+    --active-grid-columns: 9;
+    grid-template-columns: repeat(9, 108px);
+  }
 }
 @media (min-width: 1416px) {
   .dashboard-grid { width: 1384px; }
-  .dashboard-tile-grid { grid-template-columns: repeat(12, 108px); }
+  .dashboard-tile-grid {
+    --active-grid-columns: 12;
+    grid-template-columns: repeat(12, 108px);
+  }
 }
 @media (min-width: 1764px) {
   .dashboard-grid { width: 1732px; }
-  .dashboard-tile-grid { grid-template-columns: repeat(15, 108px); }
+  .dashboard-tile-grid {
+    --active-grid-columns: 15;
+    grid-template-columns: repeat(15, 108px);
+  }
 }
 
 /* === SERVICE TILES === */
@@ -360,9 +373,9 @@ button {
   cursor: pointer;
   min-width: 0; /* grid item: allow shrinking below content width (RC3) */
   min-height: 0; /* grid item: spans must not stretch past their tracks */
-  width: var(--tile-width);
+  width: min(var(--tile-width), calc(var(--active-grid-columns) * 108px + (var(--active-grid-columns) - 1) * 8px));
+  grid-column: span min(var(--tile-columns), var(--active-grid-columns));
   height: var(--tile-height);
-  grid-column: span var(--tile-columns);
   grid-row: span var(--tile-rows);
   overflow: hidden;
 }
@@ -376,32 +389,32 @@ button {
   box-shadow: var(--shadow-sm);
 }
 
-/* === LEGACY BOOKMARK SIZE PRESETS (bookmarks leave in KOK-83 follow-up) === */
-/* Col×row spans per SIZE_SPANS (src/config/resolve.ts):
-   normal 1×1 (base, no rule needed), wide 2×1, tall 1×2, large 2×2.
-   Shared by service tiles and bookmark tiles. */
+/* === BOOKMARK FOOTPRINT PRESETS === */
+/* normal 3×2, wide 6×2, tall 3×4, large 6×4. */
 .bookmark-tile--wide,
 .bookmark-tile--large {
-  grid-column: span 2;
+  --bookmark-columns: 6;
 }
 
 .bookmark-tile--tall,
 .bookmark-tile--large {
-  grid-row: span 2;
+  --bookmark-rows: 4;
 }
 
 @media (max-width: 719px) {
   .dashboard-tile-grid > .service-tile {
-    width: var(--mobile-tile-width, 340px);
-    height: var(--mobile-tile-height, 60px);
-    grid-column: span var(--mobile-tile-columns, 3);
+    width: 340px;
+    grid-column: span min(var(--mobile-tile-columns, 3), 3);
     grid-row: span var(--mobile-tile-rows, 1);
   }
   .service-tile--mobile-fallback .service-tile__widget,
   .service-tile--mobile-fallback .service-tile__description { display: none; }
-  .dashboard-tile-grid > .bookmark-tile {
-    grid-column: 1 / -1;
-    grid-row: auto;
+
+  .tile-drag-overlay .service-tile {
+    width: 340px;
+    height: var(--mobile-tile-height, 60px);
+    grid-column: span min(var(--mobile-tile-columns, 3), 3);
+    grid-row: span var(--mobile-tile-rows, 1);
   }
 }
 
@@ -411,7 +424,7 @@ button {
 }
 /* Sub-340px devices are the sole compatibility case; tracks remain canonical. */
 @media (max-width: 339px) {
-  .dashboard-grid { width: 100vw; overflow: hidden; }
+  .dashboard-grid { width: 100vw; overflow-x: auto; }
   .dashboard-tile-grid { width: 340px; }
 }
 
@@ -707,6 +720,8 @@ button {
   border-radius: var(--radius);
   min-width: 0;
   min-height: 0;
+  grid-column: span min(var(--bookmark-columns, 3), var(--active-grid-columns));
+  grid-row: span var(--bookmark-rows, 2);
 }
 
 .bookmark-tile__header {
@@ -4039,8 +4054,9 @@ button {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: var(--row-height, 120px);
-  padding: 1rem;
+  min-height: 0;
+  height: 100%;
+  padding: 0.25rem;
   color: var(--color-text-muted);
   background: none;
   border: 1px dashed var(--color-border);

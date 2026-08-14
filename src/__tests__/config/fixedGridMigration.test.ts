@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+// Pure config transformation coverage; the suite inherits Vitest's global jsdom setup and renders no UI.
 import { migrateFixedGridConfig } from "@/config/loader";
 
 describe("fixed-grid config migration", () => {
@@ -15,7 +16,7 @@ describe("fixed-grid config migration", () => {
     expect(migrated.service_tiles[0]).toMatchObject({ id: tileId, service_id: serviceId, group: "Media", footprint: { columnSpan: 6, rowSpan: 2 }, widget: { config: { view: "queue" } } });
     expect(migrated.service_tiles[0]).not.toHaveProperty("size");
     expect(migrated.groups).toEqual([{ name: "Media", collapsed: true }]);
-    expect(migrated.layout.ungrouped).toBe("first");
+    expect(migrated.layout).toEqual({ ungrouped: "first" });
   });
 
   it("normalizes malformed persisted spans instead of reviving fluid geometry", () => {
@@ -30,5 +31,24 @@ describe("fixed-grid config migration", () => {
       }],
     });
     expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 15, rowSpan: 1 });
+  });
+  it.each([
+    ["wide", { columnSpan: 6, rowSpan: 2 }],
+    ["tall", { columnSpan: 3, rowSpan: 4 }],
+    ["large", { columnSpan: 6, rowSpan: 4 }],
+  ] as const)("preserves a plain tile's legacy %s footprint", (size, footprint) => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const migrated = migrateFixedGridConfig({
+      schema_version: 2,
+      services: [{ id: serviceId, name: "Plain" }],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000002",
+        service_id: serviceId,
+        size,
+      }],
+    });
+
+    expect(migrated.service_tiles[0]).toMatchObject({ footprint });
+    expect(migrated.service_tiles[0]).not.toHaveProperty("size");
   });
 });

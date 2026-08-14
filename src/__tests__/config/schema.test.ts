@@ -185,11 +185,11 @@ describe("KokpitConfigSchema – layout.ungrouped", () => {
 });
 
 describe("KokpitConfigSchema – groups", () => {
-  it("accepts declared groups with collapsed and columns", () => {
+  it("accepts declared groups with collapsed state", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
       groups: [
-        { name: "Media", collapsed: false, columns: 4 },
+        { name: "Media", collapsed: false },
         { name: "Downloads" },
       ],
     });
@@ -219,13 +219,6 @@ describe("KokpitConfigSchema – groups", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects non-positive group columns", () => {
-    const r = KokpitConfigSchema.safeParse({
-      ...minimalValid,
-      groups: [{ name: "Media", columns: 0 }],
-    });
-    expect(r.success).toBe(false);
-  });
 });
 
 describe("KokpitConfigSchema – bookmarks", () => {

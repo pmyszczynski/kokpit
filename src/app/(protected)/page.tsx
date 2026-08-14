@@ -1,12 +1,9 @@
-import { getConfig } from "@/config/server";
 import ServiceGrid from "@/components/ServiceGrid";
 import DashboardSurface from "@/components/edit/DashboardSurface";
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  getConfig();
-
   return (
     <div
       className="dashboard-grid"

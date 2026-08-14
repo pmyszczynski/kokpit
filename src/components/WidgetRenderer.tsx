@@ -25,14 +25,14 @@ function KnownWidgetContent({
   tileId,
   refreshInterval,
   footprint,
-  mobile,
+  Component,
 }: {
   widget: WidgetDefinition;
   type: string;
   tileId: string;
   refreshInterval?: number;
   footprint: TileFootprint;
-  mobile?: boolean;
+  Component: WidgetDefinition["component"];
 }) {
   const { data, loading, error, refresh } = useWidget(
     tileId,
@@ -56,8 +56,6 @@ function KnownWidgetContent({
     );
   }
 
-  const Component = mobile ? widget.mobile?.component : widget.component;
-  if (!Component) return null;
   return <Component data={data} loading={loading} error={error} refresh={refresh}
     footprint={footprint} dimensions={dimensionsForFootprint(footprint)} />;
 }
@@ -73,6 +71,11 @@ function WidgetContent({ type, tileId, refreshInterval, footprint, mobile }: Wid
     );
   }
 
+  // Do this before mounting KnownWidgetContent: a mobile-only request for a
+  // desktop-only widget has no UI to render and must not start polling.
+  const Component = mobile ? widget.mobile?.component : widget.component;
+  if (!Component) return null;
+
   return (
     <KnownWidgetContent
       key={type}
@@ -81,7 +84,7 @@ function WidgetContent({ type, tileId, refreshInterval, footprint, mobile }: Wid
       tileId={tileId}
       refreshInterval={refreshInterval}
       footprint={footprint ?? { columnSpan: 3, rowSpan: 2 }}
-      mobile={mobile}
+      Component={Component}
     />
   );
 }

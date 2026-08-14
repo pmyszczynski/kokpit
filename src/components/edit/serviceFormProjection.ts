@@ -364,21 +364,34 @@ export function persistLegacyServices(
     }
 
     if (!input.editorCatalogOnly && (!previous || input.tileId || primaryTile || hasDefinedPlacement || hasWidgetTileMutation)) {
+      const resolvedSize = hasInputSize
+        ? input.size
+        : input.position
+          ? resolveServiceSize(input)
+          : primaryTile?.size;
+      const defaultFootprint = widget
+        ? getWidget(widget.type)?.supportedFootprints?.[0] ?? legacyWidgetFootprint(resolvedSize)
+        : resolvedSize
+          ? legacyWidgetFootprint(resolvedSize)
+          : GENERIC_SERVICE_FOOTPRINT;
+      const sizeChanged = hasInputSize && input.size !== primaryTile?.size;
+      const widgetChanged = hasInputWidget && widget?.type !== primaryTile?.widget?.type;
+      const footprint = sizeChanged || widgetChanged
+        ? defaultFootprint
+        : input.footprint
+          ? { ...input.footprint }
+          : primaryTile?.footprint
+            ? { ...primaryTile.footprint }
+            : defaultFootprint;
       const persistedTile = {
         id: primaryTile?.id ?? input.tileId ?? generateUuid(),
         service_id: id,
-        footprint: primaryTile?.footprint
-          ? { ...primaryTile.footprint }
-          : input.widget
-            ? getWidget(input.widget.type)?.supportedFootprints?.[0] ?? legacyWidgetFootprint(input.size)
-            : GENERIC_SERVICE_FOOTPRINT,
+        footprint,
         ...((hasInputGroup ? input.group : primaryTile?.group)
           ? { group: hasInputGroup ? input.group : primaryTile?.group }
           : {}),
-        ...((hasInputSize
-          ? input.size
-          : input.position ? resolveServiceSize(input) : primaryTile?.size)
-          ? { size: hasInputSize ? input.size : (input.position ? resolveServiceSize(input) : primaryTile?.size) }
+        ...(resolvedSize
+          ? { size: resolvedSize }
           : {}),
         ...(hasInputWidget && widget ? {
           widget: {

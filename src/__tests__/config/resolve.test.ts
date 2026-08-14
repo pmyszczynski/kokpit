@@ -273,13 +273,13 @@ describe("resolveGroupOrder", () => {
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([null]);
   });
 
-  it("carries collapsed and columns through from declarations", () => {
+  it("carries collapsed state through from declarations", () => {
     const config = makeConfig({
-      groups: [{ name: "Media", collapsed: true, columns: 6 }],
+      groups: [{ name: "Media", collapsed: true }],
       services: [],
     });
     expect(resolveGroupOrder(config)).toEqual([
-      { name: "Media", declared: true, collapsed: true, columns: 6 },
+      { name: "Media", declared: true, collapsed: true },
     ]);
   });
 
