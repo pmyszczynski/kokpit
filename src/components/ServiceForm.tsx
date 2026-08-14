@@ -555,6 +555,7 @@ export default function ServiceForm({
     return "";
   });
   const [nameError, setNameError] = useState<string | null>(null);
+  const [sizeTouched, setSizeTouched] = useState(false);
 
   const initialTileType = initial.tileType || (presetEditor ? initialPreset ?? "" : "");
   const [tileType, setTileType] = useState(initialTileType);
@@ -1115,7 +1116,9 @@ export default function ServiceForm({
       icon: icon.trim() || undefined,
       description: description.trim() || undefined,
       group: group.trim() || undefined,
-      size: size || undefined,
+      ...(service?.footprint && !sizeTouched
+        ? { footprint: { ...service.footprint } }
+        : { size: size || undefined }),
       widget,
     });
   }
@@ -1438,7 +1441,10 @@ export default function ServiceForm({
             id="sf-size"
             className="settings-input"
             value={size}
-            onChange={(e) => setSize(e.target.value as Size | "")}
+            onChange={(e) => {
+              setSize(e.target.value as Size | "");
+              setSizeTouched(true);
+            }}
           >
             <option value="">Auto</option>
             {SIZE_ORDER.map((s) => {

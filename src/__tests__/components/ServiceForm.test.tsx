@@ -2136,6 +2136,26 @@ describe("ServiceForm – size", () => {
     expect(saved.position).toBeUndefined();
   });
 
+  it("preserves a custom footprint when Size is not changed", () => {
+    const onSave = vi.fn();
+    const footprint = { columnSpan: 9, rowSpan: 3 };
+    render(
+      <ServiceForm
+        service={{ name: "Custom", footprint }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    expect(screen.getByLabelText("Size")).toHaveValue("normal");
+    fireEvent.click(screen.getByText("Save"));
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.footprint).toEqual(footprint);
+    expect(Object.prototype.hasOwnProperty.call(saved, "size")).toBe(false);
+  });
+
   it("resets an incompatible explicit size to Auto when picking a widget with a larger minSize", () => {
     render(
       <ServiceForm
