@@ -56,6 +56,7 @@ registerWidget<SeerrConfig, SeerrStats>({
   id: "seerr-stats",
   name: "Seerr Stats",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   configSchema: SeerrConfigSchema,
   fetchData: fetchStats,
   refreshInterval: 60_000,

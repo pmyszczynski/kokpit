@@ -1006,7 +1006,7 @@ describe("serviceFormProjection", () => {
     expect(persisted.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
   });
 
-  it("honors copied input geometry and recomputes it after an explicit size change", () => {
+  it("normalizes all plain-service geometry paths to the generic footprint", () => {
     const services = [{ id: serviceId, name: "Plex" }];
     const copied = persistLegacyServices([{
       id: serviceId,
@@ -1014,7 +1014,7 @@ describe("serviceFormProjection", () => {
       name: "Plex copy",
       footprint: { columnSpan: 9, rowSpan: 3 },
     }], services, []);
-    expect(copied.service_tiles[0].footprint).toEqual({ columnSpan: 9, rowSpan: 3 });
+    expect(copied.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
 
     const tiles = [{
       id: tileId,
@@ -1029,10 +1029,10 @@ describe("serviceFormProjection", () => {
       size: "wide",
       footprint: { columnSpan: 3, rowSpan: 2 },
     }], services, tiles);
-    expect(resized.service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(resized.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
   });
 
-  it("uses consistent fixed footprints for plain normal and described cards", () => {
+  it("keeps plain normal and described cards at the same fixed footprint", () => {
     const services = [{ id: serviceId, name: "Plain" }];
     const compact = persistLegacyServices([{
       id: serviceId,
@@ -1047,7 +1047,7 @@ describe("serviceFormProjection", () => {
       description: "Visible details",
       size: "normal",
     }], services, []);
-    expect(described.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+    expect(described.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
   });
 
   it("uses a widget's preferred and minimum size for an automatic footprint", () => {

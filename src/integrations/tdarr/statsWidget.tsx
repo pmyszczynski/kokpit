@@ -84,6 +84,7 @@ registerWidget<TdarrConfig, TdarrStats>({
   id: "tdarr-stats",
   name: "Tdarr Stats",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "Tdarr",
     defaultIconUrl: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/tdarr.svg",

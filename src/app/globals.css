@@ -408,6 +408,24 @@ button {
     grid-column: span min(var(--mobile-tile-columns, 3), 3);
     grid-row: span var(--mobile-tile-rows, 1);
   }
+
+  /* Bookmarks are outside KOK-83; preserve their prior compact mobile canvas. */
+  .dashboard-tile-grid > .bookmark-tile {
+    --bookmark-columns: 3;
+    --bookmark-rows: 2;
+  }
+
+  /* A one-row explicit mobile renderer owns the compact canvas; omit the
+     desktop service chrome so the renderer receives usable vertical space. */
+  .service-tile--mobile-row-1 {
+    gap: 0;
+    padding-block: 4px;
+  }
+  .service-tile--mobile-row-1 .service-tile__header,
+  .service-tile--mobile-row-1 .service-tile__description { display: none; }
+  .service-tile--mobile-row-1 .service-tile__widget {
+    margin-top: 0;
+  }
   .service-tile--mobile-fallback .service-tile__widget,
   .service-tile--mobile-fallback .service-tile__description { display: none; }
 

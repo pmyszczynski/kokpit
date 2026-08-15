@@ -87,6 +87,7 @@ registerWidget<NetdataBaseConfig, NetData>({
   id: "netdata-net",
   name: "Netdata Network",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchNetData,
   refreshInterval: 10_000,

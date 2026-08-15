@@ -126,10 +126,20 @@ describe("ServiceTile", () => {
 
   it("renders the description when provided", async () => {
     await act(async () => {
+    registerWidget({
+      id: "description-test-widget",
+      name: "Description test",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }],
+    });
       render(
         <ServiceTile
           name="Jellyfin"
+          footprint={{ columnSpan: 3, rowSpan: 2 }}
           url="http://192.168.1.10:8096"
+          widget={{ type: "description-test-widget" }}
           description="Media server"
         />
       );
@@ -144,7 +154,7 @@ describe("ServiceTile", () => {
     expect(screen.queryByText(/media/i)).not.toBeInTheDocument();
   });
 
-  it("hides descriptions in explicitly compact one-row footprints", async () => {
+  it("hides descriptions in generic one-row footprints", async () => {
     await act(async () => {
       render(
         <ServiceTile
@@ -198,6 +208,7 @@ describe("ServiceTile", () => {
       ));
     });
     expect(container.querySelector(".service-tile__widget-preview")).not.toBeNull();
+    expect(container.querySelector(".service-tile--mobile-row-1")).not.toBeNull();
   });
 
   it("renders the icon prop as an img", async () => {

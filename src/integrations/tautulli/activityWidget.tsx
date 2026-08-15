@@ -123,6 +123,7 @@ registerWidget<TautulliConfig, TautulliActivityData>({
   fetchData: fetchActivity,
   refreshInterval: 10_000,
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   component: TautulliActivityWidget,
   serviceEditorPreset: {

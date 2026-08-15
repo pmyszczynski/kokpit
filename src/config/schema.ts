@@ -44,7 +44,7 @@ export const ServiceSchema = z.object({
 });
 
 export const TileFootprintSchema = z.object({
-  columnSpan: z.number().int().min(1).max(15),
+  columnSpan: z.number().int().positive(),
   rowSpan: z.number().int().positive(),
 });
 

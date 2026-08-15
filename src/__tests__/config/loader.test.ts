@@ -284,7 +284,7 @@ describe("writeConfig", () => {
     const reloaded = getConfig();
     expect(reloaded.layout.ungrouped).toBe("first");
     expect(reloaded.service_tiles[0].size).toBeUndefined();
-    expect(reloaded.service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 4 });
+    expect(reloaded.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
   });
 
   it("rewrites a known widget's unsupported persisted footprint", async () => {
@@ -347,7 +347,7 @@ services:
     expect(config.services[0]).toMatchObject({ name: "Legacy Tile" });
     expect(config.service_tiles[0].group).toBeUndefined();
     expect(config.service_tiles[0].size).toBeUndefined();
-    expect(config.service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(config.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
     expect(readFileSync(`${configPath}.v1.bak`, "utf-8")).toContain("schema_version: 1");
   });
@@ -363,7 +363,7 @@ describe("unversioned settings detection", () => {
 
     expect(config.schema_version).toBe(2);
     expect(config.services[0]).toMatchObject({ name: "Legacy", launch_url: "https://example.com", category: "Media" });
-    expect(config.service_tiles[0]).toMatchObject({ group: "Media", footprint: { columnSpan: 6, rowSpan: 2 } });
+    expect(config.service_tiles[0]).toMatchObject({ group: "Media", footprint: { columnSpan: 3, rowSpan: 1 } });
     expect(config.service_tiles[0]).not.toHaveProperty("size");
     expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");

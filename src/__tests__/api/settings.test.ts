@@ -88,11 +88,11 @@ services:
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000001
     service_id: 10000000-0000-4000-8000-000000000001
-    footprint: { columnSpan: 3, rowSpan: 2 }
+    footprint: { columnSpan: 3, rowSpan: 4 }
     widget: { type: tautulli-activity, config: { sections: [summary] } }
   - id: 20000000-0000-4000-8000-000000000002
     service_id: 10000000-0000-4000-8000-000000000002
-    footprint: { columnSpan: 3, rowSpan: 2 }
+    footprint: { columnSpan: 6, rowSpan: 2 }
     widget: { type: qbittorrent-stats }
 `.trim();
 
@@ -436,7 +436,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
     expect(res.status).toBe(400);
   });
 
-  it("saves services with a size preset", async () => {
+  it("normalizes a widgetless legacy size preset to the generic footprint", async () => {
     const { PATCH } = await import("../../app/api/settings/route");
     const res = await PATCH(
       patch({
@@ -447,8 +447,8 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
     expect(written).not.toContain("size: large");
-    expect(written).toContain("columnSpan: 6");
-    expect(written).toContain("rowSpan: 4");
+    expect(written).toContain("columnSpan: 3");
+    expect(written).toContain("rowSpan: 1");
   });
 
   it("returns 400 for an invalid service size", async () => {

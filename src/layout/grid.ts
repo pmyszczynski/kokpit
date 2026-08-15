@@ -31,7 +31,7 @@ export function legacyWidgetFootprint(size?: "normal" | "wide" | "tall" | "large
 export function isTileFootprint(value: unknown): value is TileFootprint {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<TileFootprint>;
-  return Number.isInteger(candidate.columnSpan) && candidate.columnSpan! > 0 && candidate.columnSpan! <= 15
+  return Number.isInteger(candidate.columnSpan) && candidate.columnSpan! > 0
     && Number.isInteger(candidate.rowSpan) && candidate.rowSpan! > 0;
 }
 

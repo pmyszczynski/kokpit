@@ -76,7 +76,7 @@ import {
 import { duplicateBookmark, duplicateService } from "@/config/duplicate";
 import { useEditMode } from "./EditModeProvider";
 import { projectLegacyServices } from "./serviceFormProjection";
-import { getWidgetSizeHints } from "@/widgets";
+import { getWidget, getWidgetSizeHints } from "@/widgets";
 import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "../BookmarkTile";
 import CollapsibleGroup, { migrateGroupCollapseKey } from "../CollapsibleGroup";
@@ -470,10 +470,10 @@ export default function EditableServiceGrid({
     [services, config.service_tiles, setServices, updateDraft]
   );
 
-  const handleServiceSize = useCallback(
-    (id: string, size: Size) =>
+  const handleServiceFootprint = useCallback(
+    (id: string, footprint: { columnSpan: number; rowSpan: number }) =>
       setServices(
-        services.map((s) => ((s.tileId ?? s.id) === id ? { ...s, size } : s))
+        services.map((s) => ((s.tileId ?? s.id) === id ? { ...s, footprint } : s))
       ),
     [services, setServices]
   );
@@ -750,16 +750,18 @@ export default function EditableServiceGrid({
   }, [activeId, services, bookmarks]);
 
   const serviceKebab = (service: Service) => {
-    const hints = service.widget
-      ? getWidgetSizeHints(service.widget.type)
+    const supportedFootprints = service.widget
+      ? getWidget(service.widget.type)?.supportedFootprints
       : undefined;
     return (
       <ServiceTileMenu
         name={service.name}
-        size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
-        minSize={hints?.minSize}
+        footprint={service.footprint}
+        supportedFootprints={supportedFootprints}
         onEdit={() => setDialog({ kind: "service-edit", id: service.tileId ?? service.id! })}
-        onSize={(size) => handleServiceSize(service.tileId ?? service.id!, size)}
+        onFootprint={(footprint) =>
+          handleServiceFootprint(service.tileId ?? service.id!, footprint)
+        }
         onDuplicate={() => handleServiceDuplicate(service.tileId ?? service.id!)}
         onRemove={() => handleServiceRemove(service.tileId ?? service.id!)}
       />

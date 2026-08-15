@@ -598,13 +598,18 @@ describe("SettingsPanel - services tab", () => {
     expect(screen.getByText("No services configured yet.")).toBeInTheDocument();
   });
 
-  it("shows a Size column with the effective size of each service", () => {
+  it("shows the exact footprint of each service", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
     render(
       <SettingsPanel
         config={makeConfig({
           services: [
-            { name: "Jellyfin", url: "http://j.local", size: "wide" },
+            {
+              name: "Jellyfin",
+              url: "http://j.local",
+              widget: { type: "plex" },
+              footprint: { columnSpan: 6, rowSpan: 2 },
+            },
             { name: "Portainer", url: "http://p.local" },
           ],
         })}
@@ -612,9 +617,9 @@ describe("SettingsPanel - services tab", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     const jelly = screen.getByText("Jellyfin").closest("tr")!;
-    expect(within(jelly).getByText("Wide (2×1)")).toBeInTheDocument();
+    expect(within(jelly).getByText("6×2")).toBeInTheDocument();
     const port = screen.getByText("Portainer").closest("tr")!;
-    expect(within(port).getByText("Normal (1×1)")).toBeInTheDocument();
+    expect(within(port).getByText("3×1")).toBeInTheDocument();
   });
 
   it("reorders a service down and saves the new array order via PATCH", async () => {

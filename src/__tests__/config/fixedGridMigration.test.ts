@@ -28,15 +28,13 @@ describe("fixed-grid config migration", () => {
         id: "20000000-0000-4000-8000-000000000002",
         service_id: serviceId,
         footprint: { columnSpan: 99.7, rowSpan: 0 },
+        widget: { type: "unknown" },
       }],
     });
-    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 15, rowSpan: 1 });
+    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 99, rowSpan: 1 });
   });
-  it.each([
-    ["wide", { columnSpan: 6, rowSpan: 2 }],
-    ["tall", { columnSpan: 3, rowSpan: 4 }],
-    ["large", { columnSpan: 6, rowSpan: 4 }],
-  ] as const)("preserves a plain tile's legacy %s footprint", (size, footprint) => {
+  it.each(["wide", "tall", "large"] as const)(
+    "normalizes a plain tile's legacy %s size to the generic footprint", (size) => {
     const serviceId = "10000000-0000-4000-8000-000000000001";
     const migrated = migrateFixedGridConfig({
       schema_version: 2,
@@ -48,7 +46,7 @@ describe("fixed-grid config migration", () => {
       }],
     });
 
-    expect(migrated.service_tiles[0]).toMatchObject({ footprint });
+    expect(migrated.service_tiles[0]).toMatchObject({ footprint: { columnSpan: 3, rowSpan: 1 } });
     expect(migrated.service_tiles[0]).not.toHaveProperty("size");
   });
 
@@ -67,7 +65,7 @@ describe("fixed-grid config migration", () => {
     expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
   });
 
-  it("allocates a second row to a described plain card", () => {
+  it("keeps described generic service cards at the fixed 3×1 footprint", () => {
     const serviceId = "10000000-0000-4000-8000-000000000001";
     const migrated = migrateFixedGridConfig({
       schema_version: 2,
@@ -79,6 +77,6 @@ describe("fixed-grid config migration", () => {
       }],
     });
 
-    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
   });
 });

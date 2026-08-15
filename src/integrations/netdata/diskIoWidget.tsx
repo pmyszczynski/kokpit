@@ -87,6 +87,7 @@ registerWidget<NetdataBaseConfig, DiskIoData>({
   id: "netdata-disk-io",
   name: "Netdata Disk I/O",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchDiskIoData,
   refreshInterval: 10_000,

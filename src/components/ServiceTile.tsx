@@ -298,7 +298,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   const definition = widget ? getWidget(widget.type) : undefined;
   const resolvedFootprint = widget
     ? resolveWidgetFootprint(definition?.supportedFootprints, footprint, size)
-    : footprint ?? (description ? legacyWidgetFootprint("normal") : GENERIC_SERVICE_FOOTPRINT);
+    : GENERIC_SERVICE_FOOTPRINT;
   const dimensions = dimensionsForFootprint(resolvedFootprint);
   const mobileFootprint = definition?.mobile?.footprint ?? GENERIC_SERVICE_FOOTPRINT;
   const mobileDimensions = dimensionsForFootprint(mobileFootprint);
@@ -307,6 +307,8 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   const className =
     `service-tile service-tile--${size}` +
     (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
+    (definition?.mobile?.footprint.rowSpan === 1
+      ? " service-tile--mobile-row-1" : "") +
     (drag ? " service-tile--editable" : "") +
     (drag?.dragging ? " service-tile--dragging" : "");
 

@@ -109,6 +109,7 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
   id: "actualbudget-accounts",
   name: "Actual Budget Accounts",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:

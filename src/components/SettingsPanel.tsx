@@ -7,11 +7,11 @@ import { useRouter } from "next/navigation";
 import { KokpitConfig, Service, Group, BookmarkGroup, widgetIntegrationRequirement } from "@/config/schema";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import {
-  resolveServiceSize,
   resolveGroupOrder,
   serviceNameUniquenessKey,
 } from "@/config";
-import { getWidgetSizeHints } from "@/widgets";
+import { getWidget } from "@/widgets";
+import { GENERIC_SERVICE_FOOTPRINT } from "@/layout/grid";
 import {
   applyGroupCascades,
   applyServiceTileGroupCascades,
@@ -21,7 +21,6 @@ import ServiceForm from "./ServiceForm";
 import GroupsTab from "./GroupsTab";
 import BookmarksTab from "./BookmarksTab";
 import BookmarkGroupForm from "./BookmarkGroupForm";
-import { sizeLabel } from "./settingsSizeOptions";
 import {
   persistLegacyServices,
   projectCatalogServices,
@@ -424,11 +423,10 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     void saveServices(next);
   }
 
-  function effectiveSize(svc: Service) {
-    const preferred = svc.widget
-      ? getWidgetSizeHints(svc.widget.type)?.preferredSize
-      : undefined;
-    return resolveServiceSize(svc, preferred);
+  function effectiveFootprint(svc: Service) {
+    return svc.footprint ??
+      (svc.widget ? getWidget(svc.widget.type)?.supportedFootprints?.[0] : undefined) ??
+      GENERIC_SERVICE_FOOTPRINT;
   }
 
   // ----- Groups tab -----
@@ -1077,7 +1075,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
                     <th>Name</th>
                     <th>URL</th>
                     <th>Group</th>
-                    <th>Size</th>
+                    <th>Footprint</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1108,7 +1106,9 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
                       <td>{svc.name}</td>
                       <td className="service-table__url">{svc.url ?? "—"}</td>
                       <td>{svc.group ?? "—"}</td>
-                      <td>{sizeLabel(effectiveSize(svc))}</td>
+                      <td>
+                        {effectiveFootprint(svc).columnSpan}×{effectiveFootprint(svc).rowSpan}
+                      </td>
                       <td className="service-table__actions">
                         <button
                           className="settings-btn"

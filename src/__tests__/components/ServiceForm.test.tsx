@@ -1477,7 +1477,6 @@ describe("ServiceForm – Tautulli defaults", () => {
       target: { value: "https://example.test/icon.svg" },
     });
     fireEvent.change(screen.getByLabelText("Group"), { target: { value: "Media" } });
-    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "large" } });
     fireEvent.change(screen.getByLabelText("Refresh interval (ms)"), {
       target: { value: "15000" },
     });
@@ -2063,62 +2062,57 @@ describe("GroupCombobox", () => {
   });
 });
 
-describe("ServiceForm – size", () => {
-  it("defaults the size select to Auto and omits size from the payload", () => {
+describe("ServiceForm – footprint", () => {
+  it("does not expose geometry controls for a generic service", () => {
     const onSave = vi.fn();
     render(
       <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
     );
-    expect(screen.getByLabelText("Size")).toHaveValue("");
+    expect(screen.queryByLabelText("Size")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Footprint")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Plex" } });
     fireEvent.click(screen.getByText("Save"));
     expect(onSave.mock.calls[0][0].size).toBeUndefined();
+    expect(onSave.mock.calls[0][0].footprint).toBeUndefined();
   });
 
-  it("pre-fills the size select from the service and includes it on save", () => {
+  it("shows and persists only a widget's declared exact footprint", () => {
     const onSave = vi.fn();
     render(
       <ServiceForm
-        service={{ name: "Plex", size: "wide" }}
+        service={{ name: "Docker", widget: { type: "docker" }, footprint: { columnSpan: 3, rowSpan: 4 } }}
         existingGroups={[]}
         onSave={onSave}
         onClose={noop}
       />
     );
-    expect(screen.getByLabelText("Size")).toHaveValue("wide");
-    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "large" } });
+    const select = screen.getByLabelText("Footprint") as HTMLSelectElement;
+    expect(select).toHaveValue("3x4");
+    expect(select.options).toHaveLength(1);
     fireEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Plex", size: "large" })
+      expect.objectContaining({
+        name: "Docker",
+        footprint: { columnSpan: 3, rowSpan: 4 },
+      })
     );
   });
 
-  it("disables sizes below the selected widget's minSize", () => {
+  it("selecting a widget replaces legacy size choices with its exact footprint", () => {
     render(
       <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
     );
-    // Docker declares minSize "tall" (1×2): normal (1×1) and wide (2×1) can't
-    // satisfy it, tall and large can.
     fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "docker" } });
-    const sizeSelect = screen.getByLabelText("Size") as HTMLSelectElement;
-    const optByValue = (value: string) =>
-      Array.from(sizeSelect.querySelectorAll("option")).find(
-        (o) => o.value === value
-      )!;
-    expect(optByValue("normal")).toBeDisabled();
-    expect(optByValue("wide")).toBeDisabled();
-    expect(optByValue("tall")).not.toBeDisabled();
-    expect(optByValue("large")).not.toBeDisabled();
-    expect(screen.getByText(/needs at least Tall/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x4");
+    expect(screen.queryByLabelText("Size")).not.toBeInTheDocument();
   });
 
-  it("migrates a legacy position-only service to an explicit size on save", () => {
+  it("does not revive a legacy position or size through the editor", () => {
     const onSave = vi.fn();
     render(
       <ServiceForm
         service={{
           name: "Legacy",
-          // width 2 / height 1 → "wide"; no explicit size.
           position: { col: 1, row: 1, width: 2, height: 1 },
         }}
         existingGroups={[]}
@@ -2126,47 +2120,42 @@ describe("ServiceForm – size", () => {
         onClose={noop}
       />
     );
-    // The select is seeded from the position mapping so the effective size
-    // survives dropping the deprecated field.
-    expect(screen.getByLabelText("Size")).toHaveValue("wide");
     fireEvent.click(screen.getByText("Save"));
     const saved = onSave.mock.calls[0][0];
-    expect(saved.size).toBe("wide");
-    // `position` is deprecated and intentionally dropped.
+    expect(saved.size).toBeUndefined();
     expect(saved.position).toBeUndefined();
   });
 
-  it("preserves a custom footprint when Size is not changed", () => {
+  it("normalizes an unsupported known-widget footprint to its declared canvas", () => {
     const onSave = vi.fn();
-    const footprint = { columnSpan: 9, rowSpan: 3 };
     render(
       <ServiceForm
-        service={{ name: "Custom", footprint }}
+        service={{ name: "Custom", widget: { type: "system-stats" }, footprint: { columnSpan: 9, rowSpan: 3 } }}
         existingGroups={[]}
         onSave={onSave}
         onClose={noop}
       />
     );
 
-    expect(screen.getByLabelText("Size")).toHaveValue("normal");
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x4");
     fireEvent.click(screen.getByText("Save"));
 
     const saved = onSave.mock.calls[0][0];
-    expect(saved.footprint).toEqual(footprint);
+    expect(saved.footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
     expect(Object.prototype.hasOwnProperty.call(saved, "size")).toBe(false);
   });
 
-  it("resets an incompatible explicit size to Auto when picking a widget with a larger minSize", () => {
+  it("selects the widget's default footprint when the tile type changes", () => {
     render(
       <ServiceForm
-        service={{ name: "Box", size: "normal" }}
+        service={{ name: "Box" }}
         existingGroups={[]}
         onSave={noop}
         onClose={noop}
       />
     );
-    expect(screen.getByLabelText("Size")).toHaveValue("normal");
+    expect(screen.queryByLabelText("Footprint")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "docker" } });
-    expect(screen.getByLabelText("Size")).toHaveValue("");
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x4");
   });
 });

@@ -149,7 +149,7 @@ service_tiles:
       rowSpan: 4
 ```
 
-The dashboard uses non-configurable 108×60px units with an 8px gap and automatically exposes 3, 6, 9, 12, or 15 columns as the viewport grows. A footprint is the exact number of those units a tile occupies. Plain cards default to 3×1 (or 3×2 when they have a description); widgets use their preferred/minimum canvas. The editor's `normal`, `wide`, `tall`, and `large` choices map widget canvases to 3×2, 6×2, 3×4, and 6×4. Legacy `size`, `position`, `layout.columns`, `layout.row_height`, and per-group `columns` values are migrated to fixed footprints or removed on load.
+The dashboard uses non-configurable 108×60px units with an 8px gap and automatically exposes 3, 6, 9, 12, or 15 columns as the viewport grows. A footprint is the exact number of those units a tile occupies. Generic service cards are always 3×1; compact cards deliberately omit secondary content that does not fit. Widgets use their declared exact canvases. Legacy `size`, `position`, `layout.columns`, `layout.row_height`, and per-group `columns` values are migrated to fixed footprints or removed on load.
 
 **Group services into ordered sections:**
 
@@ -265,7 +265,7 @@ Click the pencil icon in the navbar (or press `Mod+E` — Cmd+E on macOS, Ctrl+E
 While editing:
 
 - **Reorder tiles** by dragging them — within a group, or across groups (dropping a tile into another group's grid reassigns it there). Drag a group's header to reorder whole groups. Dragging uses an 8px pointer-activation threshold so taps and scrolling don't start a drag, which is also what makes it work on touch. Full keyboard support too: Tab to a tile's drag handle, press Space to pick it up, arrow keys to move it, Space again to drop.
-- **Configure a tile** from its kebab menu: **Edit** opens the same service/bookmark form used elsewhere, **Size** switches between `normal` / `wide` / `tall` / `large` (sizes below a widget's minimum are greyed out), plus **Duplicate** and **Remove**.
+- **Configure a tile** from its kebab menu: **Edit** opens the same service/bookmark form used elsewhere; widgets expose only the exact footprints their renderer declares, alongside **Duplicate** and **Remove**.
 - **Add a tile** with the **+ Add** button — a blank service, one of the widget presets, or a bookmark group, dropped into whichever group you opened it from.
 - **Manage a group** from its header kebab: rename (cascades to every member service and bookmark, and carries over the collapse state), declare it for ordering, or delete it (members become ungrouped).
 - **Save or discard** from the persistent edit bar. It tracks how many top-level sections changed; **Save & exit** writes everything in a single atomic request to `settings.yaml`, **Discard** drops the staged changes and returns to the live dashboard.

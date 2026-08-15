@@ -65,6 +65,7 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
   id: "sabnzbd",
   name: "SABnzbd",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "SABnzbd",
     defaultIconUrl: "https://cdn.simpleicons.org/sabnzbd",

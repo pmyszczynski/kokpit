@@ -51,11 +51,11 @@ services:
     name: Unraid
     integration: { type: unraid, config: { url: http://unraid.test, api_key: saved-unraid-secret } }
 service_tiles:
-  - { id: 20000000-0000-4000-8000-000000000001, service_id: 10000000-0000-4000-8000-000000000001, footprint: { columnSpan: 3, rowSpan: 2 }, widget: { type: plex } }
-  - { id: 20000000-0000-4000-8000-000000000002, service_id: 10000000-0000-4000-8000-000000000002, footprint: { columnSpan: 3, rowSpan: 2 }, widget: { type: plex } }
+  - { id: 20000000-0000-4000-8000-000000000001, service_id: 10000000-0000-4000-8000-000000000001, footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: plex } }
+  - { id: 20000000-0000-4000-8000-000000000002, service_id: 10000000-0000-4000-8000-000000000002, footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: plex } }
   - { id: 20000000-0000-4000-8000-000000000003, service_id: 10000000-0000-4000-8000-000000000003, footprint: { columnSpan: 3, rowSpan: 2 }, widget: { type: not-a-real-widget } }
-  - { id: 20000000-0000-4000-8000-000000000004, service_id: 10000000-0000-4000-8000-000000000004, footprint: { columnSpan: 3, rowSpan: 2 }, widget: { type: tautulli-activity } }
-  - { id: 20000000-0000-4000-8000-000000000005, service_id: 10000000-0000-4000-8000-000000000005, footprint: { columnSpan: 3, rowSpan: 2 }, widget: { type: unraid-stats } }
+  - { id: 20000000-0000-4000-8000-000000000004, service_id: 10000000-0000-4000-8000-000000000004, footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: tautulli-activity } }
+  - { id: 20000000-0000-4000-8000-000000000005, service_id: 10000000-0000-4000-8000-000000000005, footprint: { columnSpan: 6, rowSpan: 4 }, widget: { type: unraid-stats } }
 `.trim();
 
 const AUTH_ENABLED_YAML = SERVICES_YAML.replace("enabled: false", "enabled: true");
@@ -111,8 +111,8 @@ describe("GET /api/widget", () => {
   it("returns 400 when a tile has no widget", async () => {
     const { GET } = await import("../../app/api/widget/route");
     vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML.replace(
-      ", widget: { type: plex }",
-      ""
+      ", footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: plex }",
+      ", footprint: { columnSpan: 3, rowSpan: 1 }"
     ));
     const res = await GET(get("20000000-0000-4000-8000-000000000001"));
     expect(res.status).toBe(400);

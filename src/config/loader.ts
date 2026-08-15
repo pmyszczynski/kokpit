@@ -39,17 +39,6 @@ function sameFootprint(
   return left.columnSpan === right.columnSpan && left.rowSpan === right.rowSpan;
 }
 
-function describedServiceIds(raw: Record<string, unknown>): Set<string> {
-  return new Set(Array.isArray(raw.services) ? raw.services.flatMap((service) =>
-    isRecord(service) &&
-    typeof service.id === "string" &&
-    typeof service.description === "string" &&
-    service.description.length > 0
-      ? [service.id]
-      : []
-  ) : []);
-}
-
 function widgetDefinitionForTile(tile: Record<string, unknown>) {
   return isRecord(tile.widget) && typeof tile.widget.type === "string"
     ? getWidget(tile.widget.type)
@@ -58,7 +47,6 @@ function widgetDefinitionForTile(tile: Record<string, unknown>) {
 
 /** One-way KOK-83 migration. It preserves tile identity/order/configuration. */
 export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConfig {
-  const descriptions = describedServiceIds(raw);
   const tiles = Array.isArray(raw.service_tiles) ? raw.service_tiles.map((entry) => {
     if (!isRecord(entry)) return entry;
     const { size, footprint: savedFootprint, ...tile } = entry;
@@ -78,23 +66,17 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const supportedFallback = supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
     ) ?? supportedFootprints?.[0];
-    const serviceHasDescription =
-      typeof entry.service_id === "string" && descriptions.has(entry.service_id);
-    // Plain compact cards use the new generic 3×1 canvas. Described cards need
-    // the 3×2 canvas so their documented text remains visible without clipping.
+    // Generic service cards are always 3×1. Compact canvases deliberately omit
+    // secondary content such as descriptions rather than changing geometry.
     const fallback = entry.widget
       ? supportedFallback ?? hintedWidgetFootprint
-      : legacySize && legacySize !== "normal"
-        ? legacyWidgetFootprint(legacySize)
-        : serviceHasDescription
-          ? legacyWidgetFootprint("normal")
-          : GENERIC_SERVICE_FOOTPRINT;
-    const normalizeSpan = (value: unknown, fallbackValue: number, maximum?: number) => {
+      : GENERIC_SERVICE_FOOTPRINT;
+    const normalizeSpan = (value: unknown, fallbackValue: number) => {
       const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
-      return Math.min(maximum ?? Number.MAX_SAFE_INTEGER, Math.max(1, numeric));
+      return Math.max(1, numeric);
     };
     const normalized = isRecord(savedFootprint) ? {
-      columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan, 15),
+      columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan),
       rowSpan: normalizeSpan(savedFootprint.rowSpan, fallback.rowSpan),
     } : fallback;
     const supported = supportedFootprints?.length
@@ -102,11 +84,9 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
         ? normalized
         : supportedFallback!
       : normalized;
-    const footprint = !entry.widget &&
-      serviceHasDescription &&
-      sameFootprint(supported, GENERIC_SERVICE_FOOTPRINT)
-        ? legacyWidgetFootprint("normal")
-        : { columnSpan: supported.columnSpan, rowSpan: supported.rowSpan };
+    const footprint = entry.widget
+      ? { columnSpan: supported.columnSpan, rowSpan: supported.rowSpan }
+      : { ...GENERIC_SERVICE_FOOTPRINT };
     return { ...tile, footprint };
   }) : raw.service_tiles;
   const oldLayout = isRecord(raw.layout) ? raw.layout : {};
@@ -123,7 +103,6 @@ function needsFixedGridMigration(raw: Record<string, unknown>): boolean {
   const layout = isRecord(raw.layout) ? raw.layout : {};
   if (["columns", "row_height", "tablet", "mobile"].some((key) => key in layout)) return true;
   if (Array.isArray(raw.groups) && raw.groups.some((group) => isRecord(group) && "columns" in group)) return true;
-  const descriptions = describedServiceIds(raw);
   return Array.isArray(raw.service_tiles) && raw.service_tiles.some((tile) => {
     if (!isRecord(tile)) return true;
     const footprint = tile.footprint;
@@ -132,10 +111,7 @@ function needsFixedGridMigration(raw: Record<string, unknown>): boolean {
     if (supported?.length && !supported.some((candidate) => sameFootprint(candidate, footprint))) {
       return true;
     }
-    return !tile.widget &&
-      typeof tile.service_id === "string" &&
-      descriptions.has(tile.service_id) &&
-      sameFootprint(footprint, GENERIC_SERVICE_FOOTPRINT);
+    return !tile.widget && !sameFootprint(footprint, GENERIC_SERVICE_FOOTPRINT);
   });
 }
 

@@ -321,11 +321,13 @@ export function persistLegacyServices(
     const hasInputGroup = Object.prototype.hasOwnProperty.call(input, "group");
     const hasInputSize = Object.prototype.hasOwnProperty.call(input, "size");
     const hasInputWidget = Object.prototype.hasOwnProperty.call(input, "widget");
+    const hasInputFootprint = Object.prototype.hasOwnProperty.call(input, "footprint");
     const widget = input.widget;
     const hasWidgetTileMutation = hasInputWidget && Boolean(widget || primaryTile?.widget);
     const hasDefinedPlacement =
       (hasInputGroup && input.group !== undefined) ||
       (hasInputSize && input.size !== undefined) ||
+      (hasInputFootprint && input.footprint !== undefined) ||
       Boolean(input.position);
     const preserveUnknownWidgetConfig = Boolean(
       widget &&
@@ -387,20 +389,24 @@ export function persistLegacyServices(
             candidate.columnSpan === hintedWidgetFootprint.columnSpan &&
             candidate.rowSpan === hintedWidgetFootprint.rowSpan
           ) ?? supportedFootprints?.[0] ?? hintedWidgetFootprint
-        : effectiveSize !== "normal"
-          ? legacyWidgetFootprint(effectiveSize)
-          : input.description
-            ? legacyWidgetFootprint("normal")
-            : GENERIC_SERVICE_FOOTPRINT;
+        : GENERIC_SERVICE_FOOTPRINT;
       const sizeChanged = hasInputSize && input.size !== primaryTile?.size;
       const widgetChanged = hasInputWidget && widget?.type !== primaryTile?.widget?.type;
-      const footprint = sizeChanged || widgetChanged
-        ? defaultFootprint
-        : input.footprint
-          ? { ...input.footprint }
+      const exactDefaultFootprint = {
+        columnSpan: defaultFootprint.columnSpan,
+        rowSpan: defaultFootprint.rowSpan,
+      };
+      const footprint = !widget
+        ? { ...GENERIC_SERVICE_FOOTPRINT }
+        : hasInputFootprint
+          ? input.footprint
+            ? { ...input.footprint }
+            : exactDefaultFootprint
+          : sizeChanged || widgetChanged
+            ? exactDefaultFootprint
           : primaryTile?.footprint
             ? { ...primaryTile.footprint }
-            : defaultFootprint;
+            : exactDefaultFootprint;
       const persistedTile = {
         id: primaryTile?.id ?? input.tileId ?? generateUuid(),
         service_id: id,

@@ -78,6 +78,7 @@ registerWidget<DockerConfig, DockerData>({
   id: "docker",
   name: "Docker",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Docker",

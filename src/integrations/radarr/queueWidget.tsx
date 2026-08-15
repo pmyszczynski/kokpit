@@ -93,6 +93,7 @@ registerWidget<RadarrConfig, RadarrQueueItem[]>({
   id: "radarr-queue",
   name: "Radarr Queue",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Radarr",

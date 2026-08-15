@@ -6,9 +6,7 @@
 // setters there, so these components hold only ephemeral UI state (rename
 // draft, delete confirmation).
 import { useState } from "react";
-import type { Size } from "@/config/schema";
-import { sizeSatisfies } from "@/config";
-import { SIZE_ORDER, sizeLabel } from "../settingsSizeOptions";
+import type { TileFootprint } from "@/layout/grid";
 import Kebab from "./Kebab";
 
 function RemoveItem({ label, onConfirm }: { label: string; onConfirm: () => void }) {
@@ -49,18 +47,18 @@ function RemoveItem({ label, onConfirm }: { label: string; onConfirm: () => void
 
 export function ServiceTileMenu({
   name,
-  size,
-  minSize,
+  footprint,
+  supportedFootprints,
   onEdit,
-  onSize,
+  onFootprint,
   onDuplicate,
   onRemove,
 }: {
   name: string;
-  size: Size;
-  minSize?: Size;
+  footprint?: TileFootprint;
+  supportedFootprints?: Array<TileFootprint & { label?: string }>;
   onEdit: () => void;
-  onSize: (size: Size) => void;
+  onFootprint: (footprint: TileFootprint) => void;
   onDuplicate: () => void;
   onRemove: () => void;
 }) {
@@ -80,35 +78,40 @@ export function ServiceTileMenu({
             Edit
           </button>
 
-          <div className="kebab-menu__section">
-            <span className="kebab-menu__label">Size</span>
-            <div className="kebab-size" role="group" aria-label="Tile size">
-              {SIZE_ORDER.map((s) => {
-                const disabled = minSize ? !sizeSatisfies(s, minSize) : false;
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`kebab-size__btn${
-                      s === size ? " kebab-size__btn--active" : ""
-                    }`}
-                    aria-pressed={s === size}
-                    aria-label={sizeLabel(s)}
-                    title={
-                      sizeLabel(s) + (disabled ? " — too small for this widget" : "")
-                    }
-                    disabled={disabled}
-                    onClick={() => {
-                      onSize(s);
-                      close();
-                    }}
-                  >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                );
-              })}
+          {supportedFootprints?.length ? (
+            <div className="kebab-menu__section">
+              <span className="kebab-menu__label">Footprint</span>
+              <div className="kebab-size" role="group" aria-label="Tile footprint">
+                {supportedFootprints.map((candidate) => {
+                  const label = candidate.label
+                    ? `${candidate.label} (${candidate.columnSpan}×${candidate.rowSpan})`
+                    : `${candidate.columnSpan}×${candidate.rowSpan}`;
+                  const active =
+                    footprint?.columnSpan === candidate.columnSpan &&
+                    footprint?.rowSpan === candidate.rowSpan;
+                  return (
+                    <button
+                      key={`${candidate.columnSpan}x${candidate.rowSpan}`}
+                      type="button"
+                      className={`kebab-size__btn${active ? " kebab-size__btn--active" : ""}`}
+                      aria-pressed={active}
+                      aria-label={label}
+                      title={label}
+                      onClick={() => {
+                        onFootprint({
+                          columnSpan: candidate.columnSpan,
+                          rowSpan: candidate.rowSpan,
+                        });
+                        close();
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <button
             type="button"

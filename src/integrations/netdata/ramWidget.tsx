@@ -84,6 +84,7 @@ registerWidget<NetdataBaseConfig, RamData>({
   id: "netdata-ram",
   name: "Netdata RAM",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchRamData,
   refreshInterval: 10_000,

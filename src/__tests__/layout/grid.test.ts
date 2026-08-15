@@ -10,6 +10,7 @@ describe("fixed dashboard geometry", () => {
     expect(dimensionsForFootprint({ columnSpan: 1, rowSpan: 1 })).toEqual({ width: 108, height: 60 });
     expect(dimensionsForFootprint({ columnSpan: 3, rowSpan: 1 })).toEqual({ width: 340, height: 60 });
     expect(dimensionsForFootprint({ columnSpan: 6, rowSpan: 3 })).toEqual({ width: 688, height: 196 });
+    expect(dimensionsForFootprint({ columnSpan: 16, rowSpan: 2 })).toEqual({ width: 1848, height: 128 });
   });
 
   it("rejects fractional, zero, and negative spans", () => {
