@@ -274,10 +274,10 @@ test.describe("edit mode", () => {
   }) => {
     await enterEditMode(page);
 
-    // Stage a local change (via the Size kebab control — a single click, no
-    // dialog) so Save actually performs a network write.
+    // Stage a local change with one kebab action and no dialog so Save
+    // actually performs a network write.
     await page.getByRole("button", { name: "Grafana options" }).click();
-    await page.getByRole("button", { name: "Wide" }).click();
+    await page.getByRole("menuitem", { name: "Duplicate" }).click();
     await expect(page.locator(".edit-bar__status--dirty")).toBeVisible();
 
     // Out-of-band write: no If-Match, so it succeeds unconditionally and
