@@ -63,8 +63,9 @@ service_tiles: []
 #   footprint:
 #     columnSpan: 6
 #     rowSpan: 4
-# Plain cards default to 3×1, or 3×2 when they have a description.
-# Widgets use their preferred/minimum canvas when footprint is omitted.
+# Plain cards always use the canonical 3×1 footprint; descriptions are omitted
+# when they do not fit. Widgets use their first declared supported footprint
+# when footprint is omitted.
 # Legacy size and position fields are migrated to footprints on load;
 # use footprint plus array order for hand-edited YAML.
 #

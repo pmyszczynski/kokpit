@@ -307,7 +307,7 @@ test.describe("edit mode", () => {
     await notice.getByRole("button", { name: "Reload" }).click();
     await expect(page.locator(".edit-bar__notice")).toBeHidden();
     await expect(page.locator(".edit-bar__status")).toHaveText("No changes");
-    // The reload pulled the out-of-band state, discarding the stale "Wide"
+    // The reload pulled the out-of-band state, discarding the stale duplicate
     // staged edit and picking up the renamed service.
     await expect(
       page.locator(".service-tile__name", { hasText: "Grafana Renamed" })

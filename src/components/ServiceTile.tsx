@@ -304,19 +304,21 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   const mobileDimensions = dimensionsForFootprint(mobileFootprint);
   const mobileGrid = useMobileGrid();
   const useMobileRenderer = mobileGrid && definition?.mobile != null;
-  const className =
-    `service-tile service-tile--${size}` +
-    (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
-    (definition?.mobile?.footprint.rowSpan === 1
-      ? " service-tile--mobile-row-1" : "") +
-    (drag ? " service-tile--editable" : "") +
-    (drag?.dragging ? " service-tile--dragging" : "");
 
   // Known widget type whose config failed the widget's schema: show the badge
   // and skip the widget area entirely, so the tile body stays the plain link it
   // already was — the badge is purely additive on top of it.
   const invalidIssues =
     widget?.invalid && widget.invalid.length > 0 ? widget.invalid : undefined;
+  const useCompactMobileRenderer =
+    useMobileRenderer && !invalidIssues && mobileFootprint.rowSpan === 1;
+  const className =
+    `service-tile service-tile--${size}` +
+    (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
+    (useCompactMobileRenderer
+      ? " service-tile--mobile-row-1" : "") +
+    (drag ? " service-tile--editable" : "") +
+    (drag?.dragging ? " service-tile--dragging" : "");
 
   const handle = drag ? (
     <span
@@ -421,6 +423,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         target="_blank"
         rel="noopener noreferrer"
         className={className}
+        aria-label={useCompactMobileRenderer ? name : undefined}
         // In edit mode the tile is a drag surface, not a link: suppress
         // navigation so a click/drag never leaves the page and drops the draft.
         onClick={drag ? (e) => e.preventDefault() : undefined}

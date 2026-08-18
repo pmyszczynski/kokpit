@@ -2158,4 +2158,32 @@ describe("ServiceForm – footprint", () => {
     fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "docker" } });
     expect(screen.getByLabelText("Footprint")).toHaveValue("3x4");
   });
+
+  it("clears a widget footprint when the tile type returns to Generic", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm
+        service={{ name: "Box" }}
+        existingGroups={[]}
+        onSave={onSave}
+        onClose={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "docker" },
+    });
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x4");
+
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "" },
+    });
+    expect(screen.queryByLabelText("Footprint")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      widget: undefined,
+      footprint: undefined,
+    }));
+  });
 });

@@ -849,6 +849,8 @@ export default function ServiceForm({
       setTileType("");
       setWidgetConfig({});
       setRefreshInterval("");
+      setFootprint(undefined);
+      setFootprintTouched(true);
       return;
     }
     setTileType(newTile);

@@ -12,7 +12,8 @@ describe("production widget footprints", () => {
       expect(widget.supportedFootprints, widget.id).toBeDefined();
       expect(widget.supportedFootprints, widget.id).not.toHaveLength(0);
       for (const footprint of widget.supportedFootprints ?? []) {
-        expect(footprint.label, widget.id).toBe("Default");
+        expect(Number.isInteger(footprint.columnSpan), widget.id).toBe(true);
+        expect(Number.isInteger(footprint.rowSpan), widget.id).toBe(true);
         expect(footprint.columnSpan).toBeGreaterThan(0);
         expect(footprint.rowSpan).toBeGreaterThan(0);
       }

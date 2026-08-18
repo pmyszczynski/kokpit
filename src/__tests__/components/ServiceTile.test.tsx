@@ -126,14 +126,14 @@ describe("ServiceTile", () => {
 
   it("renders the description when provided", async () => {
     await act(async () => {
-    registerWidget({
-      id: "description-test-widget",
-      name: "Description test",
-      configSchema: z.object({}),
-      fetchData: async () => ({}),
-      component: () => null,
-      supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }],
-    });
+      registerWidget({
+        id: "description-test-widget",
+        name: "Description test",
+        configSchema: z.object({}),
+        fetchData: async () => ({}),
+        component: () => null,
+        supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }],
+      });
       render(
         <ServiceTile
           name="Jellyfin"
@@ -204,11 +204,34 @@ describe("ServiceTile", () => {
     }));
     await act(async () => {
       ({ container } = render(
-        <ServiceTile tileId="tile-id" name="Plex" widget={{ type: "footprint-test-widget" }} preview />
+        <ServiceTile
+          tileId="tile-id"
+          name="Plex"
+          url="http://plex.local"
+          widget={{ type: "footprint-test-widget" }}
+          preview
+        />
       ));
     });
     expect(container.querySelector(".service-tile__widget-preview")).not.toBeNull();
     expect(container.querySelector(".service-tile--mobile-row-1")).not.toBeNull();
+    expect(container.querySelector("a")).toHaveAttribute("aria-label", "Plex");
+
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          tileId="tile-id"
+          name="Plex"
+          url="http://plex.local"
+          widget={{ type: "footprint-test-widget", invalid: [{ path: "url", message: "Required" }] }}
+          preview
+        />
+      ));
+    });
+    expect(container.querySelector(".service-tile--mobile-row-1")).toBeNull();
+    expect(container.querySelector(".service-tile__widget-preview")).toBeNull();
+    expect(container.querySelector(".service-tile__header")).not.toBeNull();
+    expect(container.querySelector("a")).not.toHaveAttribute("aria-label");
   });
 
   it("renders the icon prop as an img", async () => {
