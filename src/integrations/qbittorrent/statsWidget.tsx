@@ -59,6 +59,7 @@ registerWidget<QbittorrentConfig, TransferInfo>({
   id: "qbittorrent-stats",
   name: "qBittorrent Stats",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "qBittorrent",
     defaultIconUrl: "https://cdn.simpleicons.org/qbittorrent/2f67b2",

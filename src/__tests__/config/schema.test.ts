@@ -84,6 +84,20 @@ describe("KokpitConfigSchema – service tile size", () => {
     }
   );
 
+  it("accepts exact footprints wider than the largest viewport preset", () => {
+    const serviceId = "00000000-0000-4000-8000-000000000001";
+    const r = KokpitConfigSchema.safeParse({
+      ...minimalValid,
+      services: [{ id: serviceId, name: "Plex" }],
+      service_tiles: [{
+        id: "00000000-0000-4000-8000-000000000002",
+        service_id: serviceId,
+        footprint: { columnSpan: 16, rowSpan: 2 },
+      }],
+    });
+    expect(r.success).toBe(true);
+
+  });
   it("rejects an unknown size value", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
@@ -185,11 +199,11 @@ describe("KokpitConfigSchema – layout.ungrouped", () => {
 });
 
 describe("KokpitConfigSchema – groups", () => {
-  it("accepts declared groups with collapsed and columns", () => {
+  it("accepts declared groups with collapsed state", () => {
     const r = KokpitConfigSchema.safeParse({
       ...minimalValid,
       groups: [
-        { name: "Media", collapsed: false, columns: 4 },
+        { name: "Media", collapsed: false },
         { name: "Downloads" },
       ],
     });
@@ -219,13 +233,6 @@ describe("KokpitConfigSchema – groups", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects non-positive group columns", () => {
-    const r = KokpitConfigSchema.safeParse({
-      ...minimalValid,
-      groups: [{ name: "Media", columns: 0 }],
-    });
-    expect(r.success).toBe(false);
-  });
 });
 
 describe("KokpitConfigSchema – bookmarks", () => {

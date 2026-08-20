@@ -127,6 +127,7 @@ registerWidget<ActualSummaryConfig, ActualSummaryData>({
   id: "actualbudget-summary",
   name: "Actual Budget Summary",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:

@@ -1,0 +1,44 @@
+name: Update Playwright snapshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  update-snapshots:
+    name: Generate visual baselines
+    # Keep this in sync with the E2E jobs in ci.yml and release.yml.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate visual snapshots
+        run: npm run test:e2e:update-snapshots
+
+      - name: Upload visual snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-snapshots
+          path: e2e/tests/**/*-snapshots/*.png
+          if-no-files-found: error
+          retention-days: 7

@@ -72,12 +72,11 @@ import {
   declareGroup,
   deleteGroupPatch,
   renameGroupPatch,
-  setGroupColumns,
 } from "@/config/groupCascade";
 import { duplicateBookmark, duplicateService } from "@/config/duplicate";
 import { useEditMode } from "./EditModeProvider";
 import { projectLegacyServices } from "./serviceFormProjection";
-import { getWidgetSizeHints } from "@/widgets";
+import { getWidget, getWidgetSizeHints } from "@/widgets";
 import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "../BookmarkTile";
 import CollapsibleGroup, { migrateGroupCollapseKey } from "../CollapsibleGroup";
@@ -109,6 +108,7 @@ function serviceTileProps(service: Service) {
       normalizeOpaqueConfigReference: true,
     }),
     size: resolveServiceSize(service, hints?.preferredSize, hints?.minSize),
+    footprint: service.footprint,
   };
 }
 
@@ -235,13 +235,11 @@ function SortableBookmarkTile({
 
 function DroppableTileGrid({
   containerId,
-  columns,
   itemIds,
   activeIsTile,
   children,
 }: {
   containerId: string;
-  columns?: number;
   itemIds: string[];
   activeIsTile: boolean;
   children: React.ReactNode;
@@ -250,16 +248,12 @@ function DroppableTileGrid({
     id: containerId,
     data: { type: "container", containerId } satisfies ContainerData,
   });
-  const style =
-    columns != null
-      ? ({ "--group-columns": columns } as React.CSSProperties)
-      : undefined;
   const className =
     "dashboard-tile-grid" +
     (isOver && activeIsTile ? " dashboard-tile-grid--drop-active" : "");
   return (
     <SortableContext items={itemIds} strategy={rectSortingStrategy}>
-      <div ref={setNodeRef} className={className} style={style}>
+      <div ref={setNodeRef} className={className}>
         {children}
       </div>
     </SortableContext>
@@ -442,7 +436,7 @@ export default function EditableServiceGrid({
           tileId: s.tileId,
           editorIntegrationConfig: s.editorIntegrationConfig,
           editorTileWidgetConfig: s.editorTileWidgetConfig,
-          ...(s.tileId !== tileId ? { group: s.group, size: s.size, widget: s.widget } : {}),
+          ...(s.tileId !== tileId ? { group: s.group, size: s.size, footprint: s.footprint, widget: s.widget } : {}),
         })
       ),
     [services, setServices]
@@ -476,10 +470,10 @@ export default function EditableServiceGrid({
     [services, config.service_tiles, setServices, updateDraft]
   );
 
-  const handleServiceSize = useCallback(
-    (id: string, size: Size) =>
+  const handleServiceFootprint = useCallback(
+    (id: string, footprint: { columnSpan: number; rowSpan: number }) =>
       setServices(
-        services.map((s) => ((s.tileId ?? s.id) === id ? { ...s, size } : s))
+        services.map((s) => ((s.tileId ?? s.id) === id ? { ...s, footprint } : s))
       ),
     [services, setServices]
   );
@@ -534,12 +528,6 @@ export default function EditableServiceGrid({
     [declaredGroups, config.service_tiles, bookmarks, updateDraft]
   );
 
-  const handleGroupColumns = useCallback(
-    (name: string, columns: number | undefined) =>
-      setGroups(setGroupColumns(declaredGroups, name, columns)),
-    [declaredGroups, setGroups]
-  );
-
   const handleGroupDelete = useCallback(
     (name: string) => {
       const patch = deleteGroupPatch(
@@ -557,19 +545,17 @@ export default function EditableServiceGrid({
   );
 
   const buildGroupKebab = useCallback(
-    (name: string, declared: boolean, columns?: number) => (
+    (name: string, declared: boolean) => (
       <GroupKebab
         name={name}
         declared={declared}
-        columns={columns}
         onRename={handleGroupRename}
-        onColumns={(cols) => handleGroupColumns(name, cols)}
         onDelete={() => handleGroupDelete(name)}
         onAddService={() => setDialog({ kind: "service-add", group: name })}
         onDeclare={() => handleGroupDeclare(name)}
       />
     ),
-    [handleGroupRename, handleGroupColumns, handleGroupDelete, handleGroupDeclare]
+    [handleGroupRename, handleGroupDelete, handleGroupDeclare]
   );
 
   const sensors = useSensors(
@@ -764,16 +750,18 @@ export default function EditableServiceGrid({
   }, [activeId, services, bookmarks]);
 
   const serviceKebab = (service: Service) => {
-    const hints = service.widget
-      ? getWidgetSizeHints(service.widget.type)
+    const supportedFootprints = service.widget
+      ? getWidget(service.widget.type)?.supportedFootprints
       : undefined;
     return (
       <ServiceTileMenu
         name={service.name}
-        size={resolveServiceSize(service, hints?.preferredSize, hints?.minSize)}
-        minSize={hints?.minSize}
+        footprint={service.footprint}
+        supportedFootprints={supportedFootprints}
         onEdit={() => setDialog({ kind: "service-edit", id: service.tileId ?? service.id! })}
-        onSize={(size) => handleServiceSize(service.tileId ?? service.id!, size)}
+        onFootprint={(footprint) =>
+          handleServiceFootprint(service.tileId ?? service.id!, footprint)
+        }
         onDuplicate={() => handleServiceDuplicate(service.tileId ?? service.id!)}
         onRemove={() => handleServiceRemove(service.tileId ?? service.id!)}
       />
@@ -873,7 +861,6 @@ export default function EditableServiceGrid({
           const grid = (
             <DroppableTileGrid
               containerId={containerId}
-              columns={section.columns}
               itemIds={sectionItemIds(sectionServices, sectionBookmarks)}
               activeIsTile={activeIsTile}
             >
@@ -886,7 +873,7 @@ export default function EditableServiceGrid({
             </DroppableTileGrid>
           );
 
-          const kebab = buildGroupKebab(section.name, declared, section.columns);
+          const kebab = buildGroupKebab(section.name, declared);
 
           // Only declared groups are drag-reorderable; auto-appended groups
           // render as pinned (non-draggable) sections. Both get a group kebab.

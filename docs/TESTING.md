@@ -25,9 +25,14 @@ Screenshot tests catch CSS/layout/theme regressions that DOM assertions can't �
 
 - Screenshots are scoped to `.shell` / `.settings-panel` (not full-page) to avoid viewport/scrollbar flakiness, and mask `.status-dot` (its online/offline result depends on live network state).
 - `expect.toHaveScreenshot` defaults to `maxDiffPixelRatio: 0.02` and `animations: "disabled"` (set in `playwright.config.ts`) to absorb minor anti-aliasing differences between environments without hiding real regressions.
-- **Baselines must be generated on the same OS/Chromium build CI uses** (`npx playwright install --with-deps chromium` on `ubuntu-latest`) — screenshots taken on a different Chromium revision or OS will not match pixel-for-pixel. If you need to regenerate baselines locally and can't match CI's environment exactly, prefer letting a CI run produce the "actual" screenshots on a failure, then pull those out of the `playwright-test-results` artifact and commit them as the new baselines, rather than trusting a locally-generated set.
-- To regenerate after an intentional UI change: `npx playwright test e2e/tests/visual.spec.ts --update-snapshots`, then review the diffs before committing.
+- **Baselines must be generated on the same OS/Chromium build CI uses.** The E2E, release, and snapshot-generation jobs are pinned to `ubuntu-24.04`; `npm ci` and the lockfile pin the Playwright/Chromium version.
+- After an intentional UI change, run the `Update Playwright snapshots` workflow against the feature branch. With GitHub CLI:
 
-## Known limitation found while adding visual coverage
+  ```sh
+  gh workflow run update-playwright-snapshots.yml --ref <branch>
+  gh run watch <run-id> --exit-status
+  gh run download <run-id> --name playwright-visual-snapshots --dir e2e/tests
+  ```
 
-The default layout (`row_height: 120`, see `settings.example.yaml` / `src/config/schema.ts`) visually clips a widget's stat values when it renders 3+ stats (observed with the Plex widget in the fixture dashboard). Not fixed here since it's a design/config question, not a regression — worth revisiting.
+  Review the resulting PNG diff before committing it. Normal CI never accepts new baselines automatically.
+- When the regular E2E job finds a mismatch, it preserves the failure report first, regenerates all 15 visual baselines in that same runner, and uploads them as the `playwright-visual-snapshots` artifact. Download that artifact into `e2e/tests` instead of regenerating locally.

@@ -68,6 +68,7 @@ registerWidget<NetdataBaseConfig, CpuData>({
   id: "netdata-cpu",
   name: "Netdata CPU",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchCpuData,
   refreshInterval: 10_000,

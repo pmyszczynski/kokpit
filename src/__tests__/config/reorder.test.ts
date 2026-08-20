@@ -324,13 +324,13 @@ describe("reorderGroups", () => {
     ]);
   });
 
-  it("preserves group objects intact (columns/collapsed)", () => {
+  it("preserves group objects intact", () => {
     const rich: Group[] = [
-      { name: "Media", columns: 6, collapsed: true },
+      { name: "Media", collapsed: true },
       { name: "Downloads" },
     ];
     const next = reorderGroups(rich, "Downloads", "Media");
-    expect(next[1]).toEqual({ name: "Media", columns: 6, collapsed: true });
+    expect(next[1]).toEqual({ name: "Media", collapsed: true });
   });
 
   it("is a no-op for active === over", () => {

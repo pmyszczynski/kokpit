@@ -70,8 +70,7 @@ describe("loadConfig", () => {
     expect(config.auth.enabled).toBe(true);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
-    expect(config.layout.columns).toBe(4);
-    expect(config.layout.row_height).toBe(120);
+    expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);
   });
 
@@ -261,11 +260,14 @@ describe("writeConfig", () => {
 
     // Arrays of maps must serialize as valid YAML that parses back losslessly.
     const reloaded = getConfig();
-    expect(reloaded.groups).toEqual(groups);
+    expect(reloaded.groups).toEqual([
+      { name: "Media", collapsed: true },
+      { name: "Downloads" },
+    ]);
     expect(reloaded.bookmarks).toEqual(bookmarks);
   });
 
-  it("round-trips service_tiles[].size and layout.ungrouped", async () => {
+  it("migrates service_tiles[].size while round-tripping layout.ungrouped", async () => {
     const { loadConfig, getConfig, writeConfig } = await freshLoader();
     loadConfig();
 
@@ -281,7 +283,66 @@ describe("writeConfig", () => {
 
     const reloaded = getConfig();
     expect(reloaded.layout.ungrouped).toBe("first");
-    expect(reloaded.service_tiles[0].size).toBe("large");
+    expect(reloaded.service_tiles[0].size).toBeUndefined();
+    expect(reloaded.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
+  });
+
+  it("rewrites a plain tile's unsupported persisted footprint", async () => {
+    writeFileSync(configPath, [
+      "schema_version: 2",
+      "services:",
+      "  - id: 00000000-0000-4000-8000-000000000001",
+      "    name: Plex",
+      "service_tiles:",
+      "  - id: 00000000-0000-4000-8000-000000000002",
+      "    service_id: 00000000-0000-4000-8000-000000000001",
+      "    footprint: { columnSpan: 6, rowSpan: 4 }",
+      "",
+    ].join("\n"), "utf-8");
+
+    const { loadConfig } = await freshLoader();
+    expect(loadConfig().service_tiles[0].footprint)
+      .toEqual({ columnSpan: 3, rowSpan: 1 });
+
+    const rewritten = readFileSync(configPath, "utf-8");
+    expect(rewritten).toContain("columnSpan: 3");
+    expect(rewritten).toContain("rowSpan: 1");
+    expect(existsSync(`${configPath}.pre-fixed-grid.bak`)).toBe(true);
+  });
+
+  it("rewrites a known widget's unsupported persisted footprint", async () => {
+    const { z } = await import("zod");
+    const { clearRegistry, registerWidget } = await import("@/widgets");
+    registerWidget({
+      id: "fixed-grid-supported-test",
+      name: "Supported test",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      supportedFootprints: [{ columnSpan: 6, rowSpan: 2 }],
+    });
+    writeFileSync(configPath, [
+      "schema_version: 2",
+      "services:",
+      "  - id: 00000000-0000-4000-8000-000000000001",
+      "    name: Test",
+      "service_tiles:",
+      "  - id: 00000000-0000-4000-8000-000000000002",
+      "    service_id: 00000000-0000-4000-8000-000000000001",
+      "    footprint: { columnSpan: 3, rowSpan: 1 }",
+      "    widget: { type: fixed-grid-supported-test }",
+      "",
+    ].join("\n"), "utf-8");
+
+    try {
+      const { loadConfig } = await freshLoader();
+      expect(loadConfig().service_tiles[0].footprint)
+        .toEqual({ columnSpan: 6, rowSpan: 2 });
+      expect(readFileSync(configPath, "utf-8"))
+        .toContain("columnSpan: 6");
+    } finally {
+      clearRegistry();
+    }
   });
 });
 
@@ -308,7 +369,8 @@ services:
     expect(config.service_tiles).toHaveLength(2);
     expect(config.services[0]).toMatchObject({ name: "Legacy Tile" });
     expect(config.service_tiles[0].group).toBeUndefined();
-    expect(config.service_tiles[0].size).toBe("wide");
+    expect(config.service_tiles[0].size).toBeUndefined();
+    expect(config.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
     expect(readFileSync(`${configPath}.v1.bak`, "utf-8")).toContain("schema_version: 1");
   });
@@ -324,7 +386,8 @@ describe("unversioned settings detection", () => {
 
     expect(config.schema_version).toBe(2);
     expect(config.services[0]).toMatchObject({ name: "Legacy", launch_url: "https://example.com", category: "Media" });
-    expect(config.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
+    expect(config.service_tiles[0]).toMatchObject({ group: "Media", footprint: { columnSpan: 3, rowSpan: 1 } });
+    expect(config.service_tiles[0]).not.toHaveProperty("size");
     expect(readFileSync(`${configPath}.pre-v2.bak`, "utf-8")).toBe(source);
     expect(readFileSync(configPath, "utf-8")).toContain("schema_version: 2");
   });

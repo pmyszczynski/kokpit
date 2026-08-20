@@ -5,10 +5,8 @@ import { createPortal } from "react-dom";
 import {
   Service,
   ServiceWidget,
-  Size,
   widgetIntegrationRequirement,
 } from "@/config/schema";
-import { resolveServiceSize, sizeSatisfies } from "@/config";
 import { resolveIconRef } from "@/config/iconRef";
 import "@/integrations";
 import {
@@ -29,7 +27,6 @@ import {
   widgetConfigIssues,
   type WidgetConfigIssue,
 } from "@/widgets/tileWidget";
-import { SIZE_ORDER, sizeLabel } from "./settingsSizeOptions";
 
 interface ServiceFormProps {
   service: Service | null;
@@ -542,21 +539,20 @@ export default function ServiceForm({
   );
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group || initialGroup || "");
-  // Migrate a legacy `position`-only service to an explicit `size`: seed the
-  // select with the size derived from `position` (clamped to the widget floor)
-  // so saving writes an equivalent `size` and the effective size survives the
-  // drop of the deprecated `position` field.
-  const [size, setSize] = useState<Size | "">(() => {
-    if (service?.size) return service.size;
-    if (service?.position) {
-      const min = service.widget
-        ? getWidget(service.widget.type)?.minSize
-        : undefined;
-      return resolveServiceSize(service, undefined, min);
-    }
-    return "";
+  const [footprint, setFootprint] = useState(() => {
+    if (!service?.widget) return undefined;
+    const definition = getWidget(service.widget.type);
+    if (!definition?.supportedFootprints?.length) return service.footprint;
+    const supported = service.footprint && definition.supportedFootprints.some(
+      (candidate) =>
+        candidate.columnSpan === service.footprint?.columnSpan &&
+        candidate.rowSpan === service.footprint?.rowSpan
+    );
+    const resolved = supported ? service.footprint : definition.supportedFootprints[0];
+    return resolved ? { columnSpan: resolved.columnSpan, rowSpan: resolved.rowSpan } : undefined;
   });
   const [nameError, setNameError] = useState<string | null>(null);
+  const [footprintTouched, setFootprintTouched] = useState(false);
 
   const initialTileType = initial.tileType || (presetEditor ? initialPreset ?? "" : "");
   const [tileType, setTileType] = useState(initialTileType);
@@ -654,7 +650,7 @@ export default function ServiceForm({
 
   const showWidgetSection = tileType !== "" || orphanWidget !== null;
 
-  const widgetMinSize: Size | undefined = selectedWidgetDef?.minSize;
+  const supportedFootprints = selectedWidgetDef?.supportedFootprints;
 
   const activeWidgetType =
     tileType !== "" ? tileType : orphanWidget?.type ?? null;
@@ -853,6 +849,8 @@ export default function ServiceForm({
       setTileType("");
       setWidgetConfig({});
       setRefreshInterval("");
+      setFootprint(undefined);
+      setFootprintTouched(true);
       return;
     }
     setTileType(newTile);
@@ -866,10 +864,12 @@ export default function ServiceForm({
       setIntegrationConfig({});
       setIntegrationTouched(true);
     }
-    // Clear an explicit size the new widget can't satisfy; fall back to Auto.
-    if (def?.minSize && size !== "" && !sizeSatisfies(size, def.minSize)) {
-      setSize("");
-    }
+    const nextFootprint = def?.supportedFootprints?.[0];
+    setFootprint(nextFootprint ? {
+      columnSpan: nextFootprint.columnSpan,
+      rowSpan: nextFootprint.rowSpan,
+    } : undefined);
+    setFootprintTouched(true);
     if (def?.serviceEditorPreset) {
       setName(def.serviceEditorPreset.defaultName);
       setIcon(def.serviceEditorPreset.defaultIconUrl);
@@ -1117,7 +1117,11 @@ export default function ServiceForm({
       icon: icon.trim() || undefined,
       description: description.trim() || undefined,
       group: group.trim() || undefined,
-      size: size || undefined,
+      ...(footprintTouched
+        ? { footprint: footprint ? { ...footprint } : undefined }
+        : footprint
+          ? { footprint: { ...footprint } }
+          : {}),
       widget,
     });
   }
@@ -1434,33 +1438,38 @@ export default function ServiceForm({
             groups={existingGroups}
           />
         </div>
-        <div className="settings-form-row">
-          <label htmlFor="sf-size">Size</label>
-          <select
-            id="sf-size"
-            className="settings-input"
-            value={size}
-            onChange={(e) => setSize(e.target.value as Size | "")}
-          >
-            <option value="">Auto</option>
-            {SIZE_ORDER.map((s) => {
-              const disabled = widgetMinSize
-                ? !sizeSatisfies(s, widgetMinSize)
-                : false;
-              return (
-                <option key={s} value={s} disabled={disabled}>
-                  {sizeLabel(s)}
-                  {disabled ? " — too small for this widget" : ""}
+        {supportedFootprints?.length ? (
+          <div className="settings-form-row">
+            <label htmlFor="sf-footprint">Footprint</label>
+            <select
+              id="sf-footprint"
+              className="settings-input"
+              value={footprint ? `${footprint.columnSpan}x${footprint.rowSpan}` : ""}
+              onChange={(e) => {
+                const selected = supportedFootprints.find((candidate) =>
+                  `${candidate.columnSpan}x${candidate.rowSpan}` === e.target.value
+                );
+                if (!selected) return;
+                setFootprint({
+                  columnSpan: selected.columnSpan,
+                  rowSpan: selected.rowSpan,
+                });
+                setFootprintTouched(true);
+              }}
+            >
+              {supportedFootprints.map((candidate) => (
+                <option
+                  key={`${candidate.columnSpan}x${candidate.rowSpan}`}
+                  value={`${candidate.columnSpan}x${candidate.rowSpan}`}
+                >
+                  {candidate.label
+                    ? `${candidate.label} (${candidate.columnSpan}×${candidate.rowSpan})`
+                    : `${candidate.columnSpan}×${candidate.rowSpan}`}
                 </option>
-              );
-            })}
-          </select>
-          {widgetMinSize && (
-            <span className="settings-form-hint">
-              This widget needs at least {sizeLabel(widgetMinSize)}.
-            </span>
-          )}
-        </div>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         {showWidgetSection && (
           <>

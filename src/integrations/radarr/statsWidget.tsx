@@ -65,6 +65,7 @@ registerWidget<RadarrConfig, RadarrStats>({
   id: "radarr-stats",
   name: "Radarr Stats",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "Radarr",
     defaultIconUrl: "https://cdn.simpleicons.org/radarr/ffc230",

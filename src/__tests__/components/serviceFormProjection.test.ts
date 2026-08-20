@@ -992,7 +992,11 @@ describe("serviceFormProjection", () => {
     }], services, tiles);
 
     expect(persisted.services[0].integration).toBeUndefined();
-    expect(persisted.service_tiles[0]).toEqual({ id: tileId, service_id: serviceId });
+    expect(persisted.service_tiles[0]).toEqual({
+      id: tileId,
+      service_id: serviceId,
+      footprint: { columnSpan: 3, rowSpan: 1 },
+    });
   });
 
   it("keeps prior tile fields when an input truly omits them", () => {
@@ -1000,6 +1004,61 @@ describe("serviceFormProjection", () => {
     const tiles = [{ id: tileId, service_id: serviceId, group: "Media", size: "wide" as const }];
     const persisted = persistLegacyServices([{ id: serviceId, name: "Renamed" }], services, tiles);
     expect(persisted.service_tiles[0]).toMatchObject({ group: "Media", size: "wide" });
+  });
+
+  it("normalizes all plain-service geometry paths to the generic footprint", () => {
+    const services = [{ id: serviceId, name: "Plex" }];
+    const copied = persistLegacyServices([{
+      id: serviceId,
+      tileId: "20000000-0000-4000-8000-000000000099",
+      name: "Plex copy",
+      footprint: { columnSpan: 9, rowSpan: 3 },
+    }], services, []);
+    expect(copied.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
+
+    const tiles = [{
+      id: tileId,
+      service_id: serviceId,
+      size: "normal" as const,
+      footprint: { columnSpan: 3, rowSpan: 2 },
+    }];
+    const resized = persistLegacyServices([{
+      id: serviceId,
+      tileId,
+      name: "Plex",
+      size: "wide",
+      footprint: { columnSpan: 3, rowSpan: 2 },
+    }], services, tiles);
+    expect(resized.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
+  });
+
+  it("keeps plain normal and described cards at the same fixed footprint", () => {
+    const services = [{ id: serviceId, name: "Plain" }];
+    const compact = persistLegacyServices([{
+      id: serviceId,
+      name: "Plain",
+      size: "normal",
+    }], services, []);
+    expect(compact.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
+
+    const described = persistLegacyServices([{
+      id: serviceId,
+      name: "Plain",
+      description: "Visible details",
+      size: "normal",
+    }], services, []);
+    expect(described.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
+  });
+
+  it("uses a widget's preferred and minimum size for an automatic footprint", () => {
+    const services = [{ id: serviceId, name: "Sonarr" }];
+    const persisted = persistLegacyServices([{
+      id: serviceId,
+      name: "Sonarr",
+      widget: { type: "sonarr-queue" },
+    }], services, []);
+
+    expect(persisted.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
   });
 
   it("clears a catalog-only integration without creating a presentation tile", () => {

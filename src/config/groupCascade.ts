@@ -172,27 +172,3 @@ export function declareGroup(groups: Group[], name: string): Group[] {
     return groups;
   return [...groups, { name }];
 }
-
-/**
- * Set (or clear, when `columns` is undefined) the per-group column override.
- * Clamped to the Phase A range [1, 12]. Returns a new `groups:` array.
- */
-export function setGroupColumns(
-  groups: Group[],
-  name: string,
-  columns: number | undefined
-): Group[] {
-  const key = serviceNameUniquenessKey(name);
-  const clamped =
-    columns == null || isNaN(columns) || columns < 1
-      ? undefined
-      : Math.min(Math.floor(columns), 12);
-  return groups.map((g) => {
-    if (serviceNameUniquenessKey(g.name) !== key) return g;
-    if (clamped === undefined) {
-      const { columns: _columns, ...rest } = g;
-      return rest;
-    }
-    return { ...g, columns: clamped };
-  });
-}

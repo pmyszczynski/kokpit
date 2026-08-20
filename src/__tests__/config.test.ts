@@ -46,10 +46,9 @@ auth:
   session_ttl_hours: 24
 appearance:
   theme: dark
-layout:
-  columns: 4
-  row_height: 120
+layout: {}
 services: []
+service_tiles: []
 `.trim();
 
 describe("loadConfig", () => {
@@ -65,8 +64,7 @@ describe("loadConfig", () => {
     expect(config.auth.enabled).toBe(false);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
-    expect(config.layout.columns).toBe(4);
-    expect(config.layout.row_height).toBe(120);
+    expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);
     expect(lockSync).toHaveBeenCalledTimes(1);
   });
@@ -77,8 +75,7 @@ describe("loadConfig", () => {
     expect(config.auth.enabled).toBe(true);
     expect(config.auth.session_ttl_hours).toBe(24);
     expect(config.appearance.theme).toBe("dark");
-    expect(config.layout.columns).toBe(4);
-    expect(config.layout.row_height).toBe(120);
+    expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);
   });
 
@@ -145,74 +142,17 @@ describe("getConfig", () => {
   });
 });
 
-describe("layout viewport config", () => {
+describe("fixed layout config", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     invalidateCache();
   });
 
-  it("parses tablet and mobile viewport overrides", () => {
-    vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 2
-layout:
-  columns: 4
-  row_height: 120
-  tablet:
-    columns: 2
-    row_height: 100
-  mobile:
-    columns: 1
-`.trim());
-    const config = loadConfig();
-    expect(config.layout.tablet?.columns).toBe(2);
-    expect(config.layout.tablet?.row_height).toBe(100);
-    expect(config.layout.mobile?.columns).toBe(1);
-    expect(config.layout.mobile?.row_height).toBeUndefined();
-  });
-
-  it("tablet and mobile are undefined when not specified", () => {
+  it("has no persisted viewport overrides", () => {
     vi.mocked(readFileSync).mockReturnValue(VALID_YAML);
     const config = loadConfig();
     expect(config.layout.tablet).toBeUndefined();
     expect(config.layout.mobile).toBeUndefined();
-  });
-
-  it("allows partial tablet override (only columns, no row_height)", () => {
-    vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 2
-layout:
-  columns: 4
-  row_height: 120
-  tablet:
-    columns: 2
-`.trim());
-    const config = loadConfig();
-    expect(config.layout.tablet?.columns).toBe(2);
-    expect(config.layout.tablet?.row_height).toBeUndefined();
-  });
-
-  it("rejects non-positive columns in tablet override", () => {
-    vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 2
-layout:
-  columns: 4
-  row_height: 120
-  tablet:
-    columns: 0
-`.trim());
-    expect(() => loadConfig()).toThrow(/Invalid settings\.yaml/);
-  });
-
-  it("rejects non-positive row_height in mobile override", () => {
-    vi.mocked(readFileSync).mockReturnValue(`
-schema_version: 2
-layout:
-  columns: 4
-  row_height: 120
-  mobile:
-    row_height: -10
-`.trim());
-    expect(() => loadConfig()).toThrow(/Invalid settings\.yaml/);
   });
 });
 

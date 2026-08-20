@@ -69,6 +69,20 @@ describe("resolveServiceSize", () => {
     ).toBe("wide");
   });
 
+  it.each([
+    [{ columnSpan: 3, rowSpan: 1 }, "normal"],
+    [{ columnSpan: 3, rowSpan: 2 }, "normal"],
+    [{ columnSpan: 6, rowSpan: 2 }, "wide"],
+    [{ columnSpan: 3, rowSpan: 4 }, "tall"],
+    [{ columnSpan: 6, rowSpan: 4 }, "large"],
+  ] as const)("maps a migrated footprint %o back to size %s", (footprint, expected) => {
+    expect(resolveServiceSize({ footprint })).toBe(expected);
+  });
+
+  it("uses the widget hint for a custom footprint that is not a legacy preset", () => {
+    expect(resolveServiceSize({ footprint: { columnSpan: 9, rowSpan: 3 } }, "tall")).toBe("tall");
+  });
+
   it("falls back to the widget preferred size", () => {
     expect(resolveServiceSize({}, "tall")).toBe("tall");
   });
@@ -273,13 +287,13 @@ describe("resolveGroupOrder", () => {
     expect(resolveGroupOrder(config).map((g) => g.name)).toEqual([null]);
   });
 
-  it("carries collapsed and columns through from declarations", () => {
+  it("carries collapsed state through from declarations", () => {
     const config = makeConfig({
-      groups: [{ name: "Media", collapsed: true, columns: 6 }],
+      groups: [{ name: "Media", collapsed: true }],
       services: [],
     });
     expect(resolveGroupOrder(config)).toEqual([
-      { name: "Media", declared: true, collapsed: true, columns: 6 },
+      { name: "Media", declared: true, collapsed: true },
     ]);
   });
 

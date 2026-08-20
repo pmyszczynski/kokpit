@@ -208,10 +208,10 @@ describe("ServiceGrid", () => {
     expect(children[1].classList.contains("service-group")).toBe(true);
   });
 
-  it("sets the per-group columns override as a CSS variable on the tile grid", async () => {
+  it("renders declared groups without inline geometry overrides", async () => {
     getConfig.mockReturnValue(
       makeConfig({
-        groups: [{ name: "Media", columns: 6 }],
+        groups: [{ name: "Media" }],
         services: [makeService({ name: "Plex", group: "Media" })],
       })
     );
@@ -222,7 +222,7 @@ describe("ServiceGrid", () => {
     const grid = container.querySelector<HTMLElement>(
       ".service-group .dashboard-tile-grid"
     );
-    expect(grid?.style.getPropertyValue("--group-columns")).toBe("6");
+    expect(grid?.style.getPropertyValue("--group-columns")).toBe("");
   });
 
   it("passes the YAML collapsed default to the group section", async () => {

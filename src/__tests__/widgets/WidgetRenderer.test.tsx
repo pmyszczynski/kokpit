@@ -148,4 +148,19 @@ describe("WidgetRenderer", () => {
 
     await waitFor(() => expect(screen.getByText("healthy-widget")).toBeInTheDocument());
   });
+  it("does not fetch when a mobile renderer is unavailable", async () => {
+    registerWidget({
+      id: "desktop-only-widget",
+      name: "Desktop only",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: MockWidgetComponent,
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<WidgetRenderer type="desktop-only-widget" tileId="tile-id" mobile />);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

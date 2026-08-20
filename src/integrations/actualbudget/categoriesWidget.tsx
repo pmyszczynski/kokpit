@@ -193,6 +193,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
   id: "actualbudget-categories",
   name: "Actual Budget Categories",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:

@@ -116,7 +116,7 @@ describe("service tile kebab", () => {
     });
   });
 
-  it("size picker greys out sizes below the widget minSize", async () => {
+  it("offers only the widget's declared exact footprints", async () => {
     await renderGrid(
       cfg({
         services: [
@@ -125,27 +125,22 @@ describe("service tile kebab", () => {
       })
     );
     fireEvent.click(screen.getByRole("button", { name: "Sonarr options" }));
-    // sonarr-queue has minSize "tall" → normal + wide disabled, tall/large ok.
-    expect(
-      (screen.getByRole("button", { name: "Normal (1×1)" }) as HTMLButtonElement)
-        .disabled
-    ).toBe(true);
-    expect(
-      (screen.getByRole("button", { name: "Wide (2×1)" }) as HTMLButtonElement)
-        .disabled
-    ).toBe(true);
-    expect(
-      (screen.getByRole("button", { name: "Tall (1×2)" }) as HTMLButtonElement)
-        .disabled
-    ).toBe(false);
+    expect(screen.getByRole("button", { name: "Default (3×4)" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /Normal|Wide|Tall|Large/ }))
+      .not.toBeInTheDocument();
   });
 
-  it("applying a size stages it via setServices", async () => {
-    await renderGrid(cfg());
-    fireEvent.click(screen.getByRole("button", { name: "Plex options" }));
-    fireEvent.click(screen.getByRole("button", { name: "Wide (2×1)" }));
+  it("applying a footprint stages its exact spans via setServices", async () => {
+    await renderGrid(cfg({
+      services: [
+        { name: "Sonarr", widget: { type: "sonarr-queue" }, group: "Media" },
+      ],
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Sonarr options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Default (3×4)" }));
     expect(setServices).toHaveBeenCalledTimes(1);
-    expect(setServices.mock.calls[0][0][0].size).toBe("wide");
+    expect(setServices.mock.calls[0][0][0].footprint)
+      .toEqual({ columnSpan: 3, rowSpan: 4 });
   });
 });
 

@@ -238,7 +238,7 @@ button {
 }
 
 .shell-main {
-  padding: var(--gap);
+  padding: 16px;
   /* Backstop (RC1): without an explicit overflow-x, the CSS overflow spec
      computes it to `auto` because overflow-y is non-visible, turning this
      into a silent horizontal scroll container that hides real overflow from
@@ -304,49 +304,49 @@ button {
 /* Outer grid: stacked full-width sections only (no fixed row height — avoids stretching group headers). */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(var(--layout-columns-desktop, 4), minmax(0, 1fr));
-  gap: var(--gap);
+  width: 340px;
+  margin-inline: auto;
+  gap: 8px;
 }
 
-@media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(var(--layout-columns-tablet, var(--layout-columns-desktop, 2)), minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 480px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
-  }
-}
-
-/* Inner grid: actual service tiles with fixed row height (inherits layout vars from .dashboard-grid).
-   --group-columns is a per-group override (groups[].columns in settings.yaml)
-   set inline by ServiceGrid; it falls back to the viewport layout columns.
-   grid-auto-flow: dense backfills the gaps that wide/tall/large spans leave. */
+/* Inner grid: exact fixed tracks. Groups never alter this geometry. */
 .dashboard-tile-grid {
   display: grid;
+  --active-grid-columns: 3;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(var(--group-columns, var(--layout-columns-desktop, 4)), minmax(0, 1fr));
-  grid-auto-rows: var(--layout-row-height-desktop, 120px);
+  grid-template-columns: repeat(3, 108px);
+  grid-auto-rows: 60px;
   grid-auto-flow: dense;
-  gap: var(--gap);
+  gap: 8px;
 }
 
-@media (max-width: 768px) {
+/* Thresholds are exact grid widths plus .shell-main's 32px inline padding. */
+@media (min-width: 720px) {
+  .dashboard-grid { width: 688px; }
   .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--group-columns, var(--layout-columns-tablet, var(--layout-columns-desktop, 2))), minmax(0, 1fr));
-    grid-auto-rows: var(--layout-row-height-tablet, var(--layout-row-height-desktop, 120px));
+    --active-grid-columns: 6;
+    grid-template-columns: repeat(6, 108px);
   }
 }
-
-@media (max-width: 480px) {
-  /* The per-group --group-columns override is intentionally ignored on
-     phones: mobile always uses the mobile column count so every tile can
-     collapse to a full-width single cell (no-horizontal-overflow invariant). */
+@media (min-width: 1068px) {
+  .dashboard-grid { width: 1036px; }
   .dashboard-tile-grid {
-    grid-template-columns: repeat(var(--layout-columns-mobile, var(--layout-columns-desktop, 1)), minmax(0, 1fr));
-    grid-auto-rows: var(--layout-row-height-mobile, var(--layout-row-height-desktop, 120px));
+    --active-grid-columns: 9;
+    grid-template-columns: repeat(9, 108px);
+  }
+}
+@media (min-width: 1416px) {
+  .dashboard-grid { width: 1384px; }
+  .dashboard-tile-grid {
+    --active-grid-columns: 12;
+    grid-template-columns: repeat(12, 108px);
+  }
+}
+@media (min-width: 1764px) {
+  .dashboard-grid { width: 1732px; }
+  .dashboard-tile-grid {
+    --active-grid-columns: 15;
+    grid-template-columns: repeat(15, 108px);
   }
 }
 
@@ -373,6 +373,11 @@ button {
   cursor: pointer;
   min-width: 0; /* grid item: allow shrinking below content width (RC3) */
   min-height: 0; /* grid item: spans must not stretch past their tracks */
+  width: min(var(--tile-width), calc(var(--active-grid-columns) * 108px + (var(--active-grid-columns) - 1) * 8px));
+  grid-column: span min(var(--tile-columns), var(--active-grid-columns));
+  height: var(--tile-height);
+  grid-row: span var(--tile-rows);
+  overflow: hidden;
 }
 
 /* Hover lift: subtle translate + existing shadow token. High-contrast theme
@@ -384,43 +389,62 @@ button {
   box-shadow: var(--shadow-sm);
 }
 
-/* === TILE SIZE PRESETS === */
-/* Col×row spans per SIZE_SPANS (src/config/resolve.ts):
-   normal 1×1 (base, no rule needed), wide 2×1, tall 1×2, large 2×2.
-   Shared by service tiles and bookmark tiles. */
-.service-tile--wide,
-.service-tile--large,
+/* === BOOKMARK FOOTPRINT PRESETS === */
+/* normal 3×2, wide 6×2, tall 3×4, large 6×4. */
 .bookmark-tile--wide,
 .bookmark-tile--large {
-  grid-column: span 2;
+  --bookmark-columns: 6;
 }
 
-.service-tile--tall,
-.service-tile--large,
 .bookmark-tile--tall,
 .bookmark-tile--large {
-  grid-row: span 2;
+  --bookmark-rows: 4;
 }
 
-@media (max-width: 768px) {
-  /* Column spans collapse to full width so a 2-col span can never create an
-     oversized implicit track when the tablet/mobile column count is 1. */
-  .service-tile--wide,
-  .service-tile--large,
-  .bookmark-tile--wide,
-  .bookmark-tile--large {
-    grid-column: 1 / -1;
+@media (max-width: 719px) {
+  .dashboard-tile-grid > .service-tile {
+    width: var(--mobile-tile-width, 340px);
+    height: var(--mobile-tile-height, 60px);
+    grid-column: span min(var(--mobile-tile-columns, 3), 3);
+    grid-row: span var(--mobile-tile-rows, 1);
   }
-}
 
-@media (max-width: 480px) {
-  /* Phones: every size preset collapses to a full-width single cell
-     (no-horizontal-overflow e2e invariant); bookmark tiles full-width too. */
-  .dashboard-tile-grid > .service-tile,
+  /* Bookmarks are outside KOK-83; preserve their prior compact mobile canvas. */
   .dashboard-tile-grid > .bookmark-tile {
-    grid-column: 1 / -1;
-    grid-row: auto;
+    --bookmark-columns: 3;
+    --bookmark-rows: 2;
   }
+
+  /* A one-row explicit mobile renderer owns the compact canvas; omit the
+     desktop service chrome so the renderer receives usable vertical space. */
+  .service-tile--mobile-row-1 {
+    gap: 0;
+    padding-block: 4px;
+  }
+  .service-tile--mobile-row-1 .service-tile__header,
+  .service-tile--mobile-row-1 .service-tile__description { display: none; }
+  .service-tile--mobile-row-1 .service-tile__widget {
+    margin-top: 0;
+  }
+  .service-tile--mobile-fallback .service-tile__widget,
+  .service-tile--mobile-fallback .service-tile__description { display: none; }
+
+  .tile-drag-overlay .service-tile {
+    width: var(--mobile-tile-width, 340px);
+    height: var(--mobile-tile-height, 60px);
+    grid-column: span min(var(--mobile-tile-columns, 3), 3);
+    grid-row: span var(--mobile-tile-rows, 1);
+  }
+}
+
+/* Preserve the canonical 340px mobile grid by reclaiming shell padding first. */
+@media (max-width: 371px) {
+  .shell-main { padding-inline: 0; }
+}
+/* Sub-340px devices are the sole compatibility case; tracks remain canonical. */
+@media (max-width: 339px) {
+  .dashboard-grid { width: 100vw; overflow-x: auto; }
+  .dashboard-tile-grid { width: 340px; }
 }
 
 .service-tile__icon {
@@ -715,6 +739,8 @@ button {
   border-radius: var(--radius);
   min-width: 0;
   min-height: 0;
+  grid-column: span min(var(--bookmark-columns, 3), var(--active-grid-columns));
+  grid-row: span var(--bookmark-rows, 2);
 }
 
 .bookmark-tile__header {
@@ -4047,8 +4073,9 @@ button {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: var(--row-height, 120px);
-  padding: 1rem;
+  min-height: 0;
+  height: 100%;
+  padding: 0.25rem;
   color: var(--color-text-muted);
   background: none;
   border: 1px dashed var(--color-border);

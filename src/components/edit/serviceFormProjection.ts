@@ -9,6 +9,7 @@ import { splitWidgetConfig } from "@/widgets/configBoundary";
 import { isWidgetConfigReferenceEnvelope } from "@/widgets/secretReference";
 import { resolveServiceSize } from "@/config/resolve";
 import { generateUuid } from "@/config/uuid";
+import { GENERIC_SERVICE_FOOTPRINT, legacyWidgetFootprint } from "@/layout/grid";
 
 export { splitWidgetConfig } from "@/widgets/configBoundary";
 
@@ -160,6 +161,7 @@ export function toLegacyService(service: KokpitConfig["services"][number], tile?
     url: service.launch_url,
     ...(tile?.group ? { group: tile.group } : {}),
     ...(tile?.size ? { size: tile.size } : {}),
+    ...(tile?.footprint ? { footprint: { ...tile.footprint } } : {}),
     ...(tile?.widget ? { widget: {
       ...tile.widget,
       // Tile options and Service credentials are separate persisted
@@ -216,11 +218,12 @@ export function normalizeServicesForForm(
     ? serviceTiles
     : normalizedServices.flatMap((service) => {
       const legacy = service as Service;
-      return legacy.group || legacy.size || legacy.widget ? [{
+      return legacy.group || legacy.size || legacy.footprint || legacy.widget ? [{
         id: generateUuid(),
         service_id: service.id,
         ...(legacy.group ? { group: legacy.group } : {}),
         ...(legacy.size ? { size: legacy.size } : {}),
+        ...(legacy.footprint ? { footprint: { ...legacy.footprint } } : {}),
         ...(legacy.widget ? { widget: legacy.widget } : {}),
       }] : [];
     });
@@ -318,11 +321,13 @@ export function persistLegacyServices(
     const hasInputGroup = Object.prototype.hasOwnProperty.call(input, "group");
     const hasInputSize = Object.prototype.hasOwnProperty.call(input, "size");
     const hasInputWidget = Object.prototype.hasOwnProperty.call(input, "widget");
+    const hasInputFootprint = Object.prototype.hasOwnProperty.call(input, "footprint");
     const widget = input.widget;
     const hasWidgetTileMutation = hasInputWidget && Boolean(widget || primaryTile?.widget);
     const hasDefinedPlacement =
       (hasInputGroup && input.group !== undefined) ||
       (hasInputSize && input.size !== undefined) ||
+      (hasInputFootprint && input.footprint !== undefined) ||
       Boolean(input.position);
     const preserveUnknownWidgetConfig = Boolean(
       widget &&
@@ -361,16 +366,56 @@ export function persistLegacyServices(
     }
 
     if (!input.editorCatalogOnly && (!previous || input.tileId || primaryTile || hasDefinedPlacement || hasWidgetTileMutation)) {
+      const definition = widget ? getWidget(widget.type) : undefined;
+      const sizeSource = hasInputSize
+        ? input.size ? { size: input.size } : {}
+        : input.position || input.footprint
+          ? input
+          : primaryTile ?? {};
+      const effectiveSize = resolveServiceSize(
+        sizeSource,
+        definition?.preferredSize,
+        definition?.minSize
+      );
+      const resolvedSize = hasInputSize
+        ? input.size
+        : input.position
+          ? effectiveSize
+          : primaryTile?.size;
+      const hintedWidgetFootprint = legacyWidgetFootprint(effectiveSize);
+      const supportedFootprints = definition?.supportedFootprints;
+      const defaultFootprint = widget
+        ? supportedFootprints?.find((candidate) =>
+            candidate.columnSpan === hintedWidgetFootprint.columnSpan &&
+            candidate.rowSpan === hintedWidgetFootprint.rowSpan
+          ) ?? supportedFootprints?.[0] ?? hintedWidgetFootprint
+        : GENERIC_SERVICE_FOOTPRINT;
+      const sizeChanged = hasInputSize && input.size !== primaryTile?.size;
+      const widgetChanged = hasInputWidget && widget?.type !== primaryTile?.widget?.type;
+      const exactDefaultFootprint = {
+        columnSpan: defaultFootprint.columnSpan,
+        rowSpan: defaultFootprint.rowSpan,
+      };
+      const footprint = !widget
+        ? { ...GENERIC_SERVICE_FOOTPRINT }
+        : hasInputFootprint
+          ? input.footprint
+            ? { ...input.footprint }
+            : exactDefaultFootprint
+          : sizeChanged || widgetChanged
+            ? exactDefaultFootprint
+          : primaryTile?.footprint
+            ? { ...primaryTile.footprint }
+            : exactDefaultFootprint;
       const persistedTile = {
         id: primaryTile?.id ?? input.tileId ?? generateUuid(),
         service_id: id,
+        footprint,
         ...((hasInputGroup ? input.group : primaryTile?.group)
           ? { group: hasInputGroup ? input.group : primaryTile?.group }
           : {}),
-        ...((hasInputSize
-          ? input.size
-          : input.position ? resolveServiceSize(input) : primaryTile?.size)
-          ? { size: hasInputSize ? input.size : (input.position ? resolveServiceSize(input) : primaryTile?.size) }
+        ...(resolvedSize
+          ? { size: resolvedSize }
           : {}),
         ...(hasInputWidget && widget ? {
           widget: {

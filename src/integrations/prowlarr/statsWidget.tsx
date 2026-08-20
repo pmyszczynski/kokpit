@@ -61,6 +61,7 @@ registerWidget<ProwlarrConfig, ProwlarrStats>({
   id: "prowlarr-stats",
   name: "Prowlarr Stats",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "Prowlarr",
     defaultIconUrl: "https://cdn.simpleicons.org/prowlarr",

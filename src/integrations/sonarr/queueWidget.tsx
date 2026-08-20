@@ -93,6 +93,7 @@ registerWidget<SonarrConfig, SonarrQueueItem[]>({
   id: "sonarr-queue",
   name: "Sonarr Queue",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Sonarr",

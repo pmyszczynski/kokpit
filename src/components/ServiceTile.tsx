@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Size } from "@/config/schema";
 import { resolveIconRef } from "@/config/iconRef";
 import type { TileWidget, WidgetConfigIssue } from "@/widgets/tileWidget";
 import { useEditModeOptional } from "./edit/EditModeProvider";
 import { WidgetRenderer } from "./WidgetRenderer";
+import { dimensionsForFootprint, GENERIC_SERVICE_FOOTPRINT, legacyWidgetFootprint, type TileFootprint } from "@/layout/grid";
+import { getWidget } from "@/widgets";
 
 // The client-safe widget slice now lives next to the resolver that builds it
 // (src/widgets/tileWidget.ts); re-exported here so the long-standing
@@ -166,6 +168,8 @@ interface ServiceTileProps {
    * simply gets the extra room on wide/tall/large.
    */
   size?: Size;
+  /** Persisted exact canvas. Legacy size is used only at the migration boundary. */
+  footprint?: TileFootprint;
   /**
    * Preview/edit rendering: suppress all background polling (status ping and
    * widget data). The tile still shows icon/name/description and a static
@@ -185,6 +189,23 @@ interface ServiceTileProps {
 }
 
 type PingStatus = "pending" | "ok" | "error";
+
+const MOBILE_GRID_QUERY = "(max-width: 719px)";
+
+function subscribeToMobileGrid(listener: () => void) {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const query = window.matchMedia(MOBILE_GRID_QUERY);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+function useMobileGrid(): boolean {
+  return useSyncExternalStore(
+    subscribeToMobileGrid,
+    () => typeof window.matchMedia === "function" && window.matchMedia(MOBILE_GRID_QUERY).matches,
+    () => false
+  );
+}
 
 function StatusDot({ url, preview }: { url: string; preview?: boolean }) {
   const [status, setStatus] = useState<PingStatus>("pending");
@@ -261,17 +282,43 @@ function ServiceIcon({ icon, url, name }: { icon?: string; url?: string; name: s
   );
 }
 
-export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", preview = false, drag, kebab }: ServiceTileProps) {
-  const className =
-    `service-tile service-tile--${size}` +
-    (drag ? " service-tile--editable" : "") +
-    (drag?.dragging ? " service-tile--dragging" : "");
+function resolveWidgetFootprint(
+  supportedFootprints: readonly TileFootprint[] | undefined,
+  footprint: TileFootprint | undefined,
+  size: Size
+): TileFootprint {
+  const fallback = supportedFootprints?.[0] ?? legacyWidgetFootprint(size);
+  if (!footprint || !supportedFootprints || supportedFootprints.some((candidate) =>
+    candidate.columnSpan === footprint.columnSpan && candidate.rowSpan === footprint.rowSpan
+  )) return footprint ?? fallback;
+  return fallback;
+}
+
+export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
+  const definition = widget ? getWidget(widget.type) : undefined;
+  const resolvedFootprint = widget
+    ? resolveWidgetFootprint(definition?.supportedFootprints, footprint, size)
+    : GENERIC_SERVICE_FOOTPRINT;
+  const dimensions = dimensionsForFootprint(resolvedFootprint);
+  const mobileFootprint = definition?.mobile?.footprint ?? GENERIC_SERVICE_FOOTPRINT;
+  const mobileDimensions = dimensionsForFootprint(mobileFootprint);
+  const mobileGrid = useMobileGrid();
+  const useMobileRenderer = mobileGrid && definition?.mobile != null;
 
   // Known widget type whose config failed the widget's schema: show the badge
   // and skip the widget area entirely, so the tile body stays the plain link it
   // already was — the badge is purely additive on top of it.
   const invalidIssues =
     widget?.invalid && widget.invalid.length > 0 ? widget.invalid : undefined;
+  const useCompactMobileRenderer =
+    useMobileRenderer && !invalidIssues && mobileFootprint.rowSpan === 1;
+  const className =
+    `service-tile service-tile--${size}` +
+    (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
+    (useCompactMobileRenderer
+      ? " service-tile--mobile-row-1" : "") +
+    (drag ? " service-tile--editable" : "") +
+    (drag?.dragging ? " service-tile--dragging" : "");
 
   const handle = drag ? (
     <span
@@ -322,10 +369,10 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         <ServiceIcon icon={icon} url={url} name={name} />
         <span className="service-tile__name">{name}</span>
       </div>
-      {description && (
+      {description && resolvedFootprint.rowSpan > 1 && (
         <span className="service-tile__description">{description}</span>
       )}
-      {widget && !invalidIssues && (
+      {widget && !invalidIssues && !mobileGrid && (
         <div className="service-tile__widget" data-widget-type={widget.type}>
           {preview ? (
             <span className="service-tile__widget-preview" aria-hidden="true">
@@ -336,7 +383,24 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
               type={widget.type}
               tileId={tileId}
               refreshInterval={widget.refresh_interval_ms}
+              footprint={resolvedFootprint}
             />
+          ) : (
+            <div className="widget-error" role="alert">
+              <span className="widget-error__label">Missing tile identifier</span>
+            </div>
+          )}
+        </div>
+      )}
+      {widget && useMobileRenderer && !invalidIssues && (
+        <div className="service-tile__widget" data-widget-type={widget.type}>
+          {preview ? (
+            <span className="service-tile__widget-preview" aria-hidden="true">
+              {widget.type}
+            </span>
+          ) : tileId ? (
+            <WidgetRenderer type={widget.type} tileId={tileId}
+              refreshInterval={widget.refresh_interval_ms} footprint={mobileFootprint} mobile />
           ) : (
             <div className="widget-error" role="alert">
               <span className="widget-error__label">Missing tile identifier</span>
@@ -351,11 +415,15 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
     return (
       <a
         ref={drag?.nodeRef}
-        style={drag?.style}
+        style={{ ...drag?.style, "--tile-columns": resolvedFootprint.columnSpan, "--tile-rows": resolvedFootprint.rowSpan,
+          "--tile-width": `${dimensions.width}px`, "--tile-height": `${dimensions.height}px`,
+          "--mobile-tile-columns": mobileFootprint.columnSpan, "--mobile-tile-rows": mobileFootprint.rowSpan,
+          "--mobile-tile-width": `${mobileDimensions.width}px`, "--mobile-tile-height": `${mobileDimensions.height}px` } as React.CSSProperties}
         href={url}
         target="_blank"
         rel="noopener noreferrer"
         className={className}
+        aria-label={useCompactMobileRenderer ? name : undefined}
         // In edit mode the tile is a drag surface, not a link: suppress
         // navigation so a click/drag never leaves the page and drops the draft.
         onClick={drag ? (e) => e.preventDefault() : undefined}
@@ -366,7 +434,11 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   }
 
   return (
-    <div ref={drag?.nodeRef} style={drag?.style} className={className}>
+    <div ref={drag?.nodeRef} style={{ ...drag?.style, "--tile-columns": resolvedFootprint.columnSpan,
+      "--tile-rows": resolvedFootprint.rowSpan, "--tile-width": `${dimensions.width}px`,
+      "--tile-height": `${dimensions.height}px`, "--mobile-tile-columns": mobileFootprint.columnSpan,
+      "--mobile-tile-rows": mobileFootprint.rowSpan, "--mobile-tile-width": `${mobileDimensions.width}px`,
+      "--mobile-tile-height": `${mobileDimensions.height}px` } as React.CSSProperties} className={className}>
       {inner}
     </div>
   );

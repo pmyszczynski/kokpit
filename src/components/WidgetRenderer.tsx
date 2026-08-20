@@ -7,11 +7,14 @@ import { getWidget } from "@/widgets";
 import type { WidgetDefinition } from "@/widgets";
 import { useWidget } from "@/widgets/useWidget";
 import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
+import { dimensionsForFootprint, type TileFootprint } from "@/layout/grid";
 
 interface WidgetRendererProps {
   type: string;
   tileId: string;
   refreshInterval?: number;
+  footprint?: TileFootprint;
+  mobile?: boolean;
 }
 
 // Separated so useWidget is only mounted when the widget type is known.
@@ -21,11 +24,15 @@ function KnownWidgetContent({
   type,
   tileId,
   refreshInterval,
+  footprint,
+  Component,
 }: {
   widget: WidgetDefinition;
   type: string;
   tileId: string;
   refreshInterval?: number;
+  footprint: TileFootprint;
+  Component: WidgetDefinition["component"];
 }) {
   const { data, loading, error, refresh } = useWidget(
     tileId,
@@ -49,11 +56,11 @@ function KnownWidgetContent({
     );
   }
 
-  const Component = widget.component;
-  return <Component data={data} loading={loading} error={error} refresh={refresh} />;
+  return <Component data={data} loading={loading} error={error} refresh={refresh}
+    footprint={footprint} dimensions={dimensionsForFootprint(footprint)} />;
 }
 
-function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
+function WidgetContent({ type, tileId, refreshInterval, footprint, mobile }: WidgetRendererProps) {
   const widget = getWidget(type);
 
   if (!widget) {
@@ -64,6 +71,11 @@ function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
     );
   }
 
+  // Do this before mounting KnownWidgetContent: a mobile-only request for a
+  // desktop-only widget has no UI to render and must not start polling.
+  const Component = mobile ? widget.mobile?.component : widget.component;
+  if (!Component) return null;
+
   return (
     <KnownWidgetContent
       key={type}
@@ -71,6 +83,8 @@ function WidgetContent({ type, tileId, refreshInterval }: WidgetRendererProps) {
       type={type}
       tileId={tileId}
       refreshInterval={refreshInterval}
+      footprint={footprint ?? { columnSpan: 3, rowSpan: 2 }}
+      Component={Component}
     />
   );
 }

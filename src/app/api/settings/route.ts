@@ -30,21 +30,7 @@ const PatchBodySchema = z.object({
     .optional(),
   layout: z
     .object({
-      columns: z.number().int().positive(),
-      row_height: z.number().int().positive(),
       ungrouped: z.enum(["first", "last"]).optional(),
-      tablet: z
-        .object({
-          columns: z.number().int().positive().optional(),
-          row_height: z.number().int().positive().optional(),
-        })
-        .optional(),
-      mobile: z
-        .object({
-          columns: z.number().int().positive().optional(),
-          row_height: z.number().int().positive().optional(),
-        })
-        .optional(),
     })
     .optional(),
   auth: z

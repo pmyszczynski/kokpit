@@ -180,6 +180,7 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
   id: "actualbudget-schedules",
   name: "Actual Budget Schedules",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:

@@ -143,6 +143,7 @@ registerWidget<SeerrConfig, SeerrRequest[]>({
   id: "seerr-requests",
   name: "Seerr Requests",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   configSchema: SeerrConfigSchema,
   fetchData: fetchRequests,

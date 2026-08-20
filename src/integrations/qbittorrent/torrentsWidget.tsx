@@ -93,6 +93,7 @@ registerWidget<QbittorrentConfig, Torrent[]>({
   id: "qbittorrent-torrents",
   name: "qBittorrent Torrents",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "qBittorrent",

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * @deprecated Legacy absolute-position field. Kept parseable so existing
- * configs keep loading; new configs should use `services[].size` + array
+ * configs keep loading; new configs should use tile footprints plus array
  * order instead. Will be removed at the next `schema_version` bump.
  */
 export const WidgetPositionSchema = z.object({
@@ -13,8 +13,8 @@ export const WidgetPositionSchema = z.object({
 });
 
 /**
- * Named tile size presets (col×row spans in the dashboard grid):
- * normal = 1×1, wide = 2×1, tall = 1×2, large = 2×2.
+ * Legacy/editor tile-size names. Fixed widget canvases map normal/wide/tall/
+ * large to 3×2, 6×2, 3×4, and 6×4 grid units respectively.
  */
 export const SizeEnum = z.enum(["normal", "wide", "tall", "large"]);
 export type Size = z.infer<typeof SizeEnum>;
@@ -43,11 +43,17 @@ export const ServiceSchema = z.object({
   integration: IntegrationSchema.optional(),
 });
 
+export const TileFootprintSchema = z.object({
+  columnSpan: z.number().int().positive(),
+  rowSpan: z.number().int().positive(),
+});
+
 export const ServiceTileSchema = z.object({
   id: z.uuid(),
   service_id: z.uuid(),
   group: z.string().optional(),
   size: SizeEnum.optional(),
+  footprint: TileFootprintSchema.optional(),
   widget: ServiceTileWidgetSchema.optional(),
 });
 
@@ -74,8 +80,6 @@ export const GroupSchema = z.object({
   name: z.string(),
   /** Default collapsed state; live state is persisted per-browser. */
   collapsed: z.boolean().optional(),
-  /** Per-group column override. */
-  columns: z.number().int().positive().optional(),
 });
 
 export const BookmarkLinkSchema = z.object({
@@ -193,8 +197,11 @@ export const KokpitConfigSchema = z
       .default({ theme: "dark" }),
     layout: z
       .object({
-        columns: z.number().int().positive().default(4),
-        row_height: z.number().int().positive().default(120),
+        // Deprecated geometry fields remain parseable until the migration has
+        // rewritten an existing settings.yaml, but are never given defaults
+        // and are stripped by migrateFixedGridConfig/writeConfig.
+        columns: z.number().int().positive().optional(),
+        row_height: z.number().int().positive().optional(),
         // Placement of the implicit "ungrouped" section. No schema default:
         // resolveGroupOrder applies the "last" default so omitted values stay
         // omitted in YAML round-trips.
@@ -212,7 +219,7 @@ export const KokpitConfigSchema = z
           })
           .optional(),
       })
-      .default({ columns: 4, row_height: 120 }),
+      .default({}),
     // Ordered group declarations — array order is display order. Groups
     // referenced by services but not declared here are auto-appended at
     // render time (see resolveGroupOrder in ./resolve).
@@ -266,6 +273,7 @@ export type Service = Partial<z.infer<typeof ServiceSchema>> &
     url?: string;
     group?: string;
     size?: Size;
+    footprint?: z.infer<typeof TileFootprintSchema>;
     position?: WidgetPosition;
     widget?: ServiceWidget;
     /** Editor-only identity of the projected tile; never persisted on Service. */

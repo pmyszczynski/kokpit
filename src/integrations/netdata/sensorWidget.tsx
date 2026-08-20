@@ -97,6 +97,7 @@ registerWidget<SensorConfig, SensorData>({
   id: "netdata-sensor",
   name: "Netdata Sensor",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   configSchema: SensorConfigSchema,
   fetchData: fetchSensorData,
   refreshInterval: 10_000,

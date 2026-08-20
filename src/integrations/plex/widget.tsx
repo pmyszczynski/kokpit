@@ -90,6 +90,7 @@ registerWidget<PlexConfig, PlexData>({
   id: "plex",
   name: "Plex",
   preferredSize: "wide",
+  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
   serviceEditorPreset: {
     defaultName: "Plex",
     defaultIconUrl: "https://cdn.simpleicons.org/plex/e5a00d",

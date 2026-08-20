@@ -46,6 +46,7 @@ function renderServiceTile({ service, tile }: { service: Service; tile: import("
       icon={service.icon}
       description={service.description}
       widget={resolveTileWidget(tile.widget, service.integration?.config)}
+      footprint={tile.footprint}
       size={resolveServiceSize(tile, hints?.preferredSize, hints?.minSize)}
     />
   );
@@ -65,19 +66,12 @@ function renderBookmarkTile(bookmark: BookmarkGroup) {
 }
 
 function TileGrid({
-  columns,
   children,
 }: {
-  /** Per-group column override (`groups[].columns`) → CSS variable. */
-  columns?: number;
   children: React.ReactNode;
 }) {
-  const style =
-    columns != null
-      ? ({ "--group-columns": columns } as React.CSSProperties)
-      : undefined;
   return (
-    <div className="dashboard-tile-grid" style={style}>
+    <div className="dashboard-tile-grid">
       {children}
     </div>
   );
@@ -170,7 +164,7 @@ export default function ServiceGrid() {
             name={section.name}
             defaultCollapsed={section.collapsed}
           >
-            <TileGrid columns={section.columns}>
+            <TileGrid>
               {sectionServices.map(renderServiceTile)}
               {sectionBookmarks.map(renderBookmarkTile)}
             </TileGrid>

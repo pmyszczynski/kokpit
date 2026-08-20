@@ -17,7 +17,8 @@ env:
 jobs:
   test:
     name: Lint · Type-check · Test · E2E
-    runs-on: ubuntu-latest
+    # Match the PR and snapshot-generation environments for visual tests.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:

@@ -11,7 +11,6 @@ import {
   renameGroupPatch,
   deleteGroupPatch,
   declareGroup,
-  setGroupColumns,
 } from "@/config/groupCascade";
 import type { BookmarkGroup, Group, Service, ServiceTile } from "@/config/schema";
 
@@ -230,7 +229,7 @@ describe("renameGroupPatch / deleteGroupPatch (minimal patches)", () => {
   });
 });
 
-describe("declareGroup / setGroupColumns", () => {
+describe("declareGroup", () => {
   it("declare appends an undeclared group, no-ops on a declared one", () => {
     const groups: Group[] = [{ name: "Media" }];
     expect(declareGroup(groups, "Infra").map((g) => g.name)).toEqual([
@@ -239,13 +238,5 @@ describe("declareGroup / setGroupColumns", () => {
     ]);
     expect(declareGroup(groups, "media")).toBe(groups);
     expect(declareGroup(groups, "  ")).toBe(groups);
-  });
-
-  it("setGroupColumns clamps to [1,12] and clears with undefined", () => {
-    const groups: Group[] = [{ name: "Media", columns: 3 }];
-    expect(setGroupColumns(groups, "Media", 20)[0].columns).toBe(12);
-    expect(setGroupColumns(groups, "Media", undefined)[0].columns).toBeUndefined();
-    expect(setGroupColumns(groups, "Media", 0)[0].columns).toBeUndefined();
-    expect(setGroupColumns(groups, "Media", 4)[0].columns).toBe(4);
   });
 });

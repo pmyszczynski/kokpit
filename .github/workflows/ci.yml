@@ -95,7 +95,9 @@ jobs:
 
   e2e:
     name: E2E
-    runs-on: ubuntu-latest
+    # Keep this in sync with update-playwright-snapshots.yml and release.yml.
+    # Visual baselines depend on the runner's fonts and rendering libraries.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -113,14 +115,38 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
+        id: e2e
         run: npm run test:e2e
 
-      - name: Run auth E2E tests
-        run: npm run test:e2e:auth
-
-      - name: Upload Playwright artifacts
-        if: failure()
+      - name: Upload Playwright failure artifacts
+        if: failure() && steps.e2e.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results
           path: test-results
+          retention-days: 7
+
+      - name: Generate visual snapshots in the failing CI environment
+        if: failure() && steps.e2e.outcome == 'failure'
+        id: snapshot_generation
+        run: npm run test:e2e:update-snapshots
+
+      - name: Upload CI-generated visual snapshots
+        if: failure() && steps.e2e.outcome == 'failure' && steps.snapshot_generation.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-snapshots
+          path: e2e/tests/**/*-snapshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Run auth E2E tests
+        run: npm run test:e2e:auth
+
+      - name: Upload auth Playwright failure artifacts
+        if: failure() && steps.e2e.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results
+          retention-days: 7

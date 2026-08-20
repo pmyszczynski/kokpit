@@ -75,6 +75,7 @@ registerWidget<DiskSpaceConfig, DiskSpaceData>({
   id: "netdata-disk-space",
   name: "Netdata Disk Space",
   preferredSize: "normal",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
   configSchema: DiskSpaceConfigSchema,
   fetchData: fetchDiskSpaceData,
   refreshInterval: 60_000,

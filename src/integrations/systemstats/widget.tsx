@@ -240,6 +240,7 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
   id: "system-stats",
   name: "System Stats",
   preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "normal",
   configSchema: SystemStatsConfigSchema,
   fetchData: fetchSystemStats,

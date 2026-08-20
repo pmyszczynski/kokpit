@@ -13,10 +13,14 @@ import {
 import path from "path";
 import { lockSync } from "proper-lockfile";
 import { isMap, isNode, isScalar, isSeq, parseDocument, stringify, type Node, type YAMLMap } from "yaml";
+import "@/integrations";
 import { KokpitConfigSchema, widgetIntegrationRequirement, type KokpitConfig, type Size } from "./schema";
 import { splitWidgetConfig } from "@/widgets/configBoundary";
+import { getWidget } from "@/widgets";
 import { canonicalJSONString } from "./canonicalJson";
 import { configRevision } from "./revision";
+import { GENERIC_SERVICE_FOOTPRINT, isTileFootprint, legacyWidgetFootprint } from "@/layout/grid";
+import { resolveServiceSize } from "./resolve";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const CONFIG_DISPLACED_PATH = `${CONFIG_PATH}.displaced`;
@@ -27,6 +31,89 @@ const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 2 })
 let cachedConfig: KokpitConfig | null = null;
 
 type LegacyService = Record<string, unknown> & { name?: unknown; widget?: Record<string, unknown> };
+
+function sameFootprint(
+  left: { columnSpan: number; rowSpan: number },
+  right: { columnSpan: number; rowSpan: number }
+): boolean {
+  return left.columnSpan === right.columnSpan && left.rowSpan === right.rowSpan;
+}
+
+function widgetDefinitionForTile(tile: Record<string, unknown>) {
+  return isRecord(tile.widget) && typeof tile.widget.type === "string"
+    ? getWidget(tile.widget.type)
+    : undefined;
+}
+
+/** One-way KOK-83 migration. It preserves tile identity/order/configuration. */
+export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConfig {
+  const tiles = Array.isArray(raw.service_tiles) ? raw.service_tiles.map((entry) => {
+    if (!isRecord(entry)) return entry;
+    const { size, footprint: savedFootprint, ...tile } = entry;
+    const legacySize = ["normal", "wide", "tall", "large"].includes(String(size))
+      ? size as Size
+      : undefined;
+    const definition = widgetDefinitionForTile(entry);
+    const effectiveWidgetSize = definition
+      ? resolveServiceSize(
+          legacySize ? { size: legacySize } : {},
+          definition.preferredSize,
+          definition.minSize
+        )
+      : legacySize;
+    const hintedWidgetFootprint = legacyWidgetFootprint(effectiveWidgetSize);
+    const supportedFootprints = definition?.supportedFootprints;
+    const supportedFallback = supportedFootprints?.find((candidate) =>
+      sameFootprint(candidate, hintedWidgetFootprint)
+    ) ?? supportedFootprints?.[0];
+    // Generic service cards are always 3×1. Compact canvases deliberately omit
+    // secondary content such as descriptions rather than changing geometry.
+    const fallback = entry.widget
+      ? supportedFallback ?? hintedWidgetFootprint
+      : GENERIC_SERVICE_FOOTPRINT;
+    const normalizeSpan = (value: unknown, fallbackValue: number) => {
+      const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
+      return Math.max(1, numeric);
+    };
+    const normalized = isRecord(savedFootprint) ? {
+      columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan),
+      rowSpan: normalizeSpan(savedFootprint.rowSpan, fallback.rowSpan),
+    } : fallback;
+    const supported = supportedFootprints?.length
+      ? supportedFootprints.some((candidate) => sameFootprint(candidate, normalized))
+        ? normalized
+        : supportedFallback!
+      : normalized;
+    const footprint = entry.widget
+      ? { columnSpan: supported.columnSpan, rowSpan: supported.rowSpan }
+      : { ...GENERIC_SERVICE_FOOTPRINT };
+    return { ...tile, footprint };
+  }) : raw.service_tiles;
+  const oldLayout = isRecord(raw.layout) ? raw.layout : {};
+  const layout = oldLayout.ungrouped === "first" ? { ungrouped: "first" } : {};
+  const groups = Array.isArray(raw.groups) ? raw.groups.map((entry) => {
+    if (!isRecord(entry)) return entry;
+    const { columns: _columns, ...group } = entry;
+    return group;
+  }) : raw.groups;
+  return KokpitConfigSchema.parse({ ...raw, layout, groups, service_tiles: tiles });
+}
+
+function needsFixedGridMigration(raw: Record<string, unknown>): boolean {
+  const layout = isRecord(raw.layout) ? raw.layout : {};
+  if (["columns", "row_height", "tablet", "mobile"].some((key) => key in layout)) return true;
+  if (Array.isArray(raw.groups) && raw.groups.some((group) => isRecord(group) && "columns" in group)) return true;
+  return Array.isArray(raw.service_tiles) && raw.service_tiles.some((tile) => {
+    if (!isRecord(tile)) return true;
+    const footprint = tile.footprint;
+    if ("size" in tile || !isTileFootprint(footprint)) return true;
+    const supported = widgetDefinitionForTile(tile)?.supportedFootprints;
+    if (supported?.length && !supported.some((candidate) => sameFootprint(candidate, footprint))) {
+      return true;
+    }
+    return !tile.widget && !sameFootprint(footprint, GENERIC_SERVICE_FOOTPRINT);
+  });
+}
 
 
 /** Explicit legacy widget -> reusable integration mapping. */
@@ -294,6 +381,30 @@ function setMigratedServiceNodes(
   document.set("service_tiles", serviceTiles);
 }
 
+function setFixedGridNodes(
+  document: ReturnType<typeof parseSettingsDocument>,
+  config: KokpitConfig
+): void {
+  let layoutNode = document.get("layout", true);
+  if (!isMap(layoutNode)) {
+    document.set("layout", document.createNode({}));
+    layoutNode = document.get("layout", true);
+  }
+  if (!isMap(layoutNode)) throw new Error("Unable to create fixed-grid layout mapping");
+  for (const key of ["columns", "row_height", "tablet", "mobile"]) {
+    layoutNode.delete(key);
+  }
+  if (config.layout.ungrouped === "first") layoutNode.set("ungrouped", "first");
+  else layoutNode.delete("ungrouped");
+  for (let index = 0; index < (config.groups?.length ?? 0); index += 1) {
+    document.deleteIn(["groups", index, "columns"]);
+  }
+  for (const [index, tile] of config.service_tiles.entries()) {
+    document.deleteIn(["service_tiles", index, "size"]);
+    document.setIn(["service_tiles", index, "footprint"], tile.footprint);
+  }
+}
+
 function waitForConfigLock(deadline: number): void {
   if (Date.now() >= deadline) {
     throw new Error(
@@ -407,7 +518,7 @@ export function getConfigPath(): string { return CONFIG_PATH; }
 function rewriteConfig(
   source: string,
   replacement: string,
-  backupSuffix: ".v1.bak" | ".pre-v2.bak"
+  backupSuffix: ".v1.bak" | ".pre-v2.bak" | ".pre-fixed-grid.bak"
 ): boolean {
   if (readFileSync(CONFIG_PATH, "utf-8") !== source) return false;
   const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
@@ -455,14 +566,21 @@ function loadConfigAttempt(): KokpitConfig | null {
     if (shape === "v2" || shape === "mixed") {
       throw new Error("Invalid settings.yaml:\n  • schema_version: Version 1 contradicts the detected schema v2 shape");
     }
-    try { config = migrateV1Config(parsed as Record<string, unknown>); }
+    try { config = migrateFixedGridConfig(migrateV1Config(parsed as Record<string, unknown>) as unknown as Record<string, unknown>); }
     catch (error) { throw new Error(`Unable to migrate ${CONFIG_PATH} from schema v1: ${error instanceof Error ? error.message : String(error)}`); }
     document.set("schema_version", 2);
     setMigratedServiceNodes(document, config);
+    setFixedGridNodes(document, config);
     if (!rewriteConfig(source, document.toString(), ".v1.bak")) return null;
   } else if (hasVersion && version === 2) {
     if (shape === "legacy" || shape === "mixed") {
       throw new Error("Invalid settings.yaml:\n  • schema_version: Version 2 contradicts the detected legacy shape");
+    }
+    if (needsFixedGridMigration(parsed)) {
+      config = migrateFixedGridConfig(parsed);
+      setFixedGridNodes(document, config);
+      if (!rewriteConfig(source, document.toString(), ".pre-fixed-grid.bak")) return null;
+      return config;
     }
     const result = KokpitConfigSchema.safeParse(parsed);
     if (!result.success) throw new Error(`Invalid settings.yaml:\n${validationError(result.error)}`);
@@ -475,6 +593,7 @@ function loadConfigAttempt(): KokpitConfig | null {
       config = shape === "legacy"
         ? migrateV1Config(parsed)
         : KokpitConfigSchema.parse({ ...parsed, schema_version: 2 });
+      config = migrateFixedGridConfig(config as unknown as Record<string, unknown>);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(shape === "legacy"
@@ -485,6 +604,7 @@ function loadConfigAttempt(): KokpitConfig | null {
     if (shape === "legacy") {
       setMigratedServiceNodes(document, config);
     }
+    setFixedGridNodes(document, config);
     if (!rewriteConfig(source, document.toString(), ".pre-v2.bak")) return null;
   }
   return config;
@@ -533,6 +653,19 @@ export function writeConfig(
   updates: Partial<KokpitConfig>,
   expectedRevision?: string
 ): void {
+  const fixedGridUpdates: Partial<KokpitConfig> = { ...updates };
+  if (updates.layout) {
+    fixedGridUpdates.layout = (updates.layout.ungrouped === "first"
+      ? { ungrouped: "first" }
+      : {}) as KokpitConfig["layout"];
+  }
+  if (updates.service_tiles) {
+    fixedGridUpdates.service_tiles = migrateFixedGridConfig({
+      schema_version: 2,
+      services: updates.services ?? getConfig().services,
+      service_tiles: updates.service_tiles,
+    }).service_tiles;
+  }
   withConfigLock(() => {
     const source = readFileSync(CONFIG_PATH, "utf-8");
     const doc = parseSettingsDocument(source);
@@ -541,9 +674,9 @@ export function writeConfig(
     if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
       throw new ConfigRevisionMismatchError(currentRevision);
     }
-    KokpitConfigSchema.parse({ ...current, ...updates });
+    KokpitConfigSchema.parse({ ...current, ...fixedGridUpdates });
     const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
-    for (const [key, value] of Object.entries(updates)) doc.setIn([key], value);
+    for (const [key, value] of Object.entries(fixedGridUpdates)) doc.setIn([key], value);
     // Parse the exact document that will be persisted, not just the in-memory merge.
     KokpitConfigSchema.parse(doc.toJS());
     let mode = 0o600;
