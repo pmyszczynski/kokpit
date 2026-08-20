@@ -134,7 +134,7 @@ service_tiles:
     group: Media
 ```
 
-**Set a tile footprint:**
+**Set the canonical generic tile footprint:**
 
 ```yaml
 services:
@@ -145,8 +145,8 @@ service_tiles:
   - id: 20000000-0000-4000-8000-000000000002
     service_id: 10000000-0000-4000-8000-000000000002
     footprint:
-      columnSpan: 6
-      rowSpan: 4
+      columnSpan: 3
+      rowSpan: 1
 ```
 
 The dashboard uses non-configurable 108×60px units with an 8px gap and automatically exposes 3, 6, 9, 12, or 15 columns as the viewport grows. A footprint is the exact number of those units a tile occupies. Generic service cards are always 3×1; compact cards deliberately omit secondary content that does not fit. Widgets use their declared exact canvases. Legacy `size`, `position`, `layout.columns`, `layout.row_height`, and per-group `columns` values are migrated to fixed footprints or removed on load.
