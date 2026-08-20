@@ -4178,8 +4178,8 @@ button {
   outline: none;
 }
 
-/* User-injected custom CSS from appearance.customCss in settings.yaml */
-/* This layer is loaded last and always wins without needing !important */
+/* User-injected custom CSS from appearance.custom_css in settings.yaml. */
+/* The layer follows integration-specific layers in the author layer order. */
 @layer tautulli-widget, user-custom;
 
 @layer tautulli-widget {

@@ -6,7 +6,7 @@ A self-hosted homelab dashboard built with Next.js. Kokpit gives you a single pl
 
 Kokpit is a personal dashboard for homelab and self-hosted setups. You define your services, widgets, and layout in a single `settings.yaml` file, and Kokpit renders a clean, themeable dashboard accessible from any browser.
 
-See `[docs/Roadmap.md](docs/Roadmap.md)` for full details on Roadmap and priority levels.
+See [docs/Roadmap.md](docs/Roadmap.md) for full details on roadmap and priority levels.
 
 ## Installation
 
@@ -14,7 +14,7 @@ See `[docs/Roadmap.md](docs/Roadmap.md)` for full details on Roadmap and priorit
 
 #### Quick start with pre-built image
 
-If you just want to run Kokpit, use the pre-built image from GitHub Container Registry (available from v0.2.0 onwards).
+If you just want to run Kokpit, use the pre-built image from GitHub Container Registry.
 
 **1. Create a working directory:**
 
@@ -32,9 +32,9 @@ services:
     ports:
       - "3000:3000"          # Change the left side to expose on a different host port
     environment:
-      # Required — must be a random string of at least 32 characters.
-      # Used to sign session tokens. Changing this invalidates all active sessions.
-      # Generate one with: openssl rand -hex 32
+      # Recommended — a stable random string for signing session tokens.
+      # Generate one with: openssl rand -hex 32. Changing it invalidates
+      # active sessions. If omitted, Kokpit creates and persists one in /data.
       KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret
 
       # Optional — set to "true" to skip authentication entirely.
@@ -70,10 +70,11 @@ docker compose up -d
 
 Kokpit will be available at `http://localhost:3000`. On first run, a setup wizard will prompt you to create the initial admin account.
 
-To pin to a specific version instead of `latest`:
+To pin to a specific version instead of `latest`, replace `<version>` with a
+published release version:
 
 ```yaml
-    image: ghcr.io/pmyszczynski/kokpit:0.2.0
+    image: ghcr.io/pmyszczynski/kokpit:<version>
 ```
 
 #### Building from source
@@ -94,7 +95,7 @@ cd kokpit
 docker compose up kokpit --build
 ```
 
-**For information about Docker image releases, versioning, and publishing to GHCR, see `[docs/DOCKER_RELEASES.md](docs/DOCKER_RELEASES.md)`.**
+**For Docker image releases, versioning, and GHCR publishing, see [docs/DOCKER_RELEASES.md](docs/DOCKER_RELEASES.md).**
 
 ### Local development
 
@@ -115,7 +116,22 @@ docker compose up kokpit-dev
 
 ## Usage
 
-All configuration lives in `settings.yaml` at the project root. The in-app settings panel (accessible via the ⚙ icon in the navbar, with Services, Groups, and Bookmarks tabs) reads from and writes back to this file — changes take effect immediately without a restart. You can also edit the YAML directly.
+Configuration is stored in `settings.yaml`. Source and local development default
+to `<project-root>/settings.yaml`; the published Docker image defaults to
+`/data/settings.yaml`, so the quick-start volume persists it on the host at
+`./data/settings.yaml`. Set `KOKPIT_CONFIG_PATH` to use another location.
+
+The in-app settings panel (accessible via the ⚙ icon in the navbar) has
+Appearance, Layout, Groups, Services, Bookmarks, and Authentication tabs. It
+reads from and writes back to the same file, and changes take effect without a
+restart. You can also edit the YAML directly.
+
+The Docker image also defaults `KOKPIT_DB_PATH` to `/data/users.db` and
+`KOKPIT_UPLOADS_PATH` to `/data/uploads`; override these only when you need a
+different persistent layout. `auth.session_ttl_hours` controls JWT and session
+cookie lifetime (default: `24`). `KOKPIT_INSECURE_COOKIE=true` disables the
+secure-cookie flag in production mode for local HTTP testing; do not use it on
+an internet-exposed deployment.
 
 On first load after the schema-v2 upgrade, Kokpit detects the legacy service shape even when the file has no `schema_version`, migrates it, and keeps the exact original as `settings.yaml.pre-v2.bak`. Configuration writes fail closed under an inter-process lock. If Kokpit is forcibly terminated and a later startup reports a settings-lock timeout, first verify that no Kokpit process or container is using the config volume, then remove only the `settings.yaml.lock` directory; an interrupted `settings.yaml.displaced` transaction is recovered automatically on the next start.
 
@@ -326,7 +342,9 @@ service_tiles:
       refresh_interval_ms: 30000  # optional, minimum 5000
 ```
 
-Credentials in `widget.config` are read server-side only and are never sent to the browser.
+Connection credentials belong in `services[].integration.config`; tile-specific
+display options belong in `service_tiles[].widget.config`. Credentials are read
+server-side only and are never sent to the browser.
 
 **Troubleshooting widget configuration:** If a widget's config fails validation (e.g., a missing required field like `token` or a malformed URL), the tile displays a small warning badge in its corner. Hover the badge to see the specific validation errors in a tooltip. Users with edit permission can click the badge to open the service editor with the widget section focused, then fix the configuration and save.
 
