@@ -16,16 +16,6 @@ rm -f "$RUNTIME_CONFIG.v1.bak" "$RUNTIME_CONFIG.pre-v2.bak" "$RUNTIME_CONFIG.pre
 cp "$SOURCE_CONFIG" "$RUNTIME_CONFIG"
 export KOKPIT_CONFIG_PATH="$RUNTIME_CONFIG"
 
-STANDALONE=$(find "$ROOT_DIR/.next/standalone" -name 'server.js' | grep -v node_modules | head -1)
-if [ -z "$STANDALONE" ]; then
-  echo "Error: server.js not found in .next/standalone" >&2
-  exit 1
-fi
-STANDALONE_DIR=$(dirname "$STANDALONE")
-
-# Mirror what the Dockerfile does: copy static assets into the standalone dir.
-cp -r "$ROOT_DIR/.next/static" "$STANDALONE_DIR/.next/"
-cp -r "$ROOT_DIR/public" "$STANDALONE_DIR/"
-
-cd "$STANDALONE_DIR"
-exec node server.js
+cd "$ROOT_DIR"
+npm run build
+exec ./node_modules/.bin/playwright test --config playwright.auth.config.ts

@@ -114,6 +114,24 @@ green local gate is not a substitute for a CI run.
 
 ---
 
+## Required Pre-PR Validation
+
+Before opening or marking any code PR ready, commit and push the intended feature
+branch, then run `npm run check:pr` from a clean worktree. This is the required
+gate; focused tests, lint, type-check, or unit tests alone are not substitutes.
+It runs lint, type-check, coverage, non-visual E2E, and auth E2E with `CI=true`,
+then triggers the Ubuntu snapshot workflow for the exact pushed commit and
+byte-compares its artifact with tracked baselines. It fails if tests dirty the
+worktree. GitHub CLI must be installed and authenticated.
+
+If the gate reports visual differences, download that named run's
+`playwright-visual-snapshots` artifact, review and commit only intentional PNG
+changes, push, and rerun the gate. After every push or PR creation, inspect the
+PR check runs directly and do not report the PR ready or complete until E2E is
+green.
+
+---
+
 ## Release Process
 
 `main` has a branch ruleset requiring all changes go through a PR, and GitHub Actions is deliberately **not** permitted to create/approve its own PRs in this repo (a security setting, left off on purpose — enabling it would let any workflow self-merge unreviewed changes). This means the version bump can't happen inside CI; it has to be merged as a normal PR first. When asked to cut a release, do this:
