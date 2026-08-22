@@ -393,6 +393,12 @@ service_tiles:
 
 The widget only contacts `/status/sessions` or `/library/sections` depending on which fields you configure, so it never makes unnecessary requests.
 
+Plex supports three desktop footprints: **Default (6×2)**, **Narrow (3×4)**,
+and **Expanded (6×4)**. Narrow uses half the default width while retaining room
+for the tile header and an optional description. Expanded provides more visible
+rows for dashboards that show many fields; additional fields scroll within the
+widget without growing or overflowing the tile.
+
 ---
 
 ### Tautulli
