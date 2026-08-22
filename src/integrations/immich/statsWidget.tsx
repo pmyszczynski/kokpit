@@ -75,8 +75,11 @@ export function ImmichStatsWidget({
 registerWidget<ImmichConfig, ImmichStats>({
   id: "immich-stats",
   name: "Immich Stats",
-  preferredSize: "wide",
-  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
+  preferredSize: "normal",
+  supportedFootprints: [
+    { label: "Default", columnSpan: 3, rowSpan: 2 },
+    { label: "Wide", columnSpan: 6, rowSpan: 2 },
+  ],
   configSchema: ImmichConfigSchema,
   fetchData: fetchStats,
   refreshInterval: 60_000,
