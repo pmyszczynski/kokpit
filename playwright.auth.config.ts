@@ -18,8 +18,8 @@ export default defineConfig({
     env: {
       // Absolute paths so they survive the `cd` into the standalone dir.
       KOKPIT_DB_PATH: path.resolve("./e2e/fixtures/auth-test-users.db"),
-      KOKPIT_CONFIG_PATH: path.resolve("./e2e/fixtures/auth-settings.yaml"),
       PORT: "3001",
+      HOSTNAME: "127.0.0.1",
       KOKPIT_INSECURE_COOKIE: "true",
       KOKPIT_SESSION_SECRET: "test-secret-32-chars-minimum-length-xx",
     },

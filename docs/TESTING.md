@@ -6,6 +6,22 @@ Three layers, run in this order in CI (`.github/workflows/ci.yml`):
 2. **E2E tests** (Playwright, real Next.js dev server + mocked upstream services) — `npm run test:e2e`
 3. **Auth E2E tests** (Playwright, production build) — `npm run test:e2e:auth`
 
+## Required pre-PR gate
+
+After committing and pushing the intended feature branch, and before opening or
+marking a PR ready, run `npm run check:pr`. It requires a clean worktree before
+and after validation, runs lint, type-check, unit tests with coverage,
+non-visual E2E, and auth E2E, then triggers the Ubuntu snapshot workflow for the
+exact pushed commit and byte-compares its artifact with tracked baselines. It
+sets `CI=true` so Playwright cannot reuse a stale local server. GitHub CLI must
+be installed and authenticated. Focused tests are useful while developing, but
+are not a substitute for this gate.
+
+Both Playwright harnesses copy their tracked YAML fixtures into
+`test-results/runtime/` before build or startup. Tests and migrations therefore
+mutate only ignored runtime copies; a dirty worktree after E2E is a failure, not
+expected cleanup.
+
 ## Unit tests
 
 `src/__tests__/**` mirrors `src/`. Conventions:
@@ -35,4 +51,11 @@ Screenshot tests catch CSS/layout/theme regressions that DOM assertions can't �
   ```
 
   Review the resulting PNG diff before committing it. Normal CI never accepts new baselines automatically.
+- `npm run check:pr` automatically validates tracked baselines against the
+  feature branch's Ubuntu-generated artifact. If it reports differences after
+  an intentional CSS, theme, sizing, or layout change, download that named run's
+  artifact, review and commit only the intended PNG changes, push, and rerun the
+  gate before marking the PR ready.
 - When the regular E2E job finds a mismatch, it preserves the failure report first, regenerates all 15 visual baselines in that same runner, and uploads them as the `playwright-visual-snapshots` artifact. Download that artifact into `e2e/tests` instead of regenerating locally.
+- After every PR-opening or branch push, inspect the PR check runs directly.
+  Do not hand off the PR as ready or complete until its E2E job is green.

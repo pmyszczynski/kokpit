@@ -46,12 +46,24 @@ const FIELD_LABELS: Record<PlexField, string> = {
 
 function formatValue(field: PlexField, value: number): string {
   if (field === "bandwidth") {
-    return `${(value / 1000).toFixed(1)} Mbps`;
+    const units = ["Mbps", "Gbps", "Tbps"] as const;
+    let amount = value / 1000;
+    let unitIndex = 0;
+    while (unitIndex < units.length - 1 && Math.round(amount * 10) >= 10_000) {
+      amount /= 1000;
+      unitIndex += 1;
+    }
+    return `${amount.toFixed(1)} ${units[unitIndex]}`;
   }
   return String(value);
 }
 
-export function PlexWidget({ data, loading, error }: WidgetProps<PlexData>) {
+export function PlexWidget({
+  data,
+  loading,
+  error,
+  footprint,
+}: WidgetProps<PlexData>) {
   if (!data) {
     return (
       <div className="plex-widget plex-widget--empty">
@@ -68,12 +80,25 @@ export function PlexWidget({ data, loading, error }: WidgetProps<PlexData>) {
   }
 
   const entries = Object.entries(data) as [PlexField, number][];
+  const footprintName = `${footprint?.columnSpan ?? 6}x${footprint?.rowSpan ?? 2}`;
 
   return (
-    <div className="plex-widget" aria-label="Plex stats">
+    <div
+      className="plex-widget"
+      data-footprint={footprintName}
+      aria-label="Plex stats"
+    >
       {entries.map(([field, value]) => (
-        <div key={field} className="plex-widget__stat">
-          <span className="plex-widget__value">{formatValue(field, value)}</span>
+        <div key={field} className="plex-widget__stat" data-field={field}>
+          <span
+            className={
+              `plex-widget__value${field === "bandwidth"
+                ? " plex-widget__value--bandwidth"
+                : ""}`
+            }
+          >
+            {formatValue(field, value)}
+          </span>
           <span className="plex-widget__label">{FIELD_LABELS[field]}</span>
         </div>
       ))}
@@ -90,7 +115,11 @@ registerWidget<PlexConfig, PlexData>({
   id: "plex",
   name: "Plex",
   preferredSize: "wide",
-  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
+  supportedFootprints: [
+    { label: "Default", columnSpan: 6, rowSpan: 2 },
+    { label: "Narrow", columnSpan: 3, rowSpan: 4 },
+    { label: "Expanded", columnSpan: 6, rowSpan: 4 },
+  ],
   serviceEditorPreset: {
     defaultName: "Plex",
     defaultIconUrl: "https://cdn.simpleicons.org/plex/e5a00d",
