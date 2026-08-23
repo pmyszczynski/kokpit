@@ -1,22 +1,7 @@
 #!/bin/sh
-set -eu
+set -e
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-SOURCE_CONFIG="$ROOT_DIR/e2e/fixtures/auth-settings.yaml"
-RUNTIME_DIR="$ROOT_DIR/test-results/runtime"
-RUNTIME_CONFIG="$RUNTIME_DIR/auth-settings.yaml"
-
-if [ ! -f "$SOURCE_CONFIG" ]; then
-  echo "Error: auth E2E fixture not found: $SOURCE_CONFIG" >&2
-  exit 1
-fi
-
-mkdir -p "$RUNTIME_DIR"
-rm -f "$RUNTIME_CONFIG.v1.bak" "$RUNTIME_CONFIG.pre-v2.bak" "$RUNTIME_CONFIG.pre-fixed-grid.bak"
-cp "$SOURCE_CONFIG" "$RUNTIME_CONFIG"
-export KOKPIT_CONFIG_PATH="$RUNTIME_CONFIG"
-
-STANDALONE=$(find "$ROOT_DIR/.next/standalone" -name 'server.js' | grep -v node_modules | head -1)
+STANDALONE=$(find .next/standalone -name 'server.js' | grep -v node_modules | head -1)
 if [ -z "$STANDALONE" ]; then
   echo "Error: server.js not found in .next/standalone" >&2
   exit 1
@@ -24,8 +9,8 @@ fi
 STANDALONE_DIR=$(dirname "$STANDALONE")
 
 # Mirror what the Dockerfile does: copy static assets into the standalone dir.
-cp -r "$ROOT_DIR/.next/static" "$STANDALONE_DIR/.next/"
-cp -r "$ROOT_DIR/public" "$STANDALONE_DIR/"
+cp -r .next/static "$STANDALONE_DIR/.next/"
+cp -r public "$STANDALONE_DIR/"
 
 cd "$STANDALONE_DIR"
 exec node server.js

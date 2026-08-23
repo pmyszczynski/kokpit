@@ -25,11 +25,6 @@ Inspect its actual GitHub CI checks directly; do not mark the work ready or
 complete until all jobs, including E2E, are green. CI is independent
 confirmation of local results, not a replacement for running them first.
 
-Both Playwright harnesses copy their tracked YAML fixtures into
-`test-results/runtime/` before build or startup. Tests and migrations therefore
-mutate only ignored runtime copies; a dirty worktree after E2E is a failure, not
-expected cleanup.
-
 ## Unit tests
 
 `src/__tests__/**` mirrors `src/`. Conventions:
