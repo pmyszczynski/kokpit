@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 
+const authState = vi.hoisted(() => ({ enabled: true, authenticated: true }));
+
+vi.mock("@/auth", () => ({
+  isAuthenticationEnabled: vi.fn(() => authState.enabled),
+  isRequestAuthenticated: vi.fn(async () => authState.authenticated),
+}));
+
 const settingsFile = vi.hoisted(() => ({
   source: "",
   displacedSource: undefined as string | undefined,
@@ -75,11 +82,12 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
 }));
 
-process.env.KOKPIT_AUTH_DISABLED = "true";
-
 import { WIDGET_SECRET_REFERENCE_KEY } from "@/widgets/secretReference";
+import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth";
 import "@/integrations";
 import { getAllWidgets } from "@/widgets";
+
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 // Every registered widget type, with what its schema says about an empty
 // config. Collected once at module load; the tests re-import the route (and
@@ -101,8 +109,6 @@ layout:
   row_height: 120
 services: []
 `.trim();
-
-const AUTH_YAML = BASE_YAML.replace("enabled: false", "enabled: true");
 
 const TAUTULLI_SECRET_YAML = BASE_YAML.replace(
   "services: []",
@@ -147,12 +153,16 @@ function post(body: unknown) {
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
+  authState.enabled = true;
+  authState.authenticated = true;
+  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
   setSettingsYaml(BASE_YAML);
   const { invalidateCache } = await import("@/config/loader");
   invalidateCache();
 });
 
 afterEach(async () => {
+  consoleErrorSpy.mockRestore();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.useRealTimers();
@@ -166,6 +176,42 @@ afterEach(async () => {
 });
 
 describe("POST /api/widget/test", () => {
+  it("returns config_unavailable before parsing or fetching while settings are dirty", async () => {
+    const { getConfigSnapshot, markConfigDirty } = await import("@/config/loader");
+    expect(getConfigSnapshot().state).toBe("ready");
+    settingsFile.source = "auth: [";
+    markConfigDirty();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const json = vi.fn();
+    const { POST } = await import("../../app/api/widget/test/route");
+
+    const res = await POST({ json } as unknown as Request);
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: "settings.yaml is being updated; retry once the change is complete",
+      code: "config_unavailable",
+    });
+    expect(json).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(isAuthenticationEnabled).not.toHaveBeenCalled();
+    expect(isRequestAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it("rejects connection tests when authentication is disabled before parsing or fetching", async () => {
+    authState.enabled = false;
+    vi.resetModules();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { POST } = await import("../../app/api/widget/test/route");
+    const res = await POST(post({ type: "plex", config: { url: "http://attacker.invalid", token: "secret" } }));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ ok: false, error: "Connection tests require authentication" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("returns a bounded 500 when secret resolution fails unexpectedly", async () => {
     vi.doMock("@/widgets/configSecrets", async (importOriginal) => ({
       ...(await importOriginal<typeof import("@/widgets/configSecrets")>()),
@@ -179,19 +225,31 @@ describe("POST /api/widget/test", () => {
       const body = await res.json();
 
       expect(res.status).toBe(500);
-      expect(body).toEqual({
+      expect(body).toMatchObject({
         ok: false,
         error: "Connection test failed",
+        code: "widget_internal_error",
+        retryable: false,
+        incidentId: expect.any(String),
       });
       expect(JSON.stringify(body)).not.toContain("leaked");
+      expect(consoleErrorSpy).toHaveBeenCalledWith({
+        incidentId: body.incidentId,
+        widgetType: "plex",
+        operation: "connection-test",
+        code: "widget_internal_error",
+        retryable: false,
+        integration: "unknown",
+        stage: "internal",
+      });
     } finally {
       vi.doUnmock("@/widgets/configSecrets");
     }
   });
 
   it("returns 401 when auth is enabled and no session cookie is present", async () => {
-    vi.stubEnv("KOKPIT_AUTH_DISABLED", "false");
-    setSettingsYaml(AUTH_YAML);
+    authState.authenticated = false;
+    vi.resetModules();
     const { POST } = await import("../../app/api/widget/test/route");
     const res = await POST(post({ type: "plex", config: {} }));
     expect(res.status).toBe(401);
@@ -279,6 +337,28 @@ describe("POST /api/widget/test", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual({ ok: true });
+    const authorizedConfig = vi.mocked(isAuthenticationEnabled).mock.calls[0]?.[0];
+    expect(authorizedConfig).toBeDefined();
+    expect(isRequestAuthenticated).toHaveBeenCalledWith(authorizedConfig);
+  });
+
+  it("returns a generic qBittorrent diagnostic without reflecting network details", async () => {
+    const leaked = "http://admin:qbit-test-secret@qbt.local:8080/api/v2/auth/login";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error(`fetch failed: ${leaked}`)));
+    const { POST } = await import("../../app/api/widget/test/route");
+
+    const res = await POST(post({
+      type: "qbittorrent-stats",
+      config: { url: "http://qbt.local:8080", username: "admin", password: "qbit-test-secret" },
+    }));
+    const responseText = await res.text();
+
+    expect(res.status).toBe(502);
+    expect(responseText).toContain("The integration could not be reached");
+    expect(responseText).toContain('"code":"widget_upstream_unreachable"');
+    expect(responseText).toContain('"retryable":true');
+    expect(responseText).not.toContain(leaked);
+    expect(responseText).not.toContain("qbit-test-secret");
   });
 
   it("resolves a redacted saved password server-side for a connection test", async () => {
@@ -413,7 +493,7 @@ describe("POST /api/widget/test", () => {
     await vi.advanceTimersByTimeAsync(5001);
     const res = await resPromise;
     expect(res.status).toBe(504);
-    expect((await res.json()).error).toMatch(/timed out/i);
+    expect(await res.json()).toMatchObject({ code: "widget_timeout", retryable: true, incidentId: expect.any(String) });
   });
 
   it("returns 504 even when the widget ignores its abort signal", async () => {

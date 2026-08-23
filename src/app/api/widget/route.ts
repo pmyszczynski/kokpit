@@ -1,13 +1,28 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
-import { getConfig, legacyIntegrationType } from "@/config/server";
+import { getConfigSnapshot, legacyIntegrationType } from "@/config/server";
 import { getIntegration, getWidget } from "@/widgets";
-import { publicWidgetFetchError } from "@/widgets/publicFetchError";
+import {
+  widgetFetchFailure,
+  widgetFetchTimeoutFailure,
+} from "@/widgets/publicFetchError";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 
 export async function GET(request: Request) {
-  if (!(await isRequestAuthenticated())) {
+  const snapshot = getConfigSnapshot();
+  if (snapshot.state === "dirty" || !snapshot.config) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "settings.yaml is being updated; retry once the change is complete",
+        code: "config_unavailable",
+      },
+      { status: 409 }
+    );
+  }
+  const config = snapshot.config;
+  if (!(await isRequestAuthenticated(config))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -16,7 +31,6 @@ export async function GET(request: Request) {
   const widgetType = searchParams.get("widget_type");
 
   if (!tileId) return NextResponse.json({ ok: false, error: "Missing tile_id parameter" }, { status: 400 });
-  const config = getConfig();
   const tile = config.service_tiles.find((candidate) => candidate.id === tileId);
   if (!tile) return NextResponse.json({ ok: false, error: `ServiceTile not found: "${tileId}"` }, { status: 404 });
   if (!tile.widget) return NextResponse.json({ ok: false, error: "ServiceTile has no widget" }, { status: 400 });
@@ -77,11 +91,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, data });
   } catch (err) {
     if (err instanceof WidgetFetchTimeoutError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
+      const failure = widgetFetchTimeoutFailure("load", type);
+      return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
     }
-    return NextResponse.json(
-      { ok: false, error: publicWidgetFetchError("load") },
-      { status: 500 }
-    );
+    const failure = widgetFetchFailure("load", type, err);
+    return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
   }
 }
