@@ -32,6 +32,10 @@ function makeLoginResponse(sid: string) {
   };
 }
 
+function makeLoginFailsResponse() {
+  return new Response("Fails.", { status: 200 });
+}
+
 function makeJsonResponse(body: unknown) {
   return {
     ok: true,
@@ -95,6 +99,24 @@ describe("fetchTransferInfo", () => {
     expect(dataCall![1].headers.Cookie).toBe("SID=mySession");
   });
 
+  it("preserves QBIT_SID when qBittorrent uses its newer session cookie", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: (name: string) => name.toLowerCase() === "set-cookie" ? "QBIT_SID=newSession; Path=/" : null },
+      })
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchTransferInfo(BASE_CONFIG);
+
+    const dataCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/transfer/info")
+    );
+    expect(dataCall![1].headers.Cookie).toBe("QBIT_SID=newSession");
+  });
+
   it("deduplicates concurrent cold-start login requests", async () => {
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(makeLoginResponse("sharedSid"))
@@ -112,6 +134,23 @@ describe("fetchTransferInfo", () => {
       (url as string).includes("/auth/login")
     );
     expect(loginCalls).toHaveLength(1);
+  });
+
+  it("evicts an aborted in-flight login so a later request can start fresh", async () => {
+    const firstLogin = new Promise<Response>(() => {});
+    const mockFetch = vi.fn()
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce(makeLoginResponse("freshSid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+    const controller = new AbortController();
+
+    void fetchTransferInfo(BASE_CONFIG, controller.signal);
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
   it("caches SID and does not re-login on second call", async () => {
@@ -146,12 +185,86 @@ describe("fetchTransferInfo", () => {
     expect(loginCalls).toHaveLength(2);
   });
 
-  it("throws when login fails", async () => {
+  it("classifies rejected credentials without exposing the upstream status", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 401, headers: { get: () => null } })
     );
-    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toThrow("401");
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_auth_failed",
+      diagnostic: { integration: "qbittorrent", stage: "login", upstreamStatus: 401, retryable: false },
+    });
+  });
+
+  it("classifies a login 403 as blocked access rather than rejected credentials", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 403, headers: { get: () => null } })
+    );
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_access_blocked",
+      diagnostic: {
+        integration: "qbittorrent",
+        stage: "login",
+        upstreamStatus: 403,
+        retryable: false,
+      },
+    });
+  });
+
+  it("classifies a missing SID cookie as a session-establishment failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, headers: { get: () => null } })
+    );
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_session_failed",
+      diagnostic: { integration: "qbittorrent", stage: "session", retryable: true },
+    });
+  });
+
+  it.each([[400, false], [408, true], [425, true], [429, true], [500, true], [502, true]] as const)(
+    "classifies login HTTP %s with retryable %s",
+    async (status, retryable) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status,
+          headers: { get: () => null },
+        })
+      );
+
+      await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+        code: "widget_upstream_error",
+        diagnostic: { integration: "qbittorrent", stage: "login", upstreamStatus: status, retryable },
+      });
+    }
+  );
+
+  it("redacts a secret-bearing network error as unreachable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(
+        new Error("fetch http://admin:adminadmin@qbt.local:8080 failed Authorization: Bearer secret")
+      )
+    );
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_unreachable",
+      diagnostic: { integration: "qbittorrent", stage: "login", retryable: true },
+    });
+  });
+
+  it("classifies the documented HTTP 200 Fails. login response as rejected credentials", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeLoginFailsResponse()));
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_auth_failed",
+      diagnostic: { integration: "qbittorrent", stage: "login", retryable: false },
+    });
   });
 
   it("forwards the AbortSignal to the data request", async () => {
@@ -203,14 +316,63 @@ describe("fetchTorrents", () => {
     expect(dataCall![1].headers.Cookie).toBe("SID=mySid");
   });
 
-  it("throws when data request returns non-2xx after retry", async () => {
+  it("classifies a non-auth upstream response without exposing its status", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn()
         .mockResolvedValueOnce(makeLoginResponse("sid"))
         .mockResolvedValueOnce({ ok: false, status: 500, headers: { get: () => null } })
     );
-    await expect(fetchTorrents(BASE_CONFIG)).rejects.toThrow("500");
+    await expect(fetchTorrents(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_error",
+      diagnostic: { integration: "qbittorrent", stage: "torrents-info", upstreamStatus: 500, retryable: true },
+    });
+  });
+
+  it("does not classify a retried data 403 as a login credential rejection", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(makeLoginResponse("oldSid"))
+        .mockResolvedValueOnce(make403Response())
+        .mockResolvedValueOnce(makeLoginResponse("newSid"))
+        .mockResolvedValueOnce(make403Response())
+    );
+
+    await expect(fetchTorrents(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_error",
+      diagnostic: {
+        integration: "qbittorrent",
+        stage: "torrents-info",
+        upstreamStatus: 403,
+        retryable: false,
+      },
+    });
+  });
+
+  it("classifies invalid JSON and schema responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(makeLoginResponse("sid"))
+        .mockResolvedValueOnce({ ...makeJsonResponse(MOCK_TRANSFER_INFO), json: async () => { throw new Error("body includes password=adminadmin"); } })
+    );
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_invalid_json",
+      diagnostic: { integration: "qbittorrent", stage: "transfer-info-json", retryable: true },
+    });
+
+    clearSidCache();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(makeLoginResponse("sid"))
+        .mockResolvedValueOnce(makeJsonResponse({ dl_info_speed: "not-a-number" }))
+    );
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_invalid_response",
+      diagnostic: { integration: "qbittorrent", stage: "transfer-info-validation", retryable: true },
+    });
   });
 });
 

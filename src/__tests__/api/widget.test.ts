@@ -25,6 +25,9 @@ vi.mock("next/headers", () => ({
 }));
 
 import { existsSync, readFileSync } from "node:fs";
+import { WidgetFetchError, widgetFetchFailure } from "@/widgets/publicFetchError";
+
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 const SERVICES_YAML = `
 schema_version: 2
@@ -70,11 +73,13 @@ function get(tile_id?: string, widgetType?: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML);
 });
 
 afterEach(async () => {
+  consoleErrorSpy.mockRestore();
   vi.unstubAllGlobals();
   vi.useRealTimers();
   // The "uses widget.fetchTimeoutMs" test below registers a permanent
@@ -87,6 +92,63 @@ afterEach(async () => {
 });
 
 describe("GET /api/widget", () => {
+  it("bounds adversarial diagnostic metadata before logging it", () => {
+    const error = new WidgetFetchError("widget_upstream_error", {
+      integration: "http://admin:secret@internal.invalid",
+      stage: "login\nAuthorization: Bearer secret",
+      upstreamStatus: 999,
+      retryable: true,
+    });
+    const failure = widgetFetchFailure(
+      "load",
+      "qbittorrent?password=secret",
+      error
+    );
+
+    expect(failure.status).toBe(502);
+    expect(consoleErrorSpy).toHaveBeenCalledWith({
+      incidentId: failure.body.incidentId,
+      widgetType: "unknown",
+      operation: "load",
+      code: "widget_upstream_error",
+      retryable: true,
+      integration: "unknown",
+      stage: "unknown",
+    });
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("secret");
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("internal.invalid");
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("999");
+  });
+
+  it("downgrades an invalid diagnostic code without reflecting it", () => {
+    const leakedCode = "secret\nAuthorization-Bearer-value";
+    const error = new WidgetFetchError(leakedCode as never, {
+      integration: "qbittorrent",
+      stage: "login",
+      retryable: true,
+    });
+    const failure = widgetFetchFailure("load", "qbittorrent-stats", error);
+
+    expect(failure).toMatchObject({
+      status: 500,
+      body: {
+        error: "Widget fetch failed",
+        code: "widget_internal_error",
+        retryable: false,
+      },
+    });
+    expect(JSON.stringify(failure)).not.toContain(leakedCode);
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain(leakedCode);
+    expect(consoleErrorSpy).toHaveBeenCalledWith({
+      incidentId: failure.body.incidentId,
+      widgetType: "qbittorrent-stats",
+      operation: "load",
+      code: "widget_internal_error",
+      retryable: false,
+      integration: "unknown",
+      stage: "internal",
+    });
+  });
   it("returns 400 when the tile_id parameter is missing", async () => {
     const { GET } = await import("../../app/api/widget/route");
     const res = await GET(get());
@@ -210,6 +272,53 @@ describe("GET /api/widget", () => {
     expect(responseText).not.toContain(leakedUrl);
     expect(responseText).not.toContain("apikey=");
     expect(responseText).not.toContain("tautulli-route-secret");
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain(leakedUrl);
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("tautulli-route-secret");
+    expect(consoleErrorSpy).toHaveBeenCalledWith({
+      incidentId: expect.any(String),
+      widgetType: "tautulli-activity",
+      operation: "load",
+      code: "widget_internal_error",
+      retryable: false,
+      integration: "unknown",
+      stage: "internal",
+    });
+  });
+
+  it("correlates a qBittorrent failure response with a sanitized server log", async () => {
+    const qbitYaml = SERVICES_YAML.replace(
+      "service_tiles:",
+      `  - id: 10000000-0000-4000-8000-000000000006
+    name: qBittorrent
+    integration: { type: qbittorrent, config: { url: http://qbt.local:8080, username: admin, password: qbit-route-secret } }
+service_tiles:`
+    ) + "\n  - { id: 20000000-0000-4000-8000-000000000006, service_id: 10000000-0000-4000-8000-000000000006, footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: qbittorrent-stats } }";
+    vi.mocked(readFileSync).mockReturnValue(qbitYaml);
+    const leaked = "http://admin:qbit-route-secret@qbt.local:8080/api/v2/auth/login";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error(`fetch failed: ${leaked}`)));
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(get("20000000-0000-4000-8000-000000000006"));
+    const responseText = await res.text();
+
+    expect(res.status).toBe(502);
+    expect(responseText).toContain("The integration could not be reached");
+    expect(responseText).toContain('"code":"widget_upstream_unreachable"');
+    expect(responseText).toContain('"retryable":true');
+    expect(responseText).not.toContain(leaked);
+    expect(responseText).not.toContain("qbit-route-secret");
+    const body = JSON.parse(responseText);
+    expect(body.incidentId).toMatch(/^wgt_/);
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith({
+      incidentId: body.incidentId,
+      widgetType: "qbittorrent-stats",
+      operation: "load",
+      code: "widget_upstream_unreachable",
+      retryable: true,
+      integration: "qbittorrent",
+      stage: "login",
+    });
   });
 
   it("returns 504 even when the widget ignores its abort signal", async () => {
@@ -225,7 +334,7 @@ describe("GET /api/widget", () => {
     await vi.advanceTimersByTimeAsync(5001);
     const res = await resPromise;
     expect(res.status).toBe(504);
-    expect((await res.json()).error).toMatch(/timed out/i);
+    expect(await res.json()).toMatchObject({ code: "widget_timeout", retryable: true, incidentId: expect.any(String) });
   });
 
   it("returns 504 when the widget fetch exceeds the 5s timeout", async () => {

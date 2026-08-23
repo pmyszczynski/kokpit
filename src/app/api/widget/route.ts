@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
 import { getConfig, legacyIntegrationType } from "@/config/server";
 import { getIntegration, getWidget } from "@/widgets";
-import { publicWidgetFetchError } from "@/widgets/publicFetchError";
+import {
+  widgetFetchFailure,
+  widgetFetchTimeoutFailure,
+} from "@/widgets/publicFetchError";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 
 export async function GET(request: Request) {
@@ -77,11 +80,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, data });
   } catch (err) {
     if (err instanceof WidgetFetchTimeoutError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
+      const failure = widgetFetchTimeoutFailure("load", type);
+      return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
     }
-    return NextResponse.json(
-      { ok: false, error: publicWidgetFetchError("load") },
-      { status: 500 }
-    );
+    const failure = widgetFetchFailure("load", type, err);
+    return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
   }
 }
