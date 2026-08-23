@@ -128,8 +128,9 @@ describe("signed widget secret references", () => {
     const changedPayload = Buffer.from(
       JSON.stringify({ ...decoded, serviceName: "B" })
     ).toString("base64url");
-    const changedSignature =
-      signature.slice(0, -1) + (signature.endsWith("A") ? "B" : "A");
+    const changedSignatureBytes = Buffer.from(signature, "base64url");
+    changedSignatureBytes[0] ^= 1;
+    const changedSignature = changedSignatureBytes.toString("base64url");
 
     expect(
       verifyWidgetSecretReference(
@@ -142,6 +143,35 @@ describe("signed widget secret references", () => {
       verifyWidgetSecretReference(
         fieldReference(
           `${WIDGET_SECRET_REFERENCE_PREFIX}${payload}.${changedSignature}`
+        )
+      )
+    ).toBeNull();
+  });
+
+  it("rejects non-canonical signature text that decodes to the valid MAC", async () => {
+    const { createWidgetSecretReference, verifyWidgetSecretReference } =
+      await import("@/widgets/secretReference.server");
+    const token = createWidgetSecretReference("A", "plex", "token");
+    const encoded = token[WIDGET_SECRET_REFERENCE_KEY].slice(
+      WIDGET_SECRET_REFERENCE_PREFIX.length
+    );
+    const [payload, signature] = encoded.split(".");
+    const signatureBytes = Buffer.from(signature, "base64url");
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const nonCanonicalSignature = alphabet
+      .split("")
+      .map((character) => `${signature.slice(0, -1)}${character}`)
+      .find(
+        (candidate) =>
+          candidate !== signature &&
+          Buffer.from(candidate, "base64url").equals(signatureBytes)
+      );
+
+    expect(nonCanonicalSignature).toBeDefined();
+    expect(
+      verifyWidgetSecretReference(
+        fieldReference(
+          `${WIDGET_SECRET_REFERENCE_PREFIX}${payload}.${nonCanonicalSignature}`
         )
       )
     ).toBeNull();

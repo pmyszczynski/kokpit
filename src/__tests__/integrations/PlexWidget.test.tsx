@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PlexWidget } from "@/integrations/plex/widget";
+import { getWidget } from "@/widgets";
 
 const noop = () => {};
 
@@ -47,6 +48,40 @@ describe("PlexWidget component", () => {
     );
     expect(screen.getByText("45.0 Mbps")).toBeInTheDocument();
     expect(screen.getByText("Bandwidth")).toBeInTheDocument();
+    expect(screen.getByText("45.0 Mbps")).toHaveClass(
+      "plex-widget__value--bandwidth"
+    );
+    expect(screen.getByText("Bandwidth").closest(".plex-widget__stat"))
+      .toHaveAttribute("data-field", "bandwidth");
+  });
+
+  it.each([
+    [4_500_000, "4.5 Gbps"],
+    [999_999, "1.0 Gbps"],
+    [999_999_999, "1.0 Tbps"],
+  ])("uses a compact unit for %d Kbps", (bandwidth, expected) => {
+    render(
+      <PlexWidget data={{ bandwidth }} loading={false}
+        error={null} refresh={noop} />
+    );
+    expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("exposes its active footprint to the layout", () => {
+    render(
+      <PlexWidget data={{ streams: 3 }} loading={false} error={null}
+        refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />
+    );
+    expect(screen.getByLabelText("Plex stats"))
+      .toHaveAttribute("data-footprint", "3x4");
+  });
+
+  it("declares default, narrow, and expanded canvases", () => {
+    expect(getWidget("plex")?.supportedFootprints).toEqual([
+      { label: "Default", columnSpan: 6, rowSpan: 2 },
+      { label: "Narrow", columnSpan: 3, rowSpan: 4 },
+      { label: "Expanded", columnSpan: 6, rowSpan: 4 },
+    ]);
   });
 
   it("shows loading hint when data is null and loading", () => {

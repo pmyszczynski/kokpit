@@ -108,9 +108,33 @@ Check `mcp__github__pull_request_read` with `method: get_check_runs` against the
 PR — that is the authoritative view. (`list_workflow_runs` filtered by branch has
 returned `total_count: 0` for runs that existed; don't diagnose from it.) If the
 `ci.yml` jobs are absent, either mark the PR ready for review or push a commit
-(`synchronize`). Local `npm run lint && npm run type-check && npm test`
-covers three of the four jobs, but **not E2E** — only CI runs Playwright, so a
-green local gate is not a substitute for a CI run.
+(`synchronize`). Run the complete local gate before pushing, then inspect the
+actual PR checks. Local validation catches failures early; GitHub CI is the
+independent confirmation and must still be green before handoff.
+
+---
+
+## Required Pre-PR Validation
+
+After final edits and immediately before committing, run this local validation sequence; focused tests, lint, type-check, or unit tests alone are not substitutes. Stop and fix any failure before committing or pushing. Each command sets `CI=true` so Playwright cannot reuse a stale local server:
+
+```sh
+CI=true npm run lint
+CI=true npm run type-check
+CI=true npm run test:coverage
+CI=true npm run test:e2e:nonvisual
+CI=true npm run test:e2e:auth
+```
+
+This sequence does not require a clean worktree, a PR, GitHub CLI, or network access.
+
+After it passes, commit and push the intended branch, then open or update its
+PR. Inspect the actual GitHub CI check runs directly and do not report the PR
+ready or complete until all jobs, including E2E, are green. Ubuntu-generated
+visual snapshots are CI confirmation and a debugging artifact—not a reason to
+push before running local validation. When CI reports an intentional visual
+difference, download its `playwright-visual-snapshots` artifact, review and
+commit only the intended PNG changes, then rerun the local gate and CI.
 
 ---
 

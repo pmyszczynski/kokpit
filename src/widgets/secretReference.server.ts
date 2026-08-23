@@ -193,6 +193,13 @@ function verifyReference<T>(
   } catch {
     return null;
   }
+  // Node accepts non-canonical base64url encodings: for a SHA-256 signature,
+  // the final character has unused bits which can be changed without changing
+  // the decoded bytes. Require the unique encoding we issue before comparing
+  // the MAC so every textual token has exactly one authenticated form.
+  if (receivedSignature.toString("base64url") !== parts[1]) {
+    return null;
+  }
   const expectedSignature = signature(parts[0]);
   if (
     receivedSignature.length !== expectedSignature.length ||

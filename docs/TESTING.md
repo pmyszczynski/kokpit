@@ -6,6 +6,25 @@ Three layers, run in this order in CI (`.github/workflows/ci.yml`):
 2. **E2E tests** (Playwright, real Next.js dev server + mocked upstream services) — `npm run test:e2e`
 3. **Auth E2E tests** (Playwright, production build) — `npm run test:e2e:auth`
 
+## Required pre-PR gate
+
+After final edits and immediately before committing the intended feature branch, run this local validation sequence. Stop and fix any failure before committing or pushing. Focused tests are useful while developing, but are not a substitute for this sequence:
+
+```sh
+CI=true npm run lint
+CI=true npm run type-check
+CI=true npm run test:coverage
+CI=true npm run test:e2e:nonvisual
+CI=true npm run test:e2e:auth
+```
+
+Each command sets `CI=true` so Playwright cannot reuse a stale local server. The sequence does not require a clean worktree, a pushed commit, a PR, GitHub CLI, or network access.
+
+After the local gate passes, commit and push, then open or update the PR.
+Inspect its actual GitHub CI checks directly; do not mark the work ready or
+complete until all jobs, including E2E, are green. CI is independent
+confirmation of local results, not a replacement for running them first.
+
 ## Unit tests
 
 `src/__tests__/**` mirrors `src/`. Conventions:
@@ -35,4 +54,11 @@ Screenshot tests catch CSS/layout/theme regressions that DOM assertions can't �
   ```
 
   Review the resulting PNG diff before committing it. Normal CI never accepts new baselines automatically.
+- Ubuntu-rendered snapshots are CI confirmation and a debugging artifact, not a
+  reason to push before running the local gate. If CI reports differences after
+  an intentional CSS, theme, sizing, or layout change, download that named run's
+  artifact, review and commit only the intended PNG changes, then rerun the
+  local gate and CI before marking the PR ready.
 - When the regular E2E job finds a mismatch, it preserves the failure report first, regenerates all 15 visual baselines in that same runner, and uploads them as the `playwright-visual-snapshots` artifact. Download that artifact into `e2e/tests` instead of regenerating locally.
+- After every PR-opening or branch push, inspect the PR check runs directly.
+  Do not hand off the PR as ready or complete until its E2E job is green.

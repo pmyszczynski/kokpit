@@ -306,9 +306,11 @@ describe("POST /api/widget/test", () => {
       string
     >;
     const token = reference[WIDGET_SECRET_REFERENCE_KEY];
+    const [tokenPrefix, signature] = token.split(".");
+    const forgedSignature = Buffer.from(signature, "base64url");
+    forgedSignature[0] ^= 1;
     const forged = {
-      [WIDGET_SECRET_REFERENCE_KEY]:
-        token.slice(0, -1) + (token.endsWith("A") ? "B" : "A"),
+      [WIDGET_SECRET_REFERENCE_KEY]: `${tokenPrefix}.${forgedSignature.toString("base64url")}`,
     };
 
     const { POST } = await import("../../app/api/widget/test/route");
