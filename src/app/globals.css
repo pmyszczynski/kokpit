@@ -2571,6 +2571,10 @@ button {
 
 /* ── Prowlarr stats widget ───────────────────────────────────────────────── */
 
+.prowlarr-stats-widget {
+  overflow: hidden;
+}
+
 .prowlarr-stats-widget__value--alert {
   color: var(--color-error);
 }

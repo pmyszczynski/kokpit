@@ -212,6 +212,16 @@ describe("prowlarr-stats widget registration", () => {
     expect(getWidget("prowlarr-stats")?.refreshInterval).toBe(60_000);
   });
 
+  it("defaults to a tall footprint (3x4)", async () => {
+    await import("@/integrations/prowlarr/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    const definition = getWidget("prowlarr-stats");
+    expect(definition?.preferredSize).toBe("tall");
+    expect(definition?.supportedFootprints).toEqual([
+      { label: "Default", columnSpan: 3, rowSpan: 4 },
+    ]);
+  });
+
   it("configSchema accepts valid config", async () => {
     await import("@/integrations/prowlarr/statsWidget");
     const { getWidget } = await import("@/widgets");

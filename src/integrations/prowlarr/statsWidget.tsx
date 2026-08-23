@@ -60,8 +60,8 @@ export function ProwlarrStatsWidget({
 registerWidget<ProwlarrConfig, ProwlarrStats>({
   id: "prowlarr-stats",
   name: "Prowlarr Stats",
-  preferredSize: "wide",
-  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
+  preferredSize: "tall",
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Prowlarr",
     defaultIconUrl: "https://cdn.simpleicons.org/prowlarr",
