@@ -15,13 +15,14 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:nonvisual": "playwright test --grep-invert visual",
-    "check:pr": "sh scripts/check-pr.sh",
+    "check:pr": "npm run check:local",
     "test:e2e:update-snapshots": "playwright test --grep visual --update-snapshots=changed",
     "test:e2e:ui": "playwright test --ui",
     "start:standalone": "sh -c 'f=$(find .next/standalone -name server.js | grep -v node_modules | head -1); [ -n \"$f\" ] || { echo \"Error: server.js not found — run npm run build first\" >&2; exit 1; }; node \"$f\"'",
     "test:e2e:auth": "sh e2e/run-auth.sh",
     "type-check": "tsc --noEmit && tsc --project tsconfig.test.json",
-    "reset-password": "node scripts/reset-password.js"
+    "reset-password": "node scripts/reset-password.js",
+    "check:local": "CI=true npm run lint && CI=true npm run type-check && CI=true npm run test:coverage && CI=true npm run test:e2e:nonvisual && CI=true npm run test:e2e:auth"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
