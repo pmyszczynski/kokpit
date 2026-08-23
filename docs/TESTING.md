@@ -8,12 +8,17 @@ Three layers, run in this order in CI (`.github/workflows/ci.yml`):
 
 ## Required pre-PR gate
 
-After final edits and immediately before committing the intended feature branch,
-run `npm run check:pr` (also available as `npm run check:local`). It fail-fast runs
-lint, type-check, unit tests with coverage, non-visual E2E, and auth E2E
-locally with `CI=true` so Playwright cannot reuse a stale local server. It does
-not require a clean worktree, a pushed commit, a PR, GitHub CLI, or network access. Focused tests are useful while developing, but are not
-a substitute for this gate.
+After final edits and immediately before committing the intended feature branch, run this local validation sequence. Stop and fix any failure before committing or pushing. Focused tests are useful while developing, but are not a substitute for this sequence:
+
+```sh
+CI=true npm run lint
+CI=true npm run type-check
+CI=true npm run test:coverage
+CI=true npm run test:e2e:nonvisual
+CI=true npm run test:e2e:auth
+```
+
+Each command sets `CI=true` so Playwright cannot reuse a stale local server. The sequence does not require a clean worktree, a pushed commit, a PR, GitHub CLI, or network access.
 
 After the local gate passes, commit and push, then open or update the PR.
 Inspect its actual GitHub CI checks directly; do not mark the work ready or

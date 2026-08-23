@@ -116,12 +116,17 @@ independent confirmation and must still be green before handoff.
 
 ## Required Pre-PR Validation
 
-After final edits and immediately before committing, run `npm run check:pr`
-(also available as `npm run check:local`). This is the required local gate; focused tests, lint,
-type-check, or unit tests alone are not substitutes. It fail-fast runs lint,
-type-check, unit tests with coverage, non-visual E2E, and auth E2E locally,
-with `CI=true` so Playwright cannot reuse a stale local server. It does not
-require a clean worktree, a PR, GitHub CLI, or network access.
+After final edits and immediately before committing, run this local validation sequence; focused tests, lint, type-check, or unit tests alone are not substitutes. Stop and fix any failure before committing or pushing. Each command sets `CI=true` so Playwright cannot reuse a stale local server:
+
+```sh
+CI=true npm run lint
+CI=true npm run type-check
+CI=true npm run test:coverage
+CI=true npm run test:e2e:nonvisual
+CI=true npm run test:e2e:auth
+```
+
+This sequence does not require a clean worktree, a PR, GitHub CLI, or network access.
 
 After it passes, commit and push the intended branch, then open or update its
 PR. Inspect the actual GitHub CI check runs directly and do not report the PR
