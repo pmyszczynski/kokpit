@@ -130,6 +130,21 @@ describe("immich-stats widget registration", () => {
     expect(getWidget("immich-stats")?.refreshInterval).toBe(60_000);
   });
 
+  it("defaults to the normal size", async () => {
+    await import("@/integrations/immich/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("immich-stats")?.preferredSize).toBe("normal");
+  });
+
+  it("supports default and wide footprints in order", async () => {
+    await import("@/integrations/immich/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("immich-stats")?.supportedFootprints).toEqual([
+      { label: "Default", columnSpan: 3, rowSpan: 2 },
+      { label: "Wide", columnSpan: 6, rowSpan: 2 },
+    ]);
+  });
+
   it("configSchema accepts valid config", async () => {
     await import("@/integrations/immich/statsWidget");
     const { getWidget } = await import("@/widgets");
