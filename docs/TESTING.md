@@ -8,14 +8,18 @@ Three layers, run in this order in CI (`.github/workflows/ci.yml`):
 
 ## Required pre-PR gate
 
-After committing and pushing the intended feature branch, and before opening or
-marking a PR ready, run `npm run check:pr`. It requires a clean worktree before
-and after validation, runs lint, type-check, unit tests with coverage,
+After committing and pushing the intended feature branch, open or update its PR
+(it may remain draft), then run `npm run check:pr` before marking it ready or
+complete. It requires a clean worktree before and after validation, runs lint, type-check, unit tests with coverage,
 non-visual E2E, and auth E2E, then triggers the Ubuntu snapshot workflow for the
-exact pushed commit and byte-compares its artifact with tracked baselines. It
-sets `CI=true` so Playwright cannot reuse a stale local server. GitHub CLI must
-be installed and authenticated. Focused tests are useful while developing, but
-are not a substitute for this gate.
+exact pushed commit and byte-compares its artifact with tracked baselines. Last,
+it requires an open PR whose head is that exact commit and waits for the PR's
+`CI` workflow to pass its Lint, Type-check, Unit tests, and E2E jobs. The gate
+fails on a missing PR/CI run, a failed or cancelled job, or the timeout (30
+minutes by default; configure `CHECK_PR_CI_TIMEOUT_SECONDS` if needed). It sets
+`CI=true` so Playwright cannot reuse a stale local server. GitHub CLI must be
+installed and authenticated. Focused tests are useful while developing, but are
+not a substitute for this gate.
 
 Both Playwright harnesses copy their tracked YAML fixtures into
 `test-results/runtime/` before build or startup. Tests and migrations therefore

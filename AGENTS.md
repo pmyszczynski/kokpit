@@ -116,13 +116,16 @@ green local gate is not a substitute for a CI run.
 
 ## Required Pre-PR Validation
 
-Before opening or marking any code PR ready, commit and push the intended feature
-branch, then run `npm run check:pr` from a clean worktree. This is the required
-gate; focused tests, lint, type-check, or unit tests alone are not substitutes.
+Before marking any code PR ready or complete, commit and push the intended feature
+branch, open or update its PR (it may remain draft), then run `npm run check:pr` from
+a clean worktree. This is the required gate; focused tests, lint, type-check, or unit tests alone are not substitutes.
 It runs lint, type-check, coverage, non-visual E2E, and auth E2E with `CI=true`,
 then triggers the Ubuntu snapshot workflow for the exact pushed commit and
-byte-compares its artifact with tracked baselines. It fails if tests dirty the
-worktree. GitHub CLI must be installed and authenticated.
+byte-compares its artifact with tracked baselines. It then waits for the open
+PR's exact-head `CI` workflow and requires its Lint, Type-check, Unit tests,
+and E2E jobs to pass. It fails if tests dirty the worktree, no PR exists at the
+current remote head, CI is missing, or CI fails/times out. GitHub CLI must be
+installed and authenticated.
 
 If the gate reports visual differences, download that named run's
 `playwright-visual-snapshots` artifact, review and commit only intentional PNG

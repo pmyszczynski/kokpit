@@ -46,3 +46,6 @@ npm run test:e2e:auth
 
 echo "==> Ubuntu visual baseline validation"
 sh scripts/check-visual-ci.sh
+
+echo "==> Pull-request CI validation"
+sh scripts/check-pr-ci.sh
