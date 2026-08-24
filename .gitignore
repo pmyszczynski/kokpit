@@ -45,6 +45,7 @@ settings.yaml
 .worktrees/
 test-results/
 e2e/fixtures/auth-test-users.db*
+e2e/.runtime/
 
 # claude code local settings (per-developer, not shared)
 .claude/settings.local.json

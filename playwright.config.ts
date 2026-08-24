@@ -23,12 +23,16 @@ export default defineConfig({
   },
   use: { baseURL: "http://localhost:3000" },
   webServer: {
-    command: "npm run dev",
+    // The API persists settings changes, so never point E2E at the tracked
+    // fixture. Prepare a disposable copy before starting the test server.
+    command: "node ./e2e/prepare-runtime-config.mjs && npm run dev",
     env: {
       KOKPIT_AUTH_DISABLED: "true",
-      KOKPIT_CONFIG_PATH: "./e2e/fixtures/settings.yaml",
+      KOKPIT_CONFIG_PATH: "./e2e/.runtime/settings.yaml",
     },
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // An already-running dev server may use a real or tracked config. Always
+    // launch this isolated server so E2E writes stay in the runtime copy.
+    reuseExistingServer: false,
   },
 });
