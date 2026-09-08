@@ -179,34 +179,17 @@ test("integration tile saved without widget config renders as a plain tile", asy
 
 // ── Test 6 ───────────────────────────────────────────────────────────────────
 
-test("Test connection button reports success and failure", async ({
-  page,
-  request,
-}) => {
+test("Test connection is disabled when authentication is disabled", async ({ page }) => {
   await page.goto("/settings");
   await page.click("button.settings-tab:has-text('Services')");
   await page.click("button:has-text('+ Add Service')");
   await page.selectOption("#sf-tile-type", "plex");
 
-  // Disabled until the required widget fields are filled.
   const testBtn = page.getByRole("button", { name: "Test connection" });
-  await expect(testBtn).toBeDisabled();
-
   await page.fill("#sf-widget-url", MOCK);
   await page.fill("#sf-widget-token", "test-token");
-  await expect(testBtn).toBeEnabled();
-
-  await testBtn.click();
-  await expect(page.getByText("Connection OK")).toBeVisible({ timeout: 15_000 });
-
-  // Flip the mock into an error state — the retest surfaces the failure.
-  await request.post(`${MOCK}/__control`, {
-    data: { ...DEFAULT_MOCK_STATE, error: 503 },
-  });
-  await page.fill("#sf-widget-token", "test-token-2");
-  await expect(page.getByText("Connection OK")).toBeHidden();
-  await testBtn.click();
-  await expect(page.getByText("Connection test failed")).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(testBtn).toBeDisabled();
+  await expect(
+    page.getByText("Connection testing is unavailable while authentication is disabled.")
+  ).toBeVisible();
 });

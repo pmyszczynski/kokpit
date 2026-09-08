@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 
 const ADMIN = { username: "testadmin", password: "Str0ngP@ssword1" };
+const MOCK_PLEX = "http://localhost:32401";
 
 // In production builds, React hydrates after HTML is served. Wait for network
 // idle before interacting with forms so event handlers are attached.
@@ -82,6 +84,46 @@ test.describe.serial("authentication flow", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("navigation")).toBeVisible();
+  });
+
+  test("authenticated settings can test a Plex connection and report its result", async ({ page, request }) => {
+    const reset = await request.post(`${MOCK_PLEX}/__control`, {
+      data: DEFAULT_MOCK_STATE,
+    });
+    expect(reset.ok(), `Mock control endpoint failed: ${reset.status()}`).toBeTruthy();
+
+    await goto(page, "/login");
+    await page.getByPlaceholder("Username").fill(ADMIN.username);
+    await page.getByPlaceholder("Password").fill(ADMIN.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL("/");
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+    await page.click("button.settings-tab:has-text('Services')");
+    await page.click("button:has-text('+ Add Service')");
+    await page.selectOption("#sf-tile-type", "plex");
+    await page.fill("#sf-widget-url", MOCK_PLEX);
+    await page.fill("#sf-widget-token", "test-token");
+
+    const testButton = page.getByRole("button", { name: "Test connection" });
+    await expect(testButton).toBeEnabled();
+
+    await testButton.click();
+    await expect(page.getByRole("status").filter({ hasText: "Connection OK" })).toBeVisible();
+
+    const fail = await request.post(`${MOCK_PLEX}/__control`, {
+      data: { ...DEFAULT_MOCK_STATE, error: 503 },
+    });
+    expect(fail.ok(), `Mock control endpoint failed: ${fail.status()}`).toBeTruthy();
+
+    await testButton.click();
+    await expect(page.getByRole("alert").filter({ hasText: "Connection test failed" })).toBeVisible();
+
+    const restore = await request.post(`${MOCK_PLEX}/__control`, {
+      data: DEFAULT_MOCK_STATE,
+    });
+    expect(restore.ok(), `Mock control endpoint failed: ${restore.status()}`).toBeTruthy();
   });
 
   // ── Authenticated-state guards ────────────────────────────────────────────────

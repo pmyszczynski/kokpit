@@ -117,6 +117,29 @@ describe("fetchTransferInfo", () => {
     expect(dataCall![1].headers.Cookie).toBe("QBIT_SID=newSession");
   });
 
+  it("preserves qBittorrent 5.2 port-specific session cookies", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === "set-cookie"
+              ? "QBT_SID_8080=newSession; Path=/"
+              : null,
+        },
+      })
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchTransferInfo(BASE_CONFIG);
+
+    const dataCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/transfer/info")
+    );
+    expect(dataCall![1].headers.Cookie).toBe("QBT_SID_8080=newSession");
+  });
+
   it("deduplicates concurrent cold-start login requests", async () => {
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(makeLoginResponse("sharedSid"))
@@ -151,6 +174,33 @@ describe("fetchTransferInfo", () => {
 
     await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
     expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not let an aborted stale login overwrite a newer cached session", async () => {
+    let resolveStaleLogin!: (response: Response) => void;
+    const staleLogin = new Promise<Response>((resolve) => {
+      resolveStaleLogin = resolve;
+    });
+    const mockFetch = vi.fn()
+      .mockReturnValueOnce(staleLogin)
+      .mockResolvedValueOnce(makeLoginResponse("freshSid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+    const controller = new AbortController();
+
+    const staleRequest = fetchTransferInfo(BASE_CONFIG, controller.signal);
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
+    resolveStaleLogin(makeLoginResponse("staleSid") as Response);
+    await expect(staleRequest).resolves.toEqual(MOCK_TRANSFER_INFO);
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
+    const latestDataCall = mockFetch.mock.calls.at(-1);
+    expect(latestDataCall![1].headers.Cookie).toBe("SID=freshSid");
   });
 
   it("caches SID and does not re-login on second call", async () => {
@@ -252,10 +302,111 @@ describe("fetchTransferInfo", () => {
       )
     );
 
-    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+    const error = await fetchTransferInfo(BASE_CONFIG).catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.message).toBe("Widget integration failure");
+    expect(error.message).not.toContain("adminadmin");
+    expect(error.message).not.toContain("qbt.local");
+    expect(error.message).not.toContain("Bearer secret");
+    expect(error).toMatchObject({
       code: "widget_upstream_unreachable",
       diagnostic: { integration: "qbittorrent", stage: "login", retryable: true },
     });
+  });
+
+  it("preserves an externally-triggered abort without leaking fetch details", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(
+        new Error("aborted http://admin:adminadmin@qbt.local:8080")
+      )
+    );
+
+    const error = await fetchTransferInfo(BASE_CONFIG, controller.signal).catch(
+      (reason: unknown) => reason
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("qBittorrent request aborted");
+    expect(error.message).not.toContain("adminadmin");
+  });
+
+  it("sanitizes a fetch rejection named AbortError without an aborted signal", async () => {
+    const rawAbortError = new Error("aborted http://admin:adminadmin@qbt.local:8080");
+    rawAbortError.name = "AbortError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(rawAbortError));
+
+    const error = await fetchTransferInfo(BASE_CONFIG).catch(
+      (reason: unknown) => reason
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error).not.toBe(rawAbortError);
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("qBittorrent request aborted");
+    expect(error.message).not.toContain("adminadmin");
+  });
+
+  it("preserves abort semantics when reading the login response body", async () => {
+    const controller = new AbortController();
+    const leakedDetail = "body read aborted for http://admin:adminadmin@qbt.local:8080";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === "set-cookie" ? "SID=sid; Path=/" : null,
+        },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              controller.abort();
+              throw new Error(leakedDetail);
+            },
+          }),
+        },
+      })
+    );
+
+    const error = await fetchTransferInfo(BASE_CONFIG, controller.signal).catch(
+      (reason: unknown) => reason
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("qBittorrent request aborted");
+    expect(error.message).not.toContain(leakedDetail);
+    expect(error.message).not.toContain("adminadmin");
+  });
+
+  it("sanitizes an AbortError while reading the data response body", async () => {
+    const rawAbortError = new Error("body aborted for http://admin:adminadmin@qbt.local:8080");
+    rawAbortError.name = "AbortError";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(makeLoginResponse("sid"))
+        .mockResolvedValueOnce({
+          ...makeJsonResponse(MOCK_TRANSFER_INFO),
+          json: async () => { throw rawAbortError; },
+        })
+    );
+
+    const error = await fetchTransferInfo(BASE_CONFIG).catch(
+      (reason: unknown) => reason
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw error;
+    expect(error).not.toBe(rawAbortError);
+    expect(error.name).toBe("AbortError");
+    expect(error.message).toBe("qBittorrent request aborted");
+    expect(error.message).not.toContain("adminadmin");
   });
 
   it("classifies the documented HTTP 200 Fails. login response as rejected credentials", async () => {

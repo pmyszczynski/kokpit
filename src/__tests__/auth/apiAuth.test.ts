@@ -37,11 +37,11 @@ const SAMPLE_USER = { id: "u1", username: "admin" } as User;
 describe("isRequestAuthenticated", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.KOKPIT_AUTH_DISABLED;
+    vi.unstubAllEnvs();
   });
 
   afterEach(() => {
-    delete process.env.KOKPIT_AUTH_DISABLED;
+    vi.unstubAllEnvs();
   });
 
   it("returns true without touching cookies when auth is disabled in config", async () => {
@@ -51,7 +51,7 @@ describe("isRequestAuthenticated", () => {
   });
 
   it("returns true when KOKPIT_AUTH_DISABLED overrides enabled auth", async () => {
-    process.env.KOKPIT_AUTH_DISABLED = "true";
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
     vi.mocked(getConfig).mockReturnValue(configWithAuth(true));
     await expect(isRequestAuthenticated()).resolves.toBe(true);
     expect(cookies).not.toHaveBeenCalled();
@@ -82,8 +82,12 @@ describe("isRequestAuthenticated", () => {
 });
 
 describe("isAuthenticationEnabled", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns false when KOKPIT_AUTH_DISABLED disables config-enabled auth", () => {
-    process.env.KOKPIT_AUTH_DISABLED = "true";
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
     vi.mocked(getConfig).mockReturnValue(configWithAuth(true));
     expect(isAuthenticationEnabled()).toBe(false);
   });

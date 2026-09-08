@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const authState = vi.hoisted(() => ({ enabled: true, authenticated: true }));
+
 vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 
 vi.mock("node:fs", () => {
@@ -29,8 +31,10 @@ vi.mock("node:fs", () => {
 vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
 }));
-
-process.env.KOKPIT_AUTH_DISABLED = "true";
+vi.mock("@/auth", () => ({
+  isAuthenticationEnabled: () => authState.enabled,
+  isRequestAuthenticated: async () => authState.authenticated,
+}));
 
 import { existsSync, readFileSync } from "node:fs";
 import { WIDGET_SECRET_REFERENCE_KEY } from "@/widgets/secretReference";
@@ -59,8 +63,6 @@ layout:
   row_height: 120
 services: []
 `.trim();
-
-const AUTH_YAML = BASE_YAML.replace("enabled: false", "enabled: true");
 
 const TAUTULLI_SECRET_YAML = BASE_YAML.replace(
   "services: []",
@@ -98,10 +100,9 @@ function post(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
-  vi.doMock("@/auth", () => ({
-    isAuthenticationEnabled: () => true,
-    isRequestAuthenticated: async () => true,
-  }));
+  vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
+  authState.enabled = true;
+  authState.authenticated = true;
   consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
@@ -123,10 +124,7 @@ afterEach(async () => {
 
 describe("POST /api/widget/test", () => {
   it("rejects connection tests when authentication is disabled before parsing or fetching", async () => {
-    vi.doMock("@/auth", () => ({
-      isAuthenticationEnabled: () => false,
-      isRequestAuthenticated: async () => true,
-    }));
+    authState.enabled = false;
     vi.resetModules();
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -174,11 +172,7 @@ describe("POST /api/widget/test", () => {
 
   it("returns 401 when auth is enabled and no session cookie is present", async () => {
     vi.stubEnv("KOKPIT_AUTH_DISABLED", "false");
-    vi.mocked(readFileSync).mockReturnValue(AUTH_YAML);
-    vi.doMock("@/auth", () => ({
-      isAuthenticationEnabled: () => true,
-      isRequestAuthenticated: async () => false,
-    }));
+    authState.authenticated = false;
     vi.resetModules();
     const { POST } = await import("../../app/api/widget/test/route");
     const res = await POST(post({ type: "plex", config: {} }));
