@@ -1,13 +1,27 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { chmodSync, mkdtempSync, rmSync, existsSync, readFileSync, statSync, writeFileSync } from "fs";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  ftruncateSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "fs";
 import { tmpdir } from "os";
 import path from "path";
+import { configRevision } from "@/config/revision";
 
 const fsHooks = vi.hoisted(() => ({
   beforeRename: undefined as ((oldPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
   afterRename: undefined as ((oldPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
   beforeLink: undefined as ((existingPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
+  afterLink: undefined as ((existingPath: string | Buffer | URL, newPath: string | Buffer | URL) => void) | undefined,
 }));
 
 vi.mock("fs", async (importOriginal) => {
@@ -21,7 +35,9 @@ vi.mock("fs", async (importOriginal) => {
     },
     linkSync: (...args: Parameters<typeof actual.linkSync>) => {
       fsHooks.beforeLink?.(args[0], args[1]);
-      return actual.linkSync(...args);
+      const result = actual.linkSync(...args);
+      fsHooks.afterLink?.(args[0], args[1]);
+      return result;
     },
   };
 });
@@ -37,9 +53,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   fsHooks.beforeRename = undefined;
   fsHooks.afterRename = undefined;
   fsHooks.beforeLink = undefined;
+  fsHooks.afterLink = undefined;
   delete process.env.KOKPIT_CONFIG_PATH;
   rmSync(tempDir, { recursive: true, force: true });
   vi.resetModules();
@@ -99,8 +117,24 @@ describe("loadConfig", () => {
 });
 
 describe("getConfig / invalidateCache", () => {
-  it("returns the cached value until invalidateCache() is called, then re-reads the file", async () => {
-    const { loadConfig, getConfig, invalidateCache } = await freshLoader();
+  it("discards a pre-state-machine global cache left by hot reload", async () => {
+    writeFileSync(
+      configPath,
+      "schema_version: 2\nauth:\n  enabled: true\nappearance:\n  theme: dark\nlayout: {}\nservices: []\nservice_tiles: []\n",
+      "utf-8"
+    );
+    const host = globalThis as typeof globalThis & Record<symbol, unknown>;
+    host[Symbol.for("kokpit.config.loader.cache")] = {
+      path: configPath,
+      config: { appearance: { theme: "light" } },
+    };
+
+    const { getConfig } = await freshLoader();
+    expect(getConfig().appearance.theme).toBe("dark");
+  });
+
+  it("refreshes a valid externally rewritten file without rewriting it", async () => {
+    const { loadConfig, getConfig, refreshConfigCache } = await freshLoader();
 
     const initial = loadConfig();
     expect(initial.appearance.theme).toBe("dark");
@@ -115,25 +149,218 @@ auth:
   session_ttl_hours: 24
 appearance:
   theme: light
-layout:
-  columns: 4
-  row_height: 120
+layout: {}
 services: []
 `.trim(),
       "utf-8"
     );
 
-    // Still stale: getConfig() must not re-read the file on its own.
-    expect(getConfig().appearance.theme).toBe("dark");
+    // A watcher event only supplies a candidate. The same bytes must survive
+    // a second read before an externally written config becomes authoritative.
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("ready");
+    expect(getConfig().appearance.theme).toBe("light");
+  });
+
+  it("keeps the last known-good config while an external writer truncates then rewrites the file", async () => {
+    const { loadConfig, getConfig, refreshConfigCache } = await freshLoader();
+    loadConfig();
+    const replacement = [
+      "schema_version: 2",
+      "auth:",
+      "  enabled: true",
+      "  session_ttl_hours: 24",
+      "appearance:",
+      "  theme: light",
+      "layout: {}",
+      "services: []",
+      "service_tiles: []",
+      "",
+    ].join("\n");
+    const initialInode = statSync(configPath).ino;
+    const descriptor = openSync(configPath, "r+");
+
+    try {
+      ftruncateSync(descriptor, 0);
+      expect(refreshConfigCache()).toBe("dirty");
+      expect(() => getConfig()).toThrow(/being updated/);
+      expect(statSync(configPath).ino).toBe(initialInode);
+      expect(readFileSync(configPath, "utf-8")).toBe("");
+
+      writeSync(descriptor, replacement);
+    } finally {
+      closeSync(descriptor);
+    }
+
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("ready");
+    expect(getConfig().appearance.theme).toBe("light");
+    expect(statSync(configPath).ino).toBe(initialInode);
+    expect(readFileSync(configPath, "utf-8")).toBe(replacement);
+  });
+
+  it("does not publish a migration-required external source", async () => {
+    const { loadConfig, getConfig, refreshConfigCache } = await freshLoader();
+    loadConfig();
+    const legacySource = [
+      "schema_version: 1",
+      "auth:",
+      "  enabled: true",
+      "  session_ttl_hours: 24",
+      "services:",
+      "  - name: Legacy",
+      "",
+    ].join("\n");
+    writeFileSync(configPath, legacySource, "utf-8");
+
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("migration-required");
+    // The source is left untouched; migration is deliberately in-memory only
+    // after an external watcher event.
+    expect(getConfig()).toEqual(expect.objectContaining({ schema_version: 2 }));
+    expect(readFileSync(configPath, "utf-8")).toBe(legacySource);
+  });
+
+  it("does not promote an unchanged migration-required source to writable", async () => {
+    const { loadConfig, getConfigSnapshot, markConfigDirty, refreshConfigCache } = await freshLoader();
+    loadConfig();
+    const legacySource = [
+      "schema_version: 1",
+      "auth:",
+      "  enabled: true",
+      "  session_ttl_hours: 24",
+      "services:",
+      "  - name: Legacy",
+      "",
+    ].join("\n");
+    writeFileSync(configPath, legacySource, "utf-8");
+
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("migration-required");
+    expect(markConfigDirty()).toBe(false);
+    expect(refreshConfigCache()).toBe("migration-required");
+    expect(getConfigSnapshot().state).toBe("migration-required");
+    expect(readFileSync(configPath, "utf-8")).toBe(legacySource);
+  });
+
+  it("re-reads the file after explicit invalidation", async () => {
+    const { loadConfig, getConfig, invalidateCache } = await freshLoader();
+    const initial = loadConfig();
+
+    expect(getConfig()).toBe(initial);
 
     invalidateCache();
 
-    // Now it should pick up the new file contents.
+    expect(getConfig()).not.toBe(initial);
+  });
+
+  it("recovers a stable source discovered by a read when the watch event was missed", async () => {
+    vi.useFakeTimers();
+    const { getConfig, loadConfig } = await freshLoader();
+    loadConfig();
+    writeFileSync(
+      configPath,
+      "schema_version: 2\nauth:\n  enabled: false\nappearance:\n  theme: light\nlayout: {}\nservices: []\nservice_tiles: []\n",
+      "utf-8"
+    );
+
+    expect(() => getConfig()).toThrow(/being updated/);
+    await vi.advanceTimersByTimeAsync(100);
     expect(getConfig().appearance.theme).toBe("light");
+  });
+
+  it("shares cache invalidation across separately evaluated loader modules", async () => {
+    const firstLoader = await freshLoader();
+    const initial = firstLoader.loadConfig();
+
+    vi.resetModules();
+    const secondLoader = await freshLoader();
+    expect(secondLoader.getConfig()).toBe(initial);
+
+    secondLoader.invalidateCache();
+    expect(firstLoader.getConfig()).not.toBe(initial);
+  });
+
+  it("publishes a write from one evaluated module to every other module", async () => {
+    const firstLoader = await freshLoader();
+    firstLoader.loadConfig();
+
+    vi.resetModules();
+    const secondLoader = await freshLoader();
+    secondLoader.writeConfig({ appearance: { theme: "light" } });
+
+    expect(firstLoader.getConfig().appearance.theme).toBe("light");
   });
 });
 
 describe("writeConfig", () => {
+  it("rejects a revision-equivalent source that was not the authorized snapshot", async () => {
+    const { ConfigRevisionMismatchError, getConfigSnapshot, loadConfig, writeConfig } = await freshLoader();
+    const initial = loadConfig();
+    const snapshot = getConfigSnapshot();
+    const externalSource = `${snapshot.source}\n# external owner\n`;
+    writeFileSync(configPath, externalSource, "utf-8");
+
+    expect(() => writeConfig(
+      { appearance: { theme: "light" } },
+      configRevision(initial),
+      snapshot.source!
+    )).toThrow(ConfigRevisionMismatchError);
+    expect(readFileSync(configPath, "utf-8")).toBe(externalSource);
+  });
+
+  it("does not pair an external post-install source with the app-owned config", async () => {
+    const { getConfig, loadConfig, writeConfig } = await freshLoader();
+    loadConfig();
+    const externalSource = [
+      "schema_version: 2",
+      "auth:",
+      "  enabled: true",
+      "  session_ttl_hours: 24",
+      "appearance:",
+      "  theme: oled",
+      "layout: {}",
+      "services: []",
+      "service_tiles: []",
+      "",
+    ].join("\n");
+    fsHooks.afterLink = (existingPath, newPath) => {
+      if (String(existingPath).includes(".tmp-") && newPath === configPath) {
+        writeFileSync(configPath, externalSource, "utf-8");
+      }
+    };
+
+    writeConfig({ appearance: { theme: "light" } });
+
+    expect(readFileSync(configPath, "utf-8")).toBe(externalSource);
+    expect(() => getConfig()).toThrow(/being updated/);
+  });
+
+  it("retains the last known-good cache when a held file descriptor changes the source", async () => {
+    const { ConfigRevisionMismatchError, getConfig, loadConfig, writeConfig } = await freshLoader();
+    loadConfig();
+    const initialInode = statSync(configPath).ino;
+    const descriptor = openSync(configPath, "r+");
+    const displaced = `${configPath}.displaced`;
+    fsHooks.beforeRename = (oldPath, newPath) => {
+      if (oldPath === configPath && newPath === displaced) {
+        ftruncateSync(descriptor, 0);
+        writeSync(descriptor, "schema_version: 2\nauth:\n");
+      }
+    };
+
+    try {
+      expect(() => writeConfig({ appearance: { theme: "light" } }))
+        .toThrow(ConfigRevisionMismatchError);
+    } finally {
+      closeSync(descriptor);
+    }
+
+    expect(statSync(configPath).ino).toBe(initialInode);
+    expect(readFileSync(configPath, "utf-8")).toBe("schema_version: 2\nauth:\n");
+    expect(() => getConfig()).toThrow(/being updated/);
+  });
+
   it("throws a restoration failure instead of reporting a revision mismatch", async () => {
     const { loadConfig, writeConfig } = await freshLoader();
     loadConfig();
@@ -206,7 +433,7 @@ describe("writeConfig", () => {
     writeConfig({ appearance: { theme: "light" } });
     expect(statSync(configPath).mode & 0o777).toBe(0o640);
   });
-  it("merges a partial update into the existing YAML on disk and invalidates the cache", async () => {
+  it("merges a partial update into the existing YAML and updates the cache", async () => {
     const { loadConfig, getConfig, writeConfig } = await freshLoader();
     loadConfig();
 
@@ -215,7 +442,7 @@ describe("writeConfig", () => {
     const onDisk = readFileSync(configPath, "utf-8");
     expect(onDisk).toContain("light");
 
-    // invalidateCache() was triggered internally, so getConfig() re-reads and reflects the change.
+    // writeConfig() publishes the exact persisted config to the shared cache.
     expect(getConfig().appearance.theme).toBe("light");
   });
 

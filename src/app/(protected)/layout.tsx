@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
-import { getConfig } from "@/config/server";
+import { getConfigSnapshot } from "@/config/server";
 import Navbar from "@/components/Navbar";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
 
@@ -12,7 +12,14 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const config = getConfig();
+  const snapshot = getConfigSnapshot();
+  // Do not render a previously public dashboard while an external editor has
+  // left the authorization configuration incomplete.
+  if (snapshot.state === "dirty" && process.env.KOKPIT_AUTH_DISABLED !== "true") {
+    redirect("/login");
+  }
+  const config = snapshot.config;
+  if (!config) redirect("/login");
   const authEnabled =
     config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
 

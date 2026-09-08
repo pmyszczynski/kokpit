@@ -51,11 +51,13 @@ services: []
 `.trim();
 
 describe("GET /api/ping", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.restoreAllMocks();
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_DISABLED_YAML);
+    const { invalidateCache } = await import("@/config/loader");
+    invalidateCache();
   });
 
   it("returns 400 when url param is missing", async () => {
@@ -154,11 +156,13 @@ describe("GET /api/ping", () => {
 });
 
 describe("GET /api/ping – auth", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
     process.env.KOKPIT_AUTH_DISABLED = "false";
+    const { invalidateCache } = await import("@/config/loader");
+    invalidateCache();
   });
 
   afterEach(() => {

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { getConfig } from "@/config/server";
+import type { KokpitConfig } from "@/config/schema";
+import { getConfigSnapshot } from "@/config/server";
 import { getAuthUser, SESSION_COOKIE_NAME } from "./session";
 
 /**
@@ -7,10 +8,15 @@ import { getAuthUser, SESSION_COOKIE_NAME } from "./session";
  * disabled (via config or the KOKPIT_AUTH_DISABLED env var) or the request
  * carries a valid session cookie.
  */
-export async function isRequestAuthenticated(): Promise<boolean> {
-  const config = getConfig();
-  const authEnabled =
-    config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
+export async function isRequestAuthenticated(config?: KokpitConfig): Promise<boolean> {
+  // This explicit operational override intentionally remains available even
+  // while settings.yaml is being repaired.
+  if (process.env.KOKPIT_AUTH_DISABLED === "true") return true;
+  const snapshot = config ? undefined : getConfigSnapshot();
+  if (!config && snapshot?.state === "dirty") return false;
+  const activeConfig = config ?? snapshot?.config;
+  if (!activeConfig) return false;
+  const authEnabled = activeConfig.auth.enabled;
   if (!authEnabled) return true;
 
   const cookieStore = await cookies();

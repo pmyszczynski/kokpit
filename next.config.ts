@@ -2,11 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = { ...config.resolve.fallback, fs: false };
-    }
-    return config;
+  // Runtime state is mounted under /data in production. Never copy a
+  // developer's local config, database, or session secret into the image.
+  outputFileTracingExcludes: {
+    "/*": ["./settings.yaml", "./data/**/*", "./data/.session_secret"],
   },
 };
 

@@ -28,7 +28,63 @@ const CONFIG_LOCK_TIMEOUT_MS = 5_000;
 const CONFIG_REWRITE_ATTEMPTS = 3;
 const LOCK_WAIT_BUFFER = new Int32Array(new SharedArrayBuffer(4));
 const DEFAULT_CONFIG = stringify(KokpitConfigSchema.parse({ schema_version: 2 }));
-let cachedConfig: KokpitConfig | null = null;
+const CONFIG_CACHE_KEY = Symbol.for("kokpit.config.loader.cache");
+
+export type ConfigCacheState = "cold" | "ready" | "dirty" | "migration-required";
+
+type ConfigCache = {
+  path: string;
+  config: KokpitConfig | null;
+  source: string | null;
+  pendingSource: string | null;
+  state: ConfigCacheState;
+  refreshTimer: ReturnType<typeof setTimeout> | null;
+  refreshRetryDelayMs: number;
+};
+
+export type ConfigSnapshot = {
+  state: ConfigCacheState;
+  config: KokpitConfig | null;
+  source: string | null;
+};
+
+export class ConfigUnavailableError extends Error {
+  constructor() {
+    super("settings.yaml is being updated; retry once the change is complete");
+    this.name = "ConfigUnavailableError";
+  }
+}
+
+function configCache(): ConfigCache {
+  const host = globalThis as typeof globalThis & Record<symbol, ConfigCache | undefined>;
+  const cache = host[CONFIG_CACHE_KEY] ?? (host[CONFIG_CACHE_KEY] = {
+    path: CONFIG_PATH,
+    config: null,
+    source: null,
+    pendingSource: null,
+    state: "cold",
+    refreshTimer: null,
+    refreshRetryDelayMs: 100,
+  });
+  // Fill fields added during development when a hot-reloaded module observes
+  // an older process-wide cache object.
+  cache.refreshTimer ??= null;
+  cache.refreshRetryDelayMs ??= 100;
+  if (
+    cache.path !== CONFIG_PATH
+    || !(["cold", "ready", "dirty", "migration-required"] as const).includes(cache.state)
+  ) {
+    if (cache.refreshTimer) clearTimeout(cache.refreshTimer);
+    cache.path = CONFIG_PATH;
+    cache.config = null;
+    cache.source = null;
+    cache.pendingSource = null;
+    cache.state = "cold";
+    cache.refreshTimer = null;
+    cache.refreshRetryDelayMs = 100;
+  }
+  return cache;
+}
 
 type LegacyService = Record<string, unknown> & { name?: unknown; widget?: Record<string, unknown> };
 
@@ -443,18 +499,18 @@ function withConfigLock<T>(operation: () => T): T {
 }
 
 function recoverInterruptedInstall(): void {
-  if (!existsSync(CONFIG_DISPLACED_PATH)) return;
-  if (existsSync(CONFIG_PATH)) {
-    renameSync(CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.recovered-${randomUUID()}`);
+  if (!existsSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH)) return;
+  if (existsSync(/* turbopackIgnore: true */ CONFIG_PATH)) {
+    renameSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.recovered-${randomUUID()}`);
     return;
   }
   try {
-    linkSync(CONFIG_DISPLACED_PATH, CONFIG_PATH);
-    try { unlinkSync(CONFIG_DISPLACED_PATH); }
+    linkSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH, CONFIG_PATH);
+    try { unlinkSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH); }
     catch (error) { console.error("[kokpit] could not remove recovered settings transaction:", error); }
   } catch (error) {
     if (!hasErrorCode(error, "EEXIST")) throw error;
-    renameSync(CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.conflict-${randomUUID()}`);
+    renameSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.conflict-${randomUUID()}`);
   }
 }
 
@@ -462,28 +518,28 @@ function installConfigIfSourceUnchanged(source: string, temp: string): boolean {
   recoverInterruptedInstall();
   let installed = false;
   let primaryError: unknown;
-  renameSync(CONFIG_PATH, CONFIG_DISPLACED_PATH);
+  renameSync(/* turbopackIgnore: true */ CONFIG_PATH, CONFIG_DISPLACED_PATH);
   try {
-    if (readFileSync(CONFIG_DISPLACED_PATH, "utf-8") !== source) return false;
+    if (readFileSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH, "utf-8") !== source) return false;
     try {
       // A hard link is an atomic no-replace install. If an external editor
       // recreates settings.yaml while it is displaced, EEXIST preserves it.
-      linkSync(temp, CONFIG_PATH);
+      linkSync(/* turbopackIgnore: true */ temp, CONFIG_PATH);
     } catch (error) {
       if (hasErrorCode(error, "EEXIST")) return false;
       throw error;
     }
     installed = true;
-    try { unlinkSync(temp); }
+    try { unlinkSync(/* turbopackIgnore: true */ temp); }
     catch (error) { console.error("[kokpit] could not remove installed settings temporary file:", error); }
-    try { unlinkSync(CONFIG_DISPLACED_PATH); }
+    try { unlinkSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH); }
     catch (error) { console.error("[kokpit] could not remove completed settings transaction:", error); }
     return true;
   } catch (error) {
     primaryError = error;
     throw error;
   } finally {
-    if (!installed && existsSync(CONFIG_DISPLACED_PATH)) {
+    if (!installed && existsSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH)) {
       const reportOrThrowCleanupFailure = (message: string, error: unknown) => {
         if (primaryError !== undefined) {
           console.error(message, error);
@@ -492,15 +548,15 @@ function installConfigIfSourceUnchanged(source: string, temp: string): boolean {
         throw error;
       };
       try {
-        linkSync(CONFIG_DISPLACED_PATH, CONFIG_PATH);
-        try { unlinkSync(CONFIG_DISPLACED_PATH); }
+        linkSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH, CONFIG_PATH);
+        try { unlinkSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH); }
         catch (error) { console.error("[kokpit] could not remove restored settings transaction:", error); }
       } catch (error) {
         if (!hasErrorCode(error, "EEXIST")) {
           reportOrThrowCleanupFailure("[kokpit] could not restore settings transaction:", error);
         } else {
           try {
-            renameSync(CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.conflict-${randomUUID()}`);
+            renameSync(/* turbopackIgnore: true */ CONFIG_DISPLACED_PATH, `${CONFIG_DISPLACED_PATH}.conflict-${randomUUID()}`);
           } catch (cleanupError) {
             reportOrThrowCleanupFailure(
               "[kokpit] could not preserve conflicting settings transaction:",
@@ -520,41 +576,58 @@ function rewriteConfig(
   replacement: string,
   backupSuffix: ".v1.bak" | ".pre-v2.bak" | ".pre-fixed-grid.bak"
 ): boolean {
-  if (readFileSync(CONFIG_PATH, "utf-8") !== source) return false;
+  if (readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8") !== source) return false;
   const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
   let backup = `${CONFIG_PATH}${backupSuffix}`;
-  const sourceMode = statSync(CONFIG_PATH).mode & 0o777;
+  const sourceMode = statSync(/* turbopackIgnore: true */ CONFIG_PATH).mode & 0o777;
   try {
     while (true) {
-      if (existsSync(backup)) {
-        if (readFileSync(backup, "utf-8") === source) break;
+      if (existsSync(/* turbopackIgnore: true */ backup)) {
+        if (readFileSync(/* turbopackIgnore: true */ backup, "utf-8") === source) break;
         backup = `${CONFIG_PATH}${backupSuffix}.${randomUUID()}`;
         continue;
       }
       try {
-        writeFileSync(backup, source, { encoding: "utf-8", flag: "wx", flush: true, mode: sourceMode });
+        writeFileSync(/* turbopackIgnore: true */ backup, source, { encoding: "utf-8", flag: "wx", flush: true, mode: sourceMode });
         chmodSync(backup, sourceMode);
         break;
       } catch (error) {
         if (!hasErrorCode(error, "EEXIST")) throw error;
       }
     }
-    writeFileSync(temp, replacement, { encoding: "utf-8", flush: true, mode: sourceMode });
+    writeFileSync(/* turbopackIgnore: true */ temp, replacement, { encoding: "utf-8", flush: true, mode: sourceMode });
     chmodSync(temp, sourceMode);
     if (!installConfigIfSourceUnchanged(source, temp)) {
-      if (existsSync(temp)) unlinkSync(temp);
+      if (existsSync(/* turbopackIgnore: true */ temp)) unlinkSync(/* turbopackIgnore: true */ temp);
       return false;
     }
     return true;
   }
   catch (error) {
-    try { if (existsSync(temp)) renameSync(temp, `${temp}.failed`); } catch {}
+    try { if (existsSync(/* turbopackIgnore: true */ temp)) renameSync(/* turbopackIgnore: true */ temp, `${temp}.failed`); } catch {}
     throw new Error(`Unable to atomically rewrite ${CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-function loadConfigAttempt(): KokpitConfig | null {
-  const source = readFileSync(CONFIG_PATH, "utf-8");
+type LoadConfigAttempt = {
+  state: "ready" | "migration-required";
+  config: KokpitConfig;
+  source: string;
+};
+
+function migrationResult(
+  config: KokpitConfig,
+  source: string,
+  replacement: string,
+  backupSuffix: ".v1.bak" | ".pre-v2.bak" | ".pre-fixed-grid.bak",
+  allowRewrite: boolean
+): LoadConfigAttempt | null {
+  if (!allowRewrite) return { state: "migration-required", config, source };
+  if (!rewriteConfig(source, replacement, backupSuffix)) return null;
+  return { state: "ready", config, source: replacement };
+}
+
+function loadConfigAttempt(source = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8"), allowRewrite = true): LoadConfigAttempt | null {
   const document = parseSettingsDocument(source);
   const parsed = source.trim() === "" ? {} : document.toJS() as unknown;
   if (!isRecord(parsed)) throw new Error("Invalid settings.yaml:\n  • settings: expected an object");
@@ -571,7 +644,8 @@ function loadConfigAttempt(): KokpitConfig | null {
     document.set("schema_version", 2);
     setMigratedServiceNodes(document, config);
     setFixedGridNodes(document, config);
-    if (!rewriteConfig(source, document.toString(), ".v1.bak")) return null;
+    const replacement = document.toString();
+    return migrationResult(config, source, replacement, ".v1.bak", allowRewrite);
   } else if (hasVersion && version === 2) {
     if (shape === "legacy" || shape === "mixed") {
       throw new Error("Invalid settings.yaml:\n  • schema_version: Version 2 contradicts the detected legacy shape");
@@ -579,8 +653,8 @@ function loadConfigAttempt(): KokpitConfig | null {
     if (needsFixedGridMigration(parsed)) {
       config = migrateFixedGridConfig(parsed);
       setFixedGridNodes(document, config);
-      if (!rewriteConfig(source, document.toString(), ".pre-fixed-grid.bak")) return null;
-      return config;
+      const replacement = document.toString();
+      return migrationResult(config, source, replacement, ".pre-fixed-grid.bak", allowRewrite);
     }
     const result = KokpitConfigSchema.safeParse(parsed);
     if (!result.success) throw new Error(`Invalid settings.yaml:\n${validationError(result.error)}`);
@@ -605,31 +679,182 @@ function loadConfigAttempt(): KokpitConfig | null {
       setMigratedServiceNodes(document, config);
     }
     setFixedGridNodes(document, config);
-    if (!rewriteConfig(source, document.toString(), ".pre-v2.bak")) return null;
+    const replacement = document.toString();
+    return migrationResult(config, source, replacement, ".pre-v2.bak", allowRewrite);
   }
-  return config;
+  return { state: "ready", config, source };
 }
 
 export function loadConfig(): KokpitConfig {
+  // Server components are evaluated during `next build`. Use defaults for
+  // that render without creating or migrating runtime-owned files.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return KokpitConfigSchema.parse({ schema_version: 2 });
+  }
+  const existing = configCache();
+  // Loading can migrate a legacy document on disk. That side effect is only
+  // allowed during bootstrap; a watcher-observed transition must stay purely
+  // in memory until an operator deliberately restarts with that source.
+  if (existing.state !== "cold") {
+    if (existing.state === "dirty" || !existing.config) throw new ConfigUnavailableError();
+    return existing.config;
+  }
   mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
   return withConfigLock(() => {
     recoverInterruptedInstall();
-    if (!existsSync(CONFIG_PATH)) {
-      writeFileSync(CONFIG_PATH, DEFAULT_CONFIG, { encoding: "utf-8", flush: true, mode: 0o600 });
+    if (!existsSync(/* turbopackIgnore: true */ CONFIG_PATH)) {
+      writeFileSync(/* turbopackIgnore: true */ CONFIG_PATH, DEFAULT_CONFIG, { encoding: "utf-8", flush: true, mode: 0o600 });
       try { chmodSync(CONFIG_PATH, 0o600); } catch { /* creation mode is already restrictive */ }
     }
     for (let attempt = 0; attempt < CONFIG_REWRITE_ATTEMPTS; attempt += 1) {
-      const config = loadConfigAttempt();
-      if (config) {
-        cachedConfig = config;
-        return config;
+      const result = loadConfigAttempt();
+      if (result) {
+        const cache = configCache();
+        cache.config = result.config;
+        cache.source = result.source;
+        cache.pendingSource = null;
+        cache.state = result.state;
+        return result.config;
       }
     }
     throw new Error(`Unable to load ${CONFIG_PATH}: settings changed repeatedly during migration`);
   });
 }
 
-export function getConfig(): KokpitConfig { return cachedConfig ?? loadConfig(); }
+export function getConfig(): KokpitConfig {
+  const cache = configCache();
+  if (cache.state === "cold") return loadConfig();
+  verifyConfirmedSource(cache);
+  if (cache.state === "dirty") throw new ConfigUnavailableError();
+  if (!cache.config) throw new ConfigUnavailableError();
+  return cache.config;
+}
+
+export function getConfigSnapshot(): ConfigSnapshot {
+  const cache = configCache();
+  if (cache.state === "cold") loadConfig();
+  const current = configCache();
+  verifyConfirmedSource(current);
+  return { state: current.state, config: current.config, source: current.source };
+}
+
+/** Marks the cache dirty if a caller observes disk bytes different from the
+ * last source that was fully parsed and published. */
+function verifyConfirmedSource(cache: ConfigCache): void {
+  if (cache.state !== "ready" && cache.state !== "migration-required") return;
+  try {
+    const observedSource = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
+    if (observedSource !== cache.source) {
+      cache.pendingSource = observedSource;
+      cache.state = "dirty";
+      scheduleCacheRefresh(cache);
+    }
+  } catch {
+    cache.pendingSource = null;
+    cache.state = "dirty";
+    scheduleCacheRefresh(cache);
+  }
+}
+
+function scheduleCacheRefresh(cache = configCache()): void {
+  if (cache.refreshTimer) return;
+  const delay = cache.refreshRetryDelayMs;
+  cache.refreshRetryDelayMs = Math.min(cache.refreshRetryDelayMs * 2, 5_000);
+  cache.refreshTimer = setTimeout(() => {
+    cache.refreshTimer = null;
+    if (refreshConfigCache() === "dirty") scheduleCacheRefresh(cache);
+  }, delay);
+  cache.refreshTimer.unref();
+}
+
+function resetCacheRefresh(cache: ConfigCache): void {
+  if (cache.refreshTimer) clearTimeout(cache.refreshTimer);
+  cache.refreshTimer = null;
+  cache.refreshRetryDelayMs = 100;
+}
+
+/**
+ * Marks an external config edit synchronously. The source is sampled now and
+ * must be unchanged when the debounce refresh runs before it can be trusted.
+ */
+export function markConfigDirty(): boolean {
+  const cache = configCache();
+  try {
+    const source = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
+    // Our atomic write has already published these exact bytes. fs.watch may
+    // report that write after publication; it is not an external transition.
+    if (
+      (cache.state === "ready" || cache.state === "migration-required")
+      && cache.source === source
+    ) return false;
+    cache.pendingSource = source;
+  } catch {
+    cache.pendingSource = null;
+  }
+  cache.state = "dirty";
+  scheduleCacheRefresh(cache);
+  return true;
+}
+
+/** Returns a ready snapshot only when disk still exactly matches the cache. */
+export function getConfigSnapshotForWrite(): ConfigSnapshot {
+  const cache = configCache();
+  if (cache.state === "cold") loadConfig();
+  const current = configCache();
+  verifyConfirmedSource(current);
+  if (current.state !== "ready") {
+    return { state: current.state, config: current.config, source: current.source };
+  }
+  const stable = configCache();
+  return { state: stable.state, config: stable.config, source: stable.source };
+}
+
+/**
+ * Updates the process-wide cache after a filesystem event without mutating a
+ * concurrently edited settings file. Invalid, transient, or migration-needed
+ * input keeps the last known-good configuration retained internally while
+ * reads fail closed until a stable source can be published.
+ */
+export function refreshConfigCache(): ConfigCacheState {
+  const cache = configCache();
+  try {
+    const source = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
+    if (!source.trim()) {
+      cache.state = "dirty";
+      cache.pendingSource = source;
+      return cache.state;
+    }
+    if (
+      cache.pendingSource === null
+      && cache.source === source
+      && cache.config
+      && (cache.state === "ready" || cache.state === "migration-required")
+    ) {
+      return cache.state;
+    }
+    // The first observation is deliberately only a candidate. This prevents
+    // an API PATCH from accepting a partially replaced file as writable.
+    if (cache.pendingSource !== source) {
+      cache.pendingSource = source;
+      cache.state = "dirty";
+      return cache.state;
+    }
+    const result = loadConfigAttempt(source, false);
+    if (!result) {
+      cache.state = "dirty";
+      return cache.state;
+    }
+    cache.config = result.config;
+    cache.source = result.source;
+    cache.pendingSource = null;
+    cache.state = result.state;
+    resetCacheRefresh(cache);
+    return cache.state;
+  } catch {
+    cache.state = "dirty";
+    return cache.state;
+  }
+}
 export class ConfigRevisionMismatchError extends Error {
   constructor(readonly currentRevision?: string) {
     super("settings.yaml changed before it could be written");
@@ -638,11 +863,11 @@ export class ConfigRevisionMismatchError extends Error {
 }
 
 function revisionMismatchForCurrentConfig(): ConfigRevisionMismatchError {
-  cachedConfig = null;
   try {
-    const latestSource = readFileSync(CONFIG_PATH, "utf-8");
+    const latestSource = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
     const latestDocument = parseSettingsDocument(latestSource);
     const latestConfig = KokpitConfigSchema.parse(latestDocument.toJS());
+    markConfigDirty();
     return new ConfigRevisionMismatchError(configRevision(latestConfig));
   } catch {
     return new ConfigRevisionMismatchError();
@@ -651,8 +876,11 @@ function revisionMismatchForCurrentConfig(): ConfigRevisionMismatchError {
 
 export function writeConfig(
   updates: Partial<KokpitConfig>,
-  expectedRevision?: string
-): void {
+  expectedRevision?: string,
+  expectedSource?: string
+): KokpitConfig {
+  let persistedConfig: KokpitConfig;
+  let persistedSource: string;
   const fixedGridUpdates: Partial<KokpitConfig> = { ...updates };
   if (updates.layout) {
     fixedGridUpdates.layout = (updates.layout.ungrouped === "first"
@@ -667,7 +895,13 @@ export function writeConfig(
     }).service_tiles;
   }
   withConfigLock(() => {
-    const source = readFileSync(CONFIG_PATH, "utf-8");
+    const source = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
+    // An API request may only write the exact bytes it just authorized. A
+    // matching semantic revision is insufficient: comments and a freshly
+    // introduced auth policy are still an external ownership transition.
+    if (expectedRevision !== undefined && (expectedSource ?? configCache().source) !== source) {
+      throw revisionMismatchForCurrentConfig();
+    }
     const doc = parseSettingsDocument(source);
     const current = KokpitConfigSchema.parse(doc.toJS());
     const currentRevision = configRevision(current);
@@ -678,22 +912,36 @@ export function writeConfig(
     const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
     for (const [key, value] of Object.entries(fixedGridUpdates)) doc.setIn([key], value);
     // Parse the exact document that will be persisted, not just the in-memory merge.
-    KokpitConfigSchema.parse(doc.toJS());
+    persistedConfig = KokpitConfigSchema.parse(doc.toJS());
+    persistedSource = doc.toString();
     let mode = 0o600;
     try {
-      if (existsSync(CONFIG_PATH)) mode = statSync(CONFIG_PATH).mode & 0o777;
+      if (existsSync(/* turbopackIgnore: true */ CONFIG_PATH)) mode = statSync(/* turbopackIgnore: true */ CONFIG_PATH).mode & 0o777;
     } catch {
       // Test doubles and unusual filesystems may not expose mode metadata.
     }
     try {
-      writeFileSync(temp, doc.toString(), { encoding: "utf-8", flush: true, mode });
+      writeFileSync(/* turbopackIgnore: true */ temp, persistedSource, { encoding: "utf-8", flush: true, mode });
       try { chmodSync(temp, mode); } catch { /* write mode is already restrictive */ }
       if (!installConfigIfSourceUnchanged(source, temp)) throw revisionMismatchForCurrentConfig();
     } catch (error) {
-      try { if (existsSync(temp)) renameSync(temp, `${temp}.failed`); } catch {}
+      try { if (existsSync(/* turbopackIgnore: true */ temp)) renameSync(/* turbopackIgnore: true */ temp, `${temp}.failed`); } catch {}
       throw error;
     }
   });
-  invalidateCache();
+  const cache = configCache();
+  cache.config = persistedConfig!;
+  cache.source = persistedSource!;
+  cache.pendingSource = null;
+  cache.state = "ready";
+  resetCacheRefresh(cache);
+  return persistedConfig!;
 }
-export function invalidateCache(): void { cachedConfig = null; }
+export function invalidateCache(): void {
+  const cache = configCache();
+  resetCacheRefresh(cache);
+  cache.config = null;
+  cache.source = null;
+  cache.pendingSource = null;
+  cache.state = "cold";
+}

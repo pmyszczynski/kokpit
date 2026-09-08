@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
-import { ConfigRevisionMismatchError, getConfig, invalidateCache, writeConfig } from "@/config/server";
+import {
+  ConfigRevisionMismatchError,
+  ConfigUnavailableError,
+  getConfigSnapshot,
+  getConfigSnapshotForWrite,
+  writeConfig,
+} from "@/config/server";
 import {
   BackgroundSchema,
   BookmarkGroupsSchema,
@@ -60,11 +66,17 @@ async function serializeSettingsWrite<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export async function GET() {
-  if (!(await isRequestAuthenticated())) {
+  const snapshot = getConfigSnapshot();
+  if (!(await isRequestAuthenticated(snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const config = getConfig();
+  if (snapshot.state === "dirty" || !snapshot.config) {
+    return NextResponse.json(
+      { error: "settings.yaml is being updated; retry once the change is complete", code: "config_unavailable" },
+      { status: 409 }
+    );
+  }
+  const config = snapshot.config;
   // The revision is derived from the real config while the browser receives
   // opaque references for registry-declared password fields.
   return NextResponse.json(toClientSafeSettings(config), {
@@ -73,10 +85,6 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await isRequestAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -104,10 +112,26 @@ export async function PATCH(request: NextRequest) {
 
   const ifMatch = request.headers.get("If-Match");
   return serializeSettingsWrite(async () => {
-    // Re-read only after acquiring the write lock so concurrent requests and
-    // external settings.yaml changes cannot validate against a stale revision.
-    invalidateCache();
-    const current = getConfig();
+    // The write queue obtains one exact, already-stable source. Authorization
+    // and CAS below intentionally use this same snapshot; an external edit is
+    // never promoted to writable by a PATCH request.
+    const snapshot = getConfigSnapshotForWrite();
+    if (snapshot.state === "dirty" || !snapshot.config) {
+      return NextResponse.json(
+        { error: "settings.yaml is being updated; reload before saving.", code: "config_unavailable" },
+        { status: 409 }
+      );
+    }
+    const current = snapshot.config;
+    if (!(await isRequestAuthenticated(current))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (snapshot.state === "migration-required") {
+      return NextResponse.json(
+        { error: "settings.yaml requires migration before it can be edited.", code: "migration_required" },
+        { status: 409 }
+      );
+    }
     const currentRevision = configRevision(current);
     if (ifMatch !== null && ifMatch !== currentRevision) {
       return NextResponse.json(
@@ -136,13 +160,22 @@ export async function PATCH(request: NextRequest) {
       }, { status: 400 });
     }
     try {
-      writeConfig(updates as Parameters<typeof writeConfig>[0], currentRevision);
-      const updated = getConfig();
+      const updated = writeConfig(
+        updates as Parameters<typeof writeConfig>[0],
+        currentRevision,
+        snapshot.source!
+      );
       await pruneOrphanedUploads(updated);
       return NextResponse.json(toClientSafeSettings(updated), {
         headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
       });
     } catch (error) {
+      if (error instanceof ConfigUnavailableError) {
+        return NextResponse.json(
+          { error: "settings.yaml is being updated; reload before saving.", code: "config_unavailable" },
+          { status: 409 }
+        );
+      }
       if (error instanceof ConfigRevisionMismatchError) {
         return NextResponse.json(
           { error: "settings.yaml changed since you started editing; reload before saving.", code: "revision_mismatch" },
