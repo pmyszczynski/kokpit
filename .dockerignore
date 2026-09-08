@@ -1,7 +1,13 @@
 node_modules
 .next
 .git
+.github
+.claude
 *.md
 .env*.local
 .env
 coverage
+data
+e2e
+settings.yaml*
+test-results

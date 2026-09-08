@@ -23,6 +23,6 @@ export default defineConfig({
       KOKPIT_INSECURE_COOKIE: "true",
       KOKPIT_SESSION_SECRET: "test-secret-32-chars-minimum-length-xx",
     },
-    url: "http://localhost:3001",
+    url: "http://localhost:3001/api/health",
   },
 });

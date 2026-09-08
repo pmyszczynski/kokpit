@@ -109,7 +109,7 @@ function post(body: unknown) {
 }
 
 describe("POST /api/icon/detect", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.restoreAllMocks();
     dnsLookupMock.mockReset();
@@ -117,6 +117,8 @@ describe("POST /api/icon/detect", () => {
     dnsLookupMock.mockResolvedValue(resolvesTo(PUBLIC_IP));
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_DISABLED_YAML);
+    const { invalidateCache } = await import("@/config/loader");
+    invalidateCache();
   });
 
   afterEach(() => {
@@ -219,13 +221,15 @@ describe("POST /api/icon/detect", () => {
 });
 
 describe("POST /api/icon/detect – auth", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     dnsLookupMock.mockReset();
     undiciFetchMock.mockReset();
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
     process.env.KOKPIT_AUTH_DISABLED = "false";
+    const { invalidateCache } = await import("@/config/loader");
+    invalidateCache();
   });
 
   afterEach(() => {

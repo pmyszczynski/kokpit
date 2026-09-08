@@ -27,6 +27,7 @@ export default defineConfig({
     env: {
       KOKPIT_AUTH_DISABLED: "true",
       KOKPIT_CONFIG_PATH: "./e2e/fixtures/settings.yaml",
+      KOKPIT_SESSION_SECRET: "test-secret-32-chars-minimum-length-xx",
     },
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,

@@ -61,7 +61,7 @@ export class UploadError extends Error {
 function uploadsDir(subdir: string): string {
   const base =
     process.env.KOKPIT_UPLOADS_PATH ?? path.join(process.cwd(), "data", "uploads");
-  return path.join(base, subdir);
+  return path.join(/* turbopackIgnore: true */ base, subdir);
 }
 
 // DOM-less server-side DOMPurify: a single jsdom window backs the sanitizer for
@@ -170,7 +170,7 @@ export async function storeUpload(
   const filename = `${hash}.${upload.ext}`;
   const dir = uploadsDir(profile.subdir);
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), upload.bytes);
+  await writeFile(path.join(/* turbopackIgnore: true */ dir, filename), upload.bytes);
   return filename;
 }
 
@@ -192,7 +192,7 @@ export async function readUpload(
   const contentType = EXT_CONTENT_TYPE[ext];
   if (!contentType) return null;
   try {
-    const bytes = await readFile(path.join(uploadsDir(profile.subdir), filename));
+    const bytes = await readFile(/* turbopackIgnore: true */ path.join(uploadsDir(profile.subdir), filename));
     return { bytes, contentType };
   } catch {
     return null;
@@ -226,7 +226,7 @@ export async function pruneUploads(
   const dir = uploadsDir(profile.subdir);
   let entries: string[];
   try {
-    entries = await readdir(dir);
+    entries = await readdir(/* turbopackIgnore: true */ dir);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
     throw err;
@@ -237,9 +237,9 @@ export async function pruneUploads(
   for (const name of entries) {
     if (!UPLOAD_FILENAME_PATTERN.test(name)) continue;
     if (keep.has(name)) continue;
-    const full = path.join(dir, name);
+    const full = path.join(/* turbopackIgnore: true */ dir, name);
     try {
-      const info = await stat(full);
+      const info = await stat(/* turbopackIgnore: true */ full);
       // Within the grace window → likely an in-flight upload not yet referenced
       // in a saved config; leave it alone.
       if (now - info.mtimeMs < graceMs) continue;

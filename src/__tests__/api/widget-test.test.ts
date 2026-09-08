@@ -3,14 +3,59 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 
+const settingsFile = vi.hoisted(() => ({
+  source: "",
+  displacedSource: undefined as string | undefined,
+  temporarySources: new Map<string, string>(),
+  serverSecret: "widget-test-server-secret",
+}));
+
 vi.mock("node:fs", () => {
-  const readFileSync = vi.fn();
-  const writeFileSync = vi.fn();
-  const linkSync = vi.fn();
-  const unlinkSync = vi.fn();
-  const existsSync = vi.fn((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
+  const isSettingsPath = (target: unknown) => String(target).includes("settings.yaml");
+  const isServerSecretPath = (target: unknown) => String(target).endsWith(".session_secret");
+  const readFileSync = vi.fn((target: unknown) => {
+    const filename = String(target);
+    if (isServerSecretPath(filename)) return settingsFile.serverSecret;
+    if (!isSettingsPath(filename)) return undefined;
+    if (filename.includes("settings.yaml.displaced")) return settingsFile.displacedSource;
+    if (filename.includes("settings.yaml.tmp-")) return settingsFile.temporarySources.get(filename);
+    return settingsFile.source;
+  });
+  const writeFileSync = vi.fn((target: unknown, contents: unknown) => {
+    const filename = String(target);
+    if (isServerSecretPath(filename)) {
+      settingsFile.serverSecret = String(contents);
+      return;
+    }
+    if (filename.includes("settings.yaml.tmp-")) {
+      settingsFile.temporarySources.set(filename, String(contents));
+    }
+  });
+  const linkSync = vi.fn((source: unknown, target: unknown) => {
+    const sourcePath = String(source);
+    const targetPath = String(target);
+    if (sourcePath.includes("settings.yaml.tmp-") && targetPath.endsWith("settings.yaml")) {
+      settingsFile.source = settingsFile.temporarySources.get(sourcePath) ?? "";
+    }
+  });
+  const unlinkSync = vi.fn((target: unknown) => {
+    const filename = String(target);
+    if (filename.includes("settings.yaml.displaced")) settingsFile.displacedSource = undefined;
+    if (filename.includes("settings.yaml.tmp-")) settingsFile.temporarySources.delete(filename);
+  });
+  const existsSync = vi.fn((target?: unknown) => {
+    const filename = String(target ?? "");
+    if (!isSettingsPath(filename)) return true;
+    if (filename.includes("settings.yaml.displaced")) return settingsFile.displacedSource !== undefined;
+    if (filename.includes("settings.yaml.tmp-")) return settingsFile.temporarySources.has(filename);
+    return filename.endsWith("settings.yaml");
+  });
   const mkdirSync = vi.fn();
-  const renameSync = vi.fn();
+  const renameSync = vi.fn((source: unknown, target: unknown) => {
+    if (String(source).endsWith("settings.yaml") && String(target).includes("settings.yaml.displaced")) {
+      settingsFile.displacedSource = settingsFile.source;
+    }
+  });
   const statSync = vi.fn().mockReturnValue({ mode: 0o100644 });
   const chmodSync = vi.fn();
   return {
@@ -32,7 +77,6 @@ vi.mock("next/headers", () => ({
 
 process.env.KOKPIT_AUTH_DISABLED = "true";
 
-import { existsSync, readFileSync } from "node:fs";
 import { WIDGET_SECRET_REFERENCE_KEY } from "@/widgets/secretReference";
 import "@/integrations";
 import { getAllWidgets } from "@/widgets";
@@ -85,6 +129,13 @@ const UNRAID_SECRET_YAML = BASE_YAML.replace(
         api_key: saved-unraid-secret`
 );
 
+function setSettingsYaml(source: string): void {
+  settingsFile.source = source;
+  settingsFile.displacedSource = undefined;
+  settingsFile.temporarySources.clear();
+  settingsFile.serverSecret = "widget-test-server-secret";
+}
+
 function post(body: unknown) {
   return new Request("http://localhost/api/widget/test", {
     method: "POST",
@@ -93,11 +144,12 @@ function post(body: unknown) {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
-  vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
-  vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
+  setSettingsYaml(BASE_YAML);
+  const { invalidateCache } = await import("@/config/loader");
+  invalidateCache();
 });
 
 afterEach(async () => {
@@ -139,7 +191,7 @@ describe("POST /api/widget/test", () => {
 
   it("returns 401 when auth is enabled and no session cookie is present", async () => {
     vi.stubEnv("KOKPIT_AUTH_DISABLED", "false");
-    vi.mocked(readFileSync).mockReturnValue(AUTH_YAML);
+    setSettingsYaml(AUTH_YAML);
     const { POST } = await import("../../app/api/widget/test/route");
     const res = await POST(post({ type: "plex", config: {} }));
     expect(res.status).toBe(401);
@@ -230,7 +282,7 @@ describe("POST /api/widget/test", () => {
   });
 
   it("resolves a redacted saved password server-side for a connection test", async () => {
-    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    setSettingsYaml(TAUTULLI_SECRET_YAML);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: string | URL | Request) => {
@@ -271,7 +323,7 @@ describe("POST /api/widget/test", () => {
   });
 
   it("rejects an endpoint-changed saved reference before fetch with a safe code", async () => {
-    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    setSettingsYaml(TAUTULLI_SECRET_YAML);
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
@@ -296,7 +348,7 @@ describe("POST /api/widget/test", () => {
   });
 
   it("rejects forged and cross-widget references before fetch", async () => {
-    vi.mocked(readFileSync).mockReturnValue(TAUTULLI_SECRET_YAML);
+    setSettingsYaml(TAUTULLI_SECRET_YAML);
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/settings/route");
@@ -442,7 +494,7 @@ describe("POST /api/widget/test", () => {
   });
 
   it("does not reflect a saved secret from an upstream connection-test error", async () => {
-    vi.mocked(readFileSync).mockReturnValue(UNRAID_SECRET_YAML);
+    setSettingsYaml(UNRAID_SECRET_YAML);
     const rawMessage =
       "upstream rejected Authorization: Bearer saved-unraid-secret";
     vi.stubGlobal(

@@ -67,11 +67,13 @@ function get(tile_id?: string, widgetType?: string) {
   return new Request(`http://localhost/api/widget${params.size ? `?${params}` : ""}`);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
   vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
   vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML);
+  const { invalidateCache } = await import("@/config/loader");
+  invalidateCache();
 });
 
 afterEach(async () => {

@@ -6,11 +6,16 @@
  */
 export {
   getConfig,
+  getConfigSnapshot,
+  getConfigSnapshotForWrite,
   loadConfig,
   writeConfig,
   getConfigPath,
+  refreshConfigCache,
+  markConfigDirty,
   invalidateCache,
   legacyIntegrationType,
   splitLegacyWidgetConfig,
   ConfigRevisionMismatchError,
+  ConfigUnavailableError,
 } from "./loader";

@@ -189,8 +189,10 @@ function patch(body: unknown, headers: Record<string, string> = {}) {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
+  const { invalidateCache } = await import("@/config/loader");
+  invalidateCache();
 });
 
 describe("PATCH /api/settings – validation", () => {
@@ -211,6 +213,42 @@ describe("PATCH /api/settings – validation", () => {
     const res = await PATCH(req);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/invalid json/i);
+  });
+
+  it("does not write when the live config refresh cannot read a complete file", async () => {
+    vi.doMock("@/config/server", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/config/server")>()),
+      getConfigSnapshotForWrite: () => ({ state: "dirty", config: null, source: null }),
+    }));
+    try {
+      const { PATCH } = await import("../../app/api/settings/route");
+      const res = await PATCH(patch({ appearance: { theme: "light" } }));
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "config_unavailable" });
+      expect(writeFileSync).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("@/config/server");
+    }
+  });
+
+  it("returns 409 when a source change is detected during write preprocessing", async () => {
+    vi.doMock("@/config/server", async (importOriginal) => {
+      const server = await importOriginal<typeof import("@/config/server")>();
+      return {
+        ...server,
+        writeConfig: () => { throw new server.ConfigUnavailableError(); },
+      };
+    });
+    try {
+      const { PATCH } = await import("../../app/api/settings/route");
+      const res = await PATCH(patch({ service_tiles: [] }));
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "config_unavailable" });
+    } finally {
+      vi.doUnmock("@/config/server");
+    }
   });
 
 
@@ -489,6 +527,51 @@ describe("/api/settings – auth", () => {
     expect(writeFileSync).not.toHaveBeenCalled();
   });
 
+  it("does not retain a formerly disabled auth policy after a stable external rewrite", async () => {
+    const fs = createSettingsFsSimulation(BASE_YAML);
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { refreshConfigCache } = await import("@/config/loader");
+    expect((await GET()).status).toBe(200);
+
+    fs.yaml = AUTH_ENABLED_YAML;
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("ready");
+
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+    expect(res.status).toBe(401);
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("enforces stable legacy auth but refuses to rewrite that external source", async () => {
+    const legacy = [
+      "schema_version: 1",
+      "auth:",
+      "  enabled: true",
+      "  session_ttl_hours: 24",
+      "services:",
+      "  - name: Legacy",
+      "",
+    ].join("\n");
+    const fs = createSettingsFsSimulation(BASE_YAML);
+    const { PATCH } = await import("../../app/api/settings/route");
+    const { refreshConfigCache } = await import("@/config/loader");
+    // Bootstrap a current source first, then introduce an external legacy one.
+    await import("@/config/server").then(({ getConfigSnapshot }) => getConfigSnapshot());
+    fs.yaml = legacy;
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("migration-required");
+
+    const res = await PATCH(patch({ appearance: { theme: "light" } }));
+    expect(res.status).toBe(401);
+    expect(fs.yaml).toBe(legacy);
+
+    process.env.KOKPIT_AUTH_DISABLED = "true";
+    const privilegedRes = await PATCH(patch({ appearance: { theme: "light" } }));
+    expect(privilegedRes.status).toBe(409);
+    expect((await privilegedRes.json()).code).toBe("migration_required");
+    expect(fs.yaml).toBe(legacy);
+  });
+
   it("succeeds without a session when KOKPIT_AUTH_DISABLED is set", async () => {
     process.env.KOKPIT_AUTH_DISABLED = "true";
     const { GET } = await import("../../app/api/settings/route");
@@ -515,9 +598,10 @@ describe("GET /api/settings", () => {
   });
 
   it("does not return per-viewport layout overrides", async () => {
-    vi.mocked(readFileSync).mockReturnValue(VIEWPORT_YAML);
+    createSettingsFsSimulation(VIEWPORT_YAML);
     const { GET } = await import("../../app/api/settings/route");
     const res = await GET();
+    expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.layout.tablet).toBeUndefined();
     expect(json.layout.mobile).toBeUndefined();
@@ -792,6 +876,10 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
     expect(writeFileSync).toHaveBeenCalledTimes(1);
     expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
 
+    // The conflict path already captured the first external observation;
+    // one follow-up refresh is the required stable second observation.
+    const { refreshConfigCache } = await import("@/config/loader");
+    expect(refreshConfigCache()).toBe("ready");
     const reload = await GET();
     expect((await reload.json()).appearance.theme).toBe("oled");
     expect(reload.headers.get("X-Config-Revision")).toBe(externalRevision);

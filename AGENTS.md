@@ -21,7 +21,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 
 ## Tech Stack
 
-- **Framework:** Next.js 15.x (App Router)
+- **Framework:** Next.js 16.x (App Router)
 - **Styling:** CSS custom properties (`[data-theme]` attribute) + Tailwind utility layer
 - **Config:** YAML (`settings.yaml` at project root / config dir)
 - **Auth:** Built-in credential auth (bcrypt), JWT session tokens, optional TOTP 2FA
@@ -172,3 +172,13 @@ If Docker publication fails, the tag and GitHub Release remain but the release r
 | [Homarr](https://github.com/ajnart/homarr) | Drag-and-drop UI, modern | Config not fully YAML-portable |
 | [Dashy](https://github.com/Lissy93/dashy) | Highly customizable, widget-rich | Config-heavy, complex setup |
 | [Heimdall](https://github.com/linuxserver/Heimdall) | Simple, pretty | Limited, no real widget system |
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

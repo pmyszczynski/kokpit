@@ -69,6 +69,20 @@ describe("loadConfig", () => {
     expect(lockSync).toHaveBeenCalledTimes(1);
   });
 
+  it("does not read or create runtime config during a production build", () => {
+    process.env.NEXT_PHASE = "phase-production-build";
+    try {
+      vi.clearAllMocks();
+      const config = loadConfig();
+
+      expect(config.schema_version).toBe(2);
+      expect(readFileSync).not.toHaveBeenCalled();
+      expect(writeFileSync).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.NEXT_PHASE;
+    }
+  });
+
   it("applies defaults when optional sections are missing", () => {
     vi.mocked(readFileSync).mockReturnValue("schema_version: 2");
     const config = loadConfig();
@@ -120,11 +134,14 @@ describe("getConfig", () => {
     vi.mocked(readFileSync).mockReturnValue(VALID_YAML);
   });
 
-  it("caches the result — file is only read once across multiple calls", () => {
-    loadConfig();
-    getConfig();
-    getConfig();
-    expect(readFileSync).toHaveBeenCalledTimes(1);
+  it("returns the cached result after verifying the exact source bytes", () => {
+    const loaded = loadConfig();
+    const first = getConfig();
+    const second = getConfig();
+
+    expect(first).toBe(loaded);
+    expect(second).toBe(loaded);
+    expect(readFileSync).toHaveBeenCalledTimes(3);
   });
 
   it("loads on first call if cache is empty", () => {
@@ -184,12 +201,15 @@ describe("writeConfig", () => {
     expect(written).toContain("light");
   });
 
-  it("invalidates cache so next getConfig() re-reads the file", () => {
+  it("publishes the persisted config and exact serialized source together", () => {
     loadConfig();
-    writeConfig({ appearance: { theme: "light" } });
-    vi.clearAllMocks();
-    vi.mocked(readFileSync).mockReturnValue(VALID_YAML);
-    getConfig();
-    expect(readFileSync).toHaveBeenCalledTimes(1);
+    const persisted = writeConfig({ appearance: { theme: "light" } });
+    const written = vi.mocked(writeFileSync).mock.calls.find(
+      ([target]) => typeof target === "string" && target.includes(".tmp-")
+    )?.[1] as string;
+    vi.mocked(readFileSync).mockReturnValue(written);
+
+    expect(persisted.appearance.theme).toBe("light");
+    expect(getConfig()).toBe(persisted);
   });
 });
