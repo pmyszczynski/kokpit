@@ -260,7 +260,7 @@ describe("EditModeProvider (hook flows)", () => {
 
   async function setup() {
     render(
-      <EditModeProvider canEdit>
+      <EditModeProvider canEdit connectionTestingEnabled>
         <Harness />
       </EditModeProvider>
     );
