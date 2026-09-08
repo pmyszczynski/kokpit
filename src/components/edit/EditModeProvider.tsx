@@ -179,6 +179,8 @@ export function changedKeys(
 export interface EditModeContextValue extends EditModeState {
   /** Whether the current viewer may edit (mirrors the provider prop). */
   canEdit: boolean;
+  /** Whether the server permits caller-supplied widget connection tests. */
+  connectionTestingEnabled: boolean;
   /** True when the draft differs from the baseline. */
   dirty: boolean;
   /** Number of changed top-level editable keys (edit-bar counter). */
@@ -221,10 +223,16 @@ export interface EditModeProviderProps {
    * there; kept as a prop so entry can be gated without a server round-trip.
    */
   canEdit: boolean;
+  /** Whether the server permits caller-supplied widget connection tests. */
+  connectionTestingEnabled: boolean;
   children: React.ReactNode;
 }
 
-export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
+export function EditModeProvider({
+  canEdit,
+  connectionTestingEnabled,
+  children,
+}: EditModeProviderProps) {
   const router = useRouter();
   const [state, dispatch] = useReducer(editModeReducer, initialEditModeState);
 
@@ -413,6 +421,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     () => ({
       ...state,
       canEdit,
+      connectionTestingEnabled,
       dirty: keys.length > 0,
       dirtyCount: keys.length,
       enter,
@@ -430,6 +439,7 @@ export function EditModeProvider({ canEdit, children }: EditModeProviderProps) {
     [
       state,
       canEdit,
+      connectionTestingEnabled,
       keys,
       enter,
       toggle,

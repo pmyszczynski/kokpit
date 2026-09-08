@@ -21,6 +21,13 @@ import {
 // strictly auth-gated.
 export async function POST(request: Request) {
   const snapshot = getConfigSnapshot();
+  if (
+    !(await isRequestAuthenticated(
+      snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined
+    ))
+  ) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   if (snapshot.state === "dirty" || !snapshot.config) {
     return NextResponse.json(
       {
@@ -34,9 +41,6 @@ export async function POST(request: Request) {
   const activeConfig = snapshot.config;
   if (!isAuthenticationEnabled(activeConfig)) {
     return NextResponse.json({ ok: false, error: "Connection tests require authentication" }, { status: 403 });
-  }
-  if (!(await isRequestAuthenticated(activeConfig))) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
   let body: unknown;

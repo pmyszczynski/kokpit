@@ -81,7 +81,6 @@ vi.mock("node:fs", () => {
 vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined }),
 }));
-
 import { WIDGET_SECRET_REFERENCE_KEY } from "@/widgets/secretReference";
 import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth";
 import "@/integrations";
@@ -176,7 +175,28 @@ afterEach(async () => {
 });
 
 describe("POST /api/widget/test", () => {
-  it("returns config_unavailable before parsing or fetching while settings are dirty", async () => {
+  it("returns 401 without revealing dirty settings to an unauthenticated caller", async () => {
+    const { getConfigSnapshot, markConfigDirty } = await import("@/config/loader");
+    expect(getConfigSnapshot().state).toBe("ready");
+    settingsFile.source = "auth: [";
+    markConfigDirty();
+    authState.authenticated = false;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const json = vi.fn();
+    const { POST } = await import("../../app/api/widget/test/route");
+
+    const res = await POST({ json } as unknown as Request);
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ ok: false, error: "Unauthorized" });
+    expect(json).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(isAuthenticationEnabled).not.toHaveBeenCalled();
+    expect(isRequestAuthenticated).toHaveBeenCalledWith(undefined);
+  });
+
+  it("returns config_unavailable before parsing or fetching for an authorized dirty-state request", async () => {
     const { getConfigSnapshot, markConfigDirty } = await import("@/config/loader");
     expect(getConfigSnapshot().state).toBe("ready");
     settingsFile.source = "auth: [";
@@ -197,7 +217,7 @@ describe("POST /api/widget/test", () => {
     expect(json).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(isAuthenticationEnabled).not.toHaveBeenCalled();
-    expect(isRequestAuthenticated).not.toHaveBeenCalled();
+    expect(isRequestAuthenticated).toHaveBeenCalledWith(undefined);
   });
 
   it("rejects connection tests when authentication is disabled before parsing or fetching", async () => {

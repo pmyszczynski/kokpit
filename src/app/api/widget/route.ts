@@ -11,6 +11,13 @@ import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeou
 
 export async function GET(request: Request) {
   const snapshot = getConfigSnapshot();
+  if (
+    !(await isRequestAuthenticated(
+      snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined
+    ))
+  ) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   if (snapshot.state === "dirty" || !snapshot.config) {
     return NextResponse.json(
       {
@@ -22,9 +29,6 @@ export async function GET(request: Request) {
     );
   }
   const config = snapshot.config;
-  if (!(await isRequestAuthenticated(config))) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
 
   const { searchParams } = new URL(request.url);
   const tileId = searchParams.get("tile_id");

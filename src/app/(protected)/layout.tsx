@@ -48,7 +48,10 @@ export default async function ProtectedLayout({
 
   return (
     <div className="shell">
-      <EditModeProvider canEdit={canEdit}>
+      <EditModeProvider
+        canEdit={canEdit}
+        connectionTestingEnabled={authEnabled}
+      >
         <Navbar showLogout={showLogout} canEdit={canEdit} />
         <main className="shell-main">{children}</main>
       </EditModeProvider>

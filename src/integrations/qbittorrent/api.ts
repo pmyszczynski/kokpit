@@ -32,7 +32,10 @@ const TorrentSchema = z.object({
 
 export type Torrent = z.infer<typeof TorrentSchema>;
 
-type SessionCookie = { name: "SID" | "QBIT_SID"; value: string };
+type SessionCookie = {
+  name: "SID" | "QBIT_SID" | `QBT_SID_${number}`;
+  value: string;
+};
 
 const sidCache = new Map<string, SessionCookie>();
 const loginInFlight = new Map<string, Promise<SessionCookie>>();
@@ -42,7 +45,10 @@ function isRetryableHttpStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599);
 }
 
-async function boundedLoginResult(response: Response): Promise<string | undefined> {
+async function boundedLoginResult(
+  response: Response,
+  signal?: AbortSignal
+): Promise<string | undefined> {
   const reader = response.body?.getReader();
   if (!reader) return undefined;
 
@@ -59,7 +65,10 @@ async function boundedLoginResult(response: Response): Promise<string | undefine
       }
       chunks.push(value);
     }
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw abortedRequestError();
+    }
     return undefined;
   }
   const result = new Uint8Array(size);
@@ -73,8 +82,23 @@ async function boundedLoginResult(response: Response): Promise<string | undefine
 
 function sessionCookie(response: Response): SessionCookie | undefined {
   const setCookie = response.headers.get("set-cookie") ?? "";
-  const match = setCookie.match(/(?:^|,\s*)(QBIT_SID|SID)=([^;,\s]+)/);
+  const match = setCookie.match(/(?:^|,\s*)(QBT_SID_\d+|QBIT_SID|SID)=([^;,\s]+)/);
   return match ? { name: match[1] as SessionCookie["name"], value: match[2] } : undefined;
+}
+
+function abortedRequestError(): Error {
+  const error = new Error("qBittorrent request aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
 }
 
 async function qBittorrentFetch(
@@ -84,7 +108,10 @@ async function qBittorrentFetch(
 ): Promise<Response> {
   try {
     return await fetch(input, init);
-  } catch {
+  } catch (error) {
+    if (init.signal?.aborted || isAbortError(error)) {
+      throw abortedRequestError();
+    }
     throw new WidgetFetchError("widget_upstream_unreachable", {
       integration: "qbittorrent",
       stage,
@@ -93,10 +120,17 @@ async function qBittorrentFetch(
   }
 }
 
-async function responseJson(response: Response, stage: string): Promise<unknown> {
+async function responseJson(
+  response: Response,
+  stage: string,
+  signal?: AbortSignal
+): Promise<unknown> {
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw abortedRequestError();
+    }
     throw new WidgetFetchError("widget_invalid_json", {
       integration: "qbittorrent",
       stage,
@@ -171,7 +205,7 @@ async function getSession(
         );
       }
 
-      if ((await boundedLoginResult(response)) === "Fails.") {
+      if ((await boundedLoginResult(response, signal)) === "Fails.") {
         throw new WidgetFetchError("widget_upstream_auth_failed", {
           integration: "qbittorrent",
           stage: "login",
@@ -188,7 +222,9 @@ async function getSession(
         });
       }
 
-      sidCache.set(key, session);
+      if (!signal?.aborted && loginInFlight.get(key) === loginState.promise) {
+        sidCache.set(key, session);
+      }
       return session;
     } finally {
       signal?.removeEventListener("abort", onAbort);
@@ -212,11 +248,12 @@ async function fetchWithAuth(
   const session = await getSession(config, signal);
   const base = config.url.endsWith("/") ? config.url : `${config.url}/`;
   const url = new URL(path, base).toString();
+  const stage = path === "api/v2/transfer/info" ? "transfer-info" : "torrents-info";
 
   let response = await qBittorrentFetch(url, {
     headers: { Cookie: `${session.name}=${session.value}` },
     signal,
-  }, path === "api/v2/transfer/info" ? "transfer-info" : "torrents-info");
+  }, stage);
 
   if (response.status === 403) {
     sidCache.delete(cacheKey(config));
@@ -224,13 +261,13 @@ async function fetchWithAuth(
     response = await qBittorrentFetch(url, {
       headers: { Cookie: `${newSession.name}=${newSession.value}` },
       signal,
-    }, path === "api/v2/transfer/info" ? "transfer-info" : "torrents-info");
+    }, stage);
   }
 
   if (!response.ok) {
     throw new WidgetFetchError("widget_upstream_error", {
       integration: "qbittorrent",
-      stage: path === "api/v2/transfer/info" ? "transfer-info" : "torrents-info",
+      stage,
       upstreamStatus: response.status,
       retryable: isRetryableHttpStatus(response.status),
     });
@@ -244,7 +281,7 @@ export async function fetchTransferInfo(
   signal?: AbortSignal
 ): Promise<TransferInfo> {
   const response = await fetchWithAuth(config, "api/v2/transfer/info", signal);
-  const data = await responseJson(response, "transfer-info-json");
+  const data = await responseJson(response, "transfer-info-json", signal);
   const parsed = TransferInfoSchema.safeParse(data);
   if (!parsed.success) {
     throw new WidgetFetchError("widget_invalid_response", {
@@ -261,7 +298,7 @@ export async function fetchTorrents(
   signal?: AbortSignal
 ): Promise<Torrent[]> {
   const response = await fetchWithAuth(config, "api/v2/torrents/info", signal);
-  const data = await responseJson(response, "torrents-info-json");
+  const data = await responseJson(response, "torrents-info-json", signal);
   const parsed = z.array(TorrentSchema).safeParse(data);
   if (!parsed.success) {
     throw new WidgetFetchError("widget_invalid_response", {

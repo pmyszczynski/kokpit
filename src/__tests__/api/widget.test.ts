@@ -83,6 +83,7 @@ beforeEach(async () => {
 afterEach(async () => {
   consoleErrorSpy.mockRestore();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.useRealTimers();
   // The "uses widget.fetchTimeoutMs" test below registers a permanent
   // `__slow-sidecar__` widget via registerWidget, which throws on a
@@ -94,11 +95,28 @@ afterEach(async () => {
 });
 
 describe("GET /api/widget", () => {
-  it("returns config_unavailable without fetching while settings are dirty", async () => {
+  it("returns 401 without revealing dirty settings to an unauthenticated caller", async () => {
     const { getConfigSnapshot, markConfigDirty } = await import("@/config/loader");
     expect(getConfigSnapshot().state).toBe("ready");
     vi.mocked(readFileSync).mockReturnValue("auth: [");
     markConfigDirty();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(get("20000000-0000-4000-8000-000000000001"));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ ok: false, error: "Unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns config_unavailable without fetching for an authorized dirty-state request", async () => {
+    const { getConfigSnapshot, markConfigDirty } = await import("@/config/loader");
+    expect(getConfigSnapshot().state).toBe("ready");
+    vi.mocked(readFileSync).mockReturnValue("auth: [");
+    markConfigDirty();
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const { GET } = await import("../../app/api/widget/route");
