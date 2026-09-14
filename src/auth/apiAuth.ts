@@ -3,6 +3,10 @@ import type { KokpitConfig } from "@/config/schema";
 import { getConfigSnapshot } from "@/config/server";
 import { getAuthUser, SESSION_COOKIE_NAME } from "./session";
 
+export function isAuthenticationEnabled(config: KokpitConfig): boolean {
+  return config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
+}
+
 /**
  * True when the caller may access protected API routes: either auth is
  * disabled (via config or the KOKPIT_AUTH_DISABLED env var) or the request

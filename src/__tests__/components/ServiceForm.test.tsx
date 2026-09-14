@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { EditModeProvider } from "@/components/edit/EditModeProvider";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
 import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
@@ -9,6 +10,10 @@ import {
   WIDGET_SECRET_REFERENCE_KEY,
   WIDGET_SECRET_REFERENCE_PREFIX,
 } from "@/widgets/secretReference";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 // Every selectable tile type, with what its schema says about an empty
 // config. Derived from the registry so new integrations are covered
@@ -37,6 +42,23 @@ const SAVED_TAUTULLI_SECRET = {
 };
 
 describe("ServiceForm – rendering", () => {
+  it("disables connection testing with an explanatory hint when the server disallows it", () => {
+    render(
+      <EditModeProvider canEdit connectionTestingEnabled={false}>
+        <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
+      </EditModeProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "plex" } });
+    fireEvent.change(screen.getByLabelText("Server URL *"), {
+      target: { value: "http://plex.local:32400" },
+    });
+    fireEvent.change(screen.getByLabelText("Token *"), { target: { value: "token" } });
+
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    expect(screen.getByText(/connection testing is unavailable while authentication is disabled/i)).toBeInTheDocument();
+  });
+
   it("edits a Service integration independently from a plain tile", () => {
     const onSave = vi.fn();
     render(

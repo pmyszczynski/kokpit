@@ -1,7 +1,7 @@
 import "@/integrations";
 import { NextResponse } from "next/server";
-import { isRequestAuthenticated } from "@/auth";
-import { getConfig, legacyIntegrationType } from "@/config/server";
+import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth";
+import { getConfigSnapshot, legacyIntegrationType } from "@/config/server";
 import { getWidget } from "@/widgets";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 import {
@@ -9,7 +9,10 @@ import {
   resolveWidgetConfigSecrets,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
-import { publicWidgetFetchError } from "@/widgets/publicFetchError";
+import {
+  widgetFetchFailure,
+  widgetFetchTimeoutFailure,
+} from "@/widgets/publicFetchError";
 
 // Tests a widget connection with config straight from the (possibly unsaved)
 // service form. Unlike GET /api/widget, the config arrives in the body instead
@@ -17,8 +20,27 @@ import { publicWidgetFetchError } from "@/widgets/publicFetchError";
 // endpoint triggers server-side requests to caller-supplied URLs, so it is
 // strictly auth-gated.
 export async function POST(request: Request) {
-  if (!(await isRequestAuthenticated())) {
+  const snapshot = getConfigSnapshot();
+  if (
+    !(await isRequestAuthenticated(
+      snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined
+    ))
+  ) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  if (snapshot.state === "dirty" || !snapshot.config) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "settings.yaml is being updated; retry once the change is complete",
+        code: "config_unavailable",
+      },
+      { status: 409 }
+    );
+  }
+  const activeConfig = snapshot.config;
+  if (!isAuthenticationEnabled(activeConfig)) {
+    return NextResponse.json({ ok: false, error: "Connection tests require authentication" }, { status: 403 });
   }
 
   let body: unknown;
@@ -43,7 +65,7 @@ export async function POST(request: Request) {
 
   let resolvedConfig: unknown;
   try {
-    const savedServices = getConfig().services;
+    const savedServices = activeConfig.services;
     const integrationType = legacyIntegrationType(type);
     resolvedConfig = integrationType && savedServices.some((service) => service.integration)
       ? resolveIntegrationConfigSecrets(
@@ -59,10 +81,8 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    return NextResponse.json(
-      { ok: false, error: publicWidgetFetchError("connection-test") },
-      { status: 500 }
-    );
+    const failure = widgetFetchFailure("connection-test", type, error);
+    return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
   }
 
   const parsed = widget.configSchema.safeParse(resolvedConfig);
@@ -87,11 +107,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof WidgetFetchTimeoutError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: 504 });
+      const failure = widgetFetchTimeoutFailure("connection-test", type);
+      return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
     }
-    return NextResponse.json(
-      { ok: false, error: publicWidgetFetchError("connection-test") },
-      { status: 500 }
-    );
+    const failure = widgetFetchFailure("connection-test", type, err);
+    return NextResponse.json({ ok: false, ...failure.body }, { status: failure.status });
   }
 }

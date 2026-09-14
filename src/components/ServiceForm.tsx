@@ -27,6 +27,7 @@ import {
   widgetConfigIssues,
   type WidgetConfigIssue,
 } from "@/widgets/tileWidget";
+import { useEditModeOptional } from "@/components/edit/EditModeProvider";
 
 interface ServiceFormProps {
   service: Service | null;
@@ -524,6 +525,12 @@ export default function ServiceForm({
   onSave,
   onClose,
 }: ServiceFormProps) {
+  // ServiceForm is also rendered outside the dashboard edit provider (for
+  // example on Settings and in focused unit tests). Those standalone uses
+  // retain connection testing; the protected layout supplies the server's
+  // capability when it is available.
+  const editMode = useEditModeOptional();
+  const connectionTestingEnabled = editMode?.connectionTestingEnabled ?? true;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const widgetSectionRef = useRef<HTMLDivElement>(null);
   const initial = initFromService(service);
@@ -886,7 +893,12 @@ export default function ServiceForm({
     const testDefinition = legacyDirectConfig
       ? selectedWidgetDef
       : selectedIntegrationDef ?? selectedWidgetDef;
-    if (!testDefinition || savedCredentialsStale || integrationConflict) return;
+    if (
+      !connectionTestingEnabled ||
+      !testDefinition ||
+      savedCredentialsStale ||
+      integrationConflict
+    ) return;
     setTestStatus({ state: "testing" });
     try {
       const res = await fetch("/api/widget/test", {
@@ -1217,7 +1229,8 @@ export default function ServiceForm({
                   !integrationConfigValid ||
                   widgetConfigValid === false ||
                   savedCredentialsStale ||
-                  integrationConflict
+                  integrationConflict ||
+                  !connectionTestingEnabled
                 }
               >
                 {testStatus.state === "testing" ? "Testing…" : "Test connection"}
@@ -1230,6 +1243,11 @@ export default function ServiceForm({
               {testStatus.state === "error" && (
                 <span className="service-form__test-result service-form__test-result--error" role="alert">
                   {testStatus.message}
+                </span>
+              )}
+              {!connectionTestingEnabled && (
+                <span className="settings-form-hint" role="status">
+                  Connection testing is unavailable while authentication is disabled.
                 </span>
               )}
             </div>
@@ -1632,7 +1650,8 @@ export default function ServiceForm({
                   testStatus.state === "testing" ||
                   widgetConfigValid === false ||
                   savedCredentialsStale ||
-                  integrationConflict
+                  integrationConflict ||
+                  !connectionTestingEnabled
                 }
               >
                 {testStatus.state === "testing" ? "Testing…" : "Test connection"}
@@ -1651,6 +1670,11 @@ export default function ServiceForm({
                   role="alert"
                 >
                   {testStatus.message}
+                </span>
+              )}
+              {!connectionTestingEnabled && (
+                <span className="settings-form-hint" role="status">
+                  Connection testing is unavailable while authentication is disabled.
                 </span>
               )}
             </div>}

@@ -15,7 +15,7 @@ vi.mock("@/auth/session", () => ({
 import { cookies } from "next/headers";
 import { getConfigSnapshot } from "@/config/server";
 import { getAuthUser } from "@/auth/session";
-import { isRequestAuthenticated } from "@/auth/apiAuth";
+import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth/apiAuth";
 import type { KokpitConfig } from "@/config";
 import type { User } from "@/auth";
 
@@ -42,11 +42,11 @@ describe("isRequestAuthenticated", () => {
       config: configWithAuth(true),
       source: "settings",
     });
-    delete process.env.KOKPIT_AUTH_DISABLED;
+    vi.unstubAllEnvs();
   });
 
   afterEach(() => {
-    delete process.env.KOKPIT_AUTH_DISABLED;
+    vi.unstubAllEnvs();
   });
 
   it("returns true without touching cookies when auth is disabled in config", async () => {
@@ -56,7 +56,7 @@ describe("isRequestAuthenticated", () => {
   });
 
   it("returns true when KOKPIT_AUTH_DISABLED overrides enabled auth", async () => {
-    process.env.KOKPIT_AUTH_DISABLED = "true";
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
     vi.mocked(getConfigSnapshot).mockReturnValue({ state: "ready", config: configWithAuth(true), source: "settings" });
     await expect(isRequestAuthenticated()).resolves.toBe(true);
     expect(cookies).not.toHaveBeenCalled();
@@ -99,5 +99,21 @@ describe("isRequestAuthenticated", () => {
   it("uses a caller-provided stable config without reading a second snapshot", async () => {
     await expect(isRequestAuthenticated(configWithAuth(false))).resolves.toBe(true);
     expect(getConfigSnapshot).not.toHaveBeenCalled();
+  });
+});
+
+describe("isAuthenticationEnabled", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns the stable config's authentication state", () => {
+    expect(isAuthenticationEnabled(configWithAuth(true))).toBe(true);
+    expect(isAuthenticationEnabled(configWithAuth(false))).toBe(false);
+  });
+
+  it("returns false when KOKPIT_AUTH_DISABLED disables config-enabled auth", () => {
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
+    expect(isAuthenticationEnabled(configWithAuth(true))).toBe(false);
   });
 });

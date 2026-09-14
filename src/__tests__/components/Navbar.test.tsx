@@ -41,7 +41,7 @@ describe("Navbar", () => {
   it("renders the edit toggle without throwing when canEdit is true and it is nested inside EditModeProvider", () => {
     expect(() =>
       render(
-        <EditModeProvider canEdit={true}>
+        <EditModeProvider canEdit={true} connectionTestingEnabled={true}>
           <Navbar showLogout={false} canEdit={true} />
         </EditModeProvider>
       )
