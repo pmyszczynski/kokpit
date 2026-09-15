@@ -4,8 +4,7 @@ import {
   getUserByUsername,
   verifyRecoveryCode,
   hashPassword,
-  updatePasswordHash,
-  clearRecoveryCodeHash,
+  consumeRecoveryCodeAndUpdatePassword,
 } from "@/auth";
 
 // Dummy hash so verifyRecoveryCode always does the same amount of work,
@@ -98,9 +97,13 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(newPassword);
-  updatePasswordHash(user.id, passwordHash);
-  // Single-use: the code is invalidated the moment it's redeemed.
-  clearRecoveryCodeHash(user.id);
+  if (!consumeRecoveryCodeAndUpdatePassword(user.id, user.recoveryCodeHash, passwordHash)) {
+    recordFailure(rateLimitKey);
+    return NextResponse.json(
+      { error: "Invalid username or recovery code" },
+      { status: 401 }
+    );
+  }
   attempts.delete(rateLimitKey);
 
   return NextResponse.json({

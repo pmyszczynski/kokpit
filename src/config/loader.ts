@@ -866,19 +866,24 @@ function revisionMismatchForCurrentConfig(): ConfigRevisionMismatchError {
   try {
     const latestSource = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
     const latestDocument = parseSettingsDocument(latestSource);
-    const latestConfig = KokpitConfigSchema.parse(latestDocument.toJS());
+    KokpitConfigSchema.parse(latestDocument.toJS());
     markConfigDirty();
-    return new ConfigRevisionMismatchError(configRevision(latestConfig));
+    return new ConfigRevisionMismatchError(configRevision(latestSource));
   } catch {
     return new ConfigRevisionMismatchError();
   }
 }
 
-export function writeConfig(
+export type WrittenConfigSnapshot = {
+  config: KokpitConfig;
+  source: string;
+};
+
+export function writeConfigSnapshot(
   updates: Partial<KokpitConfig>,
   expectedRevision?: string,
   expectedSource?: string
-): KokpitConfig {
+): WrittenConfigSnapshot {
   let persistedConfig: KokpitConfig;
   let persistedSource: string;
   const fixedGridUpdates: Partial<KokpitConfig> = { ...updates };
@@ -896,15 +901,14 @@ export function writeConfig(
   }
   withConfigLock(() => {
     const source = readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8");
-    // An API request may only write the exact bytes it just authorized. A
-    // matching semantic revision is insufficient: comments and a freshly
-    // introduced auth policy are still an external ownership transition.
+    // An API request may only write the exact bytes it just authorized.
+    // Comments and formatting are source-owned external changes too.
     if (expectedRevision !== undefined && (expectedSource ?? configCache().source) !== source) {
       throw revisionMismatchForCurrentConfig();
     }
     const doc = parseSettingsDocument(source);
     const current = KokpitConfigSchema.parse(doc.toJS());
-    const currentRevision = configRevision(current);
+    const currentRevision = configRevision(source);
     if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
       throw new ConfigRevisionMismatchError(currentRevision);
     }
@@ -935,7 +939,16 @@ export function writeConfig(
   cache.pendingSource = null;
   cache.state = "ready";
   resetCacheRefresh(cache);
-  return persistedConfig!;
+  return { config: persistedConfig!, source: persistedSource! };
+}
+
+/** Backwards-compatible config-only wrapper for server callers. */
+export function writeConfig(
+  updates: Partial<KokpitConfig>,
+  expectedRevision?: string,
+  expectedSource?: string
+): KokpitConfig {
+  return writeConfigSnapshot(updates, expectedRevision, expectedSource).config;
 }
 export function invalidateCache(): void {
   const cache = configCache();

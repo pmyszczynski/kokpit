@@ -20,21 +20,39 @@ function openDb() {
   const path = process.env.KOKPIT_DB_PATH ?? "data/users.db";
   mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path);
-  db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      totp_secret TEXT,
-      created_at INTEGER NOT NULL
-    )
-  `);
-  const columns = db.prepare("PRAGMA table_info(users)").all();
-  if (!columns.some((c) => c.name === "recovery_code_hash")) {
-    db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+  try {
+    db.pragma("journal_mode = WAL");
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          totp_secret TEXT,
+          session_version INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        )
+      `);
+      const columns = db.prepare("PRAGMA table_info(users)").all();
+      if (!columns.some((c) => c.name === "recovery_code_hash")) {
+        db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+      }
+      if (!columns.some((c) => c.name === "session_version")) {
+        db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {}
+      throw error;
+    }
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
   }
-  return db;
 }
 
 function ask(rl, question) {
@@ -120,7 +138,7 @@ async function main() {
   const clearRecoveryCode = await askYesNo(rl, "Also invalidate the saved recovery code?");
 
   const passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
-  const updates = ["password_hash = ?"];
+  const updates = ["password_hash = ?", "session_version = session_version + 1"];
   const params = [passwordHash];
   if (clearTotp) updates.push("totp_secret = NULL");
   if (clearRecoveryCode) updates.push("recovery_code_hash = NULL");
@@ -131,7 +149,7 @@ async function main() {
   console.log(`\nPassword reset for "${user.username}".`);
   if (clearTotp) console.log("2FA has been disabled.");
   if (clearRecoveryCode) console.log("The recovery code has been invalidated — generate a new one from Settings after logging in.");
-  console.log("Log out any existing sessions and sign in with the new password.");
+  console.log("Existing sessions have been revoked. Sign in with the new password.");
 
   rl.close();
   db.close();

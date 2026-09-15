@@ -9,6 +9,7 @@ export {
   getConfigSnapshot,
   getConfigSnapshotForWrite,
   loadConfig,
+  writeConfigSnapshot,
   writeConfig,
   getConfigPath,
   refreshConfigCache,

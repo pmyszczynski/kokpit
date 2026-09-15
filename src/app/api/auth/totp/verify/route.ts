@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   }
 
   const user = getUserById(challenge.userId);
-  if (!user || !user.totpSecret) {
+  if (!user || !user.totpSecret || user.sessionVersion !== challenge.sessionVersion) {
     return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
   }
 
@@ -79,6 +79,6 @@ export async function POST(req: Request) {
   failedAttempts.delete(key);
   invalidatedTokens.set(key, Date.now() + CHALLENGE_TTL_MS);
 
-  await createSessionCookie(user.id);
+  await createSessionCookie(user.id, user.sessionVersion);
   return NextResponse.json({ id: user.id, username: user.username });
 }

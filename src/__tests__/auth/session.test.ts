@@ -23,7 +23,7 @@ describe("getAuthUser()", () => {
     const { getAuthUser } = await import("../../auth/session");
 
     const user = await createUser("testuser", "hash");
-    const token = await signJWT(user.id, 24);
+    const token = await signJWT(user.id, user.sessionVersion, 24);
     const result = await getAuthUser(token);
     expect(result?.username).toBe("testuser");
   });
@@ -32,7 +32,20 @@ describe("getAuthUser()", () => {
     const { signJWT } = await import("../../auth/jwt");
     const { getAuthUser } = await import("../../auth/session");
 
-    const token = await signJWT("non-existent-user-id", 24);
+    const token = await signJWT("non-existent-user-id", 0, 24);
+    expect(await getAuthUser(token)).toBeNull();
+  });
+
+  it("rejects a session minted from an authentication snapshot after a password reset", async () => {
+    const { signJWT } = await import("../../auth/jwt");
+    const { createUser, updatePasswordHash } = await import("../../auth/users");
+    const { getAuthUser } = await import("../../auth/session");
+
+    const user = await createUser("revoked-user", "oldhash");
+    const authenticatedVersion = user.sessionVersion;
+    updatePasswordHash(user.id, "newhash");
+    const token = await signJWT(user.id, authenticatedVersion, 24);
+
     expect(await getAuthUser(token)).toBeNull();
   });
 });

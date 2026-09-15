@@ -2,7 +2,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { jwtVerify } from "jose";
+import { jwtVerify, SignJWT } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 beforeAll(() => {
@@ -13,14 +13,14 @@ beforeAll(() => {
 describe("signJWT()", () => {
   it("returns a JWT string (3 dot-separated parts)", async () => {
     const { signJWT } = await import("../../auth/jwt");
-    const token = await signJWT("user-123", 24);
+    const token = await signJWT("user-123", 0, 24);
     expect(typeof token).toBe("string");
     expect(token.split(".")).toHaveLength(3);
   });
 
   it("continues signing sessions with the raw existing server secret bytes", async () => {
     const { signJWT } = await import("../../auth/jwt");
-    const token = await signJWT("unchanged-key-user", 24);
+    const token = await signJWT("unchanged-key-user", 0, 24);
     const { payload } = await jwtVerify(
       token,
       new TextEncoder().encode(process.env.KOKPIT_SESSION_SECRET!)
@@ -33,14 +33,15 @@ describe("signJWT()", () => {
 describe("verifyJWT()", () => {
   it("returns userId for a valid token", async () => {
     const { signJWT, verifyJWT } = await import("../../auth/jwt");
-    const token = await signJWT("user-abc", 24);
+    const token = await signJWT("user-abc", 0, 24);
     const payload = await verifyJWT(token);
     expect(payload?.userId).toBe("user-abc");
+    expect(payload?.sessionVersion).toBe(0);
   });
 
   it("returns null for a tampered token", async () => {
     const { signJWT, verifyJWT } = await import("../../auth/jwt");
-    const token = await signJWT("user-xyz", 24);
+    const token = await signJWT("user-xyz", 0, 24);
     const tampered = token.slice(0, -5) + "XXXXX";
     expect(await verifyJWT(tampered)).toBeNull();
   });
@@ -52,9 +53,29 @@ describe("verifyJWT()", () => {
 
   it("returns null for a totp_challenge token (must not be accepted as a session)", async () => {
     const { signTotpChallenge, verifyJWT, verifyTotpChallenge } = await import("../../auth/jwt");
-    const token = await signTotpChallenge("user-123");
+    const token = await signTotpChallenge("user-123", 0);
     expect(await verifyJWT(token)).toBeNull();
     expect((await verifyTotpChallenge(token))?.userId).toBe("user-123");
+  });
+
+  it("accepts legacy tokens without a version as version zero", async () => {
+    const { verifyJWT } = await import("../../auth/jwt");
+    const token = await new SignJWT({ userId: "legacy-user" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime("1h")
+      .sign(new TextEncoder().encode(process.env.KOKPIT_SESSION_SECRET!));
+
+    expect(await verifyJWT(token)).toEqual({ userId: "legacy-user", sessionVersion: 0 });
+  });
+
+  it("rejects a signed token with a malformed version claim", async () => {
+    const { verifyJWT } = await import("../../auth/jwt");
+    const token = await new SignJWT({ userId: "user-abc", sessionVersion: "0" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime("1h")
+      .sign(new TextEncoder().encode(process.env.KOKPIT_SESSION_SECRET!));
+
+    expect(await verifyJWT(token)).toBeNull();
   });
 });
 
@@ -76,7 +97,7 @@ describe("auto-generated secret (no KOKPIT_SESSION_SECRET)", () => {
 
   it("signs a JWT and writes the generated secret to .session_secret", async () => {
     const { signJWT } = await import("../../auth/jwt");
-    const token = await signJWT("user-1", 1);
+    const token = await signJWT("user-1", 0, 1);
     expect(typeof token).toBe("string");
     expect(token.split(".")).toHaveLength(3);
 
@@ -88,7 +109,7 @@ describe("auto-generated secret (no KOKPIT_SESSION_SECRET)", () => {
 
   it("reuses the persisted secret so tokens survive a simulated restart", async () => {
     const { signJWT } = await import("../../auth/jwt");
-    const token = await signJWT("user-123", 1);
+    const token = await signJWT("user-123", 0, 1);
 
     // Simulate a restart: fresh module, same file on disk
     vi.resetModules();

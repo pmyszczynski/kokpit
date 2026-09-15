@@ -15,6 +15,7 @@ describe("user management", () => {
     expect(user.username).toBe("admin");
     expect(user.passwordHash).toBe("hash123");
     expect(user.createdAt).toBeInstanceOf(Date);
+    expect(user.sessionVersion).toBe(0);
   });
 
   it("getUserByUsername returns the user when found", async () => {
@@ -79,5 +80,6 @@ describe("user management", () => {
 
     updatePasswordHash(user.id, "newhash");
     expect(getUserById(user.id)?.passwordHash).toBe("newhash");
+    expect(getUserById(user.id)?.sessionVersion).toBe(1);
   });
 });

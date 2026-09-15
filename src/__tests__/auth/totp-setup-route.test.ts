@@ -24,8 +24,8 @@ vi.mock("@/config/server", () => ({
 }));
 
 async function makeSessionCookie(userId: string): Promise<string> {
-  const { signJWT } = await import("@/auth");
-  return signJWT(userId, 24);
+  const { getUserById, signJWT } = await import("@/auth");
+  return signJWT(userId, getUserById(userId)!.sessionVersion, 24);
 }
 
 describe("GET /api/auth/totp/setup", () => {

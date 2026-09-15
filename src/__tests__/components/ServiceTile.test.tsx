@@ -40,7 +40,7 @@ describe("ServiceTile", () => {
 
   it("renders the service name", async () => {
     await act(async () => {
-      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+      render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     expect(screen.getByText("Jellyfin")).toBeInTheDocument();
   });
@@ -78,7 +78,7 @@ describe("ServiceTile", () => {
       let container!: HTMLElement;
       await act(async () => {
         ({ container } = render(
-          <ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />
+          <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />
         ));
       });
       expect(container.querySelector(".status-dot")).not.toBeNull();
@@ -116,7 +116,7 @@ describe("ServiceTile", () => {
 
   it("links to the correct URL in a new tab", async () => {
     await act(async () => {
-      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+      render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "http://192.168.1.10:8096");
@@ -149,7 +149,7 @@ describe("ServiceTile", () => {
 
   it("does not render description when not provided", async () => {
     await act(async () => {
-      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+      render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     expect(screen.queryByText(/media/i)).not.toBeInTheDocument();
   });
@@ -303,7 +303,7 @@ describe("ServiceTile", () => {
 
   it("status dot shows ok after ping resolves", async () => {
     await act(async () => {
-      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+      render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     // act() flushes effects and the initial fetch promise
     expect(screen.getByTitle("Online")).toHaveClass("status-dot--ok");
@@ -318,7 +318,7 @@ describe("ServiceTile", () => {
     );
 
     await act(async () => {
-      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+      render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
 
     expect(screen.getByTitle("Offline")).toHaveClass("status-dot--error");
@@ -330,6 +330,21 @@ describe("ServiceTile", () => {
     });
     expect(screen.getByText("System Stats")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("does not poll saved integration-only services without a launch URL", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { container } = render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="System Stats" />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(container.querySelector(".status-dot")).toBeNull();
+      expect(container.querySelector("[data-corner-slot]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("defaults to the service-tile--normal size variant", async () => {
@@ -361,7 +376,7 @@ describe("ServiceTile", () => {
 
     await act(async () => {
       render(
-        <ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" preview />
+        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" preview />
       );
     });
     // No probe on mount…
@@ -385,6 +400,7 @@ describe("ServiceTile", () => {
     await act(async () => {
       ({ container } = render(
         <ServiceTile
+          serviceId="10000000-0000-4000-8000-000000000001"
           name="Sonarr"
           url="http://192.168.1.10:8989"
           widget={{ type: "sonarr-queue" }}
@@ -408,7 +424,7 @@ describe("ServiceTile", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     await act(async () => {
-      render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
+      render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     // Initial call on mount
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -447,6 +463,7 @@ describe("ServiceTile broken-widget badge", () => {
     await act(async () => {
       ({ container } = render(
         <ServiceTile
+          serviceId="10000000-0000-4000-8000-000000000001"
           name="Sonarr"
           url="http://sonarr.local"
           widget={{ type: "sonarr-queue", invalid: issues }}
@@ -472,6 +489,7 @@ describe("ServiceTile broken-widget badge", () => {
     await act(async () => {
       ({ container } = render(
         <ServiceTile
+          serviceId="10000000-0000-4000-8000-000000000001"
           name="Sonarr"
           url="http://sonarr.local"
           widget={{ type: "sonarr-queue" }}
@@ -503,6 +521,7 @@ describe("ServiceTile broken-widget badge", () => {
     await act(async () => {
       ({ container } = render(
         <ServiceTile
+          serviceId="10000000-0000-4000-8000-000000000001"
           name="Sonarr"
           url="http://sonarr.local"
           widget={{ type: "sonarr-queue" }}

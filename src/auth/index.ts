@@ -9,6 +9,7 @@ export {
   setRecoveryCodeHash,
   clearRecoveryCodeHash,
   updatePasswordHash,
+  consumeRecoveryCodeAndUpdatePassword,
 } from "./users";
 export { hashPassword, verifyPassword } from "./passwords";
 export { signJWT, verifyJWT, signTotpChallenge, verifyTotpChallenge } from "./jwt";

@@ -9,5 +9,6 @@ export async function getAuthUser(
   if (!token) return null;
   const payload = await verifyJWT(token);
   if (!payload) return null;
-  return getUserById(payload.userId);
+  const user = getUserById(payload.userId);
+  return user?.sessionVersion === payload.sessionVersion ? user : null;
 }

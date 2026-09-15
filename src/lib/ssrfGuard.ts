@@ -14,15 +14,16 @@ export class SsrfBlockedError extends Error {
 /**
  * Whether a resolved address is safe to connect to. "unicast" is an
  * ordinary public address (ipaddr.js's term for anything not in a
- * special-purpose IANA range). Ranges like linkLocal (which covers every
- * cloud provider's 169.254.169.254 metadata address) and unspecified/
+ * special-purpose IANA range). Ranges like linkLocal (which covers the
+ * IPv4 metadata endpoint 169.254.169.254) and unspecified/
  * multicast/reserved are never a legitimate icon-detection target, so they
  * stay blocked even when private-network access is explicitly allowed.
  */
 function isAllowedRange(range: string, allowPrivateNetworks: boolean): boolean {
   if (range === "unicast") return true;
   if (allowPrivateNetworks) {
-    return range === "private" || range === "loopback" || range === "uniqueLocal";
+    return range === "private" || range === "loopback" || range === "uniqueLocal"
+      || range === "carrierGradeNat";
   }
   return false;
 }
@@ -53,7 +54,11 @@ async function resolveValidatedAddresses(
 
   const allowed = resolved.filter((r) => {
     try {
-      return isAllowedRange(ipaddr.process(r.address).range(), allowPrivateNetworks);
+      const address = ipaddr.process(r.address);
+      // These metadata endpoints sit inside otherwise allowed LAN/VPN ranges.
+      const normalized = address.toNormalizedString();
+      if (normalized === "fd00:ec2:0:0:0:0:0:254" || normalized === "100.100.100.200") return false;
+      return isAllowedRange(address.range(), allowPrivateNetworks);
     } catch {
       return false;
     }

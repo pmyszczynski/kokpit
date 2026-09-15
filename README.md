@@ -258,6 +258,8 @@ auth:
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
 
+Service status checks use saved service URLs, including LAN and Tailscale addresses. They remain available with authentication disabled. Link-local, metadata, and reserved addresses are blocked, including redirect destinations.
+
 ## Edit Mode
 
 Click the pencil icon in the navbar (or press `Mod+E` — Cmd+E on macOS, Ctrl+E on Windows/Linux) to edit the dashboard in place. Edit mode follows the same access as `/settings` — any authenticated user, or everyone if `auth.enabled: false`. Outside edit mode, the dashboard is unchanged and read-only, exactly as it renders today.
@@ -272,6 +274,8 @@ While editing:
 
 **Conflict safety:** edit mode captures the config revision when you enter. If `settings.yaml` changes on disk while you're editing — a hand edit, another tab saving first — Save is rejected instead of silently overwriting, and the edit bar shows a "changed on disk" notice with a **Reload** action to pull the new version before you try again.
 
+The **Settings** page also checks the revision on every save. If another tab or an external YAML edit changes the file, including comments or formatting, saving stops and a reload notice appears. Reloading discards the local draft and loads the latest settings.
+
 ## Account Recovery
 
 Kokpit doesn't collect an email address or phone number, so password recovery works differently than most apps.
@@ -281,7 +285,7 @@ Kokpit doesn't collect an email address or phone number, so password recovery wo
 1. Click **Forgot password?** on the login page.
 2. Enter your username, recovery code, and a new password.
 
-Redeeming the code resets your password only. If you have 2FA enabled, you'll still need your authenticator app to sign in afterward — a leaked recovery code can't bypass 2FA on its own. The code is single-use; after redeeming it, generate a new one from **Settings → Authentication → Generate new recovery code** (this requires your current password).
+Redeeming the code resets your password and invalidates all existing sessions and pending 2FA sign-in challenges for your account. If you have 2FA enabled, you'll still need your authenticator app to sign in afterward — a leaked recovery code can't bypass 2FA on its own. The code is single-use; after redeeming it, generate a new one from **Settings → Authentication → Generate new recovery code** (this requires your current password).
 
 **Lost the recovery code too?** If you're locked out entirely — forgotten password, and no recovery code, and (if applicable) no TOTP device — you can reset your password directly from the host or container running Kokpit, the same access level already required to read `data/users.db`:
 
@@ -293,7 +297,7 @@ docker compose exec kokpit npm run reset-password
 npm run reset-password
 ```
 
-This walks you through setting a new password, and optionally clearing 2FA and/or the saved recovery code, directly against the database.
+This walks you through setting a new password, and optionally clearing 2FA and/or the saved recovery code, directly against the database. It also invalidates all existing sessions and pending 2FA sign-in challenges for the account.
 
 ## Widgets
 
