@@ -75,23 +75,32 @@ test("settings detects a comment-only external edit before saving", async ({ pag
   const initial = await request.get("/api/settings");
   const revision = initial.headers()["x-config-revision"];
   const configPath = resolve("e2e/fixtures/settings.yaml");
-  const document = parseDocument(await readFile(configPath, "utf-8"));
+  const originalSource = await readFile(configPath, "utf-8");
+  const document = parseDocument(originalSource);
   const services = document.get("services", true);
   if (!isSeq(services)) throw new Error("Expected a services sequence in the test fixture");
   services.commentBefore = " Keep this external editor note";
   const externalSource = document.toString();
-  await writeFile(configPath, externalSource);
+  try {
+    await writeFile(configPath, externalSource);
 
-  // Wait until the watcher has published the edit, beyond its temporary dirty state.
-  await expect.poll(async () => {
-    const response = await request.get("/api/settings");
-    return response.status() === 200 && response.headers()["x-config-revision"] !== revision;
-  }).toBe(true);
-  const rejectedSave = page.waitForResponse((response) =>
-    response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
-  );
-  await page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true }).click();
-  expect((await rejectedSave).status()).toBe(409);
-  await expect(page.getByRole("alert").filter({ hasText: "changed while you were editing" })).toBeVisible();
-  expect(await readFile(configPath, "utf-8")).toBe(externalSource);
+    // Wait until the watcher has published the edit, beyond its temporary dirty state.
+    await expect.poll(async () => {
+      const response = await request.get("/api/settings");
+      return response.status() === 200 && response.headers()["x-config-revision"] !== revision;
+    }).toBe(true);
+    const rejectedSave = page.waitForResponse((response) =>
+      response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
+    );
+    await page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true }).click();
+    expect((await rejectedSave).status()).toBe(409);
+    await expect(page.getByRole("alert").filter({ hasText: "changed while you were editing" })).toBeVisible();
+    expect(await readFile(configPath, "utf-8")).toBe(externalSource);
+  } finally {
+    await writeFile(configPath, originalSource);
+    await expect.poll(async () => {
+      const response = await request.get("/api/settings");
+      return response.status() === 200 && response.headers()["x-config-revision"] === revision;
+    }).toBe(true);
+  }
 });
