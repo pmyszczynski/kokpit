@@ -22,7 +22,8 @@ export class SsrfBlockedError extends Error {
 function isAllowedRange(range: string, allowPrivateNetworks: boolean): boolean {
   if (range === "unicast") return true;
   if (allowPrivateNetworks) {
-    return range === "private" || range === "loopback" || range === "uniqueLocal";
+    return range === "private" || range === "loopback" || range === "uniqueLocal"
+      || range === "carrierGradeNat";
   }
   return false;
 }
@@ -54,9 +55,9 @@ async function resolveValidatedAddresses(
   const allowed = resolved.filter((r) => {
     try {
       const address = ipaddr.process(r.address);
-      // EC2's IPv6 metadata endpoint is unique-local, unlike IPv4 metadata.
-      // Block it explicitly while allowing ordinary IPv6 homelab addresses.
-      if (address.toNormalizedString() === "fd00:ec2:0:0:0:0:0:254") return false;
+      // These metadata endpoints sit inside otherwise allowed LAN/VPN ranges.
+      const normalized = address.toNormalizedString();
+      if (normalized === "fd00:ec2:0:0:0:0:0:254" || normalized === "100.100.100.200") return false;
       return isAllowedRange(address.range(), allowPrivateNetworks);
     } catch {
       return false;

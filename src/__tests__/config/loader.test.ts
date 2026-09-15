@@ -294,16 +294,16 @@ services: []
 });
 
 describe("writeConfig", () => {
-  it("rejects a revision-equivalent source that was not the authorized snapshot", async () => {
+  it("rejects a semantically equivalent source that was not the authorized snapshot", async () => {
     const { ConfigRevisionMismatchError, getConfigSnapshot, loadConfig, writeConfig } = await freshLoader();
-    const initial = loadConfig();
+    loadConfig();
     const snapshot = getConfigSnapshot();
     const externalSource = `${snapshot.source}\n# external owner\n`;
     writeFileSync(configPath, externalSource, "utf-8");
 
     expect(() => writeConfig(
       { appearance: { theme: "light" } },
-      configRevision(initial),
+      configRevision(snapshot.source!),
       snapshot.source!
     )).toThrow(ConfigRevisionMismatchError);
     expect(readFileSync(configPath, "utf-8")).toBe(externalSource);
@@ -444,6 +444,17 @@ describe("writeConfig", () => {
 
     // writeConfig() publishes the exact persisted config to the shared cache.
     expect(getConfig().appearance.theme).toBe("light");
+  });
+
+  it("returns the exact persisted source with its parsed config", async () => {
+    const { loadConfig, writeConfigSnapshot } = await freshLoader();
+    loadConfig();
+
+    const written = writeConfigSnapshot({ appearance: { theme: "light" } });
+
+    expect(written.config.appearance.theme).toBe("light");
+    expect(written.source).toBe(readFileSync(configPath, "utf-8"));
+    expect(configRevision(written.source)).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("preserves other top-level keys not included in the update", async () => {

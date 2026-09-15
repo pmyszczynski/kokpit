@@ -150,4 +150,26 @@ describe("POST /api/ping auth and config state", () => {
     expect((await POST(post({ serviceId: SERVICE_ID }))).status).toBe(409);
     expect(ssrfSafeFetchMock).not.toHaveBeenCalled();
   });
+
+  it("probes services from a valid external config awaiting migration", async () => {
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
+    const { getConfigSnapshot, refreshConfigCache } = await import("@/config/server");
+    expect(getConfigSnapshot().state).toBe("ready");
+    vi.mocked(readFileSync).mockReturnValue(`schema_version: 1
+services:
+  - name: Legacy
+    url: http://192.168.1.20:8080
+`);
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("migration-required");
+    const snapshot = getConfigSnapshot();
+    ssrfSafeFetchMock.mockResolvedValue(response(200));
+    const { POST } = await import("../../app/api/ping/route");
+    const result = await POST(post({ serviceId: snapshot.config!.services[0].id }));
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ ok: true, status: 200 });
+    expect(ssrfSafeFetchMock).toHaveBeenCalledWith(
+      "http://192.168.1.20:8080/", expect.objectContaining({ allowPrivateNetworks: true })
+    );
+  });
 });

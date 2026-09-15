@@ -66,6 +66,7 @@ describe("ssrfSafeFetch", () => {
     ["private (10.x)", "10.1.2.3"],
     ["private (192.168.x)", "192.168.1.1"],
     ["private (172.16-31.x)", "172.20.0.1"],
+    ["CGNAT / Tailscale", "100.64.0.1"],
     ["link-local / cloud metadata", "169.254.169.254"],
     ["unique-local IPv6", "fd00:ec2::254"],
     ["loopback IPv6", "::1"],
@@ -84,7 +85,7 @@ describe("ssrfSafeFetch", () => {
     expect(res.status).toBe(200);
   });
 
-  it.each(["10.1.2.3", "192.168.1.1", "172.20.0.1", "127.0.0.1"])(
+  it.each(["10.1.2.3", "192.168.1.1", "172.20.0.1", "127.0.0.1", "100.64.0.1", "100.127.255.254", "100.100.100.201"])(
     "allows %s when allowPrivateNetworks is true",
     async (ip) => {
       dnsLookupMock.mockResolvedValue(resolvesTo(ip));
@@ -117,6 +118,26 @@ describe("ssrfSafeFetch", () => {
     undiciFetchMock.mockResolvedValueOnce(response(200));
     const res = await ssrfSafeFetch("http://lan.example.com", { allowPrivateNetworks: true });
     expect(res.status).toBe(200);
+  });
+
+  it.each(["100.100.100.200", "::ffff:100.100.100.200"])(
+    "blocks Alibaba metadata %s with LAN access enabled", async (address) => {
+      dnsLookupMock.mockResolvedValue(resolvesTo(address, address.includes(":") ? 6 : 4));
+      await expect(ssrfSafeFetch("http://metadata.example.com/", {
+        allowPrivateNetworks: true,
+      })).rejects.toThrow(SsrfBlockedError);
+      expect(undiciFetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("blocks a redirect to Alibaba metadata from a CGNAT service", async () => {
+    dnsLookupMock.mockResolvedValueOnce(resolvesTo("100.64.0.1"))
+      .mockResolvedValueOnce(resolvesTo("100.100.100.200"));
+    undiciFetchMock.mockResolvedValueOnce(response(302, { location: "http://100.100.100.200/latest/meta-data/" }));
+    await expect(ssrfSafeFetch("http://100.64.0.1/", {
+      allowPrivateNetworks: true,
+    })).rejects.toThrow(SsrfBlockedError);
+    expect(undiciFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("blocks a redirect resolving to IPv6 metadata with LAN access enabled", async () => {

@@ -44,10 +44,10 @@ async function checkSavedService(url: string): Promise<number> {
 
 export async function POST(request: Request) {
   const snapshot = getConfigSnapshot();
-  if (!(await isRequestAuthenticated(snapshot.config ?? undefined))) {
+  if (!(await isRequestAuthenticated(snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (snapshot.state !== "ready" || !snapshot.config) {
+  if (snapshot.state === "dirty" || !snapshot.config) {
     return NextResponse.json({ error: "Configuration is being updated" }, { status: 409 });
   }
 

@@ -6,7 +6,7 @@ import {
   ConfigUnavailableError,
   getConfigSnapshot,
   getConfigSnapshotForWrite,
-  writeConfig,
+  writeConfigSnapshot,
 } from "@/config/server";
 import {
   BackgroundSchema,
@@ -70,7 +70,7 @@ export async function GET() {
   if (!(await isRequestAuthenticated(snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (snapshot.state === "dirty" || !snapshot.config) {
+  if (snapshot.state === "dirty" || !snapshot.config || !snapshot.source) {
     return NextResponse.json(
       { error: "settings.yaml is being updated; retry once the change is complete", code: "config_unavailable" },
       { status: 409 }
@@ -80,7 +80,7 @@ export async function GET() {
   // The revision is derived from the real config while the browser receives
   // opaque references for registry-declared password fields.
   return NextResponse.json(toClientSafeSettings(config), {
-    headers: { [CONFIG_REVISION_HEADER]: configRevision(config) },
+    headers: { [CONFIG_REVISION_HEADER]: configRevision(snapshot.source) },
   });
 }
 
@@ -116,7 +116,7 @@ export async function PATCH(request: NextRequest) {
     // and CAS below intentionally use this same snapshot; an external edit is
     // never promoted to writable by a PATCH request.
     const snapshot = getConfigSnapshotForWrite();
-    if (snapshot.state === "dirty" || !snapshot.config) {
+    if (snapshot.state === "dirty" || !snapshot.config || !snapshot.source) {
       return NextResponse.json(
         { error: "settings.yaml is being updated; reload before saving.", code: "config_unavailable" },
         { status: 409 }
@@ -132,7 +132,7 @@ export async function PATCH(request: NextRequest) {
         { status: 409 }
       );
     }
-    const currentRevision = configRevision(current);
+    const currentRevision = configRevision(snapshot.source);
     if (ifMatch !== null && ifMatch !== currentRevision) {
       return NextResponse.json(
         { error: "settings.yaml changed since you started editing; reload before saving.", code: "revision_mismatch" },
@@ -160,14 +160,15 @@ export async function PATCH(request: NextRequest) {
       }, { status: 400 });
     }
     try {
-      const updated = writeConfig(
-        updates as Parameters<typeof writeConfig>[0],
+      const updated = writeConfigSnapshot(
+        updates,
         currentRevision,
-        snapshot.source!
+        snapshot.source
       );
-      await pruneOrphanedUploads(updated);
-      return NextResponse.json(toClientSafeSettings(updated), {
-        headers: { [CONFIG_REVISION_HEADER]: configRevision(updated) },
+      const responseRevision = configRevision(updated.source);
+      await pruneOrphanedUploads(updated.config);
+      return NextResponse.json(toClientSafeSettings(updated.config), {
+        headers: { [CONFIG_REVISION_HEADER]: responseRevision },
       });
     } catch (error) {
       if (error instanceof ConfigUnavailableError) {

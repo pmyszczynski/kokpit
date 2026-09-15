@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { isSeq, parseDocument } from "yaml";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 
 const first = { name: "Saved service", url: "http://localhost:32400" };
@@ -56,4 +59,32 @@ test("settings conflict preserves the other editor's services and reloads a fres
   expect((await acceptedSave).status()).toBe(200);
   expect((await (await request.get("/api/settings")).json()).services.map((service: { name: string }) => service.name))
     .toEqual(["Added elsewhere"]);
+});
+
+test("settings detects a comment-only external edit before saving", async ({ page, request }) => {
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Services", exact: true }).click();
+  await expect(page.getByRole("row").filter({ hasText: first.name })).toBeVisible();
+  const initial = await request.get("/api/settings");
+  const revision = initial.headers()["x-config-revision"];
+  const configPath = resolve("e2e/fixtures/settings.yaml");
+  const document = parseDocument(await readFile(configPath, "utf-8"));
+  const services = document.get("services", true);
+  if (!isSeq(services)) throw new Error("Expected a services sequence in the test fixture");
+  services.commentBefore = " Keep this external editor note";
+  const externalSource = document.toString();
+  await writeFile(configPath, externalSource);
+
+  // Wait until the watcher has published the edit, beyond its temporary dirty state.
+  await expect.poll(async () => {
+    const response = await request.get("/api/settings");
+    return response.status() === 200 && response.headers()["x-config-revision"] !== revision;
+  }).toBe(true);
+  const rejectedSave = page.waitForResponse((response) =>
+    response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
+  );
+  await page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true }).click();
+  expect((await rejectedSave).status()).toBe(409);
+  await expect(page.getByRole("alert").filter({ hasText: "changed while you were editing" })).toBeVisible();
+  expect(await readFile(configPath, "utf-8")).toBe(externalSource);
 });

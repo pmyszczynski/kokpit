@@ -258,7 +258,7 @@ auth:
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
 
-Service status checks use saved service URLs, including LAN addresses. They remain available with authentication disabled. Link-local, metadata, and reserved addresses are blocked, including redirect destinations.
+Service status checks use saved service URLs, including LAN and Tailscale addresses. They remain available with authentication disabled. Link-local, metadata, and reserved addresses are blocked, including redirect destinations.
 
 ## Edit Mode
 
@@ -274,7 +274,7 @@ While editing:
 
 **Conflict safety:** edit mode captures the config revision when you enter. If `settings.yaml` changes on disk while you're editing — a hand edit, another tab saving first — Save is rejected instead of silently overwriting, and the edit bar shows a "changed on disk" notice with a **Reload** action to pull the new version before you try again.
 
-The **Settings** page also checks the revision on every save. If another tab or an external YAML edit changes the config, saving stops and a reload notice appears. Reloading discards the local draft and loads the latest settings.
+The **Settings** page also checks the revision on every save. If another tab or an external YAML edit changes the file, including comments or formatting, saving stops and a reload notice appears. Reloading discards the local draft and loads the latest settings.
 
 ## Account Recovery
 

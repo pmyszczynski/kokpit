@@ -36,22 +36,22 @@ function isDisplacedConfigPath(path: unknown) {
 }
 
 const SECRET_YAML = `
-schema_version: 1
+schema_version: 2
 auth:
   enabled: false
   session_ttl_hours: 24
 appearance:
   theme: dark
-layout:
-  columns: 4
-  row_height: 120
+layout: {}
 services:
-  - name: Tautulli
-    widget:
-      type: tautulli-activity
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Tautulli
+    integration:
+      type: tautulli
       config:
         url: http://tautulli.local:8181
         api_key: rsc-saved-secret
+service_tiles: []
 `.trim();
 
 describe("protected settings server component", () => {
@@ -74,18 +74,8 @@ describe("protected settings server component", () => {
     };
 
     expect(serialized).not.toContain("rsc-saved-secret");
-    expect(serialized).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
-    expect(revision).toHaveBeenCalledWith(
-      expect.objectContaining({
-        services: expect.arrayContaining([
-          expect.objectContaining({
-            integration: expect.objectContaining({
-              config: expect.objectContaining({ api_key: "rsc-saved-secret" }),
-            }),
-          }),
-        ]),
-      })
-    );
+    expect(serialized).toContain("__KOKPIT_WIDGET_CONFIG_REF__:");
+    expect(revision).toHaveBeenCalledWith(SECRET_YAML);
     expect(panel.props.initialRevision).toBe("revision-of-unredacted-snapshot");
   });
 });
