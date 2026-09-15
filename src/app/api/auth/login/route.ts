@@ -40,10 +40,10 @@ export async function POST(req: Request) {
   }
 
   if (user.totpSecret) {
-    const challengeToken = await signTotpChallenge(user.id);
+    const challengeToken = await signTotpChallenge(user.id, user.sessionVersion);
     return NextResponse.json({ requiresTotp: true, challengeToken });
   }
 
-  await createSessionCookie(user.id);
+  await createSessionCookie(user.id, user.sessionVersion);
   return NextResponse.json({ id: user.id, username: user.username });
 }

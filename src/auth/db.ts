@@ -18,6 +18,7 @@ export function getDb(): Database.Database {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       totp_secret TEXT,
+      session_version INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     )
   `);
@@ -25,6 +26,9 @@ export function getDb(): Database.Database {
   const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!columns.some((c) => c.name === "recovery_code_hash")) {
     db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+  }
+  if (!columns.some((c) => c.name === "session_version")) {
+    db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
   }
 
   return db;

@@ -62,12 +62,30 @@ describe("protected settings server component", () => {
   });
 
   it("passes only a signed reference, never a raw saved credential", async () => {
+    const revision = vi.fn(() => "revision-of-unredacted-snapshot");
+    vi.doMock("@/config/revision", () => ({ configRevision: revision }));
     const { default: SettingsPage } = await import(
       "@/app/(protected)/settings/page"
     );
-    const serialized = JSON.stringify(SettingsPage());
+    const page = SettingsPage();
+    const serialized = JSON.stringify(page);
+    const panel = (page.props.children as unknown[])[1] as {
+      props: { config: unknown; initialRevision: string };
+    };
 
     expect(serialized).not.toContain("rsc-saved-secret");
     expect(serialized).toContain("__KOKPIT_WIDGET_SECRET_REF__:");
+    expect(revision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        services: expect.arrayContaining([
+          expect.objectContaining({
+            integration: expect.objectContaining({
+              config: expect.objectContaining({ api_key: "rsc-saved-secret" }),
+            }),
+          }),
+        ]),
+      })
+    );
+    expect(panel.props.initialRevision).toBe("revision-of-unredacted-snapshot");
   });
 });

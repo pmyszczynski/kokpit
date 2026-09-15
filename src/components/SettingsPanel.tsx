@@ -26,6 +26,7 @@ import {
   projectCatalogServices,
   normalizeServicesForForm,
 } from "./edit/serviceFormProjection";
+import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
 
 type Tab =
   | "appearance"
@@ -63,19 +64,25 @@ function clampNumericField(
   return Math.min(max, Math.max(min, n));
 }
 
-function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
+function SaveButton({ status, onSave, disabled }: { status: SaveStatus; onSave: () => void; disabled: boolean }) {
   return (
     <button
       className="settings-save-btn"
       onClick={onSave}
-      disabled={status === "saving"}
+      disabled={disabled || status === "saving"}
     >
       {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Error — Retry" : "Save"}
     </button>
   );
 }
 
-export default function SettingsPanel({ config }: { config: ClientSafeSettings }) {
+export default function SettingsPanel({
+  config,
+  initialRevision,
+}: {
+  config: ClientSafeSettings;
+  initialRevision: string;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("appearance");
@@ -167,6 +174,15 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const servicesSavePendingRef = useRef(false);
+  // A single panel owns several independent drafts. They must all use the
+  // same compare-and-swap revision, and no second mutation may overtake a
+  // request that has already captured it.
+  const revisionRef = useRef(initialRevision);
+  const writePendingRef = useRef(false);
+  const conflictRef = useRef(false);
+  const [writePending, setWritePending] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const draftBlocked = writePending || conflict;
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
 
   async function fetchTotpStatus() {
@@ -268,14 +284,33 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     section: Tab,
     payload: Record<string, unknown>
   ): Promise<SaveResult> {
+    // This ref is set before the first await, so a second event in the same
+    // render cannot capture the old revision. A 409 remains blocked until the
+    // browser reloads the complete server document and discards this draft.
+    if (writePendingRef.current || conflictRef.current) return { ok: false };
+    writePendingRef.current = true;
+    setWritePending(true);
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "If-Match": revisionRef.current,
+        },
         body: JSON.stringify(payload),
       });
+      if (res.status === 409) {
+        conflictRef.current = true;
+        setConflict(true);
+        setSaveStatus((s) => ({ ...s, [section]: "error" }));
+        return { ok: false };
+      }
       if (!res.ok) throw new Error("Save failed");
+      // Do not learn a revision from refresh props or a conflict response.
+      // Only a successful write advances the local compare-and-swap token.
+      const nextRevision = res.headers?.get(CONFIG_REVISION_HEADER) ?? null;
+      if (nextRevision) revisionRef.current = nextRevision;
       // A services response contains freshly redacted credential references.
       // Those references identify the service by name, so a rename must replace
       // the optimistic client state with this authoritative response before the
@@ -298,6 +333,9 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     } catch {
       setSaveStatus((s) => ({ ...s, [section]: "error" }));
       return { ok: false };
+    } finally {
+      writePendingRef.current = false;
+      setWritePending(false);
     }
   }
 
@@ -313,6 +351,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleThemeSelect(t: typeof THEMES[number]) {
+    if (writePendingRef.current || conflictRef.current) return;
     setTheme(t);
     document.documentElement.dataset.theme = t;
   }
@@ -346,6 +385,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   async function handleBackgroundUpload(file: File) {
+    if (writePendingRef.current || conflictRef.current) return;
     setBgUploadStatus({ state: "uploading" });
     try {
       const body = new FormData();
@@ -396,7 +436,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleServiceSave(service: Service) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || writePendingRef.current || conflictRef.current) return;
     const next = [...services];
     if (editingIndex !== null) {
       next[editingIndex] = service;
@@ -409,13 +449,13 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleServiceDelete(index: number) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || writePendingRef.current || conflictRef.current) return;
     const next = services.filter((_, i) => i !== index);
     void saveServices(next);
   }
 
   function handleServiceReorder(from: number, to: number) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || writePendingRef.current || conflictRef.current) return;
     if (to < 0 || to >= services.length) return;
     const next = [...services];
     const [moved] = next.splice(from, 1);
@@ -473,6 +513,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }, [groups, undeclaredGroups]);
 
   function handleGroupReorder(from: number, to: number) {
+    if (writePendingRef.current || conflictRef.current) return;
     if (to < 0 || to >= groups.length) return;
     const next = [...groups];
     const [moved] = next.splice(from, 1);
@@ -481,16 +522,19 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleGroupDeclare(name: string) {
+    if (writePendingRef.current || conflictRef.current) return;
     if (declaredKeys.has(serviceNameUniquenessKey(name))) return;
     setGroups((prev) => [...prev, { name }]);
   }
 
   function handleGroupAdd(name: string) {
+    if (writePendingRef.current || conflictRef.current) return;
     if (declaredKeys.has(serviceNameUniquenessKey(name))) return;
     setGroups((prev) => [...prev, { name }]);
   }
 
   function handleGroupRename(oldName: string, newName: string) {
+    if (writePendingRef.current || conflictRef.current) return;
     const oldKey = serviceNameUniquenessKey(oldName);
     const newKey = serviceNameUniquenessKey(newName);
     // Reject a rename that would collide with ANOTHER declared group (the
@@ -516,6 +560,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleGroupToggleCollapsed(index: number) {
+    if (writePendingRef.current || conflictRef.current) return;
     setGroups((prev) =>
       prev.map((g, i) =>
         i === index ? { ...g, collapsed: !(g.collapsed ?? false) } : g
@@ -524,6 +569,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleGroupDelete(index: number) {
+    if (writePendingRef.current || conflictRef.current) return;
     const removed = groups[index];
     setGroups((prev) => prev.filter((_, i) => i !== index));
     // Members become ungrouped and bookmark placements are cleared — but only
@@ -535,7 +581,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     // Group renames/deletes may cascade into the complete services array.
     // Never let that full-list write race a service save carrying older
     // credential references.
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || writePendingRef.current || conflictRef.current) return;
     // Strip default values so omitted keys stay omitted in the YAML round-trip.
     const cleanGroups = groups.map((g) => ({
       name: g.name,
@@ -589,6 +635,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   // ----- Bookmarks tab -----
 
   function handleBookmarkReorder(from: number, to: number) {
+    if (writePendingRef.current || conflictRef.current) return;
     if (to < 0 || to >= bookmarks.length) return;
     const next = [...bookmarks];
     const [moved] = next.splice(from, 1);
@@ -598,22 +645,26 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleBookmarkDelete(index: number) {
+    if (writePendingRef.current || conflictRef.current) return;
     const next = bookmarks.filter((_, i) => i !== index);
     setBookmarks(next);
     save("bookmarks", next);
   }
 
   function openAddBookmark() {
+    if (writePendingRef.current || conflictRef.current) return;
     setEditingBookmarkIndex(null);
     setShowBookmarkForm(true);
   }
 
   function openEditBookmark(index: number) {
+    if (writePendingRef.current || conflictRef.current) return;
     setEditingBookmarkIndex(index);
     setShowBookmarkForm(true);
   }
 
   function handleBookmarkSave(bookmark: BookmarkGroup) {
+    if (writePendingRef.current || conflictRef.current) return;
     const next = [...bookmarks];
     if (editingBookmarkIndex !== null) {
       next[editingBookmarkIndex] = bookmark;
@@ -632,13 +683,13 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function openAddForm() {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || writePendingRef.current || conflictRef.current) return;
     setEditingIndex(null);
     setShowServiceForm(true);
   }
 
   function openEditForm(index: number) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || writePendingRef.current || conflictRef.current) return;
     setEditingIndex(index);
     setShowServiceForm(true);
   }
@@ -650,13 +701,22 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
 
   return (
     <div className="settings-panel">
+      {conflict && (
+        <div className="settings-save-feedback settings-save-feedback--error" role="alert">
+          settings.yaml changed while you were editing. Reload to discard this draft and load the current settings.
+          <button className="settings-btn" onClick={() => window.location.reload()}>
+            Reload settings
+          </button>
+        </div>
+      )}
+      <fieldset className="settings-controls" disabled={draftBlocked}>
       <nav className="settings-tabs" aria-label="Settings sections">
         {(["appearance", "layout", "groups", "services", "bookmarks", "auth"] as Tab[]).map((tab) => (
           <button
             key={tab}
             className={`settings-tab${activeTab === tab ? " settings-tab--active" : ""}`}
             onClick={() => setActiveTab(tab)}
-            disabled={servicesWritePending}
+            disabled={draftBlocked || servicesWritePending}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -831,7 +891,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
             </div>
 
             <div className="settings-actions">
-              <SaveButton status={saveStatus.appearance} onSave={handleSaveAppearance} />
+              <SaveButton status={saveStatus.appearance} onSave={handleSaveAppearance} disabled={draftBlocked} />
             </div>
           </section>
         )}
@@ -870,7 +930,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
             </div>
 
             <div className="settings-actions">
-              <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} />
+              <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} disabled={draftBlocked} />
             </div>
 
             <h3 className="settings-section__subtitle">Two-Factor Authentication</h3>
@@ -1180,6 +1240,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
           onClose={closeBookmarkForm}
         />
       )}
+      </fieldset>
     </div>
   );
 }

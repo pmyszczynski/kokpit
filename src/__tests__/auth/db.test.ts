@@ -32,6 +32,7 @@ describe("getDb()", () => {
     const db = getDb();
     const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
     expect(columns.some((c) => c.name === "recovery_code_hash")).toBe(true);
+    expect(columns.some((c) => c.name === "session_version")).toBe(true);
   });
 
   it("migrates an existing DB that predates the recovery_code_hash column", async () => {
@@ -48,6 +49,9 @@ describe("getDb()", () => {
           created_at INTEGER NOT NULL
         )
       `);
+      legacyDb
+        .prepare("INSERT INTO users VALUES (?, ?, ?, ?, ?)")
+        .run("legacy-user", "legacy", "hash", null, Date.now());
       legacyDb.close();
 
       process.env.KOKPIT_DB_PATH = dbPath;
@@ -56,6 +60,10 @@ describe("getDb()", () => {
       const db = getDb();
       const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
       expect(columns.some((c) => c.name === "recovery_code_hash")).toBe(true);
+      expect(columns.some((c) => c.name === "session_version")).toBe(true);
+      expect(
+        (db.prepare("SELECT session_version FROM users WHERE id = ?").get("legacy-user") as { session_version: number }).session_version
+      ).toBe(0);
     } finally {
       process.env.KOKPIT_DB_PATH = ":memory:";
       rmSync(dir, { recursive: true, force: true });

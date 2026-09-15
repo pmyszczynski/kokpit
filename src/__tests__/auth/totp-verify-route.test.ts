@@ -51,7 +51,7 @@ describe("POST /api/auth/totp/verify", () => {
     const user = await createUser("frank", hash);
     const secret = generateTotpSecret();
     setTotpSecret(user.id, secret);
-    const challengeToken = await signTotpChallenge(user.id);
+    const challengeToken = await signTotpChallenge(user.id, user.sessionVersion);
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
     const res = await POST(new Request("http://localhost", {
@@ -67,7 +67,7 @@ describe("POST /api/auth/totp/verify", () => {
     const user = await createUser("grace", hash);
     const secret = generateTotpSecret();
     setTotpSecret(user.id, secret);
-    const challengeToken = await signTotpChallenge(user.id);
+    const challengeToken = await signTotpChallenge(user.id, user.sessionVersion);
     const code = generateSync({ secret });
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
@@ -85,7 +85,7 @@ describe("POST /api/auth/totp/verify", () => {
     const { createUser, hashPassword, signTotpChallenge } = await import("@/auth");
     const hash = await hashPassword("pass");
     const user = await createUser("henry", hash);
-    const challengeToken = await signTotpChallenge(user.id);
+    const challengeToken = await signTotpChallenge(user.id, user.sessionVersion);
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
     const res = await POST(new Request("http://localhost", {
@@ -95,13 +95,31 @@ describe("POST /api/auth/totp/verify", () => {
     expect(res.status).toBe(401);
   });
 
+  it("rejects a challenge issued before a password reset", async () => {
+    const { createUser, hashPassword, generateTotpSecret, setTotpSecret, signTotpChallenge, updatePasswordHash } = await import("@/auth");
+    const hash = await hashPassword("pass");
+    const user = await createUser("stale-challenge", hash);
+    const secret = generateTotpSecret();
+    setTotpSecret(user.id, secret);
+    const challengeToken = await signTotpChallenge(user.id, user.sessionVersion);
+    updatePasswordHash(user.id, "newhash");
+
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+    }));
+    expect(res.status).toBe(401);
+    expect(mockCookieSet).not.toHaveBeenCalled();
+  });
+
   it("returns 429 and invalidates token after 5 failed attempts", async () => {
     const { createUser, hashPassword, generateTotpSecret, setTotpSecret, signTotpChallenge } = await import("@/auth");
     const hash = await hashPassword("pass");
     const user = await createUser("ivan", hash);
     const secret = generateTotpSecret();
     setTotpSecret(user.id, secret);
-    const challengeToken = await signTotpChallenge(user.id);
+    const challengeToken = await signTotpChallenge(user.id, user.sessionVersion);
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
     const makeRequest = () => POST(new Request("http://localhost", {

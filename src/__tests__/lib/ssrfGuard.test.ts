@@ -102,6 +102,33 @@ describe("ssrfSafeFetch", () => {
     expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 
+  it.each(["fd00:ec2::254", "fd00:0ec2:0000:0000:0000:0000:0000:0254"])(
+    "blocks IPv6 metadata %s with LAN access enabled", async (address) => {
+      dnsLookupMock.mockResolvedValue(resolvesTo(address, 6));
+      await expect(ssrfSafeFetch("http://[fd00:ec2::254]/", {
+        allowPrivateNetworks: true,
+      })).rejects.toThrow(SsrfBlockedError);
+      expect(undiciFetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("allows ordinary IPv6 LAN services", async () => {
+    dnsLookupMock.mockResolvedValue(resolvesTo("fd12:3456::1", 6));
+    undiciFetchMock.mockResolvedValueOnce(response(200));
+    const res = await ssrfSafeFetch("http://lan.example.com", { allowPrivateNetworks: true });
+    expect(res.status).toBe(200);
+  });
+
+  it("blocks a redirect resolving to IPv6 metadata with LAN access enabled", async () => {
+    dnsLookupMock.mockResolvedValueOnce(resolvesTo("192.168.1.1"))
+      .mockResolvedValueOnce(resolvesTo("fd00:ec2::254", 6));
+    undiciFetchMock.mockResolvedValueOnce(response(302, { location: "http://metadata.example.com/" }));
+    await expect(ssrfSafeFetch("http://lan.example.com", {
+      allowPrivateNetworks: true,
+    })).rejects.toThrow(SsrfBlockedError);
+    expect(undiciFetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("strips brackets from an IPv6 literal before resolving (dns.lookup rejects a bracketed literal)", async () => {
     dnsLookupMock.mockResolvedValue(resolvesTo("2606:4700:4700::1111", 6));
     undiciFetchMock.mockResolvedValueOnce(response(200));

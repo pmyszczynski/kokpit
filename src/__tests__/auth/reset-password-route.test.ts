@@ -39,6 +39,7 @@ describe("POST /api/auth/reset-password", () => {
     const { getUserById, verifyPassword } = await import("@/auth");
     const updated = getUserById(user.id);
     expect(await verifyPassword("newpassword123", updated!.passwordHash)).toBe(true);
+    expect(updated!.sessionVersion).toBe(1);
   });
 
   it("invalidates the recovery code after a successful reset (single-use)", async () => {
@@ -59,6 +60,18 @@ describe("POST /api/auth/reset-password", () => {
       })
     );
     expect(res.status).toBe(401);
+  });
+
+  it("allows only one concurrent recovery-code redemption", async () => {
+    const { recoveryCode } = await setupUserWithRecoveryCode("racing-user");
+    const { POST } = await import("../../app/api/auth/reset-password/route");
+    const request = (newPassword: string) => POST(new Request("http://localhost/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ username: "racing-user", recoveryCode, newPassword }),
+    }));
+
+    const responses = await Promise.all([request("firstreset1"), request("secondreset1")]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
   });
 
   it("reports totpStillEnabled: true and does not clear TOTP", async () => {

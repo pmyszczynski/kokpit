@@ -69,8 +69,17 @@ function makeConfig(
   };
 }
 
-function jsonResponse(body: unknown, ok = true) {
-  return { ok, json: () => Promise.resolve(body) } as Response;
+function jsonResponse(
+  body: unknown,
+  ok = true,
+  revision = "next-revision"
+) {
+  return {
+    ok,
+    status: ok ? 200 : 500,
+    headers: new Headers(ok ? { "X-Config-Revision": revision } : undefined),
+    json: () => Promise.resolve(body),
+  } as Response;
 }
 
 // Common reset/cleanup shared by every describe below; describes that need
@@ -91,19 +100,19 @@ describe("SettingsPanel - tab switching", () => {
   });
 
   it("shows the Appearance section by default", () => {
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     expect(screen.getByText("Appearance", { selector: "h2" })).toBeInTheDocument();
   });
 
   it("switches to the Layout section when the Layout tab is clicked", () => {
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Layout" }));
     expect(screen.getByText("Layout", { selector: "h2" })).toBeInTheDocument();
     expect(screen.queryByText("Appearance", { selector: "h2" })).not.toBeInTheDocument();
   });
 
   it("switches to the Services section when the Services tab is clicked", () => {
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     expect(screen.getByText("Services", { selector: "h2" })).toBeInTheDocument();
   });
@@ -120,7 +129,7 @@ describe("SettingsPanel - appearance tab", () => {
 
   it("selecting a theme updates document.documentElement.dataset.theme", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "light" }));
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(screen.getByRole("button", { name: "light" })).toHaveClass("theme-option--active");
@@ -128,7 +137,7 @@ describe("SettingsPanel - appearance tab", () => {
 
   it("updates the custom CSS textarea", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     const textarea = screen.getByPlaceholderText(".service-tile { border-radius: 0; }");
     fireEvent.change(textarea, { target: { value: ".foo { color: red; }" } });
     expect(textarea).toHaveValue(".foo { color: red; }");
@@ -138,7 +147,7 @@ describe("SettingsPanel - appearance tab", () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
 
     fireEvent.click(screen.getByRole("button", { name: "light" }));
     fireEvent.change(screen.getByPlaceholderText(".service-tile { border-radius: 0; }"), {
@@ -168,7 +177,7 @@ describe("SettingsPanel - appearance tab", () => {
   it("clamps out-of-range appearance numerics into their documented ranges before saving", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
 
     // Typed/pasted values the browser doesn't enforce against min/max.
     fireEvent.change(screen.getByLabelText("Card blur (px)"), { target: { value: "999" } });
@@ -190,7 +199,7 @@ describe("SettingsPanel - appearance tab", () => {
   it("omits blank/zero card_blur as unset but preserves a genuine background 0", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
 
     // card_blur 0 means "opaque cards" (unset), NOT a sent numeric 0.
     fireEvent.change(screen.getByLabelText("Card blur (px)"), { target: { value: "0" } });
@@ -209,10 +218,80 @@ describe("SettingsPanel - appearance tab", () => {
   });
 });
 
+describe("SettingsPanel - revisioned writes", () => {
+  it("sends its initial revision and advances it only from a successful response", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, true, "revision-after-first-save"))
+      .mockResolvedValueOnce(jsonResponse({}, true, "revision-after-second-save"));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+    fireEvent.change(screen.getByPlaceholderText(".service-tile { border-radius: 0; }"), {
+      target: { value: ".second-save {}" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Saved ✓" }));
+    });
+
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": "initial-revision" })
+    );
+    expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": "revision-after-first-save" })
+    );
+  });
+
+  it("keeps a stale draft blocked after a conflict instead of retrying with the server revision", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      headers: new Headers({ "X-Config-Revision": "external-revision" }),
+      json: () => Promise.resolve({ code: "revision_mismatch" }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Reload to discard this draft");
+    expect(screen.getByRole("button", { name: "Error — Retry" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Error — Retry" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": "initial-revision" })
+    );
+  });
+
+  it("blocks a second section while a save is in flight", async () => {
+    let resolveSave!: (response: Response) => void;
+    const pendingSave = new Promise<Response>((resolve) => { resolveSave = resolve; });
+    const fetchMock = vi.fn().mockReturnValue(pendingSave);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("button", { name: "Groups" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Groups" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveSave(jsonResponse({}, true, "next-revision"));
+      await pendingSave;
+    });
+    expect(screen.getByRole("button", { name: "Groups" })).toBeEnabled();
+  });
+});
+
 describe("SettingsPanel - layout tab", () => {
   it("describes fixed application-owned geometry without override inputs", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig({ layout: { columns: 6, row_height: 150 } })} />);
+    render(<SettingsPanel config={makeConfig({ layout: { columns: 6, row_height: 150 } })} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Layout" }));
     expect(screen.getByText(/108 × 60 px units with an 8 px gap/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Columns")).not.toBeInTheDocument();
@@ -227,7 +306,7 @@ describe("SettingsPanel - auth tab / TOTP", () => {
       "fetch",
       vi.fn().mockResolvedValue(jsonResponse({ enabled: false, secret: "SECRET123", qrCode: "data:image/png;base64,xx" }))
     );
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -237,7 +316,7 @@ describe("SettingsPanel - auth tab / TOTP", () => {
 
   it("shows the enabled state when TOTP is already enabled", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ enabled: true })));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -254,7 +333,7 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ enabled: true }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -286,7 +365,7 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ enabled: false, secret: "S", qrCode: "d" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -319,7 +398,7 @@ describe("SettingsPanel - auth tab / recovery code", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ recoveryCode: "aaaaaaaa-bbbbbbbb-cccccccc-dddddddd" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -348,7 +427,7 @@ describe("SettingsPanel - auth tab / recovery code", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "Invalid password" }, false));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -370,7 +449,7 @@ describe("SettingsPanel - auth tab / recovery code", () => {
     fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => { resolveRequest = resolve; }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     });
@@ -399,7 +478,7 @@ describe("SettingsPanel - auth tab / recovery code", () => {
 describe("SettingsPanel - services tab", () => {
   it("renders the services table with existing services", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     expect(screen.getByText("Jellyfin")).toBeInTheDocument();
     expect(screen.getByText("Portainer")).toBeInTheDocument();
@@ -427,7 +506,7 @@ describe("SettingsPanel - services tab", () => {
       },
     ];
 
-    render(<SettingsPanel config={config} />);
+    render(<SettingsPanel config={config} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
 
     expect(screen.getAllByText("Jellyfin")).toHaveLength(2);
@@ -438,7 +517,7 @@ describe("SettingsPanel - services tab", () => {
 
   it("opens the add-service form with no service and the right existing groups", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Add Service" }));
 
@@ -449,7 +528,7 @@ describe("SettingsPanel - services tab", () => {
 
   it("opens the edit-service form with the selected service", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     const row = screen.getByText("Jellyfin").closest("tr")!;
     fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
@@ -461,7 +540,7 @@ describe("SettingsPanel - services tab", () => {
   it("adds a new service to state and saves it via PATCH", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Add Service" }));
 
@@ -519,7 +598,7 @@ describe("SettingsPanel - services tab", () => {
       .mockResolvedValueOnce(jsonResponse(refreshedConfig));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SettingsPanel config={initialConfig} />);
+    render(<SettingsPanel config={initialConfig} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     fireEvent.click(within(screen.getByText("Jellyfin").closest("tr")!).getByRole("button", { name: "Edit" }));
 
@@ -561,7 +640,7 @@ describe("SettingsPanel - services tab", () => {
   it("deletes a service from state and saves via PATCH", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     const row = screen.getByText("Jellyfin").closest("tr")!;
 
@@ -582,7 +661,7 @@ describe("SettingsPanel - services tab", () => {
 
   it("closes the service form dialog when StubClose is triggered", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Add Service" }));
     expect(screen.getByTestId("service-form-stub")).toBeInTheDocument();
@@ -593,7 +672,7 @@ describe("SettingsPanel - services tab", () => {
 
   it("shows the empty state when there are no services", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig({ services: [] })} />);
+    render(<SettingsPanel config={makeConfig({ services: [] })} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     expect(screen.getByText("No services configured yet.")).toBeInTheDocument();
   });
@@ -613,6 +692,7 @@ describe("SettingsPanel - services tab", () => {
             { name: "Portainer", url: "http://p.local" },
           ],
         })}
+        initialRevision="initial-revision"
       />
     );
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
@@ -625,7 +705,7 @@ describe("SettingsPanel - services tab", () => {
   it("reorders a service down and saves the new array order via PATCH", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
 
     await act(async () => {
@@ -638,7 +718,7 @@ describe("SettingsPanel - services tab", () => {
 
   it("disables the up arrow on the first row and the down arrow on the last row", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={makeConfig()} />);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Services" }));
     expect(screen.getByRole("button", { name: "Move Jellyfin up" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Move Portainer down" })).toBeDisabled();
@@ -673,7 +753,7 @@ describe("SettingsPanel - groups tab", () => {
   });
 
   function gotoGroups() {
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
   }
 
@@ -799,7 +879,7 @@ describe("SettingsPanel - groups tab", () => {
       "fetch",
       vi.fn().mockResolvedValue(jsonResponse(responseConfig))
     );
-    render(<SettingsPanel config={initial} />);
+    render(<SettingsPanel config={initial} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     const input = screen.getByLabelText("Group name for Media");
     fireEvent.change(input, { target: { value: "Movies" } });
@@ -866,7 +946,7 @@ describe("SettingsPanel - groups tab", () => {
 
   it("does not expose per-group column controls", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({})));
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     expect(screen.queryByLabelText("Columns for Media")).not.toBeInTheDocument();
   });
@@ -874,7 +954,7 @@ describe("SettingsPanel - groups tab", () => {
   it("does not leak an unsaved group rename into a Services-tab save", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     // Rename Media -> Movies on the Groups tab but DON'T save the Groups tab.
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     const input = screen.getByLabelText("Group name for Media");
@@ -901,7 +981,7 @@ describe("SettingsPanel - groups tab", () => {
   it("does not leak an unsaved group delete into a Bookmarks-tab save", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     // Delete Media on the Groups tab but DON'T save the Groups tab.
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     const mediaRow = screen
@@ -928,7 +1008,7 @@ describe("SettingsPanel - groups tab", () => {
   it("applies a staged rename only once the Groups tab is saved, even after tab switches", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     const input = screen.getByLabelText("Group name for Media");
     fireEvent.change(input, { target: { value: "Movies" } });
@@ -952,7 +1032,7 @@ describe("SettingsPanel - groups tab", () => {
   it("no-ops a rename that would collide with another declared group", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     const infra = screen.getByLabelText("Group name for Infra");
     // "media" collides case-insensitively with the existing "Media" group.
@@ -977,7 +1057,7 @@ describe("SettingsPanel - groups tab", () => {
   it("allows a letter-case-only rename of the same group and cascades it", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={groupsConfig()} />);
+    render(<SettingsPanel config={groupsConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Groups" }));
     const media = screen.getByLabelText("Group name for Media");
     fireEvent.change(media, { target: { value: "media" } });
@@ -1023,7 +1103,7 @@ describe("SettingsPanel - bookmarks tab", () => {
   }
 
   it("lists bookmark groups with style and link count", () => {
-    render(<SettingsPanel config={bookmarksConfig()} />);
+    render(<SettingsPanel config={bookmarksConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
     const devRow = screen.getByText("Dev").closest<HTMLElement>(".groups-row")!;
     expect(within(devRow).getByText(/list · 1 link/)).toBeInTheDocument();
@@ -1032,7 +1112,7 @@ describe("SettingsPanel - bookmarks tab", () => {
   it("reorders bookmark groups and saves the new order", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={bookmarksConfig()} />);
+    render(<SettingsPanel config={bookmarksConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Move Dev down" }));
@@ -1044,7 +1124,7 @@ describe("SettingsPanel - bookmarks tab", () => {
   it("adds a new bookmark group through the dialog and saves it", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={makeConfig({ bookmarks: [] })} />);
+    render(<SettingsPanel config={makeConfig({ bookmarks: [] })} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Add bookmark group" }));
 
@@ -1069,7 +1149,7 @@ describe("SettingsPanel - bookmarks tab", () => {
   it("deletes a bookmark group after confirming and saves via PATCH", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SettingsPanel config={bookmarksConfig()} />);
+    render(<SettingsPanel config={bookmarksConfig()} initialRevision="initial-revision" />);
     fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
     const devRow = screen.getByText("Dev").closest<HTMLElement>(".groups-row")!;
     fireEvent.click(within(devRow).getByRole("button", { name: "Delete" }));

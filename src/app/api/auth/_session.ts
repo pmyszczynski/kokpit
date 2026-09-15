@@ -2,10 +2,10 @@ import { cookies } from "next/headers";
 import { signJWT, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfig } from "@/config/server";
 
-export async function createSessionCookie(userId: string): Promise<void> {
+export async function createSessionCookie(userId: string, sessionVersion: number): Promise<void> {
   const config = getConfig();
   const ttl = config.auth.session_ttl_hours;
-  const token = await signJWT(userId, ttl);
+  const token = await signJWT(userId, sessionVersion, ttl);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,

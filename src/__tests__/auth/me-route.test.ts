@@ -45,7 +45,7 @@ describe("GET /api/auth/me", () => {
     const { createUser, hashPassword, signJWT } = await import("@/auth");
     const hash = await hashPassword("password123");
     const user = await createUser("admin", hash);
-    const token = await signJWT(user.id, 24);
+    const token = await signJWT(user.id, user.sessionVersion, 24);
 
     const { cookies } = await import("next/headers");
     (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -64,7 +64,7 @@ describe("GET /api/auth/me", () => {
 
   it("returns 401 when the token references a non-existent user", async () => {
     const { signJWT } = await import("@/auth");
-    const token = await signJWT("nonexistent-user-id", 24);
+    const token = await signJWT("nonexistent-user-id", 0, 24);
 
     const { cookies } = await import("next/headers");
     (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
