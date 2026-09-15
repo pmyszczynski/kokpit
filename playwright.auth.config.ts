@@ -15,6 +15,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "sh e2e/start-prod.sh",
+    gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
     env: {
       // Absolute paths so they survive the `cd` into the standalone dir.
       KOKPIT_DB_PATH: path.resolve("./e2e/fixtures/auth-test-users.db"),
