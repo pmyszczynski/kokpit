@@ -268,6 +268,31 @@ describe("SettingsPanel - revisioned writes", () => {
     );
   });
 
+  it.each(["config_unavailable", "migration_required"])(
+    "preserves the draft and original revision when retrying %s", async (code) => {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          headers: new Headers({ "X-Config-Revision": "unaccepted-revision" }),
+          json: async () => ({ code }),
+        } as Response)
+        .mockResolvedValueOnce(jsonResponse({}));
+      vi.stubGlobal("fetch", fetchMock);
+      render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
+      const draft = screen.getByPlaceholderText(".service-tile { border-radius: 0; }");
+      fireEvent.change(draft, { target: { value: ".unsaved-draft {}" } });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(draft).toHaveValue(".unsaved-draft {}");
+      expect(screen.getByRole("button", { name: "Error — Retry" })).toBeEnabled();
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Error — Retry" })); });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1][1].headers).toEqual(expect.objectContaining({ "If-Match": "initial-revision" }));
+      expect(fetchMock.mock.calls[1][1].body).toBe(fetchMock.mock.calls[0][1].body);
+    }
+  );
+
   it("blocks a second section while a save is in flight", async () => {
     let resolveSave!: (response: Response) => void;
     const pendingSave = new Promise<Response>((resolve) => { resolveSave = resolve; });

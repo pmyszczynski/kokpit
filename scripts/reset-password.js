@@ -20,25 +20,39 @@ function openDb() {
   const path = process.env.KOKPIT_DB_PATH ?? "data/users.db";
   mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path);
-  db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      totp_secret TEXT,
-      session_version INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL
-    )
-  `);
-  const columns = db.prepare("PRAGMA table_info(users)").all();
-  if (!columns.some((c) => c.name === "recovery_code_hash")) {
-    db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+  try {
+    db.pragma("journal_mode = WAL");
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          totp_secret TEXT,
+          session_version INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        )
+      `);
+      const columns = db.prepare("PRAGMA table_info(users)").all();
+      if (!columns.some((c) => c.name === "recovery_code_hash")) {
+        db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+      }
+      if (!columns.some((c) => c.name === "session_version")) {
+        db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {}
+      throw error;
+    }
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
   }
-  if (!columns.some((c) => c.name === "session_version")) {
-    db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
-  }
-  return db;
 }
 
 function ask(rl, question) {

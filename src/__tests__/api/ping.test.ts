@@ -53,7 +53,7 @@ describe("POST /api/ping", () => {
     vi.resetModules();
     vi.restoreAllMocks();
     ssrfSafeFetchMock.mockReset();
-    process.env.KOKPIT_AUTH_DISABLED = "true";
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
     const { invalidateCache } = await import("@/config/loader");
@@ -128,7 +128,7 @@ describe("POST /api/ping auth and config state", () => {
     ssrfSafeFetchMock.mockReset();
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !String(path ?? "").includes("settings.yaml.displaced"));
     vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
-    process.env.KOKPIT_AUTH_DISABLED = "false";
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "false");
     const { invalidateCache } = await import("@/config/loader");
     invalidateCache();
   });
@@ -142,7 +142,7 @@ describe("POST /api/ping auth and config state", () => {
   });
 
   it("fails closed while the configuration snapshot is dirty", async () => {
-    process.env.KOKPIT_AUTH_DISABLED = "true";
+    vi.stubEnv("KOKPIT_AUTH_DISABLED", "true");
     const { getConfigSnapshot } = await import("@/config/server");
     getConfigSnapshot();
     vi.mocked(readFileSync).mockReturnValue(`${BASE_YAML}\n# external edit`);

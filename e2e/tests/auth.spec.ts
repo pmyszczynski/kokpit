@@ -239,7 +239,7 @@ test.describe.serial("authentication flow", () => {
     await expect(page).toHaveURL("/login");
   });
 
-  test("password recovery revokes the old session and consumes the recovery code", async ({ page, playwright }) => {
+  test("password recovery revokes the old session and consumes the recovery code", async ({ page, playwright, baseURL }) => {
     const login = await page.request.post("/api/auth/login", { data: ADMIN });
     expect(login.status()).toBe(200);
     const recovery = await page.request.post("/api/auth/recovery-code", {
@@ -248,11 +248,13 @@ test.describe.serial("authentication flow", () => {
     expect(recovery.status()).toBe(200);
     const { recoveryCode } = await recovery.json();
     const newPassword = "Recovered-Passw0rd2!";
-    const anonymous = await playwright.request.newContext({ baseURL: "http://localhost:3001" });
+    const anonymous = await playwright.request.newContext({ baseURL });
+    let passwordWasReset = false;
     try {
       const reset = await anonymous.post("/api/auth/reset-password", {
         data: { username: ADMIN.username, recoveryCode, newPassword },
       });
+      passwordWasReset = reset.status() === 200;
       expect(reset.status()).toBe(200);
       expect((await page.request.get("/api/auth/me")).status()).toBe(401);
       expect((await page.request.get("/api/settings")).status()).toBe(401);
@@ -265,7 +267,24 @@ test.describe.serial("authentication flow", () => {
       })).status()).toBe(200);
       expect((await anonymous.get("/api/auth/me")).status()).toBe(200);
     } finally {
-      await anonymous.dispose();
+      try {
+        if (passwordWasReset) {
+          expect((await anonymous.post("/api/auth/login", {
+            data: { username: ADMIN.username, password: newPassword },
+          })).status()).toBe(200);
+          const recovery = await anonymous.post("/api/auth/recovery-code", {
+            data: { password: newPassword },
+          });
+          expect(recovery.status()).toBe(200);
+          const { recoveryCode } = await recovery.json();
+          expect((await anonymous.post("/api/auth/reset-password", {
+            data: { username: ADMIN.username, recoveryCode, newPassword: ADMIN.password },
+          })).status()).toBe(200);
+          expect((await anonymous.post("/api/auth/login", { data: ADMIN })).status()).toBe(200);
+        }
+      } finally {
+        await anonymous.dispose();
+      }
     }
   });
 

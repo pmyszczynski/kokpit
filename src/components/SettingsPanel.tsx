@@ -285,7 +285,7 @@ export default function SettingsPanel({
     payload: Record<string, unknown>
   ): Promise<SaveResult> {
     // This ref is set before the first await, so a second event in the same
-    // render cannot capture the old revision. A 409 remains blocked until the
+    // render cannot capture the old revision. A revision conflict stays blocked until the
     // browser reloads the complete server document and discards this draft.
     if (writePendingRef.current || conflictRef.current) return { ok: false };
     writePendingRef.current = true;
@@ -301,8 +301,11 @@ export default function SettingsPanel({
         body: JSON.stringify(payload),
       });
       if (res.status === 409) {
-        conflictRef.current = true;
-        setConflict(true);
+        const errorBody = await res.json().catch(() => null) as { code?: unknown } | null;
+        if (errorBody?.code === "revision_mismatch") {
+          conflictRef.current = true;
+          setConflict(true);
+        }
         setSaveStatus((s) => ({ ...s, [section]: "error" }));
         return { ok: false };
       }

@@ -43,6 +43,9 @@ test("settings conflict preserves the other editor's services and reloads a fres
   expect((await (await request.get("/api/settings")).json()).services.map((service: { name: string }) => service.name))
     .toEqual([first.name, "Added elsewhere"]);
 
+  await expect(page.getByRole("button", { name: "+ Add Service", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Appearance", exact: true })).toBeDisabled();
+
   await page.getByRole("button", { name: "Reload settings" }).click();
   await page.getByRole("button", { name: "Services", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: "Added elsewhere" })).toBeVisible();
