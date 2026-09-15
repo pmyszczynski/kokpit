@@ -49,8 +49,15 @@ test("settings conflict preserves the other editor's services and reloads a fres
   await expect(page.getByRole("button", { name: "+ Add Service", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Appearance", exact: true })).toBeDisabled();
 
-  await page.getByRole("button", { name: "Reload settings" }).click();
-  await page.getByRole("button", { name: "Services", exact: true }).click();
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.getByRole("button", { name: "Reload settings" }).click(),
+  ]);
+  // The new document can paint its tabs before React attaches their handlers.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Services", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Services", exact: true })).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
   await expect(page.getByRole("row").filter({ hasText: "Added elsewhere" })).toBeVisible();
   const acceptedSave = page.waitForResponse((response) =>
     response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
