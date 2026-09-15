@@ -86,6 +86,24 @@ test.describe.serial("authentication flow", () => {
     await expect(page.getByRole("navigation")).toBeVisible();
   });
 
+  test("authenticated editor loads settings from the production runtime", async ({ page }) => {
+    await goto(page, "/login");
+    await page.getByPlaceholder("Username").fill(ADMIN.username);
+    await page.getByPlaceholder("Password").fill(ADMIN.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL("/");
+
+    const settings = await page.request.get("/api/settings");
+    expect(settings.status()).toBe(200);
+    expect(settings.headers()["x-config-revision"]).toBeTruthy();
+    expect(await settings.json()).toHaveProperty("appearance");
+
+    await page.getByRole("button", { name: "Edit dashboard" }).click();
+    await expect(page.locator(".edit-bar")).toBeVisible();
+    await page.getByRole("button", { name: "Discard" }).click();
+    await expect(page.locator(".edit-bar")).toBeHidden();
+  });
+
   test("authenticated settings can test a Plex connection and report its result", async ({ page, request }) => {
     const reset = await request.post(`${MOCK_PLEX}/__control`, {
       data: DEFAULT_MOCK_STATE,
