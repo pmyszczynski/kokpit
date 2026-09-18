@@ -84,6 +84,39 @@ describe("serviceFormProjection", () => {
       .toEqual(["First", "First", "Catalog only"]);
   });
 
+  it("gives a new generic tile its own identity when catalog-only Services shift tile positions", () => {
+    const catalogBeforeId = "10000000-0000-4000-8000-000000000010";
+    const tiledServiceId = "10000000-0000-4000-8000-000000000011";
+    const catalogAfterId = "10000000-0000-4000-8000-000000000012";
+    const services = [
+      { id: catalogBeforeId, name: "Catalog before" },
+      { id: tiledServiceId, name: "Tiled" },
+      { id: catalogAfterId, name: "Catalog after" },
+    ];
+    const tiles = [{ id: tileId, service_id: tiledServiceId, group: "Media" }];
+    const persisted = persistLegacyServices([
+      ...projectLegacyServices(services, tiles),
+      { name: "Granafa", url: "http://grafana.local", group: "Infra" },
+    ], services, tiles, { preserveUnrepresentedCatalogServices: true });
+
+    expect(persisted.services).toEqual(expect.arrayContaining(services));
+    expect(new Set(persisted.services.map((service) => service.id)).size)
+      .toBe(persisted.services.length);
+    expect(new Set(persisted.service_tiles.map((tile) => tile.id)).size)
+      .toBe(persisted.service_tiles.length);
+
+    const granafa = persisted.services.find((service) => service.name === "Granafa")!;
+    expect(granafa.id).not.toBe(catalogBeforeId);
+    expect(granafa.id).not.toBe(tiledServiceId);
+    expect(granafa.id).not.toBe(catalogAfterId);
+    expect(persisted.service_tiles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: tileId, service_id: tiledServiceId, group: "Media" }),
+      expect.objectContaining({ service_id: granafa.id, group: "Infra" }),
+    ]));
+    expect(projectCatalogServices(persisted.services, persisted.service_tiles)
+      .find((service) => service.id === granafa.id)?.group).toBe("Infra");
+  });
+
   it("does not retain a deleted sibling tile from the previous tile list", () => {
     const services = [{ id: serviceId, name: "Sonarr" }];
     const tiles = [

@@ -239,12 +239,13 @@ export function persistLegacyServices(
     preserveUnrepresentedCatalogServices?: boolean;
   } = {}
 ): Pick<KokpitConfig, "services" | "service_tiles"> {
-  const stableInputs = inputs.map((input, index) => {
-    const previous = input.id
-      ? previousServices.find((service) => service.id === input.id)
-      : previousServices[index];
-    return input.id || previous?.id ? input : { ...input, id: generateUuid() };
-  });
+  // Existing editor rows carry their Service identity. An identity-less row is
+  // a newly created Service, even when its array position happens to overlap a
+  // catalog-only Service that is absent from the tile editor. Never infer an
+  // identity from that position: doing so aliases the new tile to that Service.
+  const stableInputs = inputs.map((input) =>
+    input.id ? input : { ...input, id: generateUuid() }
+  );
   const servicesById = new Map<string, KokpitConfig["services"][number]>();
   const service_tiles: ServiceTile[] = [];
 
@@ -252,11 +253,11 @@ export function persistLegacyServices(
   const canonicalInputsByServiceId = new Map<string, Service>();
   const inputsByServiceId = new Map<string, Service[]>();
   const inputServiceIds: string[] = [];
-  stableInputs.forEach((input, index) => {
+  stableInputs.forEach((input) => {
     const previous = input.id
       ? previousServices.find((service) => service.id === input.id)
-      : previousServices[index];
-    const id = input.id ?? previous?.id;
+      : undefined;
+    const id = input.id;
     if (!id) return;
     if (!canonicalInputsByServiceId.has(id) || hasPresentationChange(input, previous)) {
       canonicalInputsByServiceId.set(id, input);
@@ -310,11 +311,11 @@ export function persistLegacyServices(
   });
 
   const handledServices = new Set<string>();
-  stableInputs.forEach((input, index) => {
+  stableInputs.forEach((input) => {
     const previous = input.id
       ? previousServices.find((service) => service.id === input.id)
-      : previousServices[index];
-    const id = input.id ?? previous?.id ?? generateUuid();
+      : undefined;
+    const id = input.id ?? generateUuid();
     const primaryTile = input.tileId
       ? previousTiles.find((tile) => tile.id === input.tileId)
       : previousTiles.find((tile) => tile.service_id === id);
