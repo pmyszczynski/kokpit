@@ -19,6 +19,7 @@ vi.mock("next/headers", () => ({
     get: vi.fn(),
   }),
 }));
+vi.mock("@/auth/requestGuard", () => ({ isTrustedMutation: vi.fn().mockReturnValue(true) }));
 
 describe("POST /api/auth/login", () => {
   beforeEach(() => vi.resetModules());
@@ -99,6 +100,56 @@ describe("POST /api/auth/login", () => {
     expect(json.requiresTotp).toBe(true);
     expect(typeof json.challengeToken).toBe("string");
     expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  it("rejects an old-password TOTP login that races with a password reset", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("totp-password-race", await auth.hashPassword("old-password"));
+    auth.setTotpSecret(user.id, auth.generateTotpSecret());
+
+    let releaseVerification: (() => void) | undefined;
+    const verificationPaused = new Promise<void>((resolve) => { releaseVerification = resolve; });
+    let verificationStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => { verificationStarted = resolve; });
+    vi.doMock("@/auth", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/auth")>()),
+      verifyPassword: async () => {
+        verificationStarted?.();
+        await verificationPaused;
+        return true;
+      },
+    }));
+    const { POST } = await import("../../app/api/auth/login/route");
+    const login = POST(new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username: "totp-password-race", password: "old-password" }),
+    }));
+    await started;
+    auth.updatePasswordHash(user.id, await auth.hashPassword("new-password"));
+    releaseVerification?.();
+
+    expect((await login).status).toBe(401);
+    vi.doUnmock("@/auth");
+  });
+
+  it("keeps the verified generation when a CLI reset wins just before challenge signing", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("cli-reset-race", await auth.hashPassword("old-password"));
+    auth.setTotpSecret(user.id, auth.generateTotpSecret());
+    const version = auth.getUserById(user.id)!.sessionVersion;
+    const signer = vi.fn((id: string, expectedVersion: number) => {
+      auth.updatePasswordHash(id, "new-password-hash");
+      return auth.signTotpChallenge(id, expectedVersion);
+    });
+    vi.doMock("@/auth", () => ({ ...auth, signTotpChallenge: signer }));
+    try {
+      const { POST } = await import("../../app/api/auth/login/route");
+      const response = await POST(new Request("http://localhost/api/auth/login", {
+        method: "POST", body: JSON.stringify({ username: "cli-reset-race", password: "old-password" }),
+      }));
+      expect(response.status).toBe(401);
+      expect(signer).toHaveBeenCalledWith(user.id, version);
+    } finally { vi.doUnmock("@/auth"); }
   });
 
   it("sets the session cookie on successful login", async () => {

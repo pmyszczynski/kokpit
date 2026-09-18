@@ -34,6 +34,22 @@ function openDb() {
   if (!columns.some((c) => c.name === "recovery_code_hash")) {
     db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
   }
+  if (!columns.some((c) => c.name === "session_version")) {
+    db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      device TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
+      idle_timeout_hours INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
+  `);
   return db;
 }
 
@@ -120,24 +136,31 @@ async function main() {
   const clearRecoveryCode = await askYesNo(rl, "Also invalidate the saved recovery code?");
 
   const passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
-  const updates = ["password_hash = ?"];
+  const updates = ["password_hash = ?", "session_version = session_version + 1"];
   const params = [passwordHash];
   if (clearTotp) updates.push("totp_secret = NULL");
   if (clearRecoveryCode) updates.push("recovery_code_hash = NULL");
   params.push(user.id);
 
-  db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+  db.transaction(() => {
+    db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
+  })();
 
   console.log(`\nPassword reset for "${user.username}".`);
   if (clearTotp) console.log("2FA has been disabled.");
   if (clearRecoveryCode) console.log("The recovery code has been invalidated — generate a new one from Settings after logging in.");
-  console.log("Log out any existing sessions and sign in with the new password.");
+  console.log("All existing sessions have been signed out. Sign in with the new password.");
 
   rl.close();
   db.close();
 }
 
-main().catch((err) => {
-  console.error("Reset failed:", err);
-  process.exit(1);
-});
+module.exports = { openDb };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error("Reset failed:", err);
+    process.exit(1);
+  });
+}

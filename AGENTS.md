@@ -24,7 +24,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 - **Framework:** Next.js 16.x (App Router)
 - **Styling:** CSS custom properties (`[data-theme]` attribute) + Tailwind utility layer
 - **Config:** YAML (`settings.yaml` at project root / config dir)
-- **Auth:** Built-in credential auth (bcrypt), JWT session tokens, optional TOTP 2FA
+- **Auth:** Built-in credential auth (bcrypt), SQLite-backed revocable sessions, optional TOTP 2FA
 - **Deployment:** Docker + Docker Compose (primary), build-from-source as fallback
 - **Database:** SQLite (better-sqlite3) for user/session state; YAML remains source of truth for layout/config
 - **Testing:** Vitest + Testing Library (jsdom)

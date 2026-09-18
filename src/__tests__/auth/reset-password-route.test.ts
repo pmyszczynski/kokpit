@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 process.env.KOKPIT_DB_PATH = ":memory:";
 process.env.KOKPIT_SESSION_SECRET = "test-secret-32-chars-minimum-length-xx";
 
+vi.mock("@/auth/requestGuard", () => ({ isTrustedMutation: vi.fn().mockReturnValue(true) }));
+
 describe("POST /api/auth/reset-password", () => {
   beforeEach(() => vi.resetModules());
 
@@ -39,6 +41,21 @@ describe("POST /api/auth/reset-password", () => {
     const { getUserById, verifyPassword } = await import("@/auth");
     const updated = getUserById(user.id);
     expect(await verifyPassword("newpassword123", updated!.passwordHash)).toBe(true);
+  });
+
+  it("revokes every existing session when the password is reset", async () => {
+    const { user, recoveryCode } = await setupUserWithRecoveryCode("session-reset");
+    const { createSession, getAuthSession } = await import("@/auth");
+    const first = createSession(user.id).token;
+    const second = createSession(user.id).token;
+    const { POST } = await import("../../app/api/auth/reset-password/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ username: "session-reset", recoveryCode, newPassword: "newpassword123" }),
+    }));
+    expect(res.status).toBe(200);
+    expect(await getAuthSession(first)).toBeNull();
+    expect(await getAuthSession(second)).toBeNull();
   });
 
   it("invalidates the recovery code after a successful reset (single-use)", async () => {

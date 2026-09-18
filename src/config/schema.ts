@@ -179,9 +179,11 @@ export const KokpitConfigSchema = z
     auth: z
       .object({
         enabled: z.boolean().default(false),
-        session_ttl_hours: z.number().int().positive().default(24),
+        // Legacy fixed expiry is accepted for upgrades, but no longer applied.
+        session_ttl_hours: z.number().int().positive().optional(),
+        session_idle_timeout_hours: z.number().int().min(0).max(8760).optional(),
       })
-      .default({ enabled: true, session_ttl_hours: 24 }),
+      .default({ enabled: true }),
     appearance: z
       .object({
         theme: z

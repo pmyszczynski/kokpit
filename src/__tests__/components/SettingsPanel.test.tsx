@@ -33,6 +33,10 @@ vi.mock("@/components/ServiceForm", () => ({
   ),
 }));
 
+vi.mock("@/components/SessionManager", () => ({
+  default: () => <div data-testid="session-manager" />,
+}));
+
 import SettingsPanel from "@/components/SettingsPanel";
 
 type LegacyServiceFixture = Service;
@@ -222,6 +226,45 @@ describe("SettingsPanel - layout tab", () => {
 });
 
 describe("SettingsPanel - auth tab / TOTP", () => {
+  it("treats a canonical zero idle timeout as persistent sign-in", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ enabled: false, secret: "S", qrCode: "d" })));
+    render(<SettingsPanel config={makeConfig({ auth: { enabled: true, session_idle_timeout_hours: 0 } })} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+
+    expect(screen.getByRole("checkbox", { name: "Stay signed in" })).toBeChecked();
+    expect(screen.getByLabelText("Sign out after inactivity (hours)")).toBeDisabled();
+  });
+
+  it("saves the persistent session policy with a fresh password and clears it on success", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ enabled: false, secret: "S", qrCode: "d" }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#auth-policy-password" }), { target: { value: "mypassword" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/settings", expect.objectContaining({
+      method: "PATCH",
+      headers: expect.objectContaining({ "X-Kokpit-Request": "1" }),
+      body: JSON.stringify({ auth: { enabled: true, session_idle_timeout_hours: 0 }, auth_password: "mypassword" }),
+    }));
+    expect(screen.getByLabelText("Current password", { selector: "#auth-policy-password" })).toHaveValue("");
+  });
+
+  it("shows the backend policy error", async () => {
+    const fetchMock = vi.fn((url: string) => Promise.resolve(
+      url === "/api/settings" ? jsonResponse({ error: "Invalid password" }, false) : jsonResponse({ enabled: false, secret: "S", qrCode: "d" })
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#auth-policy-password" }), { target: { value: "wrong" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(screen.getByRole("alert")).toHaveTextContent("Invalid password");
+  });
+
   it("shows the setup form when TOTP is not enabled", async () => {
     vi.stubGlobal(
       "fetch",
@@ -262,6 +305,9 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     fireEvent.change(screen.getByLabelText("Verification code"), {
       target: { value: "123456" },
     });
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#totp-password" }), {
+      target: { value: "mypassword" },
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Enable 2FA" }));
@@ -272,10 +318,10 @@ describe("SettingsPanel - auth tab / TOTP", () => {
       "/api/auth/totp/setup",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ secret: "SECRET123", code: "123456" }),
+        body: JSON.stringify({ secret: "SECRET123", code: "123456", password: "mypassword" }),
       })
     );
-    expect(screen.getByText("2FA enabled successfully.")).toBeInTheDocument();
+    expect(screen.getByText(/2FA enabled successfully/)).toBeInTheDocument();
     expect(screen.getByText(/2FA is/)).toBeInTheDocument();
   });
 

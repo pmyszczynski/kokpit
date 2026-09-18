@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import {
   getUserByUsername,
+  getUserById,
   verifyPassword,
   signTotpChallenge,
 } from "@/auth";
 import { createSessionCookie } from "../_session";
+import { isTrustedMutation } from "@/auth/requestGuard";
 
 // Use a pre-computed dummy hash so bcrypt always runs its full work factor,
 // preventing username enumeration via response-time timing attacks.
 const DUMMY_HASH = "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012";
 
 export async function POST(req: Request) {
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   let body: { username?: unknown; password?: unknown };
   try {
     body = await req.json();
@@ -39,11 +44,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  if (user.totpSecret) {
-    const challengeToken = await signTotpChallenge(user.id);
-    return NextResponse.json({ requiresTotp: true, challengeToken });
+  // bcrypt yielded above. Re-read before selecting the TOTP branch, otherwise
+  // a password reset could replace credentials while an old-password login is
+  // still in flight and receive a current-generation challenge.
+  const currentUser = getUserById(user.id);
+  if (
+    !currentUser ||
+    currentUser.passwordHash !== candidateHash ||
+    currentUser.sessionVersion !== user.sessionVersion
+  ) {
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  await createSessionCookie(user.id);
-  return NextResponse.json({ id: user.id, username: user.username });
+  try {
+    if (currentUser.totpSecret) {
+      const challengeToken = await signTotpChallenge(currentUser.id, currentUser.sessionVersion);
+      return NextResponse.json({ requiresTotp: true, challengeToken });
+    }
+    await createSessionCookie(currentUser.id, req, currentUser.sessionVersion);
+  } catch {
+    // The account changed while bcrypt was running (for example, its password
+    // was reset), so do not issue a session for the stale credential check.
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+  return NextResponse.json({ id: currentUser.id, username: currentUser.username });
 }

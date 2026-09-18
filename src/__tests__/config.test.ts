@@ -62,7 +62,7 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config.schema_version).toBe(2);
     expect(config.auth.enabled).toBe(false);
-    expect(config.auth.session_ttl_hours).toBe(24);
+    expect(config.auth.session_idle_timeout_hours ?? 0).toBe(0);
     expect(config.appearance.theme).toBe("dark");
     expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);
@@ -87,7 +87,7 @@ describe("loadConfig", () => {
     vi.mocked(readFileSync).mockReturnValue("schema_version: 2");
     const config = loadConfig();
     expect(config.auth.enabled).toBe(true);
-    expect(config.auth.session_ttl_hours).toBe(24);
+    expect(config.auth.session_idle_timeout_hours ?? 0).toBe(0);
     expect(config.appearance.theme).toBe("dark");
     expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);

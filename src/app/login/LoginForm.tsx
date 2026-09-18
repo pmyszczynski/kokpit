@@ -19,7 +19,7 @@ export default function LoginForm() {
       const data = new FormData(e.currentTarget);
       const res = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify({
           username: data.get("username"),
           password: data.get("password"),
@@ -62,7 +62,7 @@ export default function LoginForm() {
       const data = new FormData(e.currentTarget);
       const res = await fetch("/api/auth/totp/verify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify({
           challengeToken,
           code: data.get("code"),

@@ -4,9 +4,9 @@ import {
   getUserByUsername,
   verifyRecoveryCode,
   hashPassword,
-  updatePasswordHash,
-  clearRecoveryCodeHash,
+  updatePasswordWithRecoveryCode,
 } from "@/auth";
+import { isTrustedMutation } from "@/auth/requestGuard";
 
 // Dummy hash so verifyRecoveryCode always does the same amount of work,
 // preventing username enumeration via response-time timing attacks.
@@ -40,6 +40,9 @@ function recordFailure(key: string) {
 }
 
 export async function POST(req: Request) {
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   pruneExpired();
 
   let body: unknown;
@@ -98,9 +101,15 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(newPassword);
-  updatePasswordHash(user.id, passwordHash);
-  // Single-use: the code is invalidated the moment it's redeemed.
-  clearRecoveryCodeHash(user.id);
+  // Recheck and consume the exact recovery-code hash in the same transaction
+  // as credential/session replacement. A concurrent reset can win only once.
+  if (!updatePasswordWithRecoveryCode(user.id, candidateHash, passwordHash)) {
+    recordFailure(rateLimitKey);
+    return NextResponse.json(
+      { error: "Invalid username or recovery code" },
+      { status: 401 }
+    );
+  }
   attempts.delete(rateLimitKey);
 
   return NextResponse.json({
