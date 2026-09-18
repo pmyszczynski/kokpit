@@ -338,6 +338,25 @@ describe("EditModeProvider (hook flows)", () => {
     expect(screen.getByText("Reload")).toBeInTheDocument();
   });
 
+  it.each([
+    [{ error: 'Duplicate ServiceTile ID "tile-1"' }, 'Save failed (400): Duplicate ServiceTile ID "tile-1"'],
+    [{ error: { unexpected: true } }, "Save failed (400)"],
+    [null, "Save failed (400)"],
+  ])("shows save error details when available and preserves the draft (%j)", async (body, message) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-1" }))
+      .mockResolvedValueOnce(fakeResponse(body, { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await setup();
+    await act(async () => { fireEvent.click(screen.getByText("enter")); });
+    await act(async () => { fireEvent.click(screen.getByText("clear-services")); });
+    await act(async () => { fireEvent.click(screen.getByText("save")); });
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByTestId("active")).toHaveTextContent("true");
+    expect(screen.getByTestId("dirty")).toHaveTextContent("true");
+    expect(screen.getByTestId("baseRevision")).toHaveTextContent("rev-1");
+  });
+
   it("save success exits edit mode", async () => {
     const fetchMock = vi
       .fn()

@@ -322,7 +322,12 @@ export function EditModeProvider({
         });
         return;
       }
-      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      if (!res.ok) {
+        const payload: unknown = await res.json().catch(() => null);
+        const detail = payload && typeof payload === "object" && "error" in payload
+          && typeof payload.error === "string" ? payload.error : null;
+        throw new Error(`Save failed (${res.status})${detail ? `: ${detail}` : ""}`);
+      }
       dispatch({ type: "SAVE_SUCCESS", revision: readRevision(res) });
       router.refresh();
     } catch (err) {

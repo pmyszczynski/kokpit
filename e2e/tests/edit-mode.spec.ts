@@ -103,6 +103,59 @@ test.describe("edit mode", () => {
     await expect(page.locator(".edit-bar")).toBeHidden();
   });
 
+  test("adding a generic tile with catalog-only services preserves its identity and group", async ({ page, request }) => {
+    // Catalog and visible tile positions differ when a service has no tile.
+    const fixtures = schemaV2Fixtures([
+      { name: "Catalog only", url: "http://localhost:9000" },
+      ...EDIT_SERVICES,
+    ]);
+    fixtures.service_tiles.shift();
+    const seeded = await request.patch("/api/settings", {
+      data: { ...fixtures, groups: [...EDIT_GROUPS, { name: "Infra" }] },
+    });
+    expect(seeded.ok()).toBeTruthy();
+    const original = await seeded.json();
+
+    await enterEditMode(page);
+    await page.getByRole("button", { name: "Add tile to Infra" }).click();
+    await page.locator(".add-tile-picker__option", { hasText: "Blank service" }).click();
+    await expect(page.getByLabel("Tile type", { exact: true })).toHaveValue("");
+    await page.getByLabel("Name *", { exact: true }).fill("Granafa");
+    await page.getByLabel("URL", { exact: true }).fill("http://localhost:3002");
+    await expect(page.getByLabel("Group", { exact: true })).toHaveValue("Infra");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+
+    await page.getByRole("button", { name: "Granafa options" }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    await expect(page.getByLabel("Group", { exact: true })).toHaveValue("Infra");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const savedResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
+    );
+    await page.getByRole("button", { name: /Save & exit/ }).click();
+    const saved = await savedResponse;
+    expect(saved.status(), await saved.text()).toBe(200);
+    await expect(page.locator(".edit-bar")).toBeHidden();
+
+    const persisted = await (await request.get("/api/settings")).json();
+    expect(persisted.services).toEqual([
+      ...original.services,
+      expect.objectContaining({ name: "Granafa", launch_url: "http://localhost:3002" }),
+    ]);
+    expect(persisted.service_tiles.slice(0, -1)).toEqual(original.service_tiles);
+    const tile = persisted.service_tiles.at(-1);
+    expect(tile).toMatchObject({ service_id: persisted.services.at(-1).id, group: "Infra" });
+    expect(new Set(persisted.service_tiles.map((entry: { id: string }) => entry.id)).size)
+      .toBe(persisted.service_tiles.length);
+
+    await page.reload();
+    await page.getByRole("button", { name: "Edit dashboard" }).click();
+    await page.getByRole("button", { name: "Granafa options" }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    await expect(page.getByLabel("Group", { exact: true })).toHaveValue("Infra");
+    await expect(page.getByLabel("URL", { exact: true })).toHaveValue("http://localhost:3002");
+  });
+
   // ── Drag reorder ─────────────────────────────────────────────────────────
 
   test("drag-reorder two tiles within a group persists after save + reload", async ({
