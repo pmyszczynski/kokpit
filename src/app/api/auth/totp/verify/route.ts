@@ -6,6 +6,8 @@ import {
   verifyTotpCode,
 } from "@/auth";
 import { createSessionCookie } from "../../_session";
+import { isTrustedMutation } from "@/auth/requestGuard";
+import { SessionInvalidatedError } from "@/auth/errors";
 
 const MAX_TOTP_ATTEMPTS = 5;
 // TOTP challenge tokens expire in 5 minutes; prune local state at the same cadence.
@@ -30,6 +32,9 @@ function pruneExpiredEntries() {
 }
 
 export async function POST(req: Request) {
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   pruneExpiredEntries();
 
   let body: { challengeToken?: unknown; code?: unknown };
@@ -75,10 +80,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid code" }, { status: 401 });
   }
 
+  // verifyTotpChallenge awaited above. Claim the in-memory single-use token
+  // only after that await, so simultaneous requests cannot both proceed.
+  if (invalidatedTokens.has(key)) {
+    return NextResponse.json({ error: "Challenge token has been invalidated" }, { status: 401 });
+  }
   // Success: clear attempt state and prevent token replay.
   failedAttempts.delete(key);
   invalidatedTokens.set(key, Date.now() + CHALLENGE_TTL_MS);
 
-  await createSessionCookie(user.id);
+  try {
+    await createSessionCookie(user.id, req, challenge.sessionVersion);
+  } catch (error) {
+    if (error instanceof SessionInvalidatedError) {
+      return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
+    }
+    throw error;
+  }
   return NextResponse.json({ id: user.id, username: user.username });
 }

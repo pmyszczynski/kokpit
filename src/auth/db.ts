@@ -26,6 +26,23 @@ export function getDb(): Database.Database {
   if (!columns.some((c) => c.name === "recovery_code_hash")) {
     db.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
   }
+  if (!columns.some((c) => c.name === "session_version")) {
+    db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      device TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
+      idle_timeout_hours INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
+  `);
 
   return db;
 }

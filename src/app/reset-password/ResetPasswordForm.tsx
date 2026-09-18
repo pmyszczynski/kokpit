@@ -26,7 +26,7 @@ export default function ResetPasswordForm() {
     try {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify({
           username: data.get("username"),
           recoveryCode: data.get("recoveryCode"),

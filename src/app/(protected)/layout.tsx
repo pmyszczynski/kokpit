@@ -4,6 +4,7 @@ import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfigSnapshot } from "@/config/server";
 import Navbar from "@/components/Navbar";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
+import SessionRenewal from "@/components/SessionRenewal";
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,7 @@ export default async function ProtectedLayout({
         connectionTestingEnabled={authEnabled}
       >
         <Navbar showLogout={showLogout} canEdit={canEdit} />
+        {showLogout && <SessionRenewal />}
         <main className="shell-main">{children}</main>
       </EditModeProvider>
     </div>

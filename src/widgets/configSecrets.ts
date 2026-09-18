@@ -162,7 +162,7 @@ function assertValidFieldReferences(
 export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
   return {
     schema_version: config.schema_version,
-    auth: { enabled: config.auth.enabled, session_ttl_hours: config.auth.session_ttl_hours },
+    auth: { enabled: config.auth.enabled, session_idle_timeout_hours: config.auth.session_idle_timeout_hours ?? 0 },
     appearance: {
       theme: config.appearance.theme,
       custom_css: config.appearance.custom_css,

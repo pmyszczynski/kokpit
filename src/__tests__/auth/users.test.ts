@@ -14,6 +14,7 @@ describe("user management", () => {
     );
     expect(user.username).toBe("admin");
     expect(user.passwordHash).toBe("hash123");
+    expect(user.sessionVersion).toBe(0);
     expect(user.createdAt).toBeInstanceOf(Date);
   });
 
@@ -73,11 +74,45 @@ describe("user management", () => {
     expect(getUserById(user.id)?.recoveryCodeHash).toBeNull();
   });
 
-  it("updatePasswordHash changes the stored password hash", async () => {
+  it("updatePasswordHash changes the stored password hash and invalidates sessions", async () => {
     const { createUser, updatePasswordHash, getUserById } = await import("../../auth/users");
+    const { createSession, getAuthSession } = await import("../../auth/sessionStore");
     const user = await createUser("pwupdate", "oldhash");
+    const { token } = createSession(user.id);
 
     updatePasswordHash(user.id, "newhash");
     expect(getUserById(user.id)?.passwordHash).toBe("newhash");
+    expect(getUserById(user.id)?.sessionVersion).toBe(1);
+    expect(await getAuthSession(token)).toBeNull();
+  });
+
+  it("increments the session generation when 2FA state changes", async () => {
+    const { createUser, setTotpSecret, clearTotpSecret, getUserById } = await import("../../auth/users");
+    const user = await createUser("twofa", "hash");
+    setTotpSecret(user.id, "secret");
+    expect(getUserById(user.id)?.sessionVersion).toBe(1);
+    clearTotpSecret(user.id);
+    expect(getUserById(user.id)?.sessionVersion).toBe(2);
+  });
+
+  it("does not let a stale 2FA request overwrite a newer configuration", async () => {
+    const { createUser, getUserById, updateTotpSecretAndRevokeOtherSessions } = await import("../../auth/users");
+    const { createSession } = await import("../../auth/sessionStore");
+    const user = await createUser("twofa-cas", "hash");
+    const current = createSession(user.id);
+
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion, null, "first-secret"
+    )).toBe("updated");
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion, null, "stale-secret"
+    )).toBe("conflict");
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion, "first-secret", "stale-generation"
+    )).toBe("conflict");
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion + 1, null, "stale-state"
+    )).toBe("conflict");
+    expect(getUserById(user.id)?.totpSecret).toBe("first-secret");
   });
 });

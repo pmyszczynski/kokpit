@@ -33,7 +33,8 @@ services:
       - "3000:3000"          # Change the left side to expose on a different host port
     environment:
       # Required — must be a random string of at least 32 characters.
-      # Used to sign session tokens. Changing this invalidates all active sessions.
+      # Used for short-lived 2FA challenges and other server secrets.
+      # Login sessions are stored in the persisted SQLite database.
       # Generate one with: openssl rand -hex 32
       KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret
 
@@ -257,6 +258,49 @@ auth:
 ```
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
+
+## Login sessions
+
+Kokpit keeps you signed in by default. Each browser has a revocable session stored
+in `data/users.db`; only a hash of its random cookie token is stored. Preserve the
+`/data` volume across container upgrades and restarts.
+
+In **Settings → Authentication**, you can view signed-in browsers and last-used
+times, sign out one browser, or sign out all other devices/all devices. Controlling
+other sessions and changing authentication settings require your current password.
+Enabling 2FA requires your password plus an authenticator code; disabling it requires
+a current authenticator code. Either change signs out other devices. Password
+recovery and the emergency reset command sign out every device and invalidate
+pending 2FA login challenges.
+
+The browser cookie lasts up to a year and renews silently when you return to Kokpit
+and while the dashboard is open. Clearing cookies, private browsing, browser
+retention policies, or losing the database can still require another login.
+
+An optional inactivity limit is available for shared devices:
+
+```yaml
+auth:
+  enabled: true
+  session_idle_timeout_hours: 0  # 0 or omitted: no automatic expiry
+```
+
+A positive whole number (up to 8760) expires a new session after that many hours
+without authenticated dashboard requests. Dashboard/widget polling counts as
+activity; silent cookie renewal does not. This measures request inactivity, not
+keyboard or mouse inactivity, so a dashboard that keeps polling can remain active.
+Changing the setting affects new sessions; revoke existing sessions to enforce a
+new policy immediately. The UI saves this setting back to YAML.
+
+**Upgrade:** older JWT cookies require one new login. The legacy
+`session_ttl_hours` key is accepted but no longer controls login expiry; saving
+authentication settings replaces it with `session_idle_timeout_hours`. Persistent
+sessions no longer depend on the signing secret. To revoke them, use the session
+controls or reset the password.
+
+API clients calling authentication mutation endpoints must send
+`X-Kokpit-Request: 1`; cross-site browser mutations are rejected. Tokens should never
+be copied into URLs, logs, or browser local storage.
 
 ## Edit Mode
 

@@ -30,7 +30,7 @@ describe("LogoutButton", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     });
-    expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", { method: "POST" });
+    expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", { method: "POST", headers: { "X-Kokpit-Request": "1" } });
     expect(pushMock).toHaveBeenCalledWith("/login");
     expect(refreshMock).toHaveBeenCalled();
     expect(window.alert).not.toHaveBeenCalled();

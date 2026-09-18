@@ -20,6 +20,15 @@ describe("getDb()", () => {
     expect(table).toBeTruthy();
   });
 
+  it("creates the persistent sessions table and user session generation", async () => {
+    vi.resetModules();
+    const { getDb } = await import("../../auth/db");
+    const db = getDb();
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").get()).toBeTruthy();
+    const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+    expect(columns.some((column) => column.name === "session_version")).toBe(true);
+  });
+
   it("returns the same instance on subsequent calls", async () => {
     vi.resetModules();
     const { getDb } = await import("../../auth/db");
@@ -56,6 +65,8 @@ describe("getDb()", () => {
       const db = getDb();
       const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
       expect(columns.some((c) => c.name === "recovery_code_hash")).toBe(true);
+      expect(columns.some((c) => c.name === "session_version")).toBe(true);
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").get()).toBeTruthy();
     } finally {
       process.env.KOKPIT_DB_PATH = ":memory:";
       rmSync(dir, { recursive: true, force: true });

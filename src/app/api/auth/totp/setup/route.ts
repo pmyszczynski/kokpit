@@ -1,27 +1,29 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
-  getAuthUser,
+  getAuthSession,
   SESSION_COOKIE_NAME,
   generateTotpSecret,
   getTotpUri,
   getTotpQrCode,
   verifyTotpCode,
-  setTotpSecret,
-  clearTotpSecret,
+  updateTotpSecretAndRevokeOtherSessions,
+  verifySessionPassword,
 } from "@/auth";
+import { isTrustedMutation } from "@/auth/requestGuard";
 
-async function getSessionUser() {
+async function getSessionToken() {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  return getAuthUser(token);
+  return cookieStore.get(SESSION_COOKIE_NAME)?.value;
 }
 
 export async function GET() {
-  const user = await getSessionUser();
-  if (!user) {
+  const token = await getSessionToken();
+  const auth = await getAuthSession(token);
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const { user } = auth;
 
   if (user.totpSecret !== null) {
     return NextResponse.json({ enabled: true });
@@ -35,23 +37,18 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (user.totpSecret !== null) {
-    return NextResponse.json({ error: "2FA is already enabled" }, { status: 409 });
-  }
-
-  let body: { secret?: unknown; code?: unknown };
+  let body: { secret?: unknown; code?: unknown; password?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { secret, code } = body;
+  const { secret, code, password } = body;
   if (typeof secret !== "string" || typeof code !== "string" || !secret || !code) {
     return NextResponse.json(
       { error: "secret and code are required" },
@@ -59,18 +56,36 @@ export async function POST(req: Request) {
     );
   }
 
+  const token = await getSessionToken();
+  const verified = await verifySessionPassword(token, password);
+  if (!("auth" in verified)) return NextResponse.json({ error: verified.error }, { status: verified.status });
+  const { user, session } = verified.auth;
+  if (user.totpSecret !== null) {
+    return NextResponse.json({ error: "2FA is already enabled" }, { status: 409 });
+  }
   if (!verifyTotpCode(code, secret)) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
-  setTotpSecret(user.id, secret);
+  const result = updateTotpSecretAndRevokeOtherSessions(
+    user.id,
+    session.id,
+    user.sessionVersion,
+    user.totpSecret,
+    secret
+  );
+  if (result === "session-revoked") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (result === "conflict") {
+    return NextResponse.json({ error: "2FA settings changed; reload and try again" }, { status: 409 });
+  }
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: Request) {
-  const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: { code?: unknown };
@@ -84,10 +99,28 @@ export async function DELETE(req: Request) {
   if (typeof code !== "string" || !code) {
     return NextResponse.json({ error: "code is required" }, { status: 400 });
   }
+  const token = await getSessionToken();
+  // Revalidate after parsing the request so an intervening logout/revocation
+  // cannot change 2FA state through a stale authenticated request.
+  const auth = await getAuthSession(token);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, session } = auth;
   if (!user.totpSecret || !verifyTotpCode(code, user.totpSecret)) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
-  clearTotpSecret(user.id);
+  const result = updateTotpSecretAndRevokeOtherSessions(
+    user.id,
+    session.id,
+    user.sessionVersion,
+    user.totpSecret,
+    null
+  );
+  if (result === "session-revoked") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (result === "conflict") {
+    return NextResponse.json({ error: "2FA settings changed; reload and try again" }, { status: 409 });
+  }
   return NextResponse.json({ ok: true });
 }

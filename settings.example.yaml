@@ -17,7 +17,8 @@ schema_version: 2
 # ─────────────────────────────────────────────────────────────
 auth:
   enabled: true # Set false to disable auth (or use KOKPIT_AUTH_DISABLED=true env var)
-  session_ttl_hours: 24
+  # Stay signed in until you sign out. Set a positive number for an idle timeout.
+  session_idle_timeout_hours: 0
   # users: []             # Populated by first-run setup wizard
 
 # ─── Appearance ───────────────────────────────────────────────

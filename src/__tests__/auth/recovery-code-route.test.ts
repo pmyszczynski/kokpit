@@ -13,10 +13,11 @@ vi.mock("next/headers", () => ({
     delete: vi.fn(),
   }),
 }));
+vi.mock("@/auth/requestGuard", () => ({ isTrustedMutation: vi.fn().mockReturnValue(true) }));
 
 async function makeSessionCookie(userId: string): Promise<string> {
-  const { signJWT } = await import("@/auth");
-  return signJWT(userId, 24);
+  const { createSession } = await import("@/auth");
+  return createSession(userId).token;
 }
 
 describe("POST /api/auth/recovery-code", () => {

@@ -23,13 +23,28 @@ vi.mock("@/config/server", () => ({
   }),
 }));
 
+function trustedRequest(input: RequestInfo | URL, init?: RequestInit): globalThis.Request {
+  const headers = new Headers(init?.headers);
+  headers.set("x-kokpit-request", "1");
+  return new globalThis.Request(input, { ...init, headers });
+}
+
 async function makeSessionCookie(userId: string): Promise<string> {
-  const { signJWT } = await import("@/auth");
-  return signJWT(userId, 24);
+  const { createSession } = await import("@/auth");
+  return createSession(userId).token;
 }
 
 describe("GET /api/auth/totp/setup", () => {
   beforeEach(() => vi.resetModules());
+
+  it("returns 403 without the trusted-request header", async () => {
+    const { POST } = await import("../../app/api/auth/totp/setup/route");
+    const res = await POST(new globalThis.Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ secret: "abc", code: "123456", password: "whatever" }),
+    }));
+    expect(res.status).toBe(403);
+  });
 
   it("returns 401 when not authenticated", async () => {
     mockCookieGet.mockReturnValue(undefined);
@@ -77,9 +92,9 @@ describe("POST /api/auth/totp/setup", () => {
   it("returns 401 when not authenticated", async () => {
     mockCookieGet.mockReturnValue(undefined);
     const { POST } = await import("../../app/api/auth/totp/setup/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
-      body: JSON.stringify({ secret: "abc", code: "123456" }),
+      body: JSON.stringify({ secret: "abc", code: "123456", password: "whatever" }),
     }));
     expect(res.status).toBe(401);
   });
@@ -97,14 +112,37 @@ describe("POST /api/auth/totp/setup", () => {
     const code = generateSync({ secret });
 
     const { POST } = await import("../../app/api/auth/totp/setup/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
-      body: JSON.stringify({ secret, code }),
+      body: JSON.stringify({ secret, code, password: "pass" }),
     }));
     vi.useRealTimers();
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
+  });
+
+  it("requires the current password and revokes other sessions when enabling 2FA", async () => {
+    const { createSession, createUser, getAuthSession, hashPassword, generateTotpSecret } = await import("@/auth");
+    const user = await createUser("two-factor-revoke", await hashPassword("correct-password"));
+    const current = createSession(user.id).token;
+    const other = createSession(user.id).token;
+    mockCookieGet.mockReturnValue({ value: current });
+    const secret = generateTotpSecret();
+    const code = generateSync({ secret });
+    const { POST } = await import("../../app/api/auth/totp/setup/route");
+
+    const wrongPassword = await POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ secret, code, password: "wrong-password" }),
+    }));
+    expect(wrongPassword.status).toBe(401);
+
+    const valid = await POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ secret, code, password: "correct-password" }),
+    }));
+    expect(valid.status).toBe(200);
+    expect(await getAuthSession(current)).not.toBeNull();
+    expect(await getAuthSession(other)).toBeNull();
   });
 
   it("returns 409 when TOTP is already enabled", async () => {
@@ -116,13 +154,46 @@ describe("POST /api/auth/totp/setup", () => {
     mockCookieGet.mockReturnValue({ value: token });
 
     const { POST } = await import("../../app/api/auth/totp/setup/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
-      body: JSON.stringify({ secret: generateTotpSecret(), code: "123456" }),
+      body: JSON.stringify({ secret: generateTotpSecret(), code: "123456", password: "pass" }),
     }));
     expect(res.status).toBe(409);
     const json = await res.json();
     expect(json.error).toMatch(/already enabled/i);
+  });
+
+  it("returns 409 when the 2FA state changes while the request is being verified", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("totp-stale-state", await auth.hashPassword("pass"));
+    const token = auth.createSession(user.id).token;
+    mockCookieGet.mockReturnValue({ value: token });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"));
+    try {
+      const secret = auth.generateTotpSecret();
+      const code = generateSync({ secret });
+      const winningSecret = auth.generateTotpSecret();
+      vi.doMock("@/auth", () => ({
+        ...auth,
+        updateTotpSecretAndRevokeOtherSessions: (...args: Parameters<typeof auth.updateTotpSecretAndRevokeOtherSessions>) => {
+          // Another request from this session commits after password verification.
+          expect(auth.updateTotpSecretAndRevokeOtherSessions(
+            args[0], args[1], args[2], args[3], winningSecret
+          )).toBe("updated");
+          return auth.updateTotpSecretAndRevokeOtherSessions(...args);
+        },
+      }));
+      const { POST } = await import("../../app/api/auth/totp/setup/route");
+      const response = await POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ secret, code, password: "pass" }),
+      }));
+      expect(response.status).toBe(409);
+      expect(auth.getUserById(user.id)?.totpSecret).toBe(winningSecret);
+    } finally {
+      vi.doUnmock("@/auth");
+      vi.useRealTimers();
+    }
   });
 
   it("returns 400 on invalid code", async () => {
@@ -133,9 +204,9 @@ describe("POST /api/auth/totp/setup", () => {
     mockCookieGet.mockReturnValue({ value: token });
 
     const { POST } = await import("../../app/api/auth/totp/setup/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
-      body: JSON.stringify({ secret: generateTotpSecret(), code: "000000" }),
+      body: JSON.stringify({ secret: generateTotpSecret(), code: "000000", password: "pass" }),
     }));
     expect(res.status).toBe(400);
   });
@@ -147,7 +218,7 @@ describe("DELETE /api/auth/totp/setup", () => {
   it("returns 401 when not authenticated", async () => {
     mockCookieGet.mockReturnValue(undefined);
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
-    const res = await DELETE(new Request("http://localhost", {
+    const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
       body: JSON.stringify({ code: "123456" }),
     }));
@@ -163,7 +234,7 @@ describe("DELETE /api/auth/totp/setup", () => {
     mockCookieGet.mockReturnValue({ value: token });
 
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
-    const res = await DELETE(new Request("http://localhost", {
+    const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
       body: JSON.stringify({}),
     }));
@@ -179,7 +250,7 @@ describe("DELETE /api/auth/totp/setup", () => {
     mockCookieGet.mockReturnValue({ value: token });
 
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
-    const res = await DELETE(new Request("http://localhost", {
+    const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
       body: JSON.stringify({ code: "000000" }),
     }));
@@ -200,7 +271,7 @@ describe("DELETE /api/auth/totp/setup", () => {
     const code = generateSync({ secret });
 
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
-    const res = await DELETE(new Request("http://localhost", {
+    const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
       body: JSON.stringify({ code }),
     }));
@@ -208,5 +279,31 @@ describe("DELETE /api/auth/totp/setup", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
+  });
+
+  it("rolls back a 2FA removal when revoking other sessions fails", async () => {
+    const { createSession, createUser, generateTotpSecret, getDb, getUserById, hashPassword, setTotpSecret } = await import("@/auth");
+    const user = await createUser("totp-rollback", await hashPassword("pass"));
+    const secret = generateTotpSecret();
+    setTotpSecret(user.id, secret);
+    const token = createSession(user.id).token;
+    createSession(user.id);
+    mockCookieGet.mockReturnValue({ value: token });
+    const versionBefore = getUserById(user.id)!.sessionVersion;
+    getDb().exec(`
+      CREATE TRIGGER abort_totp_session_revoke
+      BEFORE DELETE ON sessions
+      WHEN OLD.user_id = '${user.id}'
+      BEGIN SELECT RAISE(ABORT, 'session delete failed'); END;
+    `);
+    const code = generateSync({ secret });
+    const { DELETE } = await import("../../app/api/auth/totp/setup/route");
+
+    await expect(DELETE(trustedRequest("http://localhost", {
+      method: "DELETE", body: JSON.stringify({ code }),
+    }))).rejects.toThrow("session delete failed");
+    const userAfter = getUserById(user.id)!;
+    expect(userAfter.totpSecret).toBe(secret);
+    expect(userAfter.sessionVersion).toBe(versionBefore);
   });
 });

@@ -86,7 +86,7 @@ describe("loadConfig", () => {
     expect(statSync(configPath).mode & 0o777).toBe(0o600);
     expect(config.schema_version).toBe(2);
     expect(config.auth.enabled).toBe(true);
-    expect(config.auth.session_ttl_hours).toBe(24);
+    expect(config.auth.session_idle_timeout_hours ?? 0).toBe(0);
     expect(config.appearance.theme).toBe("dark");
     expect(config.layout).toEqual({});
     expect(config.services).toEqual([]);

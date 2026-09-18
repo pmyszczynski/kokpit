@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
+import { cookies } from "next/headers";
+import { isAuthenticationEnabled, SESSION_COOKIE_NAME } from "@/auth";
+import { isTrustedMutation } from "@/auth/requestGuard";
+import { verifySessionPassword } from "@/auth/reauthenticate";
 import {
   ConfigRevisionMismatchError,
   ConfigUnavailableError,
@@ -42,9 +46,10 @@ const PatchBodySchema = z.object({
   auth: z
     .object({
       enabled: z.boolean(),
-      session_ttl_hours: z.number().int().positive(),
+      session_idle_timeout_hours: z.number().int().min(0).max(8760),
     })
     .optional(),
+  auth_password: z.string().optional(),
   services: z.array(ServiceSchema).optional(),
   service_tiles: z.array(ServiceTileSchema).optional(),
   groups: GroupsSchema.optional(),
@@ -125,6 +130,18 @@ export async function PATCH(request: NextRequest) {
     const current = snapshot.config;
     if (!(await isRequestAuthenticated(current))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (result.data.auth !== undefined) {
+      if (!isTrustedMutation(request)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (isAuthenticationEnabled(current)) {
+        const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+        const proof = await verifySessionPassword(token, result.data.auth_password);
+        if ("error" in proof) {
+          return NextResponse.json({ error: proof.error }, { status: proof.status });
+        }
+      }
     }
     if (snapshot.state === "migration-required") {
       return NextResponse.json(

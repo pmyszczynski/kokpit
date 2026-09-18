@@ -7,7 +7,7 @@ export default function LogoutButton() {
 
   async function handleLogout() {
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
+      const res = await fetch("/api/auth/logout", { method: "POST", headers: { "X-Kokpit-Request": "1" } });
       if (!res.ok) throw new Error("Logout failed");
       router.push("/login");
       router.refresh();

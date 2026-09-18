@@ -1,24 +1,22 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
-  getAuthUser,
   SESSION_COOKIE_NAME,
-  verifyPassword,
   generateRecoveryCode,
   hashRecoveryCode,
   setRecoveryCodeHash,
+  verifySessionPassword,
 } from "@/auth";
+import { isTrustedMutation } from "@/auth/requestGuard";
 
-async function getSessionUser() {
+async function getSessionToken() {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  return getAuthUser(token);
+  return cookieStore.get(SESSION_COOKIE_NAME)?.value;
 }
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: unknown;
@@ -32,16 +30,14 @@ export async function POST(req: Request) {
   }
 
   const { password } = body as { password?: unknown };
-  if (typeof password !== "string" || !password) {
-    return NextResponse.json({ error: "password is required" }, { status: 400 });
-  }
-
-  if (!(await verifyPassword(password, user.passwordHash))) {
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
-  }
+  const token = await getSessionToken();
+  const verified = await verifySessionPassword(token, password);
+  if (!("auth" in verified)) return NextResponse.json({ error: verified.error }, { status: verified.status });
 
   const recoveryCode = generateRecoveryCode();
-  setRecoveryCodeHash(user.id, hashRecoveryCode(recoveryCode));
+  // verifySessionPassword re-reads the session after bcrypt. This synchronous
+  // write cannot race an await between authorization and mutation.
+  setRecoveryCodeHash(verified.auth.user.id, hashRecoveryCode(recoveryCode));
 
   return NextResponse.json({ recoveryCode });
 }

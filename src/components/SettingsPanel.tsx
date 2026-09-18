@@ -21,6 +21,7 @@ import ServiceForm from "./ServiceForm";
 import GroupsTab from "./GroupsTab";
 import BookmarksTab from "./BookmarksTab";
 import BookmarkGroupForm from "./BookmarkGroupForm";
+import SessionManager from "./SessionManager";
 import {
   persistLegacyServices,
   projectCatalogServices,
@@ -75,7 +76,13 @@ function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void
   );
 }
 
-export default function SettingsPanel({ config }: { config: ClientSafeSettings }) {
+export default function SettingsPanel({
+  config,
+  showSessionManager = config.auth.enabled,
+}: {
+  config: ClientSafeSettings;
+  showSessionManager?: boolean;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("appearance");
@@ -109,9 +116,16 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   // Layout
 
   // Auth
-  const [sessionTtl, setSessionTtl] = useState(config.auth.session_ttl_hours);
+  const [sessionIdleTimeout, setSessionIdleTimeout] = useState(
+    config.auth.session_idle_timeout_hours && config.auth.session_idle_timeout_hours > 0
+      ? config.auth.session_idle_timeout_hours.toString()
+      : ""
+  );
+  const [authPassword, setAuthPassword] = useState("");
+  const [authPolicyMessage, setAuthPolicyMessage] = useState<string | null>(null);
   const [totp, setTotp] = useState<TotpState>({ status: "loading" });
   const [totpCode, setTotpCode] = useState("");
+  const [totpPassword, setTotpPassword] = useState("");
   const [totpMessage, setTotpMessage] = useState<string | null>(null);
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [totpDisableCode, setTotpDisableCode] = useState("");
@@ -201,13 +215,14 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     try {
       const res = await fetch("/api/auth/totp/setup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret: totp.secret, code: totpCode }),
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
+        body: JSON.stringify({ secret: totp.secret, code: totpCode, password: totpPassword }),
       });
       if (res.ok) {
         setTotpCode("");
+        setTotpPassword("");
         await fetchTotpStatus();
-        setTotpMessage("2FA enabled successfully.");
+        setTotpMessage("2FA enabled successfully. Other signed-in devices have been signed out.");
       } else {
         const json = await res.json().catch(() => ({}));
         setTotpMessage((json as { error?: string }).error ?? "Failed to enable 2FA");
@@ -222,7 +237,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     try {
       const res = await fetch("/api/auth/totp/setup", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify({ code: totpDisableCode }),
       });
       if (res.ok) {
@@ -246,7 +261,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     try {
       const res = await fetch("/api/auth/recovery-code", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify({ password: recoveryPassword }),
       });
       const json = await res.json().catch(() => ({}));
@@ -272,10 +287,14 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        if (section === "auth") setAuthPolicyMessage(json.error ?? "Save failed");
+        throw new Error("Save failed");
+      }
       // A services response contains freshly redacted credential references.
       // Those references identify the service by name, so a rename must replace
       // the optimistic client state with this authoritative response before the
@@ -367,7 +386,26 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleSaveAuth() {
-    save("auth", { enabled: config.auth.enabled, session_ttl_hours: sessionTtl });
+    const submittedTimeout = sessionIdleTimeout;
+    const timeout = Number(submittedTimeout);
+    const canonicalTimeout = Number.isFinite(timeout) && timeout > 0
+      ? Math.min(8760, Math.max(1, Math.floor(timeout)))
+      : 0;
+    setAuthPolicyMessage(null);
+    void saveRaw("auth", {
+      auth: {
+        enabled: config.auth.enabled,
+        session_idle_timeout_hours: canonicalTimeout,
+      },
+      auth_password: authPassword,
+    }).then((result) => {
+      if (!result.ok) return;
+      setAuthPassword("");
+      const savedTimeout = result.config?.auth?.session_idle_timeout_hours ?? canonicalTimeout;
+      setSessionIdleTimeout((current) => current === submittedTimeout
+        ? (savedTimeout > 0 ? savedTimeout.toString() : "")
+        : current);
+    });
   }
 
   async function saveServices(next: Service[]) {
@@ -853,25 +891,43 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
           <section className="settings-section">
             <h2 className="settings-section__title">Authentication</h2>
 
-            <div className="settings-form-row">
-              <label htmlFor="session-ttl">Session duration (hours)</label>
-              <input
-                id="session-ttl"
-                type="number"
-                min={1}
-                max={8760}
-                value={sessionTtl}
-                onChange={(e) => setSessionTtl(Math.max(1, Number(e.target.value)))}
-                className="settings-input settings-input--narrow"
-              />
-              <span className="settings-hint">
-                New sessions will use this value. Existing sessions are unaffected.
-              </span>
+            <div className="settings-form-row settings-form-row--column">
+              <label className="settings-form-row">
+                <input
+                  type="checkbox"
+                  checked={!sessionIdleTimeout}
+                  onChange={(event) => setSessionIdleTimeout(event.target.checked ? "" : "24")}
+                />
+                Stay signed in
+              </label>
+              {!sessionIdleTimeout && <span className="settings-hint">Sessions stay signed in until you sign out or revoke them.</span>}
+              <div className="settings-form-row flex-wrap">
+                <label htmlFor="session-idle-timeout">Sign out after inactivity (hours)</label>
+                <input
+                  id="session-idle-timeout"
+                  type="number"
+                  min={1}
+                  max={8760}
+                  value={sessionIdleTimeout}
+                  disabled={!sessionIdleTimeout}
+                  onChange={(event) => setSessionIdleTimeout(event.target.value)}
+                  className="settings-input settings-input--narrow"
+                />
+                <button className="settings-btn" onClick={() => setSessionIdleTimeout("24")} disabled={!!sessionIdleTimeout}>Use inactivity timeout</button>
+              </div>
+              <span className="settings-hint">This policy applies to new sessions only. Existing sessions are unaffected. Dashboard and widget requests, including polling, count as activity; background cookie renewal does not.</span>
+              {config.auth.enabled && (
+                <div className="settings-form-row">
+                  <label htmlFor="auth-policy-password">Current password</label>
+                  <input id="auth-policy-password" type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} className="settings-input" autoComplete="current-password" />
+                </div>
+              )}
             </div>
 
             <div className="settings-actions">
               <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} />
             </div>
+            {authPolicyMessage && <p className="settings-hint" role="alert">{authPolicyMessage}</p>}
 
             <h3 className="settings-section__subtitle">Two-Factor Authentication</h3>
 
@@ -956,7 +1012,11 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
                     autoComplete="one-time-code"
                   />
                 </div>
-                <button className="settings-save-btn" onClick={handleTotpEnable} disabled={totpCode.length !== 6}>
+                <div className="settings-form-row">
+                  <label htmlFor="totp-password">Current password</label>
+                  <input id="totp-password" type="password" value={totpPassword} onChange={(event) => setTotpPassword(event.target.value)} className="settings-input" autoComplete="current-password" />
+                </div>
+                <button className="settings-save-btn" onClick={handleTotpEnable} disabled={totpCode.length !== 6 || !totpPassword}>
                   Enable 2FA
                 </button>
               </div>
@@ -1027,6 +1087,8 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
             {recoveryMessage && (
               <p className="settings-hint">{recoveryMessage}</p>
             )}
+
+            {showSessionManager && <SessionManager />}
           </section>
         )}
 
