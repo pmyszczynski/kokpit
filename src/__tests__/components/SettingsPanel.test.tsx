@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act, within } from "@testing-library/react";
+import { render, screen, fireEvent, act, within, waitFor } from "@testing-library/react";
 import type { KokpitConfig, Service } from "@/config/schema";
 import { pushMock, refreshMock, resetNavigationMock } from "@/test/mocks/navigation";
 
@@ -233,6 +233,53 @@ describe("SettingsPanel - auth tab / TOTP", () => {
 
     expect(screen.getByRole("checkbox", { name: "Stay signed in" })).toBeChecked();
     expect(screen.getByLabelText("Sign out after inactivity (hours)")).toBeDisabled();
+  });
+
+  it("hides signed-in device controls when authentication is effectively disabled", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ enabled: false, secret: "S", qrCode: "d" })));
+    render(<SettingsPanel config={makeConfig({ auth: { enabled: false } })} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+
+    expect(screen.queryByTestId("session-manager")).not.toBeInTheDocument();
+  });
+
+  it("normalizes the saved inactivity timeout to the server value", async () => {
+    const fetchMock = vi.fn((url: string) => Promise.resolve(
+      url === "/api/settings"
+        ? jsonResponse({ auth: { enabled: true, session_idle_timeout_hours: 1 } })
+        : jsonResponse({ enabled: false, secret: "S", qrCode: "d" })
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig({ auth: { enabled: true, session_idle_timeout_hours: 2 } })} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+
+    fireEvent.change(screen.getByLabelText("Sign out after inactivity (hours)"), { target: { value: "1.8" } });
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#auth-policy-password" }), { target: { value: "mypassword" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+
+    await waitFor(() => expect(screen.getByLabelText("Sign out after inactivity (hours)")).toHaveValue(1));
+  });
+
+  it("does not overwrite a newer inactivity timeout edit when saving completes", async () => {
+    let resolveSettings!: (response: Response) => void;
+    const settingsResponse = new Promise<Response>((resolve) => { resolveSettings = resolve; });
+    const fetchMock = vi.fn((url: string) =>
+      url === "/api/settings"
+        ? settingsResponse
+        : Promise.resolve(jsonResponse({ enabled: false, secret: "S", qrCode: "d" }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig({ auth: { enabled: true, session_idle_timeout_hours: 2 } })} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+
+    const timeoutInput = screen.getByLabelText("Sign out after inactivity (hours)");
+    fireEvent.change(timeoutInput, { target: { value: "1.8" } });
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#auth-policy-password" }), { target: { value: "mypassword" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.change(timeoutInput, { target: { value: "9" } });
+    await act(async () => { resolveSettings(jsonResponse({ auth: { enabled: true, session_idle_timeout_hours: 1 } })); });
+
+    await waitFor(() => expect(timeoutInput).toHaveValue(9));
   });
 
   it("saves the persistent session policy with a fresh password and clears it on success", async () => {

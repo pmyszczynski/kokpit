@@ -20,7 +20,12 @@ vi.mock("@/config/server", () => ({
     auth: { enabled: true, session_ttl_hours: 24 },
   }),
 }));
-vi.mock("@/auth/requestGuard", () => ({ isTrustedMutation: vi.fn().mockReturnValue(true) }));
+
+function trustedRequest(input: RequestInfo | URL, init?: RequestInit): globalThis.Request {
+  const headers = new Headers(init?.headers);
+  headers.set("x-kokpit-request", "1");
+  return new globalThis.Request(input, { ...init, headers });
+}
 
 describe("POST /api/auth/totp/verify", () => {
   beforeEach(() => {
@@ -28,9 +33,18 @@ describe("POST /api/auth/totp/verify", () => {
     mockCookieSet.mockClear();
   });
 
+  it("returns 403 without the trusted-request header", async () => {
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const res = await POST(new globalThis.Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ challengeToken: "token", code: "123456" }),
+    }));
+    expect(res.status).toBe(403);
+  });
+
   it("returns 400 on missing fields", async () => {
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
       body: JSON.stringify({}),
     }));
@@ -39,7 +53,7 @@ describe("POST /api/auth/totp/verify", () => {
 
   it("returns 401 on invalid challenge token", async () => {
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
       body: JSON.stringify({ challengeToken: "bogus.token.value", code: "123456" }),
     }));
@@ -55,7 +69,7 @@ describe("POST /api/auth/totp/verify", () => {
     const challengeToken = await signTotpChallenge(user.id, getUserById(user.id)!.sessionVersion);
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
       body: JSON.stringify({ challengeToken, code: "000000" }),
     }));
@@ -72,7 +86,7 @@ describe("POST /api/auth/totp/verify", () => {
     const code = generateSync({ secret });
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
       body: JSON.stringify({ challengeToken, code }),
     }));
@@ -90,7 +104,7 @@ describe("POST /api/auth/totp/verify", () => {
     const challengeToken = await signTotpChallenge(user.id, getUserById(user.id)!.sessionVersion);
     const code = generateSync({ secret });
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const request = () => POST(new Request("http://localhost", {
+    const request = () => POST(trustedRequest("http://localhost", {
       method: "POST", body: JSON.stringify({ challengeToken, code }),
     }));
 
@@ -108,7 +122,7 @@ describe("POST /api/auth/totp/verify", () => {
     const challengeToken = await signTotpChallenge(user.id, getUserById(user.id)!.sessionVersion);
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST",
       body: JSON.stringify({ challengeToken, code: "123456" }),
     }));
@@ -124,7 +138,7 @@ describe("POST /api/auth/totp/verify", () => {
     updatePasswordHash(user.id, await hashPassword("new-password"));
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const res = await POST(new Request("http://localhost", {
+    const res = await POST(trustedRequest("http://localhost", {
       method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
     }));
     expect(res.status).toBe(401);
@@ -139,7 +153,7 @@ describe("POST /api/auth/totp/verify", () => {
     const challengeToken = await signTotpChallenge(user.id, getUserById(user.id)!.sessionVersion);
 
     const { POST } = await import("../../app/api/auth/totp/verify/route");
-    const makeRequest = () => POST(new Request("http://localhost", {
+    const makeRequest = () => POST(trustedRequest("http://localhost", {
       method: "POST",
       body: JSON.stringify({ challengeToken, code: "000000" }),
     }));

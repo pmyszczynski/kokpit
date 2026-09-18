@@ -286,7 +286,9 @@ auth:
 ```
 
 A positive whole number (up to 8760) expires a new session after that many hours
-without authenticated requests. Dashboard/widget polling counts as activity.
+without authenticated dashboard requests. Dashboard/widget polling counts as
+activity; silent cookie renewal does not. This measures request inactivity, not
+keyboard or mouse inactivity, so a dashboard that keeps polling can remain active.
 Changing the setting affects new sessions; revoke existing sessions to enforce a
 new policy immediately. The UI saves this setting back to YAML.
 

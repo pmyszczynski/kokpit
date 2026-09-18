@@ -76,7 +76,13 @@ function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void
   );
 }
 
-export default function SettingsPanel({ config }: { config: ClientSafeSettings }) {
+export default function SettingsPanel({
+  config,
+  showSessionManager = config.auth.enabled,
+}: {
+  config: ClientSafeSettings;
+  showSessionManager?: boolean;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("appearance");
@@ -380,16 +386,25 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
   }
 
   function handleSaveAuth() {
-    const timeout = Number(sessionIdleTimeout);
+    const submittedTimeout = sessionIdleTimeout;
+    const timeout = Number(submittedTimeout);
+    const canonicalTimeout = Number.isFinite(timeout) && timeout > 0
+      ? Math.min(8760, Math.max(1, Math.floor(timeout)))
+      : 0;
     setAuthPolicyMessage(null);
     void saveRaw("auth", {
       auth: {
         enabled: config.auth.enabled,
-        session_idle_timeout_hours: Number.isFinite(timeout) && timeout > 0 ? Math.min(8760, Math.max(1, Math.floor(timeout))) : 0,
+        session_idle_timeout_hours: canonicalTimeout,
       },
       auth_password: authPassword,
     }).then((result) => {
-      if (result.ok) setAuthPassword("");
+      if (!result.ok) return;
+      setAuthPassword("");
+      const savedTimeout = result.config?.auth?.session_idle_timeout_hours ?? canonicalTimeout;
+      setSessionIdleTimeout((current) => current === submittedTimeout
+        ? (savedTimeout > 0 ? savedTimeout.toString() : "")
+        : current);
     });
   }
 
@@ -900,7 +915,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
                 />
                 <button className="settings-btn" onClick={() => setSessionIdleTimeout("24")} disabled={!!sessionIdleTimeout}>Use inactivity timeout</button>
               </div>
-              <span className="settings-hint">This policy applies to new sessions only. Existing sessions are unaffected.</span>
+              <span className="settings-hint">This policy applies to new sessions only. Existing sessions are unaffected. Dashboard and widget requests, including polling, count as activity; background cookie renewal does not.</span>
               {config.auth.enabled && (
                 <div className="settings-form-row">
                   <label htmlFor="auth-policy-password">Current password</label>
@@ -1073,7 +1088,7 @@ export default function SettingsPanel({ config }: { config: ClientSafeSettings }
               <p className="settings-hint">{recoveryMessage}</p>
             )}
 
-            <SessionManager />
+            {showSessionManager && <SessionManager />}
           </section>
         )}
 

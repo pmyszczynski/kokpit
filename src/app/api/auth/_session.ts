@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createSession, SESSION_COOKIE_NAME } from "@/auth";
+import { createSession, revokeSession, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfig } from "@/config/server";
 
 const COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
@@ -36,10 +36,15 @@ export async function createSessionCookie(
   // Obtain the mutable cookie store before creating a DB session. If that
   // fails, no unusable server-side session has been issued.
   const cookieStore = await cookies();
-  const { token } = createSession(userId, {
+  const { token, session } = createSession(userId, {
     userAgent: req?.headers.get("user-agent") ?? undefined,
     idleTimeoutHours,
     expectedSessionVersion,
   });
-  writeSessionCookie(cookieStore, token);
+  try {
+    writeSessionCookie(cookieStore, token);
+  } catch (error) {
+    revokeSession(userId, session.id);
+    throw error;
+  }
 }

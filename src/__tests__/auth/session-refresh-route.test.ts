@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.KOKPIT_DB_PATH = ":memory:";
 const cookieGet = vi.fn();
@@ -10,6 +10,25 @@ const request = (headers = { "X-Kokpit-Request": "1" }) => new Request("http://l
 
 describe("session cookie renewal", () => {
   beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); cookieGet.mockReturnValue(undefined); });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("renews the cookie without extending the idle deadline", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("idle-owner", "unused");
+    const current = auth.createSession(user.id, { idleTimeoutHours: 1 });
+    const now = vi.spyOn(Date, "now");
+    cookieGet.mockReturnValue({ value: current.token });
+    const { POST } = await import("../../app/api/auth/session/refresh/route");
+
+    now.mockReturnValue(current.session.lastSeenAt + 30 * 60 * 1000);
+    expect((await POST(request())).status).toBe(200);
+    expect(auth.listSessions(user.id)[0].lastSeenAt).toBe(current.session.lastSeenAt);
+    cookieSet.mockClear();
+    now.mockReturnValue(current.session.lastSeenAt + 60 * 60 * 1000);
+    expect((await POST(request())).status).toBe(401);
+    expect(cookieSet).not.toHaveBeenCalled();
+    expect(auth.listSessions(user.id)).toEqual([]);
+  });
 
   it("renews a live opaque token without creating another session", async () => {
     const auth = await import("@/auth");

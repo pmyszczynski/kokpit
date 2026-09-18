@@ -9,7 +9,7 @@ describe("isTrustedMutation", () => {
     }))).toBe(false);
   });
 
-  it("accepts an opted-in same-origin request and non-browser request", () => {
+  it("accepts opted-in same-origin, browser-navigation, and non-browser requests", () => {
     expect(isTrustedMutation(new Request("http://localhost", {
       method: "POST",
       headers: { "x-kokpit-request": "1", "sec-fetch-site": "same-origin" },
@@ -17,6 +17,10 @@ describe("isTrustedMutation", () => {
     expect(isTrustedMutation(new Request("http://localhost", {
       method: "POST",
       headers: { "x-kokpit-request": "1" },
+    }))).toBe(true);
+    expect(isTrustedMutation(new Request("http://localhost", {
+      method: "POST",
+      headers: { "x-kokpit-request": "1", "sec-fetch-site": "none" },
     }))).toBe(true);
   });
 

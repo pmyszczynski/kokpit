@@ -94,4 +94,19 @@ describe("user management", () => {
     clearTotpSecret(user.id);
     expect(getUserById(user.id)?.sessionVersion).toBe(2);
   });
+
+  it("does not let a stale 2FA request overwrite a newer configuration", async () => {
+    const { createUser, getUserById, updateTotpSecretAndRevokeOtherSessions } = await import("../../auth/users");
+    const { createSession } = await import("../../auth/sessionStore");
+    const user = await createUser("twofa-cas", "hash");
+    const current = createSession(user.id);
+
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion, null, "first-secret"
+    )).toBe("updated");
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion, null, "stale-secret"
+    )).toBe("conflict");
+    expect(getUserById(user.id)?.totpSecret).toBe("first-secret");
+  });
 });

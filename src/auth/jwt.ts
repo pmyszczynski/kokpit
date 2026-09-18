@@ -1,11 +1,12 @@
 import { SignJWT, jwtVerify } from "jose";
 import { getServerSecret } from "./serverSecret";
 import { getUserById } from "./users";
+import { SessionInvalidatedError } from "./errors";
 
 export async function signTotpChallenge(userId: string, expectedSessionVersion: number): Promise<string> {
   const user = getUserById(userId);
   if (!user || user.sessionVersion !== expectedSessionVersion) {
-    throw new Error("Challenge creation was invalidated");
+    throw new SessionInvalidatedError();
   }
   return new SignJWT({ userId, sessionVersion: expectedSessionVersion, type: "totp_challenge" })
     .setProtectedHeader({ alg: "HS256" })

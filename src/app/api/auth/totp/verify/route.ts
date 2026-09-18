@@ -7,6 +7,7 @@ import {
 } from "@/auth";
 import { createSessionCookie } from "../../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
+import { SessionInvalidatedError } from "@/auth/errors";
 
 const MAX_TOTP_ATTEMPTS = 5;
 // TOTP challenge tokens expire in 5 minutes; prune local state at the same cadence.
@@ -90,8 +91,11 @@ export async function POST(req: Request) {
 
   try {
     await createSessionCookie(user.id, req, challenge.sessionVersion);
-  } catch {
-    return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
+  } catch (error) {
+    if (error instanceof SessionInvalidatedError) {
+      return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
+    }
+    throw error;
   }
   return NextResponse.json({ id: user.id, username: user.username });
 }

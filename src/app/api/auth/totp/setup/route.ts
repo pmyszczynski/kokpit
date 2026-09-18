@@ -67,8 +67,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
-  if (!updateTotpSecretAndRevokeOtherSessions(user.id, session.id, secret)) {
+  const result = updateTotpSecretAndRevokeOtherSessions(
+    user.id,
+    session.id,
+    user.sessionVersion,
+    user.totpSecret,
+    secret
+  );
+  if (result === "session-revoked") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (result === "conflict") {
+    return NextResponse.json({ error: "2FA settings changed; reload and try again" }, { status: 409 });
   }
   return NextResponse.json({ ok: true });
 }
@@ -99,8 +109,18 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
-  if (!updateTotpSecretAndRevokeOtherSessions(user.id, session.id, null)) {
+  const result = updateTotpSecretAndRevokeOtherSessions(
+    user.id,
+    session.id,
+    user.sessionVersion,
+    user.totpSecret,
+    null
+  );
+  if (result === "session-revoked") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (result === "conflict") {
+    return NextResponse.json({ error: "2FA settings changed; reload and try again" }, { status: 409 });
   }
   return NextResponse.json({ ok: true });
 }

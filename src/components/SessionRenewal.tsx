@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
@@ -9,18 +9,22 @@ const REQUEST_TIMEOUT_MS = 15 * 1000;
 /** Keeps the persistent session cookie alive without exposing its token to JS. */
 export default function SessionRenewal() {
   const router = useRouter();
-  const lastSuccessfulRefresh = useRef(0);
-  const refreshInFlight = useRef(false);
 
   useEffect(() => {
     let disposed = false;
+    let lastSuccessfulRefresh = 0;
+    let refreshInFlight = false;
+    let nextRefresh: number | undefined;
+    let activeController: AbortController | undefined;
 
     async function refresh() {
-      if (disposed || refreshInFlight.current) return;
-      if (Date.now() - lastSuccessfulRefresh.current < REFRESH_INTERVAL_MS) return;
+      if (disposed || refreshInFlight) return;
+      if (Date.now() - lastSuccessfulRefresh < REFRESH_INTERVAL_MS) return;
 
-      refreshInFlight.current = true;
+      refreshInFlight = true;
+      window.clearTimeout(nextRefresh);
       const controller = new AbortController();
+      activeController = controller;
       const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const response = await fetch("/api/auth/session/refresh", {
@@ -34,12 +38,14 @@ export default function SessionRenewal() {
           router.refresh();
           return;
         }
-        if (response.ok) lastSuccessfulRefresh.current = Date.now();
+        if (response.ok) lastSuccessfulRefresh = Date.now();
       } catch {
         // Network failures are retried by the next lifecycle event or interval.
       } finally {
         window.clearTimeout(timeout);
-        refreshInFlight.current = false;
+        refreshInFlight = false;
+        activeController = undefined;
+        if (!disposed) nextRefresh = window.setTimeout(refresh, REFRESH_INTERVAL_MS);
       }
     }
 
@@ -50,13 +56,13 @@ export default function SessionRenewal() {
     void refresh();
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("online", refresh);
-    const interval = window.setInterval(refresh, REFRESH_INTERVAL_MS);
 
     return () => {
       disposed = true;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("online", refresh);
-      window.clearInterval(interval);
+      window.clearTimeout(nextRefresh);
+      activeController?.abort();
     };
   }, [router]);
 

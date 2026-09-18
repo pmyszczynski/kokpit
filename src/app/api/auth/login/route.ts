@@ -7,6 +7,7 @@ import {
 } from "@/auth";
 import { createSessionCookie } from "../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
+import { SessionInvalidatedError } from "@/auth/errors";
 
 // Use a pre-computed dummy hash so bcrypt always runs its full work factor,
 // preventing username enumeration via response-time timing attacks.
@@ -62,10 +63,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ requiresTotp: true, challengeToken });
     }
     await createSessionCookie(currentUser.id, req, currentUser.sessionVersion);
-  } catch {
+  } catch (error) {
     // The account changed while bcrypt was running (for example, its password
     // was reset), so do not issue a session for the stale credential check.
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    if (error instanceof SessionInvalidatedError) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+    throw error;
   }
   return NextResponse.json({ id: currentUser.id, username: currentUser.username });
 }

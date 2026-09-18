@@ -63,7 +63,10 @@ describe("GET /api/auth/me", () => {
   });
 
   it("returns 401 when the token references a non-existent user", async () => {
-    const token = "nonexistent-session-token";
+    const { createSession, createUser, getDb } = await import("@/auth");
+    const user = await createUser("deleted-user", "hash");
+    const token = createSession(user.id).token;
+    getDb().prepare("DELETE FROM users WHERE id = ?").run(user.id);
 
     const { cookies } = await import("next/headers");
     (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "crypto";
 import { getDb } from "./db";
 import { getUserById, type User } from "./users";
+import { SessionInvalidatedError } from "./errors";
 
 const LAST_SEEN_WRITE_INTERVAL_MS = 60_000;
 const OPAQUE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -56,7 +57,7 @@ function safeDeviceLabel(userAgent?: string): string {
     : /Mac OS X/.test(userAgent) ? "macOS"
     : /Linux/.test(userAgent) ? "Linux"
     : null;
-  return browser && platform ? `${browser} on ${platform}` : browser ?? "Unknown browser";
+  return browser && platform ? `${browser} on ${platform}` : browser ?? platform ?? "Unknown browser";
 }
 
 export function createSession(
@@ -71,19 +72,22 @@ export function createSession(
     : 0;
   const db = getDb();
   const expectedVersion = options.expectedSessionVersion ?? getUserById(userId)?.sessionVersion;
-  if (expectedVersion === undefined) throw new Error("User does not exist");
+  if (expectedVersion === undefined) throw new SessionInvalidatedError();
 
   const result = db.prepare(`
     INSERT INTO sessions (id, user_id, token_hash, device, created_at, last_seen_at, idle_timeout_hours)
     SELECT ?, id, ?, ?, ?, ?, ?
     FROM users WHERE id = ? AND session_version = ?
   `).run(id, hashToken(token), safeDeviceLabel(options.userAgent), now, now, idleTimeoutHours, userId, expectedVersion);
-  if (result.changes !== 1) throw new Error("Session creation was invalidated");
+  if (result.changes !== 1) throw new SessionInvalidatedError();
 
   return { token, session: { id, userId, device: safeDeviceLabel(options.userAgent), createdAt: now, lastSeenAt: now, idleTimeoutHours } };
 }
 
-export async function getAuthSession(token: string | undefined): Promise<{ user: User; session: AuthSession } | null> {
+export async function getAuthSession(
+  token: string | undefined,
+  options: { touch?: boolean } = {}
+): Promise<{ user: User; session: AuthSession } | null> {
   if (!token || !OPAQUE_TOKEN_PATTERN.test(token)) return null;
   const db = getDb();
   const row = db.prepare(`
@@ -99,7 +103,7 @@ export async function getAuthSession(token: string | undefined): Promise<{ user:
   }
   const user = getUserById(session.userId);
   if (!user) return null;
-  if (session.idleTimeoutHours > 0 || now - session.lastSeenAt >= LAST_SEEN_WRITE_INTERVAL_MS) {
+  if (options.touch !== false && (session.idleTimeoutHours > 0 || now - session.lastSeenAt >= LAST_SEEN_WRITE_INTERVAL_MS)) {
     db.prepare("UPDATE sessions SET last_seen_at = ? WHERE id = ?").run(now, session.id);
     session.lastSeenAt = now;
   }

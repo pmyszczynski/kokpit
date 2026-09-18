@@ -93,20 +93,26 @@ export function clearTotpSecret(userId: string): void {
 export function updateTotpSecretAndRevokeOtherSessions(
   userId: string,
   currentSessionId: string,
+  expectedSessionVersion: number,
+  expectedTotpSecret: string | null,
   secret: string | null
-): boolean {
+): "updated" | "session-revoked" | "conflict" {
   const db = getDb();
   return db.transaction(() => {
     const active = db.prepare("SELECT 1 FROM sessions WHERE id = ? AND user_id = ?")
       .get(currentSessionId, userId);
-    if (!active) return false;
-    const result = db.prepare(
-      "UPDATE users SET totp_secret = ?, session_version = session_version + 1 WHERE id = ?"
-    ).run(secret, userId);
-    if (result.changes !== 1) return false;
+    if (!active) return "session-revoked";
+    const result = expectedTotpSecret === null
+      ? db.prepare(
+        "UPDATE users SET totp_secret = ?, session_version = session_version + 1 WHERE id = ? AND session_version = ? AND totp_secret IS NULL"
+      ).run(secret, userId, expectedSessionVersion)
+      : db.prepare(
+        "UPDATE users SET totp_secret = ?, session_version = session_version + 1 WHERE id = ? AND session_version = ? AND totp_secret = ?"
+      ).run(secret, userId, expectedSessionVersion, expectedTotpSecret);
+    if (result.changes !== 1) return "conflict";
     db.prepare("DELETE FROM sessions WHERE user_id = ? AND id != ?")
       .run(userId, currentSessionId);
-    return true;
+    return "updated";
   })();
 }
 

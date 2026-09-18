@@ -39,7 +39,7 @@ describe("persistent session policy", () => {
     mocks.proof.mockResolvedValue({ auth: { user: {}, session: {} } });
   });
 
-  it("does not carry legacy fixed expiry into the new policy", () => {
+  it("defaults to persistent sessions while accepting legacy TTL configuration", () => {
     const legacy = KokpitConfigSchema.parse({ schema_version: 2, auth: { enabled: true, session_ttl_hours: 24 } });
     expect(legacy.auth.session_idle_timeout_hours ?? 0).toBe(0);
     expect(KokpitConfigSchema.parse({ schema_version: 2 }).auth.session_idle_timeout_hours ?? 0).toBe(0);

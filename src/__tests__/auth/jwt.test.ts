@@ -34,7 +34,9 @@ describe("TOTP challenges", () => {
     const { signTotpChallenge } = await import("../../auth/jwt");
     const user = await createUser("stale-proof", "old-hash");
     updatePasswordHash(user.id, "new-hash");
-    await expect(signTotpChallenge(user.id, user.sessionVersion)).rejects.toThrow("Challenge creation was invalidated");
+    await expect(signTotpChallenge(user.id, user.sessionVersion)).rejects.toMatchObject({
+      name: "SessionInvalidatedError",
+    });
   });
 
   it("rejects a legacy challenge without a session generation", async () => {

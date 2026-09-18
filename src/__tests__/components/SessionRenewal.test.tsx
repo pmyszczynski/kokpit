@@ -20,6 +20,19 @@ describe("SessionRenewal", () => {
     vi.unstubAllGlobals();
   });
 
+  it("schedules renewal from completion of a delayed initial request", async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve; }))
+      .mockResolvedValue({ ok: true, status: 200 } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SessionRenewal />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    await act(async () => { finish({ ok: true, status: 200 } as Response); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60 * 1000); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("retries a transient failure on a later online event", async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new Error("offline"))

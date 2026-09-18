@@ -50,6 +50,9 @@ describe("persistent sessions", () => {
     expect(row.token_hash).not.toBe(token);
     expect(row.token_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(row.device).toBe("Chrome on macOS");
+
+    const androidSession = createSession(user.id, { userAgent: "Android" });
+    expect(androidSession.session.device).toBe("Android");
   });
 
   it("revokes only the selected user session", async () => {
@@ -103,6 +106,7 @@ describe("persistent sessions", () => {
     const { tmpdir } = await import("os");
     const { join } = await import("path");
     const directory = mkdtempSync(join(tmpdir(), "kokpit-session-test-"));
+    let closeReopenedDb: (() => void) | undefined;
     try {
       process.env.KOKPIT_DB_PATH = join(directory, "users.db");
       vi.resetModules();
@@ -114,8 +118,10 @@ describe("persistent sessions", () => {
       closeDb();
       vi.resetModules();
       const { getAuthSession } = await import("../../auth/sessionStore");
+      ({ closeDb: closeReopenedDb } = await import("../../auth/db"));
       expect((await getAuthSession(token))?.user.username).toBe("restart");
     } finally {
+      closeReopenedDb?.();
       process.env.KOKPIT_DB_PATH = ":memory:";
       rmSync(directory, { recursive: true, force: true });
     }
