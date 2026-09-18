@@ -168,20 +168,22 @@ describe("POST /api/auth/totp/setup", () => {
     const user = await auth.createUser("totp-stale-state", await auth.hashPassword("pass"));
     const token = auth.createSession(user.id).token;
     mockCookieGet.mockReturnValue({ value: token });
-    const secret = auth.generateTotpSecret();
-    const code = generateSync({ secret });
-    const winningSecret = auth.generateTotpSecret();
-    vi.doMock("@/auth", () => ({
-      ...auth,
-      updateTotpSecretAndRevokeOtherSessions: (...args: Parameters<typeof auth.updateTotpSecretAndRevokeOtherSessions>) => {
-        // Another request from this session commits after password verification.
-        expect(auth.updateTotpSecretAndRevokeOtherSessions(
-          args[0], args[1], args[2], args[3], winningSecret
-        )).toBe("updated");
-        return auth.updateTotpSecretAndRevokeOtherSessions(...args);
-      },
-    }));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"));
     try {
+      const secret = auth.generateTotpSecret();
+      const code = generateSync({ secret });
+      const winningSecret = auth.generateTotpSecret();
+      vi.doMock("@/auth", () => ({
+        ...auth,
+        updateTotpSecretAndRevokeOtherSessions: (...args: Parameters<typeof auth.updateTotpSecretAndRevokeOtherSessions>) => {
+          // Another request from this session commits after password verification.
+          expect(auth.updateTotpSecretAndRevokeOtherSessions(
+            args[0], args[1], args[2], args[3], winningSecret
+          )).toBe("updated");
+          return auth.updateTotpSecretAndRevokeOtherSessions(...args);
+        },
+      }));
       const { POST } = await import("../../app/api/auth/totp/setup/route");
       const response = await POST(trustedRequest("http://localhost", {
         method: "POST", body: JSON.stringify({ secret, code, password: "pass" }),
@@ -190,6 +192,7 @@ describe("POST /api/auth/totp/setup", () => {
       expect(auth.getUserById(user.id)?.totpSecret).toBe(winningSecret);
     } finally {
       vi.doUnmock("@/auth");
+      vi.useRealTimers();
     }
   });
 

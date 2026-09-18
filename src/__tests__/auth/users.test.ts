@@ -107,6 +107,12 @@ describe("user management", () => {
     expect(updateTotpSecretAndRevokeOtherSessions(
       user.id, current.session.id, user.sessionVersion, null, "stale-secret"
     )).toBe("conflict");
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion, "first-secret", "stale-generation"
+    )).toBe("conflict");
+    expect(updateTotpSecretAndRevokeOtherSessions(
+      user.id, current.session.id, user.sessionVersion + 1, null, "stale-state"
+    )).toBe("conflict");
     expect(getUserById(user.id)?.totpSecret).toBe("first-secret");
   });
 });
