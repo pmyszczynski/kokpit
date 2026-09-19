@@ -158,7 +158,7 @@ If Docker publication fails, the tag and GitHub Release remain but the release r
 
 ## Key References
 
-- **Widget UI library work:** read [`docs/widget-consistency-plan.md`](docs/widget-consistency-plan.md) and the [component/widget tracker](docs/plans/widget-component-and-migration-tracker.md). Work only on the owner-selected step and keep both tables current.
+- **Widget UI library work:** read [`docs/plans/widget-consistency-plan.md`](docs/plans/widget-consistency-plan.md) and the [component/widget tracker](docs/plans/widget-component-and-migration-tracker.md). Work only on the owner-selected step and keep both tables current.
 - **Full roadmap & task list:** [`docs/Roadmap.md`](docs/Roadmap.md)
 - **Architecture decisions:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) *(not yet created)*
 - **Widget/integration specs:** documented per-widget in [`README.md § Widgets`](README.md#widgets) rather than a separate file — add new widgets there

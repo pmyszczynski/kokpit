@@ -1,6 +1,6 @@
 # Widget component and migration tracker
 
-[Execution plan and session handoff](../widget-consistency-plan.md)
+[Execution plan and session handoff](widget-consistency-plan.md)
 
 **Current state:** documentation only. All library work is `todo`; all 28 widget migrations are `todo`. Proposed first example: **Immich Stats**, awaiting the owner's instruction to begin.
 

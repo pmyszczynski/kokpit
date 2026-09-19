@@ -1,6 +1,6 @@
 # Widget UI library: plan and session handoff
 
-**Start here:** [component and widget tracking tables](plans/widget-component-and-migration-tracker.md).
+**Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
 **Current state:** documentation only; no component or widget migration has started.
 
@@ -8,7 +8,7 @@
 
 **Next action:** the owner chooses when to begin the first component. Suggested first example: **Immich Stats**.
 
-**Working location:** the branch's checkout; both documents are explicitly tracked; the tracker lives in `docs/plans/` despite that directory's ignore rule.
+**Working location:** the branch's checkout; both documents live in `docs/plans/` and are explicitly tracked despite that directory's ignore rule.
 
 ## Agreed direction
 
@@ -20,7 +20,7 @@ This plan supersedes the earlier broad widget-consistency proposal: its three-wi
 
 ## How to work on the next step
 
-1. Read this file, both [tracking tables](plans/widget-component-and-migration-tracker.md), applicable `AGENTS.md`, and the current branch/diff. Preserve unrelated work. Confirm the owner-selected component/widget from the session; if none is selected, ask which step to start.
+1. Read this file, both [tracking tables](widget-component-and-migration-tracker.md), applicable `AGENTS.md`, and the current branch/diff. Preserve unrelated work. Confirm the owner-selected component/widget from the session; if none is selected, ask which step to start.
 2. Inspect that component's existing consumers and variants before defining its shared contract. Keep the work bounded to the selected step. Read the relevant installed Next.js guide before application code changes.
 3. Mark the selected component `in progress`. Define its minimal props, supported variants, tokens, fit/overflow behavior and accessible semantics. Implement under `src/widgets/ui/` using the current React/CSS approach; add no design-system dependency by default.
 4. Introduce it only in the selected example widget. While the first example is being developed, keep all other widgets on their current implementations. Shared CSS must be scoped so they do not change accidentally.
@@ -58,9 +58,9 @@ Follow `AGENTS.md` for the required pre-commit validation sequence: lint, type-c
 
 ## Evidence and constraints for future sessions
 
-Source audit baseline: `30c7861` (28 registrations in [src/integrations/index.ts](../src/integrations/index.ts)). The tracker links every current widget implementation. Similar stat markup currently shares some CSS in [globals.css](../src/app/globals.css), but Immich, Radarr, Seerr and other families diverge. [Netdata Sparkline](../src/integrations/netdata/Sparkline.tsx) and [Actual Amount](../src/integrations/actualbudget/Amount.tsx) are existing local shared helpers; their existence does not mean the new library migration is done.
+Source audit baseline: `30c7861` (28 registrations in [src/integrations/index.ts](../../src/integrations/index.ts)). The tracker links every current widget implementation. Similar stat markup currently shares some CSS in [globals.css](../../src/app/globals.css), but Immich, Radarr, Seerr and other families diverge. [Netdata Sparkline](../../src/integrations/netdata/Sparkline.tsx) and [Actual Amount](../../src/integrations/actualbudget/Amount.tsx) are existing local shared helpers; their existence does not mean the new library migration is done.
 
-[ServiceTile](../src/components/ServiceTile.tsx), [WidgetRenderer](../src/components/WidgetRenderer.tsx) and [grid geometry](../src/layout/grid.ts) own the rendering/footprint boundary. None of the 28 widgets currently declares a mobile renderer, so they become service links below 720px. The `dimensions` prop describes the outer tile, not measured body space. Existing [Prowlarr](../e2e/tests/prowlarr-widget.spec.ts) and [Plex](../e2e/tests/plex-widget.spec.ts) browser tests are useful starting points; component tests alone cannot prove visual fit.
+[ServiceTile](../../src/components/ServiceTile.tsx), [WidgetRenderer](../../src/components/WidgetRenderer.tsx) and [grid geometry](../../src/layout/grid.ts) own the rendering/footprint boundary. None of the 28 widgets currently declares a mobile renderer, so they become service links below 720px. The `dimensions` prop describes the outer tile, not measured body space. Existing [Prowlarr](../../e2e/tests/prowlarr-widget.spec.ts) and [Plex](../../e2e/tests/plex-widget.spec.ts) browser tests are useful starting points; component tests alone cannot prove visual fit.
 
 Observed source facts establish the inventory; proposed library names and mappings are design targets. Exact token values and fit failures remain to be validated in the selected example. If a source discovery or owner decision changes component boundaries, update both tables and this plan before continuing dependent implementation.
 
