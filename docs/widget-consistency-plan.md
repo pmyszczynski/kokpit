@@ -1,6 +1,6 @@
 # Widget UI library: plan and session handoff
 
-**Start here:** [component and widget tracking tables](widget-ui-library.md).
+**Start here:** [component and widget tracking tables](plans/widget-component-and-migration-tracker.md).
 
 **Current state:** documentation only; no component or widget migration has started.
 
@@ -8,7 +8,7 @@
 
 **Next action:** the owner chooses when to begin the first component. Suggested first example: **Immich Stats**.
 
-**Working location:** the branch's checkout; these documents are tracked under `docs/`, not the ignored `docs/plans/` directory.
+**Working location:** the branch's checkout; both documents are explicitly tracked; the tracker lives in `docs/plans/` despite that directory's ignore rule.
 
 ## Agreed direction
 
@@ -20,7 +20,7 @@ This plan supersedes the earlier broad widget-consistency proposal: its three-wi
 
 ## How to work on the next step
 
-1. Read this file, both [tracking tables](widget-ui-library.md), applicable `AGENTS.md`, and the current branch/diff. Preserve unrelated work. Confirm the owner-selected component/widget from the session; if none is selected, ask which step to start.
+1. Read this file, both [tracking tables](plans/widget-component-and-migration-tracker.md), applicable `AGENTS.md`, and the current branch/diff. Preserve unrelated work. Confirm the owner-selected component/widget from the session; if none is selected, ask which step to start.
 2. Inspect that component's existing consumers and variants before defining its shared contract. Keep the work bounded to the selected step. Read the relevant installed Next.js guide before application code changes.
 3. Mark the selected component `in progress`. Define its minimal props, supported variants, tokens, fit/overflow behavior and accessible semantics. Implement under `src/widgets/ui/` using the current React/CSS approach; add no design-system dependency by default.
 4. Introduce it only in the selected example widget. While the first example is being developed, keep all other widgets on their current implementations. Shared CSS must be scoped so they do not change accidentally.
