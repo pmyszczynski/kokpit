@@ -1,3 +1,5 @@
+import { joinClassNames } from "../../joinClassNames";
+import "./WidgetStat.css";
 import type { ReactNode } from "react";
 
 export type WidgetStatTone = "neutral" | "positive" | "info" | "positive-soft" | "info-soft";
@@ -9,10 +11,6 @@ export interface WidgetStatProps {
   className?: string;
   valueClassName?: string;
   labelClassName?: string;
-}
-
-function joinClassNames(...classNames: Array<string | undefined>) {
-  return classNames.filter(Boolean).join(" ");
 }
 
 /** A formatted value and its label, presented as a compact stat card. */

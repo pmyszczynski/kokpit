@@ -122,6 +122,8 @@ describe("WidgetRenderer", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toBeInTheDocument()
     );
+    expect(screen.getByRole("alert")).toHaveClass("widget-error");
+    expect(screen.getByRole("alert")).not.toHaveClass("widget-state");
     expect(screen.getByText("boom")).toBeInTheDocument();
   });
 

@@ -1,13 +1,11 @@
+import { joinClassNames } from "../../joinClassNames";
+import "./WidgetState.css";
 import type { ReactNode } from "react";
 
 export interface WidgetStateProps {
   state: "loading" | "error" | "empty";
   children?: ReactNode;
   className?: string;
-}
-
-function joinClassNames(...classNames: Array<string | undefined>) {
-  return classNames.filter(Boolean).join(" ");
 }
 
 /** Presentation for initial loading/error states and widget-supplied empty copy. */

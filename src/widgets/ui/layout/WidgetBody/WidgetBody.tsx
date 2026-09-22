@@ -1,3 +1,5 @@
+import { joinClassNames } from "../../joinClassNames";
+import "./WidgetBody.css";
 import type { HTMLAttributes, ReactNode } from "react";
 
 export interface WidgetBodyProps extends HTMLAttributes<HTMLDivElement> {
@@ -6,10 +8,6 @@ export interface WidgetBodyProps extends HTMLAttributes<HTMLDivElement> {
   reserveNotice?: boolean;
   centered?: boolean;
   noticeClassName?: string;
-}
-
-function joinClassNames(...classNames: Array<string | undefined>) {
-  return classNames.filter(Boolean).join(" ");
 }
 
 /** A shrinkable widget body with an optional, stable notice row. */

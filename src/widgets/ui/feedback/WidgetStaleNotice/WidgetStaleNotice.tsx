@@ -1,3 +1,6 @@
+import { joinClassNames } from "../../joinClassNames";
+import "./WidgetStaleNotice.css";
+
 export interface WidgetStaleNoticeProps {
   error: string | null;
   message?: string;
@@ -5,10 +8,6 @@ export interface WidgetStaleNoticeProps {
 }
 
 const defaultMessage = "Refresh failed · saved data";
-
-function joinClassNames(...classNames: Array<string | undefined>) {
-  return classNames.filter(Boolean).join(" ");
-}
 
 /** Announces that the widget is showing saved data after a refresh failure. */
 export function WidgetStaleNotice({

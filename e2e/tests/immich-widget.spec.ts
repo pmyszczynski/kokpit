@@ -241,9 +241,6 @@ test("Immich renders its compact stats at its 3x2 footprint across all themes", 
         "font-size",
         "11px"
       );
-      if (footprint.label === "Default" && theme === "dark") {
-        await immichTile(page).screenshot({ path: "/tmp/kokpit-widget-pilot/stacked-dark.png" });
-      }
     }
   }
 });
@@ -272,7 +269,13 @@ test("Immich initial loading and initial failures use WidgetRenderer states", as
 
   await page.goto("/");
   await expect(immichTile(page).locator(".widget-state--loading")).toBeVisible();
-  expect(releaseInitialResponses, "initial widget request was not made").toBeDefined();
+  const spinner = immichTile(page).locator(".widget-state__spinner");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(spinner).toHaveCSS("animation-name", "widget-state-spin");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(spinner).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(spinner).toHaveCSS("animation-name", "widget-state-spin");
   releaseInitialResponses!();
   await expectStats(page);
 
@@ -354,10 +357,6 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     await page.goto("/");
     await expectStats(page);
     const healthyBounds = await immichLayoutBounds(page);
-    if (footprint.label === "Default") {
-      await immichTile(page).screenshot({ path: "/tmp/kokpit-widget-pilot/stable-warning-healthy.png" });
-    }
-
     refreshFails = true;
     await page.clock.fastForward(60_000);
     const widget = immichWidget(page);
@@ -368,10 +367,6 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     await expect(widget.locator(".immich-stats-widget__value")).toHaveText(EXPECTED_VALUES);
     expect(await immichLayoutBounds(page)).toEqual(healthyBounds);
     await assertFits(page);
-    if (footprint.label === "Default") {
-      await immichTile(page).screenshot({ path: "/tmp/kokpit-widget-pilot/stable-warning-error.png" });
-    }
-
     refreshFails = false;
     await page.clock.fastForward(60_000);
     await expect(alert).toHaveCount(0);

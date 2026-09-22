@@ -2,7 +2,7 @@
 
 [Execution plan and session handoff](widget-consistency-plan.md)
 
-**Current state:** the first Immich slice is complete locally. `WidgetTokens`, `WidgetBody`, `WidgetStatGrid`, `WidgetStat`, `WidgetState` and `WidgetStaleNotice` are `done`; Immich is `migrated`. The other seven library entries and 27 widget migrations remain `todo`. Full local validation passes. The owner authorized PR delivery and CI/review monitoring on 2026-09-22; see the plan for the delivery scope. No merge or release is implied.
+**Current state:** the first Immich slice is complete locally. `WidgetTokens`, `WidgetBody`, `WidgetStatGrid`, `WidgetStat`, `WidgetState` and `WidgetStaleNotice` are `done`; Immich is `migrated`. The other seven library entries and 27 widget migrations remain `todo`. Full local validation passes. PR #108 is published; its six low-priority review fixes are owner-authorized on 2026-09-22 and implemented. Current-head validation and review resolution are tracked on the PR. See the plan for the delivery scope. No merge or release is implied.
 
 These tables describe **target adoption based on the current widget UI**, not components already imported today. Names and groups reflect the agreed library organization; exact APIs and visual tokens remain to be validated in selected examples. Update both tables and the execution plan together if a boundary changes.
 

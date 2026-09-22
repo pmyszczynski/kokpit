@@ -34,6 +34,12 @@
     text-align: center;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .widget-state__spinner {
+      animation: none;
+    }
+  }
+
   @keyframes widget-state-spin {
     to {
       transform: rotate(360deg);

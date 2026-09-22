@@ -6,7 +6,7 @@
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Next action:** publish this completed slice from `feature/immich-widget-ui` and monitor PR checks and review comments, as authorized by the owner on 2026-09-22. The larger Immich views remain proposals; other migrations require the owner's next selection. Merge and release are not part of this request.
+**Next action:** address the six review comments on [PR #108](https://github.com/pmyszczynski/kokpit/pull/108), as authorized by the owner on 2026-09-22, then validate and push the scoped fixes from `feature/immich-widget-ui`. The larger Immich views remain proposals; other migrations require the owner's next selection. Merge and release are not part of this request.
 
 **Working location:** the branch's checkout; both documents live in `docs/plans/` and are explicitly tracked despite that directory's ignore rule.
 
@@ -50,7 +50,7 @@ src/widgets/ui/
 
 Every component directory follows the expanded `WidgetStat/` example. Component-specific helpers and types stay alongside it when needed. Whole-widget browser tests remain in `e2e/`. `WidgetTokens` is the tracker name for `foundation/tokens.css`, not a React component.
 
-The root `index.ts` exposes the public API, so integrations import from `@/widgets/ui` without depending on the internal groups. Colocated CSS still follows the shared cascade-layer and custom-CSS override requirements below. Shared component roots and migrated widget bodies use the `widget-ui` class to opt into the foundation reset inside that layer; unselected widgets keep the existing reset precedence.
+The root `index.ts` exposes the public API, so integrations import from `@/widgets/ui` without depending on the internal groups. Each component imports its colocated CSS, and the public entry loads foundation tokens; adding a component requires no app-layout stylesheet registration. Colocated CSS still follows the shared cascade-layer and custom-CSS override requirements below. Shared component roots and migrated widget bodies use the `widget-ui` class to opt into the foundation reset inside that layer; unselected widgets keep the existing reset precedence.
 
 | Group | Responsibility |
 | --- | --- |
@@ -175,3 +175,10 @@ The owner clarified that the pilot must use the library for all applicable prese
 - **Remaining scope:** seven other library entries and 27 other widget migrations are `todo`. Extend components only when a subsequently selected widget needs another variant.
 - **Next action:** complete the authorized PR delivery and monitor CI/review findings. After delivery, wait for the owner's next selection; the larger per-user/quota views remain proposals and other widget migrations are not authorized.
 - **Delivery:** use `feature/immich-widget-ui`; local validation and remote CI are separate gates. Consult the PR for current check/review status; this plan does not imply merge or release.
+
+### PR #108 review follow-up — 2026-09-22
+
+- **Confirmed baseline:** published head `6ac0d90`; all checks passed. Six Cubic P3 threads identify temporary screenshot paths, a tautological route assertion, missing reduced-motion handling, a missing legacy-error negative assertion, duplicated class-name helpers and app-owned library CSS imports. The owner explicitly selected all six fixes.
+- **Style ownership correction:** components import their colocated styles and the public library entry imports foundation tokens. The app layout's per-component CSS list is removed; retain existing cascade layers, selectors and visual tokens. Installed Next.js App Router CSS guidance permits component imports; verify both dev-browser behavior and the production build.
+- **Implemented:** one internal class-name helper replaces all five copies; the shared spinner stops under reduced motion. Browser tests no longer write manual `/tmp` screenshots or assert on a preassigned resolver. They check animation preference changes while loading; the renderer unit test also verifies legacy errors retain their old class and lack the shared state class. Immich content/geometry, fetching and other widgets stay unchanged.
+- **Validation:** rerun the complete required local gate after final edits, review the full PR diff, push fixes and verify current-head CI. No merge or release.
