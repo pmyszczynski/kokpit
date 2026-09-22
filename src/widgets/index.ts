@@ -102,6 +102,10 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   component: React.ComponentType<WidgetProps<TData>>;
   /** Exact desktop canvases implemented by this widget. */
   supportedFootprints?: Array<TileFootprint & { label?: string }>;
+  /** Compact desktop tile chrome, with the service description beside the icon under its name. */
+  compactHeader?: boolean;
+  /** Use library feedback for initial states while unmigrated widgets retain their presentation. */
+  sharedUI?: boolean;
   /** Mobile support is explicit; desktop renderers are never reused implicitly. */
   mobile?: {
     footprint: TileFootprint;

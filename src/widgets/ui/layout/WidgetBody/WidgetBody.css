@@ -1,0 +1,26 @@
+@layer widget-ui {
+  .widget-body {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .widget-body--centered {
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+  }
+
+  .widget-body__notice {
+    flex-shrink: 0;
+    font-size: var(--widget-notice-font-size, 0.7rem);
+    line-height: var(--widget-notice-line-height, 1.25);
+    min-height: calc(
+      1em * var(--widget-notice-line-height, 1.25) +
+        2 * var(--widget-notice-padding-block, 2px)
+    );
+    padding: var(--widget-notice-padding-block, 2px) 0;
+    text-align: center;
+  }
+}

@@ -878,7 +878,7 @@ Shows global Immich media and storage stats for your instance.
 
 #### `immich-stats`
 
-Displays photos, videos, total storage usage, photo storage usage, and video storage usage.
+Displays total storage usage and the combined number of photos and videos in a fixed 3×2 tile. The former 6×2 option is removed; existing wide tiles use the supported 3×2 size. A reserved warning row keeps the stats stationary if a refresh fails while saved data remains visible.
 
 ```yaml
 services:
@@ -906,13 +906,10 @@ service_tiles:
 
 
 
-| Stat       | Description                          |
-| ---------- | ------------------------------------ |
-| Photos     | Total number of photos               |
-| Videos     | Total number of videos               |
-| Storage    | Total storage usage across all media |
-| Photo Size | Storage used by photos               |
-| Video Size | Storage used by videos               |
+| Stat    | Description                          |
+| ------- | ------------------------------------ |
+| Storage | Total storage usage across all media |
+| Items   | Combined number of photos and videos |
 
 
 ---

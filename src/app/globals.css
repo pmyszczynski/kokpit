@@ -1,3 +1,5 @@
+@layer widget-ui, tautulli-widget, user-custom;
+
 /* CSS variable foundations — full theme overridability */
 
 /* === THEMES === */
@@ -89,9 +91,11 @@
   --color-surface-2-translucent: color-mix(in srgb, var(--color-surface-2) 68%, transparent);
 }
 
-*,
-*::before,
-*::after {
+/* Shared widget UI opts into a layered reset so custom CSS can override it.
+   Keep the existing reset precedence for widgets that have not migrated. */
+*:not(:where(.widget-ui, .widget-ui *)),
+*:not(:where(.widget-ui, .widget-ui *))::before,
+*:not(:where(.widget-ui, .widget-ui *))::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -355,8 +359,8 @@ button {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: var(--gap);
+  gap: var(--service-tile-gap, 8px);
+  padding: var(--service-tile-padding, var(--gap));
   /* Frosted glass indirection: --card-surface / --card-backdrop are unset by
      default, so these resolve to the opaque surface + no backdrop-filter
      (byte-identical to before). resolveAppearance sets them only when
@@ -468,7 +472,7 @@ button {
      from the tile's BORDER edge; the header lives inside the tile's padding,
      so that padding comes back off, plus 6px of breathing room. Clamped at 0
      so a larger --gap simply means no inset rather than negative padding. */
-  padding-right: max(0px, calc(var(--tile-corner-reach, 0px) + 6px - var(--gap)));
+  padding-right: max(0px, calc(var(--tile-corner-reach, 0px) + 6px - var(--service-tile-padding, var(--gap))));
 }
 
 /* View mode: the shared slot holds either the dot (right: 10px + 8px wide) or
@@ -529,7 +533,32 @@ button {
 
 .service-tile__widget {
   width: 100%;
-  margin-top: 0.5rem;
+  margin-top: var(--service-tile-widget-margin, 0.5rem);
+}
+
+/* Compact service header for widgets that opt in. */
+@layer widget-ui {
+  /* The two-row summary budgets space for both service text and stale data. */
+  .service-tile--compact-header {
+    --service-tile-padding: 8px;
+    --service-tile-gap: 4px;
+    --service-tile-widget-margin: 0px;
+  }
+
+  .service-tile--compact-header
+    :is(.service-tile__name, .service-tile__description) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .service-tile--compact-header .service-tile__heading {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
 }
 
 /* Widget states */
@@ -2687,102 +2716,6 @@ button {
   flex-shrink: 0;
 }
 
-/* ── Immich stats widget ──────────────────────────────────────────────────── */
-
-.immich-stats-widget {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.immich-stats-widget__grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-  flex: 1 1 0;
-  align-content: center;
-  padding: 4px;
-}
-
-.immich-stats-widget__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border-radius: 4px;
-  background: var(--color-surface-2);
-  min-width: 0;
-}
-
-.immich-stats-widget__value {
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.immich-stats-widget__label {
-  font-size: 0.65rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.immich-stats-widget__stat--usage {
-  grid-column: 1 / -1;
-}
-
-.immich-stats-widget__stat--photos .immich-stats-widget__value {
-  color: #22c55e;
-}
-
-.immich-stats-widget__stat--videos .immich-stats-widget__value {
-  color: #60a5fa;
-}
-
-.immich-stats-widget__stat--usage .immich-stats-widget__value {
-  color: var(--color-text);
-}
-
-.immich-stats-widget__stat--usage-photos .immich-stats-widget__value {
-  color: #86efac;
-}
-
-.immich-stats-widget__stat--usage-videos .immich-stats-widget__value {
-  color: #93c5fd;
-}
-
-.immich-stats-widget--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-}
-
-.immich-stats-widget__hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.immich-stats-widget__hint--error {
-  color: #f87171;
-}
-
-.immich-stats-widget__stale-error {
-  font-size: 0.7rem;
-  color: #f87171;
-  text-align: center;
-  padding: 4px 0;
-  flex-shrink: 0;
-}
-
 /* ── Seerr requests widget ────────────────────────────────────────────────── */
 
 .seerr-requests-widget {
@@ -4206,10 +4139,7 @@ button {
   outline: none;
 }
 
-/* User-injected custom CSS from appearance.customCss in settings.yaml */
-/* This layer is loaded last and always wins without needing !important */
-@layer tautulli-widget, user-custom;
-
+/* Legacy widget rules move into layers as their migrations are selected. */
 @layer tautulli-widget {
 .tautulli-activity-widget {
   display: flex;

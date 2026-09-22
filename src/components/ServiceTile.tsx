@@ -312,11 +312,14 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
     widget?.invalid && widget.invalid.length > 0 ? widget.invalid : undefined;
   const useCompactMobileRenderer =
     useMobileRenderer && !invalidIssues && mobileFootprint.rowSpan === 1;
+  const compactHeader = definition?.compactHeader && !mobileGrid && !invalidIssues &&
+    resolvedFootprint.rowSpan > 1;
   const className =
     `service-tile service-tile--${size}` +
     (widget && !definition?.mobile ? " service-tile--mobile-fallback" : "") +
     (useCompactMobileRenderer
       ? " service-tile--mobile-row-1" : "") +
+    (compactHeader ? " service-tile--compact-header" : "") +
     (drag ? " service-tile--editable" : "") +
     (drag?.dragging ? " service-tile--dragging" : "");
 
@@ -367,10 +370,19 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         data-corner-slot={invalidIssues ? "badge" : url ? "dot" : undefined}
       >
         <ServiceIcon icon={icon} url={url} name={name} />
-        <span className="service-tile__name">{name}</span>
+        {compactHeader ? (
+          <div className="service-tile__heading">
+            <span className="service-tile__name" title={name}>{name}</span>
+            {description && (
+              <span className="service-tile__description" title={description}>{description}</span>
+            )}
+          </div>
+        ) : (
+          <span className="service-tile__name" title={name}>{name}</span>
+        )}
       </div>
-      {description && resolvedFootprint.rowSpan > 1 && (
-        <span className="service-tile__description">{description}</span>
+      {description && resolvedFootprint.rowSpan > 1 && !compactHeader && (
+        <span className="service-tile__description" title={description}>{description}</span>
       )}
       {widget && !invalidIssues && !mobileGrid && (
         <div className="service-tile__widget" data-widget-type={widget.type}>

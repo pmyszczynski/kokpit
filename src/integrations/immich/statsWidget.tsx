@@ -1,5 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchStats, ImmichConfigSchema } from "./api";
 import type { ImmichConfig, ImmichStats } from "./api";
 
@@ -26,49 +27,40 @@ export function ImmichStatsWidget({
 }: WidgetProps<ImmichStats>) {
   if (!data) {
     return (
-      <div className="immich-stats-widget immich-stats-widget--empty">
-        {loading && (
-          <span className="immich-stats-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="immich-stats-widget__hint immich-stats-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
+      <WidgetBody centered className="immich-stats-widget immich-stats-widget--empty">
+        <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>
+          {!loading ? error : undefined}
+        </WidgetState>
+      </WidgetBody>
     );
   }
 
   return (
-    <div className="immich-stats-widget" aria-label="Immich stats">
-      <div className="immich-stats-widget__grid">
-        <div className="immich-stats-widget__stat immich-stats-widget__stat--photos">
-          <span className="immich-stats-widget__value">{data.photos.toLocaleString()}</span>
-          <span className="immich-stats-widget__label">Photos</span>
-        </div>
-        <div className="immich-stats-widget__stat immich-stats-widget__stat--videos">
-          <span className="immich-stats-widget__value">{data.videos.toLocaleString()}</span>
-          <span className="immich-stats-widget__label">Videos</span>
-        </div>
-        <div className="immich-stats-widget__stat immich-stats-widget__stat--usage">
-          <span className="immich-stats-widget__value">{formatBytes(data.usage)}</span>
-          <span className="immich-stats-widget__label">Storage</span>
-        </div>
-        <div className="immich-stats-widget__stat immich-stats-widget__stat--usage-photos">
-          <span className="immich-stats-widget__value">{formatBytes(data.usagePhotos)}</span>
-          <span className="immich-stats-widget__label">Photo Size</span>
-        </div>
-        <div className="immich-stats-widget__stat immich-stats-widget__stat--usage-videos">
-          <span className="immich-stats-widget__value">{formatBytes(data.usageVideos)}</span>
-          <span className="immich-stats-widget__label">Video Size</span>
-        </div>
-      </div>
-      {error && (
-        <span className="immich-stats-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
+    <WidgetBody
+      className="immich-stats-widget"
+      aria-label="Immich stats"
+      reserveNotice
+      noticeClassName="immich-stats-widget__notice"
+      notice={<WidgetStaleNotice error={error} className="immich-stats-widget__stale-error" />}
+    >
+      <WidgetStatGrid columns={2} className="immich-stats-widget__grid">
+        <WidgetStat
+          label="Storage"
+          value={formatBytes(data.usage)}
+          className="immich-stats-widget__stat immich-stats-widget__stat--usage"
+          valueClassName="immich-stats-widget__value"
+          labelClassName="immich-stats-widget__label"
+        />
+        <WidgetStat
+          label="Items"
+          value={(data.photos + data.videos).toLocaleString()}
+          tone="info"
+          className="immich-stats-widget__stat immich-stats-widget__stat--items"
+          valueClassName="immich-stats-widget__value"
+          labelClassName="immich-stats-widget__label"
+        />
+      </WidgetStatGrid>
+    </WidgetBody>
   );
 }
 
@@ -76,9 +68,10 @@ registerWidget<ImmichConfig, ImmichStats>({
   id: "immich-stats",
   name: "Immich Stats",
   preferredSize: "normal",
+  compactHeader: true,
+  sharedUI: true,
   supportedFootprints: [
     { label: "Default", columnSpan: 3, rowSpan: 2 },
-    { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
   configSchema: ImmichConfigSchema,
   fetchData: fetchStats,

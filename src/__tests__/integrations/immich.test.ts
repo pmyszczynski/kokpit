@@ -136,12 +136,11 @@ describe("immich-stats widget registration", () => {
     expect(getWidget("immich-stats")?.preferredSize).toBe("normal");
   });
 
-  it("supports default and wide footprints in order", async () => {
+  it("supports only the default 3x2 footprint", async () => {
     await import("@/integrations/immich/statsWidget");
     const { getWidget } = await import("@/widgets");
     expect(getWidget("immich-stats")?.supportedFootprints).toEqual([
       { label: "Default", columnSpan: 3, rowSpan: 2 },
-      { label: "Wide", columnSpan: 6, rowSpan: 2 },
     ]);
   });
 
