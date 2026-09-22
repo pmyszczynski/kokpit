@@ -2,11 +2,11 @@
 
 **Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
-**Current state:** Immich is fully migrated to the shared library locally. Tokens, body, stat grid/cards, states and stale notice are implemented, tested and preserve the accepted 3x2 appearance. The full local gate passes. Other widgets remain out of scope.
+**Current state:** Immich is fully migrated to the shared library in [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). Tokens, body, stat grid/cards, states and stale notice are implemented, tested and preserve the accepted 3x2 appearance. The full local gate passes. Other widgets remain out of scope.
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Next action:** address the six review comments on [PR #108](https://github.com/pmyszczynski/kokpit/pull/108), as authorized by the owner on 2026-09-22, then validate and push the scoped fixes from `feature/immich-widget-ui`. The larger Immich views remain proposals; other migrations require the owner's next selection. Merge and release are not part of this request.
+**Next action:** verify the current head's checks and review-thread disposition on PR #108; completed implementation and review fixes are recorded below. Do not repeat them from historical notes. The larger Immich views and other migrations require the owner's next selection. Merge and release require separate authorization.
 
 **Working location:** the branch's checkout; both documents live in `docs/plans/` and are explicitly tracked despite that directory's ignore rule.
 
@@ -61,8 +61,8 @@ The root `index.ts` exposes the public API, so integrations import from `@/widge
 
 The agreed names distinguish these patterns:
 
-- `WidgetStat` displays one labeled value, optionally with a unit or supporting value. Card and plain appearances are variants. Values accept already-formatted React content so integrations can retain their formatters and Actual Budget's `Amount` component.
-- `WidgetStatGrid` arranges stats and owns columns, gaps and full-width placement; individual stats do not choose their grid position.
+- `WidgetStat` currently displays one labeled value in a stacked card, with caller-formatted React content and a semantic tone. Plain appearances and dedicated unit/subvalue slots are future variants for subsequently selected widgets; they are not part of the shipped API. Caller content can retain integration formatters and Actual Budget's `Amount` component.
+- `WidgetStatGrid` currently arranges stats in 1–4 columns with shared gaps. Full-width placement is a future extension for a selected consumer; individual stats do not choose their grid position.
 - `WidgetStatRow` displays one measurement horizontally, such as memory used/total, with an optional bar. `WidgetListItem` displays one item in a collection, such as a torrent or Docker container, with integration-supplied fields and semantics.
 - `WidgetBar` is a horizontal track with a filled portion. Task progress and resource usage retain distinct accessible semantics. Clamp the visual fill while preserving domain values such as 120% budget usage.
 - `WidgetMiniChart` is a compact history line chart, typically without axes or detailed labels. Start from Netdata's existing local `Sparkline`; the new name does not expand scope to other chart types.
@@ -120,28 +120,32 @@ Observed source facts establish the inventory; agreed library names and groups d
 ### Objective and confirmed facts
 
 - **Authorized:** complete the Immich library migration with `WidgetBody`, `WidgetStatGrid`, `WidgetStat`, `WidgetState`, `WidgetStaleNotice` and shared tokens; preserve 3x2 Storage + Items. Preserve the grouped library structure. Do not migrate other widgets.
-- **Geometry:** `src/layout/grid.ts` gives 3x2 = 340x128px and 6x2 = 688x128px. `ServiceTile` owns header, description and outer spacing. Its existing body is only 46px without a description. The former five-stat grid measured 146px: `/tmp/kokpit-widget-pilot/baseline.json`.
+- **Geometry:** Immich supports only 3x2 = 340x128px. `ServiceTile` owns header, description and outer spacing. Historical baseline: the removed Immich 6x2 option measured 688x128px; before the compact header, the 3x2 body was 46px without a description and the former five-stat grid measured 146px (`/tmp/kokpit-widget-pilot/baseline.json`).
 - **Data:** `src/integrations/immich/api.ts` supplies `usage`, `photos`, `videos`; Items is their count sum. Formatting stays in the integration. Fetching, refresh interval, configuration and mobile service-link fallback remain unchanged.
 - **State ownership:** `WidgetRenderer` handles initial loading/error; `useWidget` retains successful data after refresh errors. The widget chooses the domain-empty state and supplies errors to library feedback components. Initial-state ownership stays in WidgetRenderer; an explicit shared-UI registration opt-in changes only Immich presentation.
 - **CSS:** shared component styles live before `user-custom`. The `widget-ui` reset opt-in preserves unmigrated widgets. A global reset-layer change was rejected after Chromium showed changed Tautulli padding. Installed Next.js CSS guidance was reviewed.
 
-### Foundational correction — 2026-09-21
+### Completed design decisions (historical)
+
+These notes explain earlier decisions; the selected-example section above describes current behavior.
+
+#### Foundational correction — 2026-09-21
 
 The owner rejected preserving five measurements at every size and requested repeatable footprints with progressively useful content. This invalidates the five-stat acceptance criteria and the 3x5/6x5 previews. Update production composition, unit expectations and browser fixtures together. Old five-row screenshots are historical evidence only. All pending completion claims must be revalidated for the compact summary.
 
-### Visual correction — restore the earlier cards
+#### Visual correction — restore the earlier cards
 
-The owner rejected the horizontal 2px-padding stats. Restore the earlier stacked card look; keep Storage + Items and the 3x2/6x2 registrations. The current separate description row leaves only about 53px for the body, less than a 49px stacked card plus an 18px stale notice. `ServiceTile` owns that space: add an optional `compactHeader` definition hint to group name/description alongside the icon on desktop only. Other widgets, invalid-config tiles and mobile fallback keep their existing composition. Remove the now-unused inline stat variant rather than preserving a rejected pilot API. Recheck fit, service-text accessibility, stale data, and custom CSS; prior horizontal-card screenshots are superseded.
+The owner rejected the horizontal 2px-padding stats. The stacked cards were restored with Storage + Items; 3x2 and 6x2 were supported at that stage, before the subsequent wide-summary removal. The earlier separate description row left only about 53px for the body, less than a 49px stacked card plus an 18px stale notice. `ServiceTile` owns that space: add an optional `compactHeader` definition hint to group name/description alongside the icon on desktop only. Other widgets, invalid-config tiles and mobile fallback keep their existing composition. Remove the now-unused inline stat variant rather than preserving a rejected pilot API. Recheck fit, service-text accessibility, stale data, and custom CSS; prior horizontal-card screenshots are superseded.
 
-### Warning stability correction
+#### Warning stability correction
 
-The owner accepted the stacked-card appearance but rejected movement when a refresh warning appears. The conditionally mounted notice currently consumes flex space and shifts the centered cards. Implemented a permanent notice slot after the grid with the same one-line height and padding in healthy and error states; accessible warning content is mounted only on error. Preserve card padding, fonts and fixed 3x2/6x2 geometry. Verify exact tile/card bounds across healthy, failed refresh and recovery in the browser; static screenshots alone did not establish stability.
+The owner accepted the stacked-card appearance but rejected movement when a refresh warning appears. The former conditionally mounted notice consumed flex space and shifted the centered cards. Implemented a permanent notice slot after the grid with the same one-line height and padding in healthy and error states; accessible warning content is mounted only on error. Card padding, fonts and the then-supported 3x2/6x2 geometry were preserved; only 3x2 remains supported after the next correction. Verify exact tile/card bounds across healthy, failed refresh and recovery in the browser; static screenshots alone did not establish stability.
 
-### Footprint correction — remove duplicate wide summary
+#### Footprint correction — remove duplicate wide summary
 
-The owner requested removal of Immich 6x2. Remove its `supportedFootprints` entry and corresponding current test-matrix expectation; keep the default 3x2, card styling and stable warning row. Size choices derive from widget registration. `src/config/loader.ts` detects unsupported saved footprints and persists the supported fallback during load/migration, so existing 6x2 Immich tiles become 3x2. ServiceForm and the edit-grid size menu both derive choices from registration; ServiceTile also defends against unsupported render-time footprints. No migration code change is needed. Earlier two-footprint test results below are historical evidence.
+The owner requested removal of Immich 6x2. Its `supportedFootprints` entry and test-matrix expectation were removed; keep the default 3x2, card styling and stable warning row. Size choices derive from widget registration. `src/config/loader.ts` detects unsupported saved footprints and persists the supported fallback during load/migration, so existing 6x2 Immich tiles become 3x2. ServiceForm and the edit-grid size menu both derive choices from registration; ServiceTile also defends against unsupported render-time footprints. No migration code change is needed. Earlier two-footprint measurements are historical evidence.
 
-### Ownership correction — complete the shared library slice
+#### Ownership correction — complete the shared library slice
 
 The owner clarified that the pilot must use the library for all applicable presentation. Calling the Stat-only pilot finished was incorrect. The earlier instruction to retain local grid/state markup is superseded.
 
@@ -165,7 +169,7 @@ The owner clarified that the pilot must use the library for all applicable prese
 - **State ownership:** `sharedUI: true` opts Immich into library loading/error presentation in WidgetRenderer; fetching and state selection remain in the renderer/hook. Unselected widgets retain legacy presentation. Domain-empty handling is selected in Immich and presented through the library. ServiceTile retains shared header chrome.
 - **Visual preservation:** healthy and stale 3x2 screenshots are byte-for-byte identical before/after extraction: `/tmp/kokpit-widget-pilot/library-before-{healthy,error}.png` versus `stable-warning-{healthy,error}.png`. SHA256: healthy `596b4d263884fda2fc3f803c910a1b64682fcc4c4caf338f63c180e1f711b768`, stale `475d964ddc569fad00638989a2c493e2f8051ac3c7801dfb139696f82895b694`. The owner accepted this appearance earlier; there is no new visual design to approve.
 - **Browser evidence:** all six Immich checks pass: four themes, real 340x128 geometry, large values, long service text, loading/error/empty states, custom CSS for cards/grid/body tokens, exact tile/card bounds through healthy → failed refresh → recovery.
-- **Full local gate:** `CI=true npm run lint`, `type-check`, `test:coverage`, `test:e2e:nonvisual`, `test:e2e:auth` all pass. Coverage: 2,075 tests / 132 files. Nonvisual browser tests: 36. Production-auth browser tests: 21, including the production build. Lint retains the pre-existing Netdata unused-import warning.
+- **Initial migration local gate (before review follow-ups):** `CI=true npm run lint`, `type-check`, `test:coverage`, `test:e2e:nonvisual`, `test:e2e:auth` all pass. Coverage: 2,075 tests / 132 files. Nonvisual browser tests: 36. Production-auth browser tests: 21, including the production build. Lint retains the pre-existing Netdata unused-import warning.
 - **Review and cleanup:** independent architecture/correctness review found no material runtime issue; requested tracker/status and test-fixture cleanup completed. Fixture YAML and generated backup files were restored/removed after testing.
 - **Publication:** the owner authorized push, PR creation and CI/review monitoring on 2026-09-22. Branch: `feature/immich-widget-ui`, based on current `origin/main` (`5a5aa5c`). Re-run the full local gate immediately before committing; verify remote checks and review threads on the published PR. No merge or release is authorized.
 
@@ -173,7 +177,7 @@ The owner clarified that the pilot must use the library for all applicable prese
 
 - **Completed slice:** six library entries are `done`; Immich is `migrated` and displays only Storage + Items at 3x2 with a permanent warning slot.
 - **Remaining scope:** seven other library entries and 27 other widget migrations are `todo`. Extend components only when a subsequently selected widget needs another variant.
-- **Next action:** complete the authorized PR delivery and monitor CI/review findings. After delivery, wait for the owner's next selection; the larger per-user/quota views remain proposals and other widget migrations are not authorized.
+- **Next action:** use the current PR head, checks and thread dispositions to determine review readiness. Completed fixes are recorded below. Wait for owner authorization before merging or selecting another widget or larger Immich variant.
 - **Delivery:** use `feature/immich-widget-ui`; local validation and remote CI are separate gates. Consult the PR for current check/review status; this plan does not imply merge or release.
 
 ### PR #108 review follow-up — 2026-09-22
@@ -182,3 +186,13 @@ The owner clarified that the pilot must use the library for all applicable prese
 - **Style ownership correction:** components import their colocated styles and the public library entry imports foundation tokens. The app layout's per-component CSS list is removed; retain existing cascade layers, selectors and visual tokens. Installed Next.js App Router CSS guidance permits component imports; verify both dev-browser behavior and the production build.
 - **Implemented:** one internal class-name helper replaces all five copies; the shared spinner stops under reduced motion. Browser tests no longer write manual `/tmp` screenshots or assert on a preassigned resolver. They check animation preference changes while loading; the renderer unit test also verifies legacy errors retain their old class and lack the shared state class. Immich content/geometry, fetching and other widgets stay unchanged.
 - **Validation:** rerun the complete required local gate after final edits, review the full PR diff, push fixes and verify current-head CI. No merge or release.
+
+### Final review grounding — 2026-09-22
+
+- **Baseline:** `aa6713f` is published with green checks and six original threads resolved. The owner authorized this remaining review pass. Seven subsequent P3 threads cover documentation clarity, null content, absent error copy, locale expectations and changing-error announcements.
+- **Verified at the baseline:** WidgetState checked only undefined, while Immich supplied null in its blank state. WidgetState also permitted absent error children. The warning changed only attributes for a new error. Playwright Test's installed fixture defaults locale to en-US, so the claimed host-locale instability is not reproduced.
+- **Implemented:** empty/error states omit null/undefined children and preserve zero; a changed error replaces the warning alert node with atomic announcement semantics, while an unchanged error preserves the node. Unit tests cover these contracts; browser tests cover consecutive different errors, accessible names, stable geometry and recovery. The existing en-US test locale is explicit; application localization is unchanged.
+- **Accessibility evidence:** [W3C Alert Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/alert/) describes dynamically rendered alerts. Verify alert-node replacement and accessible text in the browser; do not claim an actual screen-reader speech test.
+- **Documentation:** distinguish implemented card stats from future plain stats; mark removed 6x2/earlier measurements as historical; replace stale next-action instructions with PR verification. No other widget, larger layout or merge/release work is selected.
+
+- **Delivery verification:** run the complete local gate before committing these follow-ups and verify current-head checks/thread resolution on PR #108. Automated tests verify DOM/accessibility contracts; actual assistive-technology speech remains untested.

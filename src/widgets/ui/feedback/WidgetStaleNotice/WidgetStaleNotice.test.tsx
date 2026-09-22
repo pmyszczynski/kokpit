@@ -3,17 +3,25 @@ import { describe, expect, it } from "vitest";
 import { WidgetStaleNotice } from "./WidgetStaleNotice";
 
 describe("WidgetStaleNotice", () => {
-  it("only announces a refresh failure while an error is present", () => {
-    const { rerender } = render(<WidgetStaleNotice error={null} />);
+  it("replaces the alert for a new error and removes it on recovery", () => {
+    const { rerender } = render(<WidgetStaleNotice error="connection refused" />);
+    const firstNotice = screen.getByRole("alert");
 
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(firstNotice).toHaveTextContent("Refresh failed · saved data");
+    expect(firstNotice).toHaveAttribute("title", "connection refused");
+    expect(firstNotice).toHaveAttribute("aria-atomic", "true");
+    expect(firstNotice).toHaveAccessibleName(
+      "Refresh failed; saved data is shown. connection refused"
+    );
 
     rerender(<WidgetStaleNotice error="connection refused" />);
-    const notice = screen.getByRole("alert");
-    expect(notice).toHaveTextContent("Refresh failed · saved data");
-    expect(notice).toHaveAttribute("title", "connection refused");
-    expect(notice).toHaveAccessibleName(
-      "Refresh failed; saved data is shown. connection refused"
+    expect(screen.getByRole("alert")).toBe(firstNotice);
+
+    rerender(<WidgetStaleNotice error="request timed out" />);
+    const updatedNotice = screen.getByRole("alert");
+    expect(updatedNotice).not.toBe(firstNotice);
+    expect(updatedNotice).toHaveAccessibleName(
+      "Refresh failed; saved data is shown. request timed out"
     );
 
     rerender(<WidgetStaleNotice error={null} />);

@@ -16,6 +16,8 @@ const TILE_ID = IMMICH_TILE_DATA.service_tiles[0].id;
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const EXPECTED_VALUES = ["9.9 TB", "123,555,554"];
 
+test.use({ locale: "en-US" });
+
 const STATS_RESPONSE = {
   ok: true,
   data: {
@@ -333,7 +335,7 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
   request,
 }) => {
   let refreshFails = false;
-  const error = "Immich rejected the refresh request because its API key is invalid";
+  let error = "Immich rejected the refresh request because its API key is invalid";
   await page.route("**/api/widget*", async (route) => {
     if (new URL(route.request().url()).searchParams.get("tile_id") !== TILE_ID) return route.continue();
     await route.fulfill({
@@ -367,6 +369,19 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     await expect(widget.locator(".immich-stats-widget__value")).toHaveText(EXPECTED_VALUES);
     expect(await immichLayoutBounds(page)).toEqual(healthyBounds);
     await assertFits(page);
+
+    const previousAlert = await alert.elementHandle();
+    error = "Immich timed out while refreshing the library";
+    await page.clock.fastForward(60_000);
+    await expect(alert).toHaveAttribute("title", error);
+    await expect(alert).toHaveAccessibleName(`Refresh failed; saved data is shown. ${error}`);
+    await expect(alert).toHaveAttribute("aria-atomic", "true");
+    await expect(alert).toHaveText("Refresh failed · saved data");
+    expect(await previousAlert!.evaluate((element) => element.isConnected)).toBe(false);
+    await previousAlert!.dispose();
+    expect(await immichLayoutBounds(page)).toEqual(healthyBounds);
+    await assertFits(page);
+
     refreshFails = false;
     await page.clock.fastForward(60_000);
     await expect(alert).toHaveCount(0);

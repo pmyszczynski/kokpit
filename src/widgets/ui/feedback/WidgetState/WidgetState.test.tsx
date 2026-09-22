@@ -30,15 +30,36 @@ describe("WidgetState", () => {
     expect(screen.getByText("Connection refused")).toHaveClass("widget-state__label");
   });
 
-  it("does not invent meaningful empty-state content", () => {
-    const { container, rerender } = render(<WidgetState state="empty" />);
+  it.each(["empty", "error"] as const)(
+    "does not render an absent %s state",
+    (state) => {
+      const { container, rerender } = render(<WidgetState state={state} />);
 
-    expect(container).toBeEmptyDOMElement();
+      expect(container).toBeEmptyDOMElement();
 
-    rerender(<WidgetState state="empty">No items</WidgetState>);
+      rerender(<WidgetState state={state}>{null}</WidgetState>);
+      expect(container).toBeEmptyDOMElement();
+    }
+  );
+
+  it("renders meaningful empty-state content", () => {
+    render(<WidgetState state="empty">No items</WidgetState>);
+
     expect(screen.getByText("No items")).not.toHaveAttribute("role");
     expect(screen.getByText("No items").closest(".widget-state")).toHaveClass(
       "widget-state--empty"
     );
+  });
+
+  it.each(["empty", "error"] as const)("renders zero for %s states", (state) => {
+    render(<WidgetState state={state}>{0}</WidgetState>);
+
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("renders loading even without content", () => {
+    render(<WidgetState state="loading" />);
+
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 });

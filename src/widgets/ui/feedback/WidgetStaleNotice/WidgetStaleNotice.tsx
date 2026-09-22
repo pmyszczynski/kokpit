@@ -26,10 +26,12 @@ export function WidgetStaleNotice({
 
   return (
     <span
+      key={error}
       className={joinClassNames("widget-ui", "widget-stale-notice", className)}
       role="alert"
       title={error}
       aria-label={accessibleMessage}
+      aria-atomic="true"
     >
       {message}
     </span>

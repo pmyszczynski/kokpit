@@ -10,7 +10,10 @@ export interface WidgetStateProps {
 
 /** Presentation for initial loading/error states and widget-supplied empty copy. */
 export function WidgetState({ state, children, className }: WidgetStateProps) {
-  if (state === "empty" && children === undefined) {
+  if (
+    (state === "empty" || state === "error") &&
+    (children === null || children === undefined)
+  ) {
     return null;
   }
 
