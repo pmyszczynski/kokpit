@@ -1,0 +1,40 @@
+@layer widget-ui {
+  :where(.widget-ui, .widget-ui::before, .widget-ui::after,
+    .widget-ui *, .widget-ui *::before, .widget-ui *::after) {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  .widget-body {
+    --widget-notice-font-size: 0.7rem;
+    --widget-notice-line-height: 1.25;
+    --widget-notice-padding-block: 2px;
+  }
+
+  .widget-stat-grid {
+    --widget-stat-grid-gap: 6px;
+  }
+
+  .widget-stat {
+    --widget-stat-padding: 6px 4px;
+    --widget-stat-gap: 2px;
+    --widget-stat-value-font-size: 1rem;
+    --widget-stat-value-line-height: 1.2;
+    --widget-stat-label-font-size: 0.6875rem;
+    --widget-stat-label-line-height: 1.25;
+    --widget-stat-tone-neutral: var(--color-text);
+    --widget-stat-tone-positive: #22c55e;
+    --widget-stat-tone-info: #60a5fa;
+    --widget-stat-tone-positive-soft: #86efac;
+    --widget-stat-tone-info-soft: #93c5fd;
+  }
+
+  [data-theme="light"] .widget-stat,
+  [data-theme="high-contrast"] .widget-stat {
+    --widget-stat-tone-positive: #166534;
+    --widget-stat-tone-info: #1d4ed8;
+    --widget-stat-tone-positive-soft: #397547;
+    --widget-stat-tone-info-soft: #3966a3;
+  }
+}

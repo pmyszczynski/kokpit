@@ -55,6 +55,26 @@ describe("WidgetRenderer", () => {
     });
 
     expect(screen.getByLabelText("Loading widget")).toBeInTheDocument();
+    expect(screen.getByLabelText("Loading widget")).not.toHaveClass("widget-state");
+  });
+
+  it.each(["loading", "error"] as const)("uses shared %s presentation only for opted-in widgets", async (state) => {
+    registerWidget({
+      id: "shared-ui-widget",
+      name: "Shared UI",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: MockWidgetComponent,
+      sharedUI: true,
+    });
+    vi.stubGlobal("fetch", state === "loading"
+      ? vi.fn().mockReturnValue(new Promise(() => {}))
+      : vi.fn().mockResolvedValue({ json: () => Promise.resolve({ ok: false, error: "Service unavailable" }) }));
+
+    render(<WidgetRenderer type="shared-ui-widget" tileId="tile-id" />);
+    const feedback = await screen.findByRole(state === "loading" ? "status" : "alert");
+    expect(feedback).toHaveClass("widget-state", `widget-state--${state}`);
+    if (state === "error") expect(feedback).toHaveTextContent("Service unavailable");
   });
 
   it("renders widget component with data after fetch succeeds", async () => {

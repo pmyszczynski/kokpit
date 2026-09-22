@@ -1,0 +1,25 @@
+@layer widget-ui {
+  .widget-stat-grid {
+    align-content: center;
+    display: grid;
+    flex: 1 1 0;
+    gap: var(--widget-stat-grid-gap, 6px);
+    grid-template-columns: repeat(var(--widget-stat-grid-columns, 2), minmax(0, 1fr));
+  }
+
+  .widget-stat-grid[data-columns="1"] {
+    --widget-stat-grid-columns: 1;
+  }
+
+  .widget-stat-grid[data-columns="2"] {
+    --widget-stat-grid-columns: 2;
+  }
+
+  .widget-stat-grid[data-columns="3"] {
+    --widget-stat-grid-columns: 3;
+  }
+
+  .widget-stat-grid[data-columns="4"] {
+    --widget-stat-grid-columns: 4;
+  }
+}

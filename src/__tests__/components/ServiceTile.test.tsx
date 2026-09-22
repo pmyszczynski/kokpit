@@ -147,6 +147,120 @@ describe("ServiceTile", () => {
     expect(screen.getByText("Media server")).toBeInTheDocument();
   });
 
+  it("groups an opted-in widget's desktop name and description beside its icon", async () => {
+    registerWidget({
+      id: "compact-header-widget",
+      name: "Compact header",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      compactHeader: true,
+      supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }],
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Immich"
+          url="http://immich.local"
+          widget={{ type: "compact-header-widget" }}
+          description="Photo library"
+        />
+      ));
+    });
+
+    const tile = container.querySelector(".service-tile");
+    const header = container.querySelector(".service-tile__header");
+    const heading = header?.querySelector(".service-tile__heading");
+    expect(tile).toHaveClass("service-tile--compact-header");
+    expect(heading).not.toBeNull();
+    expect(heading).toContainElement(screen.getByText("Immich"));
+    expect(heading).toContainElement(screen.getByText("Photo library"));
+    expect(tile?.querySelector(":scope > .service-tile__description")).toBeNull();
+  });
+
+  it("keeps an ordinary widget's description outside its header", async () => {
+    registerWidget({
+      id: "standard-header-widget",
+      name: "Standard header",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }],
+    });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Jellyfin"
+          url="http://jellyfin.local"
+          widget={{ type: "standard-header-widget" }}
+          description="Media server"
+        />
+      ));
+    });
+
+    const tile = container.querySelector(".service-tile");
+    const header = container.querySelector(".service-tile__header");
+    expect(tile).not.toHaveClass("service-tile--compact-header");
+    expect(header?.querySelector(".service-tile__heading")).toBeNull();
+    expect(tile?.querySelector(":scope > .service-tile__description")).toHaveTextContent("Media server");
+  });
+
+  it("does not use an opted-in compact header for mobile fallback or invalid widget config", async () => {
+    registerWidget({
+      id: "conditional-compact-header-widget",
+      name: "Conditional compact header",
+      configSchema: z.object({}),
+      fetchData: async () => ({}),
+      component: () => null,
+      compactHeader: true,
+      supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }],
+    });
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Immich"
+          url="http://immich.local"
+          widget={{ type: "conditional-compact-header-widget" }}
+          description="Photo library"
+        />
+      ));
+    });
+    expect(container.querySelector(".service-tile")).toHaveClass("service-tile--mobile-fallback");
+    expect(container.querySelector(".service-tile")).not.toHaveClass("service-tile--compact-header");
+    expect(container.querySelector(".service-tile__heading")).toBeNull();
+
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    await act(async () => {
+      ({ container } = render(
+        <ServiceTile
+          name="Immich"
+          url="http://immich.local"
+          widget={{
+            type: "conditional-compact-header-widget",
+            invalid: [{ path: "api_key", message: "Required" }],
+          }}
+          description="Photo library"
+        />
+      ));
+    });
+    expect(container.querySelector(".service-tile")).not.toHaveClass("service-tile--compact-header");
+    expect(container.querySelector(".service-tile__heading")).toBeNull();
+    expect(container.querySelector(".service-tile")?.querySelector(":scope > .service-tile__description")).toHaveTextContent("Photo library");
+  });
+
   it("does not render description when not provided", async () => {
     await act(async () => {
       render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);

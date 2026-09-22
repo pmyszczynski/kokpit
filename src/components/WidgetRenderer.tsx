@@ -4,6 +4,7 @@
 // getWidget() resolves on any page that renders a WidgetRenderer.
 import "@/integrations";
 import { getWidget } from "@/widgets";
+import { WidgetState } from "@/widgets/ui";
 import type { WidgetDefinition } from "@/widgets";
 import { useWidget } from "@/widgets/useWidget";
 import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
@@ -41,6 +42,7 @@ function KnownWidgetContent({
   );
 
   if (loading && data === null) {
+    if (widget.sharedUI) return <WidgetState state="loading" />;
     return (
       <div className="widget-loading" aria-label="Loading widget">
         <span className="widget-loading__spinner" aria-hidden="true" />
@@ -49,6 +51,7 @@ function KnownWidgetContent({
   }
 
   if (error && data === null) {
+    if (widget.sharedUI) return <WidgetState state="error">{error}</WidgetState>;
     return (
       <div className="widget-error" role="alert">
         <span className="widget-error__label">{error}</span>

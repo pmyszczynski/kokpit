@@ -5,55 +5,52 @@ import { ImmichStatsWidget } from "@/integrations/immich/statsWidget";
 const noop = () => {};
 
 const SAMPLE_DATA = {
-  photos: 12345,
-  videos: 678,
+  photos: 123_555_000,
+  videos: 554,
   usage: 1_500_000_000,
   usagePhotos: 1_200_000_000,
   usageVideos: 345_000_000,
 };
 
 describe("ImmichStatsWidget component", () => {
-  it("renders all stats with correct values and labels", () => {
+  it("renders storage and total items", () => {
     render(
       <ImmichStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
     );
-    expect(screen.getByText("12,345")).toBeInTheDocument();
-    expect(screen.getByText("Photos")).toBeInTheDocument();
-    expect(screen.getByText("678")).toBeInTheDocument();
-    expect(screen.getByText("Videos")).toBeInTheDocument();
     expect(screen.getByText("1.5 GB")).toBeInTheDocument();
     expect(screen.getByText("Storage")).toBeInTheDocument();
-    expect(screen.getByText("1.2 GB")).toBeInTheDocument();
-    expect(screen.getByText("Photo Size")).toBeInTheDocument();
-    expect(screen.getByText("345.0 MB")).toBeInTheDocument();
-    expect(screen.getByText("Video Size")).toBeInTheDocument();
+    expect(screen.getByText("123,555,554")).toBeInTheDocument();
+    expect(screen.getByText("Items")).toBeInTheDocument();
+    expect(screen.queryByText("Photos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Videos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Photo Size")).not.toBeInTheDocument();
+    expect(screen.queryByText("Video Size")).not.toBeInTheDocument();
   });
 
-  it("formats byte values at the GB and MB magnitudes", () => {
+  it.each([
+    [0, "0 B"],
+    [999, "999 B"],
+    [1_000, "1.0 KB"],
+    [1_000_000, "1.0 MB"],
+    [1_000_000_000, "1.0 GB"],
+    [1_000_000_000_000, "1.0 TB"],
+  ])("formats total storage at decimal byte boundary %i", (usage, expected) => {
     render(
       <ImmichStatsWidget
-        data={{
-          photos: 1,
-          videos: 1,
-          usage: 2_400_000_000,
-          usagePhotos: 500_000_000,
-          usageVideos: 0,
-        }}
+        data={{ ...SAMPLE_DATA, usage }}
         loading={false}
         error={null}
         refresh={noop}
       />
     );
-    expect(screen.getByText("2.4 GB")).toBeInTheDocument();
-    expect(screen.getByText("500.0 MB")).toBeInTheDocument();
-    expect(screen.getByText("0 B")).toBeInTheDocument();
+    expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
   it("shows loading hint when data is null and loading", () => {
     render(
       <ImmichStatsWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -77,9 +74,28 @@ describe("ImmichStatsWidget component", () => {
         refresh={noop}
       />
     );
-    expect(screen.getByText("12,345")).toBeInTheDocument();
+    expect(screen.getByText("123,555,554")).toBeInTheDocument();
     const errorEl = screen.getByRole("alert");
-    expect(errorEl).toHaveTextContent("refresh failed");
+    expect(errorEl).toHaveTextContent("Refresh failed · saved data");
+    expect(errorEl).toHaveAttribute("title", "refresh failed");
+    expect(errorEl).toHaveAccessibleName(
+      "Refresh failed; saved data is shown. refresh failed"
+    );
+  });
+
+  it("only exposes an alert while a refresh error is present", () => {
+    const props = { data: SAMPLE_DATA, loading: false, refresh: noop };
+    const { rerender } = render(<ImmichStatsWidget {...props} error={null} />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Refresh failed · saved data")).not.toBeInTheDocument();
+
+    rerender(<ImmichStatsWidget {...props} error="Refresh failed" />);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    rerender(<ImmichStatsWidget {...props} error={null} />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Refresh failed · saved data")).not.toBeInTheDocument();
+    expect(screen.getByText("123,555,554")).toBeInTheDocument();
   });
 
   it("renders nothing meaningful when data is null and neither loading nor error", () => {
@@ -89,6 +105,7 @@ describe("ImmichStatsWidget component", () => {
     expect(
       container.querySelector(".immich-stats-widget--empty")
     ).toBeInTheDocument();
-    expect(screen.queryByText("Photos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Storage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Items")).not.toBeInTheDocument();
   });
 });

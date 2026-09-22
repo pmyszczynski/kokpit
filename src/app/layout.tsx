@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@/widgets/ui/foundation/tokens.css";
+import "@/widgets/ui/data-display/WidgetStat/WidgetStat.css";
+import "@/widgets/ui/layout/WidgetBody/WidgetBody.css";
+import "@/widgets/ui/layout/WidgetStatGrid/WidgetStatGrid.css";
+import "@/widgets/ui/feedback/WidgetState/WidgetState.css";
+import "@/widgets/ui/feedback/WidgetStaleNotice/WidgetStaleNotice.css";
 import { getConfig, getConfigPath } from "@/config/server";
 import { resolveAppearance } from "@/config/theme";
 

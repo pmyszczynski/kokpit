@@ -1,0 +1,6 @@
+@layer widget-ui {
+  .widget-stale-notice {
+    color: var(--color-error);
+    display: block;
+  }
+}
