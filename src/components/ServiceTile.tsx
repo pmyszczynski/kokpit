@@ -207,27 +207,33 @@ function useMobileGrid(): boolean {
   );
 }
 
-function StatusDot({ url, preview }: { url: string; preview?: boolean }) {
+function StatusDot({ serviceId, preview }: { serviceId: string; preview?: boolean }) {
   const [status, setStatus] = useState<PingStatus>("pending");
 
   useEffect(() => {
     if (preview) return; // no live probing while editing
+    let active = true;
     const check = async () => {
       try {
-        const res = await fetch(
-          `/api/ping?url=${encodeURIComponent(url)}`
-        );
+        const res = await fetch("/api/ping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serviceId }),
+        });
         const data = await res.json();
-        setStatus(data.ok ? "ok" : "error");
+        if (active) setStatus(data.ok ? "ok" : "error");
       } catch {
-        setStatus("error");
+        if (active) setStatus("error");
       }
     };
 
     check();
     const interval = setInterval(check, 30_000);
-    return () => clearInterval(interval);
-  }, [url, preview]);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [serviceId, preview]);
 
   return (
     <div
@@ -353,7 +359,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
       {invalidIssues ? (
         <WidgetConfigBadge name={name} serviceId={serviceId} tileId={tileId} issues={invalidIssues} />
       ) : (
-        url && <StatusDot url={url} preview={preview} />
+        serviceId && url && <StatusDot serviceId={serviceId} preview={preview} />
       )}
       {/*
        * The name shares the header row with the icon, and that row runs the
@@ -367,7 +373,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
        */}
       <div
         className="service-tile__header"
-        data-corner-slot={invalidIssues ? "badge" : url ? "dot" : undefined}
+          data-corner-slot={invalidIssues ? "badge" : serviceId && url ? "dot" : undefined}
       >
         <ServiceIcon icon={icon} url={url} name={name} />
         {compactHeader ? (

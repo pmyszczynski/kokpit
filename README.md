@@ -259,6 +259,11 @@ auth:
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
 
+Service status checks use saved service URLs, including LAN and Tailscale
+addresses. Browser requests identify a saved service rather than supplying a
+destination URL. Link-local addresses and known cloud metadata endpoints are
+blocked. Redirect responses count as reachable, but Kokpit does not follow them.
+
 ## Login sessions
 
 Kokpit keeps you signed in by default. Each browser has a revocable session stored
