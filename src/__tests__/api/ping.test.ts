@@ -76,7 +76,10 @@ describe("POST /api/ping", () => {
     const { invalidateCache } = await import("@/config/loader");
     invalidateCache();
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("accepts only JSON POST bodies with a service ID", async () => {
     const { POST } = await import("../../app/api/ping/route");
@@ -156,7 +159,6 @@ describe("POST /api/ping", () => {
     await vi.advanceTimersByTimeAsync(3_001);
     expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: true, status: 204 });
     expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
   });
 
   it("retains pending probes and rejects new work at the pending limit", async () => {
