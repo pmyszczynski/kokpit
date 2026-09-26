@@ -158,7 +158,7 @@ export default function GroupsTab({
     <section className="settings-section">
       <h2 className="settings-section__title">Groups</h2>
 
-      <fieldset className="settings-section" disabled={disabled} style={{ border: 0, margin: 0, padding: 0 }}>
+      <fieldset className="settings-section settings-fieldset" disabled={disabled}>
       {groups.length === 0 ? (
         <p className="settings-empty">No groups declared yet.</p>
       ) : (

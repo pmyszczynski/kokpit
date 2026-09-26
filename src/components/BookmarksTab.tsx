@@ -112,7 +112,7 @@ export default function BookmarksTab({
     <section className="settings-section">
       <h2 className="settings-section__title">Bookmarks</h2>
 
-      <fieldset className="settings-section" disabled={disabled} style={{ border: 0, margin: 0, padding: 0 }}>
+      <fieldset className="settings-section settings-fieldset" disabled={disabled}>
       {bookmarks.length === 0 ? (
         <p className="settings-empty">No bookmark groups yet.</p>
       ) : (

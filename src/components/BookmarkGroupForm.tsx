@@ -14,7 +14,6 @@ interface BookmarkGroupFormProps {
   initialGroup?: string;
   onSave: (bookmark: BookmarkGroup) => void;
   onClose: () => void;
-  disabled?: boolean;
 }
 
 type LinkDraft = {
@@ -56,7 +55,6 @@ export default function BookmarkGroupForm({
   initialGroup,
   onSave,
   onClose,
-  disabled = false,
 }: BookmarkGroupFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -179,7 +177,6 @@ export default function BookmarkGroupForm({
         </button>
       </div>
       <form onSubmit={handleSubmit} className="service-form">
-        <fieldset disabled={disabled} style={{ border: 0, margin: 0, padding: 0 }}>
         <div className="service-form__body">
           <div className="settings-form-row">
             <label htmlFor="bf-name">Name *</label>
@@ -373,7 +370,6 @@ export default function BookmarkGroupForm({
             Save
           </button>
         </div>
-        </fieldset>
       </form>
     </dialog>
   );

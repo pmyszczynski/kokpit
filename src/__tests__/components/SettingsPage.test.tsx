@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { existsSync, readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 
@@ -59,6 +59,11 @@ describe("protected settings server component", () => {
     vi.resetModules();
     vi.mocked(existsSync).mockImplementation((path?: unknown) => !isDisplacedConfigPath(path));
     vi.mocked(readFileSync).mockReturnValue(SECRET_YAML);
+  });
+
+  afterEach(async () => {
+    const { invalidateCache } = await import("@/config/loader");
+    invalidateCache();
   });
 
   it("passes only a signed reference, never a raw saved credential", async () => {
