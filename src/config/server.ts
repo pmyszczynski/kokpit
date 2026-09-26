@@ -8,6 +8,7 @@ export {
   getConfig,
   getConfigSnapshot,
   getConfigSnapshotForWrite,
+  writeConfigSnapshot,
   loadConfig,
   writeConfig,
   getConfigPath,

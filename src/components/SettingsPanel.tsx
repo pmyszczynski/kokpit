@@ -27,6 +27,7 @@ import {
   projectCatalogServices,
   normalizeServicesForForm,
 } from "./edit/serviceFormProjection";
+import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
 
 type Tab =
   | "appearance"
@@ -64,12 +65,12 @@ function clampNumericField(
   return Math.min(max, Math.max(min, n));
 }
 
-function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void }) {
+function SaveButton({ status, onSave, disabled }: { status: SaveStatus; onSave: () => void; disabled?: boolean }) {
   return (
     <button
       className="settings-save-btn"
       onClick={onSave}
-      disabled={status === "saving"}
+      disabled={disabled || status === "saving"}
     >
       {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Error — Retry" : "Save"}
     </button>
@@ -79,9 +80,11 @@ function SaveButton({ status, onSave }: { status: SaveStatus; onSave: () => void
 export default function SettingsPanel({
   config,
   showSessionManager = config.auth.enabled,
+  initialRevision = "",
 }: {
   config: ClientSafeSettings;
   showSessionManager?: boolean;
+  initialRevision?: string;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -181,6 +184,16 @@ export default function SettingsPanel({
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const servicesSavePendingRef = useRef(false);
+  // Independent drafts share this compare-and-swap token. A stale draft stays
+  // blocked until the complete server snapshot is explicitly reloaded.
+  const revisionRef = useRef(initialRevision);
+  const writePendingRef = useRef(false);
+  const conflictRef = useRef(false);
+  const [writePending, setWritePending] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const draftBlocked = writePending || conflict;
+  const configurationMutationBlocked = () =>
+    writePendingRef.current || conflictRef.current;
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
 
   async function fetchTotpStatus() {
@@ -283,18 +296,37 @@ export default function SettingsPanel({
     section: Tab,
     payload: Record<string, unknown>
   ): Promise<SaveResult> {
+    if (configurationMutationBlocked()) return { ok: false };
+    writePendingRef.current = true;
+    setWritePending(true);
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Kokpit-Request": "1",
+          "If-Match": revisionRef.current,
+        },
         body: JSON.stringify(payload),
       });
+      if (res.status === 409) {
+        const json = await res.json().catch(() => null) as { code?: unknown; error?: string } | null;
+        if (json?.code === "revision_mismatch") {
+          conflictRef.current = true;
+          setConflict(true);
+        }
+        if (section === "auth") setAuthPolicyMessage(json?.error ?? "Save failed");
+        setSaveStatus((s) => ({ ...s, [section]: "error" }));
+        return { ok: false };
+      }
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
         if (section === "auth") setAuthPolicyMessage(json.error ?? "Save failed");
         throw new Error("Save failed");
       }
+      const nextRevision = res.headers?.get(CONFIG_REVISION_HEADER) ?? null;
+      if (nextRevision) revisionRef.current = nextRevision;
       // A services response contains freshly redacted credential references.
       // Those references identify the service by name, so a rename must replace
       // the optimistic client state with this authoritative response before the
@@ -317,6 +349,9 @@ export default function SettingsPanel({
     } catch {
       setSaveStatus((s) => ({ ...s, [section]: "error" }));
       return { ok: false };
+    } finally {
+      writePendingRef.current = false;
+      setWritePending(false);
     }
   }
 
@@ -332,6 +367,7 @@ export default function SettingsPanel({
   }
 
   function handleThemeSelect(t: typeof THEMES[number]) {
+    if (configurationMutationBlocked()) return;
     setTheme(t);
     document.documentElement.dataset.theme = t;
   }
@@ -365,6 +401,7 @@ export default function SettingsPanel({
   }
 
   async function handleBackgroundUpload(file: File) {
+    if (configurationMutationBlocked()) return;
     setBgUploadStatus({ state: "uploading" });
     try {
       const body = new FormData();
@@ -409,7 +446,7 @@ export default function SettingsPanel({
   }
 
   async function saveServices(next: Service[]) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     const projected = persistLegacyServices(next, persistedServices, serviceTiles);
     servicesSavePendingRef.current = true;
     setServicesWritePending(true);
@@ -434,7 +471,7 @@ export default function SettingsPanel({
   }
 
   function handleServiceSave(service: Service) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     const next = [...services];
     if (editingIndex !== null) {
       next[editingIndex] = service;
@@ -447,13 +484,13 @@ export default function SettingsPanel({
   }
 
   function handleServiceDelete(index: number) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     const next = services.filter((_, i) => i !== index);
     void saveServices(next);
   }
 
   function handleServiceReorder(from: number, to: number) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     if (to < 0 || to >= services.length) return;
     const next = [...services];
     const [moved] = next.splice(from, 1);
@@ -511,6 +548,7 @@ export default function SettingsPanel({
   }, [groups, undeclaredGroups]);
 
   function handleGroupReorder(from: number, to: number) {
+    if (configurationMutationBlocked()) return;
     if (to < 0 || to >= groups.length) return;
     const next = [...groups];
     const [moved] = next.splice(from, 1);
@@ -519,16 +557,19 @@ export default function SettingsPanel({
   }
 
   function handleGroupDeclare(name: string) {
+    if (configurationMutationBlocked()) return;
     if (declaredKeys.has(serviceNameUniquenessKey(name))) return;
     setGroups((prev) => [...prev, { name }]);
   }
 
   function handleGroupAdd(name: string) {
+    if (configurationMutationBlocked()) return;
     if (declaredKeys.has(serviceNameUniquenessKey(name))) return;
     setGroups((prev) => [...prev, { name }]);
   }
 
   function handleGroupRename(oldName: string, newName: string) {
+    if (configurationMutationBlocked()) return;
     const oldKey = serviceNameUniquenessKey(oldName);
     const newKey = serviceNameUniquenessKey(newName);
     // Reject a rename that would collide with ANOTHER declared group (the
@@ -554,6 +595,7 @@ export default function SettingsPanel({
   }
 
   function handleGroupToggleCollapsed(index: number) {
+    if (configurationMutationBlocked()) return;
     setGroups((prev) =>
       prev.map((g, i) =>
         i === index ? { ...g, collapsed: !(g.collapsed ?? false) } : g
@@ -562,6 +604,7 @@ export default function SettingsPanel({
   }
 
   function handleGroupDelete(index: number) {
+    if (configurationMutationBlocked()) return;
     const removed = groups[index];
     setGroups((prev) => prev.filter((_, i) => i !== index));
     // Members become ungrouped and bookmark placements are cleared — but only
@@ -573,7 +616,7 @@ export default function SettingsPanel({
     // Group renames/deletes may cascade into the complete services array.
     // Never let that full-list write race a service save carrying older
     // credential references.
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     // Strip default values so omitted keys stay omitted in the YAML round-trip.
     const cleanGroups = groups.map((g) => ({
       name: g.name,
@@ -627,6 +670,7 @@ export default function SettingsPanel({
   // ----- Bookmarks tab -----
 
   function handleBookmarkReorder(from: number, to: number) {
+    if (configurationMutationBlocked()) return;
     if (to < 0 || to >= bookmarks.length) return;
     const next = [...bookmarks];
     const [moved] = next.splice(from, 1);
@@ -636,22 +680,26 @@ export default function SettingsPanel({
   }
 
   function handleBookmarkDelete(index: number) {
+    if (configurationMutationBlocked()) return;
     const next = bookmarks.filter((_, i) => i !== index);
     setBookmarks(next);
     save("bookmarks", next);
   }
 
   function openAddBookmark() {
+    if (configurationMutationBlocked()) return;
     setEditingBookmarkIndex(null);
     setShowBookmarkForm(true);
   }
 
   function openEditBookmark(index: number) {
+    if (configurationMutationBlocked()) return;
     setEditingBookmarkIndex(index);
     setShowBookmarkForm(true);
   }
 
   function handleBookmarkSave(bookmark: BookmarkGroup) {
+    if (configurationMutationBlocked()) return;
     const next = [...bookmarks];
     if (editingBookmarkIndex !== null) {
       next[editingBookmarkIndex] = bookmark;
@@ -670,13 +718,13 @@ export default function SettingsPanel({
   }
 
   function openAddForm() {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     setEditingIndex(null);
     setShowServiceForm(true);
   }
 
   function openEditForm(index: number) {
-    if (servicesSavePendingRef.current) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
     setEditingIndex(index);
     setShowServiceForm(true);
   }
@@ -688,6 +736,14 @@ export default function SettingsPanel({
 
   return (
     <div className="settings-panel">
+      {conflict && (
+        <div className="settings-form-hint settings-form-hint--error" role="alert">
+          settings.yaml changed on disk. Reload to discard this draft and review the latest settings.
+          <button className="settings-btn" onClick={() => window.location.reload()}>
+            Reload settings
+          </button>
+        </div>
+      )}
       <nav className="settings-tabs" aria-label="Settings sections">
         {(["appearance", "layout", "groups", "services", "bookmarks", "auth"] as Tab[]).map((tab) => (
           <button
@@ -706,6 +762,7 @@ export default function SettingsPanel({
         {activeTab === "appearance" && (
           <section className="settings-section">
             <h2 className="settings-section__title">Appearance</h2>
+            <fieldset disabled={draftBlocked} style={{ border: 0, margin: 0, padding: 0 }}>
 
             <div className="settings-form-row">
               <label>Theme</label>
@@ -729,7 +786,7 @@ export default function SettingsPanel({
                 id="custom-css"
                 className="settings-textarea"
                 value={customCss}
-                onChange={(e) => setCustomCss(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setCustomCss(e.target.value); }}
                 placeholder=".service-tile { border-radius: 0; }"
                 rows={8}
               />
@@ -746,7 +803,7 @@ export default function SettingsPanel({
                 min={0}
                 max={40}
                 value={cardBlur}
-                onChange={(e) => setCardBlur(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setCardBlur(e.target.value); }}
                 className="settings-input settings-input--narrow"
                 placeholder="0"
               />
@@ -769,7 +826,7 @@ export default function SettingsPanel({
                 id="bg-color"
                 type="text"
                 value={bgColor}
-                onChange={(e) => setBgColor(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setBgColor(e.target.value); }}
                 className="settings-input"
                 placeholder="#0b0d12"
               />
@@ -781,7 +838,7 @@ export default function SettingsPanel({
                 id="bg-gradient"
                 type="text"
                 value={bgGradient}
-                onChange={(e) => setBgGradient(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setBgGradient(e.target.value); }}
                 className="settings-input"
                 placeholder="linear-gradient(135deg, #1e3a8a, #0f172a)"
               />
@@ -793,7 +850,7 @@ export default function SettingsPanel({
                 id="bg-image"
                 type="text"
                 value={bgImage}
-                onChange={(e) => setBgImage(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setBgImage(e.target.value); }}
                 className="settings-input"
                 placeholder="/api/backgrounds/user/… or https://…"
               />
@@ -834,7 +891,7 @@ export default function SettingsPanel({
                 min={0}
                 max={100}
                 value={bgBlur}
-                onChange={(e) => setBgBlur(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setBgBlur(e.target.value); }}
                 className="settings-input settings-input--narrow"
                 placeholder="0"
               />
@@ -848,7 +905,7 @@ export default function SettingsPanel({
                 max={1}
                 step={0.05}
                 value={bgBrightness}
-                onChange={(e) => setBgBrightness(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setBgBrightness(e.target.value); }}
                 className="settings-input settings-input--narrow"
                 placeholder="1"
               />
@@ -862,15 +919,16 @@ export default function SettingsPanel({
                 max={1}
                 step={0.05}
                 value={bgOpacity}
-                onChange={(e) => setBgOpacity(e.target.value)}
+                onChange={(e) => { if (!configurationMutationBlocked()) setBgOpacity(e.target.value); }}
                 className="settings-input settings-input--narrow"
                 placeholder="0"
               />
             </div>
 
             <div className="settings-actions">
-              <SaveButton status={saveStatus.appearance} onSave={handleSaveAppearance} />
+              <SaveButton status={saveStatus.appearance} onSave={handleSaveAppearance} disabled={draftBlocked} />
             </div>
+            </fieldset>
           </section>
         )}
 
@@ -896,7 +954,10 @@ export default function SettingsPanel({
                 <input
                   type="checkbox"
                   checked={!sessionIdleTimeout}
-                  onChange={(event) => setSessionIdleTimeout(event.target.checked ? "" : "24")}
+                  disabled={draftBlocked}
+                  onChange={(event) => {
+                    if (!configurationMutationBlocked()) setSessionIdleTimeout(event.target.checked ? "" : "24");
+                  }}
                 />
                 Stay signed in
               </label>
@@ -909,23 +970,37 @@ export default function SettingsPanel({
                   min={1}
                   max={8760}
                   value={sessionIdleTimeout}
-                  disabled={!sessionIdleTimeout}
-                  onChange={(event) => setSessionIdleTimeout(event.target.value)}
+                  disabled={draftBlocked || !sessionIdleTimeout}
+                  onChange={(event) => {
+                    if (!configurationMutationBlocked()) setSessionIdleTimeout(event.target.value);
+                  }}
                   className="settings-input settings-input--narrow"
                 />
-                <button className="settings-btn" onClick={() => setSessionIdleTimeout("24")} disabled={!!sessionIdleTimeout}>Use inactivity timeout</button>
+                <button
+                  className="settings-btn"
+                  onClick={() => { if (!configurationMutationBlocked()) setSessionIdleTimeout("24"); }}
+                  disabled={draftBlocked || !!sessionIdleTimeout}
+                >Use inactivity timeout</button>
               </div>
               <span className="settings-hint">This policy applies to new sessions only. Existing sessions are unaffected. Dashboard and widget requests, including polling, count as activity; background cookie renewal does not.</span>
               {config.auth.enabled && (
                 <div className="settings-form-row">
                   <label htmlFor="auth-policy-password">Current password</label>
-                  <input id="auth-policy-password" type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} className="settings-input" autoComplete="current-password" />
+                  <input
+                    id="auth-policy-password"
+                    type="password"
+                    value={authPassword}
+                    disabled={draftBlocked}
+                    onChange={(event) => { if (!configurationMutationBlocked()) setAuthPassword(event.target.value); }}
+                    className="settings-input"
+                    autoComplete="current-password"
+                  />
                 </div>
               )}
             </div>
 
             <div className="settings-actions">
-              <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} />
+              <SaveButton status={saveStatus.auth} onSave={handleSaveAuth} disabled={draftBlocked} />
             </div>
             {authPolicyMessage && <p className="settings-hint" role="alert">{authPolicyMessage}</p>}
 
@@ -1105,8 +1180,11 @@ export default function SettingsPanel({
             onDelete={handleGroupDelete}
             onDeclare={handleGroupDeclare}
             onAdd={handleGroupAdd}
-            onUngroupedChange={setUngrouped}
+            onUngroupedChange={(value) => {
+              if (!configurationMutationBlocked()) setUngrouped(value);
+            }}
             onSave={handleSaveGroups}
+            disabled={draftBlocked}
           />
         )}
 
@@ -1119,6 +1197,7 @@ export default function SettingsPanel({
             onEdit={openEditBookmark}
             onDelete={handleBookmarkDelete}
             onAdd={openAddBookmark}
+            disabled={draftBlocked}
           />
         )}
 
@@ -1148,7 +1227,7 @@ export default function SettingsPanel({
                         <button
                           className="settings-icon-btn"
                           aria-label={`Move ${svc.name} up`}
-                          disabled={servicesWritePending || i === 0}
+                          disabled={servicesWritePending || draftBlocked || i === 0}
                           onClick={() => handleServiceReorder(i, i - 1)}
                         >
                           ▲
@@ -1158,6 +1237,7 @@ export default function SettingsPanel({
                           aria-label={`Move ${svc.name} down`}
                           disabled={
                             servicesWritePending ||
+                            draftBlocked ||
                             i === services.length - 1
                           }
                           onClick={() => handleServiceReorder(i, i + 1)}
@@ -1175,14 +1255,14 @@ export default function SettingsPanel({
                         <button
                           className="settings-btn"
                           onClick={() => openEditForm(i)}
-                          disabled={servicesWritePending}
+                          disabled={servicesWritePending || draftBlocked}
                         >
                           Edit
                         </button>
                         <button
                           className="settings-btn settings-btn--danger"
                           onClick={() => handleServiceDelete(i)}
-                          disabled={servicesWritePending}
+                          disabled={servicesWritePending || draftBlocked}
                         >
                           Delete
                         </button>
@@ -1197,7 +1277,7 @@ export default function SettingsPanel({
               <button
                 className="settings-save-btn"
                 onClick={openAddForm}
-                disabled={servicesWritePending}
+                disabled={servicesWritePending || draftBlocked}
               >
                 + Add Service
               </button>
@@ -1240,6 +1320,7 @@ export default function SettingsPanel({
             .map((b) => b.name)}
           onSave={handleBookmarkSave}
           onClose={closeBookmarkForm}
+          disabled={draftBlocked}
         />
       )}
     </div>

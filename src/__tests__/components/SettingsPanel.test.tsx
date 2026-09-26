@@ -169,6 +169,33 @@ describe("SettingsPanel - appearance tab", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
+  it("sends the page snapshot revision and advances it after a successful save", async () => {
+    const response = (revision: string) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "X-Config-Revision": revision }),
+      json: () => Promise.resolve({}),
+    }) as Response;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response("revision-after-first-save"))
+      .mockResolvedValueOnce(response("revision-after-second-save"));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    fireEvent.change(screen.getByPlaceholderText(".service-tile { border-radius: 0; }"), {
+      target: { value: ".second-save {}" },
+    });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Saved ✓" })); });
+
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": "initial-revision", "X-Kokpit-Request": "1" })
+    );
+    expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": "revision-after-first-save" })
+    );
+  });
+
   it("clamps out-of-range appearance numerics into their documented ranges before saving", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
@@ -260,7 +287,7 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     await waitFor(() => expect(screen.getByLabelText("Sign out after inactivity (hours)")).toHaveValue(1));
   });
 
-  it("does not overwrite a newer inactivity timeout edit when saving completes", async () => {
+  it("blocks a same-render policy edit while its save is pending", async () => {
     let resolveSettings!: (response: Response) => void;
     const settingsResponse = new Promise<Response>((resolve) => { resolveSettings = resolve; });
     const fetchMock = vi.fn((url: string) =>
@@ -275,11 +302,15 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     const timeoutInput = screen.getByLabelText("Sign out after inactivity (hours)");
     fireEvent.change(timeoutInput, { target: { value: "1.8" } });
     fireEvent.change(screen.getByLabelText("Current password", { selector: "#auth-policy-password" }), { target: { value: "mypassword" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    fireEvent.change(timeoutInput, { target: { value: "9" } });
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      // The ref guard runs before React can render disabled controls.
+      fireEvent.change(timeoutInput, { target: { value: "9" } });
+    });
+    expect(timeoutInput).toBeDisabled();
     await act(async () => { resolveSettings(jsonResponse({ auth: { enabled: true, session_idle_timeout_hours: 1 } })); });
 
-    await waitFor(() => expect(timeoutInput).toHaveValue(9));
+    await waitFor(() => expect(timeoutInput).toHaveValue(1));
   });
 
   it("saves the persistent session policy with a fresh password and clears it on success", async () => {
@@ -777,6 +808,32 @@ describe("SettingsPanel - groups tab", () => {
     // "Downloads" is referenced by a service but not declared.
     expect(screen.getByText("Downloads")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Declare" })).toBeInTheDocument();
+  });
+
+  it("blocks group edits after a conflict while Auth session controls remain available", async () => {
+    const conflict = {
+      ok: false,
+      status: 409,
+      headers: new Headers({ "X-Config-Revision": "external-revision" }),
+      json: () => Promise.resolve({ code: "revision_mismatch" }),
+    } as Response;
+    const fetchMock = vi.fn((url: string) =>
+      url === "/api/settings"
+        ? Promise.resolve(conflict)
+        : Promise.resolve(jsonResponse({ enabled: false, secret: "S", qrCode: "data:x" }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    gotoGroups();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+
+    expect(screen.getByLabelText("Group name for Media")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "+ Add group" })).toBeDisabled();
+    const authTab = screen.getByRole("button", { name: "Auth" });
+    expect(authTab).toBeEnabled();
+    await act(async () => { fireEvent.click(authTab); });
+    expect(screen.getByTestId("session-manager")).toBeInTheDocument();
+    expect(screen.getByLabelText("Verification code")).toBeEnabled();
   });
 
   it("reorders declared groups and saves the new order", async () => {

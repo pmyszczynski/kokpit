@@ -19,6 +19,7 @@ interface GroupsTabProps {
   onAdd: (name: string) => void;
   onUngroupedChange: (value: "first" | "last") => void;
   onSave: () => void;
+  disabled?: boolean;
 }
 
 function GroupRow({
@@ -142,6 +143,7 @@ export default function GroupsTab({
   onAdd,
   onUngroupedChange,
   onSave,
+  disabled = false,
 }: GroupsTabProps) {
   const [newGroup, setNewGroup] = useState("");
 
@@ -156,6 +158,7 @@ export default function GroupsTab({
     <section className="settings-section">
       <h2 className="settings-section__title">Groups</h2>
 
+      <fieldset disabled={disabled} style={{ border: 0, margin: 0, padding: 0 }}>
       {groups.length === 0 ? (
         <p className="settings-empty">No groups declared yet.</p>
       ) : (
@@ -242,7 +245,7 @@ export default function GroupsTab({
         <button
           className="settings-save-btn"
           onClick={onSave}
-          disabled={saveStatus === "saving"}
+          disabled={disabled || saveStatus === "saving"}
         >
           {saveStatus === "saving"
             ? "Saving…"
@@ -253,6 +256,7 @@ export default function GroupsTab({
                 : "Save"}
         </button>
       </div>
+      </fieldset>
     </section>
   );
 }

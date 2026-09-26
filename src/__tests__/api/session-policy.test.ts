@@ -14,7 +14,7 @@ vi.mock("@/auth/reauthenticate", () => ({ verifySessionPassword: mocks.proof }))
 vi.mock("@/config/server", () => ({
   getConfigSnapshot: mocks.snapshot,
   getConfigSnapshotForWrite: mocks.snapshot,
-  writeConfig: mocks.write,
+  writeConfigSnapshot: mocks.write,
   ConfigUnavailableError: class extends Error {},
   ConfigRevisionMismatchError: class extends Error {},
 }));
@@ -35,7 +35,10 @@ describe("persistent session policy", () => {
     vi.clearAllMocks();
     const config = KokpitConfigSchema.parse({ schema_version: 2, auth: { enabled: true, session_ttl_hours: 24 } });
     mocks.snapshot.mockReturnValue({ state: "ready", config, source: "settings" });
-    mocks.write.mockImplementation((updates) => ({ ...config, ...updates }));
+    mocks.write.mockImplementation((updates) => ({
+      config: { ...config, ...updates },
+      source: "written-settings",
+    }));
     mocks.proof.mockResolvedValue({ auth: { user: {}, session: {} } });
   });
 

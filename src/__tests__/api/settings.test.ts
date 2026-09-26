@@ -237,7 +237,7 @@ describe("PATCH /api/settings – validation", () => {
       const server = await importOriginal<typeof import("@/config/server")>();
       return {
         ...server,
-        writeConfig: () => { throw new server.ConfigUnavailableError(); },
+        writeConfigSnapshot: () => { throw new server.ConfigUnavailableError(); },
       };
     });
     try {
@@ -863,15 +863,13 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
       fs.moveConfig(source, destination);
     });
     const { GET, PATCH } = await import("../../app/api/settings/route");
-    const { KokpitConfigSchema } = await import("@/config/schema");
     const { configRevision } = await import("@/config/revision");
-    const { parse } = await import("yaml");
 
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
 
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("revision_mismatch");
-    const externalRevision = configRevision(KokpitConfigSchema.parse(parse(externallyEdited)));
+    const externalRevision = configRevision(externallyEdited);
     expect(res.headers.get("X-Config-Revision")).toBe(externalRevision);
     expect(writeFileSync).toHaveBeenCalledTimes(1);
     expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
@@ -899,6 +897,27 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
     expect(res.headers.has("X-Config-Revision")).toBe(false);
     expect(writeFileSync).toHaveBeenCalledTimes(1);
     expect(linkSync).toHaveBeenCalledWith(expect.stringContaining("settings.yaml.displaced"), expect.stringMatching(/settings\.yaml$/));
+  });
+
+  it("rejects a stale revision after a stable comment-only external edit", async () => {
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { refreshConfigCache } = await import("@/config/loader");
+    const { configRevision } = await import("@/config/revision");
+    const revision = (await GET()).headers.get("X-Config-Revision")!;
+    const externallyEdited = `${BASE_YAML}\n# maintained outside Kokpit\n`;
+
+    fs.yaml = externallyEdited;
+    expect(refreshConfigCache()).toBe("dirty");
+    expect(refreshConfigCache()).toBe("ready");
+
+    const res = await PATCH(
+      patch({ appearance: { theme: "light" } }, { "If-Match": revision })
+    );
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("revision_mismatch");
+    expect(res.headers.get("X-Config-Revision")).toBe(configRevision(externallyEdited));
+    expect(writeFileSync).not.toHaveBeenCalled();
   });
 
   it("allows only one concurrent PATCH to commit for the same revision", async () => {
