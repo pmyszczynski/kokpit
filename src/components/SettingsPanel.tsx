@@ -762,7 +762,7 @@ export default function SettingsPanel({
         {activeTab === "appearance" && (
           <section className="settings-section">
             <h2 className="settings-section__title">Appearance</h2>
-            <fieldset disabled={draftBlocked} style={{ border: 0, margin: 0, padding: 0 }}>
+            <fieldset className="settings-section" disabled={draftBlocked} style={{ border: 0, margin: 0, padding: 0 }}>
 
             <div className="settings-form-row">
               <label>Theme</label>
