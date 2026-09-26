@@ -1,4 +1,4 @@
-import { ConfigUnavailableError, getConfigSnapshot } from "@/config/server";
+import { getConfigSnapshot } from "@/config/server";
 import { configRevision } from "@/config/revision";
 import SettingsPanel from "@/components/SettingsPanel";
 import { toClientSafeSettings } from "@/widgets/configSecrets";
@@ -8,7 +8,13 @@ export const dynamic = 'force-dynamic';
 export default function SettingsPage() {
   const snapshot = getConfigSnapshot();
   if (snapshot.state === "dirty" || !snapshot.config || !snapshot.source) {
-    throw new ConfigUnavailableError();
+    return (
+      <div className="settings-page">
+        <h1 className="settings-page__title">Settings</h1>
+        <p role="alert">settings.yaml is being updated. Reload to try again.</p>
+        <a href="/settings">Reload settings</a>
+      </div>
+    );
   }
   const config = toClientSafeSettings(snapshot.config);
   const showSessionManager = config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";

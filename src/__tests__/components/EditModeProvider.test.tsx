@@ -447,7 +447,8 @@ describe("EditModeProvider (hook flows)", () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-1" }))
-        .mockResolvedValueOnce(fakeResponse({ code, error: "Retry shortly" }, { status: 409 }));
+        .mockResolvedValueOnce(fakeResponse({ code, error: "Retry shortly" }, { status: 409 }))
+        .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-2" }));
       vi.stubGlobal("fetch", fetchMock);
       await setup();
       await act(async () => { fireEvent.click(screen.getByText("enter")); });
@@ -458,6 +459,10 @@ describe("EditModeProvider (hook flows)", () => {
       expect(screen.getByTestId("dirty")).toHaveTextContent("true");
       expect(screen.getByTestId("baseRevision")).toHaveTextContent("rev-1");
       expect(screen.getByRole("alert")).toHaveTextContent("Retry shortly");
+      await act(async () => { fireEvent.click(screen.getByText("save")); });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(screen.getByTestId("conflict")).toHaveTextContent("false");
+      expect(screen.getByTestId("baseRevision")).toHaveTextContent("rev-2");
     }
   );
 

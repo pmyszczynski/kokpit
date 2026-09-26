@@ -182,11 +182,12 @@ describe("SettingsPanel - appearance tab", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<SettingsPanel config={makeConfig()} initialRevision="initial-revision" />);
 
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    await act(async () => { fireEvent.click(saveButton); });
     fireEvent.change(screen.getByPlaceholderText(".service-tile { border-radius: 0; }"), {
       target: { value: ".second-save {}" },
     });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Saved ✓" })); });
+    await act(async () => { fireEvent.click(saveButton); });
 
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual(
       expect.objectContaining({ "If-Match": "initial-revision", "X-Kokpit-Request": "1" })
@@ -194,6 +195,16 @@ describe("SettingsPanel - appearance tab", () => {
     expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toEqual(
       expect.objectContaining({ "If-Match": "revision-after-first-save" })
     );
+  });
+
+  it("omits If-Match when an embedded panel has no initial revision", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).not.toHaveProperty("If-Match");
   });
 
   it("clamps out-of-range appearance numerics into their documented ranges before saving", async () => {

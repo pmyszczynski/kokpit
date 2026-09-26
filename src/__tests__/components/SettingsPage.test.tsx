@@ -78,4 +78,16 @@ describe("protected settings server component", () => {
     expect(revision).toHaveBeenCalledWith(SECRET_YAML);
     expect(panel.props.initialRevision).toBe("revision-of-unredacted-snapshot");
   });
+
+  it("offers a full reload when the YAML source changes during rendering", async () => {
+    const { getConfigSnapshot } = await import("@/config/server");
+    expect(getConfigSnapshot().state).toBe("ready");
+    vi.mocked(readFileSync).mockReturnValue(`${SECRET_YAML}\n# external edit`);
+    const { default: SettingsPage } = await import("@/app/(protected)/settings/page");
+    const page = SettingsPage();
+
+    expect(JSON.stringify(page)).toContain("settings.yaml is being updated");
+    const retry = (page.props.children as unknown[])[2] as { props: { href: string } };
+    expect(retry.props.href).toBe("/settings");
+  });
 });

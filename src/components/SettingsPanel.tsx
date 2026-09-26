@@ -306,7 +306,7 @@ export default function SettingsPanel({
         headers: {
           "Content-Type": "application/json",
           "X-Kokpit-Request": "1",
-          "If-Match": revisionRef.current,
+          ...(revisionRef.current ? { "If-Match": revisionRef.current } : {}),
         },
         body: JSON.stringify(payload),
       });
