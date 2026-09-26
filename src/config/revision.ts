@@ -1,25 +1,22 @@
-// Content revision of a config: a purpose-separated HMAC over its canonical
-// JSON serialization. Two structurally-equal configs hash identically; any
-// change to services, groups, bookmarks, appearance, layout, etc. changes the
-// hash without exposing an offline oracle for low-entropy saved credentials.
+// Content revision of a config source: a purpose-separated HMAC over the exact
+// YAML bytes. Formatting and comments are operator-owned data too, so a
+// structurally-equivalent external edit must still invalidate a stale draft.
 //
 // Server-only (Node crypto). The client never computes a revision — it reads
 // the value from the `X-Config-Revision` response header of GET /api/settings.
 import { createHmac } from "crypto";
 import { getServerSecret } from "@/auth/serverSecret";
-import type { KokpitConfig } from "./schema";
-import { canonicalJSONString } from "./canonicalJson";
 
-const PURPOSE = "kokpit/config-revision/v1";
+const PURPOSE = "kokpit/config-source-revision/v2";
 
 function revisionKey(): Buffer {
   return createHmac("sha256", getServerSecret()).update(PURPOSE).digest();
 }
 
-/** Stable purpose-separated HMAC-SHA256 revision of canonical config JSON. */
-export function configRevision(config: KokpitConfig): string {
+/** Stable purpose-separated HMAC-SHA256 revision of exact YAML source. */
+export function configRevision(source: string): string {
   return createHmac("sha256", revisionKey())
-    .update(canonicalJSONString(config))
+    .update(source)
     .digest("hex");
 }
 

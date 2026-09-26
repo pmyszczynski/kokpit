@@ -1,4 +1,4 @@
-@layer widget-ui, tautulli-widget, user-custom;
+@layer widget-ui, tautulli-widget, settings-ui, user-custom;
 
 /* CSS variable foundations — full theme overridability */
 
@@ -93,9 +93,9 @@
 
 /* Shared widget UI opts into a layered reset so custom CSS can override it.
    Keep the existing reset precedence for widgets that have not migrated. */
-*:not(:where(.widget-ui, .widget-ui *)),
-*:not(:where(.widget-ui, .widget-ui *))::before,
-*:not(:where(.widget-ui, .widget-ui *))::after {
+*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset)),
+*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset))::before,
+*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset))::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -1002,10 +1002,19 @@ button {
   padding-top: 0.5rem;
 }
 
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+@layer settings-ui {
+  .settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .settings-fieldset {
+    box-sizing: border-box;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 .settings-section__title {

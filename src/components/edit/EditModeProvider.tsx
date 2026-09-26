@@ -315,11 +315,20 @@ export function EditModeProvider({
         body: JSON.stringify(body),
       });
       if (res.status === 409) {
-        dispatch({
-          type: "CONFLICT",
-          error:
-            "settings.yaml changed on disk. Reload to review before saving.",
-        });
+        const payload: unknown = await res.json().catch(() => null);
+        const code = payload && typeof payload === "object" && "code" in payload
+          && typeof payload.code === "string" ? payload.code : null;
+        if (code === "revision_mismatch") {
+          dispatch({
+            type: "CONFLICT",
+            error:
+              "settings.yaml changed on disk. Reload to review before saving.",
+          });
+        } else {
+          const detail = payload && typeof payload === "object" && "error" in payload
+            && typeof payload.error === "string" ? payload.error : "Save temporarily unavailable";
+          dispatch({ type: "SAVE_ERROR", error: detail });
+        }
         return;
       }
       if (!res.ok) {

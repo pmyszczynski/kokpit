@@ -442,6 +442,30 @@ describe("EditModeProvider (hook flows)", () => {
     expect(screen.getByTestId("active").textContent).toBe("true");
   });
 
+  it.each(["config_unavailable", "migration_required"])(
+    "keeps the draft retryable for a %s response", async (code) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-1" }))
+        .mockResolvedValueOnce(fakeResponse({ code, error: "Retry shortly" }, { status: 409 }))
+        .mockResolvedValueOnce(fakeResponse(cfg(), { revision: "rev-2" }));
+      vi.stubGlobal("fetch", fetchMock);
+      await setup();
+      await act(async () => { fireEvent.click(screen.getByText("enter")); });
+      await act(async () => { fireEvent.click(screen.getByText("clear-services")); });
+      await act(async () => { fireEvent.click(screen.getByText("save")); });
+
+      expect(screen.getByTestId("conflict")).toHaveTextContent("false");
+      expect(screen.getByTestId("dirty")).toHaveTextContent("true");
+      expect(screen.getByTestId("baseRevision")).toHaveTextContent("rev-1");
+      expect(screen.getByRole("alert")).toHaveTextContent("Retry shortly");
+      await act(async () => { fireEvent.click(screen.getByText("save")); });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(screen.getByTestId("conflict")).toHaveTextContent("false");
+      expect(screen.getByTestId("baseRevision")).toHaveTextContent("rev-2");
+    }
+  );
+
   it("migrates a legacy service's position→size in the save payload (no position sent)", async () => {
     const fetchMock = vi
       .fn()
