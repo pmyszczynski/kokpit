@@ -13,6 +13,7 @@ interface BookmarksTabProps {
   onEdit: (index: number) => void;
   onDelete: (index: number) => void;
   onAdd: () => void;
+  disabled?: boolean;
 }
 
 function BookmarkRow({
@@ -105,11 +106,13 @@ export default function BookmarksTab({
   onEdit,
   onDelete,
   onAdd,
+  disabled = false,
 }: BookmarksTabProps) {
   return (
     <section className="settings-section">
       <h2 className="settings-section__title">Bookmarks</h2>
 
+      <fieldset className="settings-section settings-fieldset" disabled={disabled}>
       {bookmarks.length === 0 ? (
         <p className="settings-empty">No bookmark groups yet.</p>
       ) : (
@@ -130,7 +133,7 @@ export default function BookmarksTab({
       )}
 
       <div className="settings-actions settings-actions--spaced">
-        <button className="settings-save-btn" onClick={onAdd}>
+        <button className="settings-save-btn" onClick={onAdd} disabled={disabled}>
           + Add bookmark group
         </button>
         {saveStatus === "saved" && (
@@ -142,6 +145,7 @@ export default function BookmarksTab({
           </span>
         )}
       </div>
+      </fieldset>
     </section>
   );
 }

@@ -314,6 +314,11 @@ While editing:
 - **Manage a group** from its header kebab: rename (cascades to every member service and bookmark, and carries over the collapse state), declare it for ordering, or delete it (members become ungrouped).
 - **Save or discard** from the persistent edit bar. It tracks how many top-level sections changed; **Save & exit** writes everything in a single atomic request to `settings.yaml`, **Discard** drops the staged changes and returns to the live dashboard.
 
+The **Settings** page also checks the revision on every save. If another tab or
+an external YAML edit changes the file, including comments or formatting, a
+reload notice appears. Reloading discards the local draft and loads the latest
+settings.
+
 **Conflict safety:** edit mode captures the config revision when you enter. If `settings.yaml` changes on disk while you're editing — a hand edit, another tab saving first — Save is rejected instead of silently overwriting, and the edit bar shows a "changed on disk" notice with a **Reload** action to pull the new version before you try again.
 
 ## Account Recovery
