@@ -22,7 +22,8 @@ export class SsrfBlockedError extends Error {
 function isAllowedRange(range: string, allowPrivateNetworks: boolean): boolean {
   if (range === "unicast") return true;
   if (allowPrivateNetworks) {
-    return range === "private" || range === "loopback" || range === "uniqueLocal";
+    return range === "private" || range === "loopback" || range === "uniqueLocal"
+      || range === "carrierGradeNat";
   }
   return false;
 }
@@ -53,7 +54,11 @@ async function resolveValidatedAddresses(
 
   const allowed = resolved.filter((r) => {
     try {
-      return isAllowedRange(ipaddr.process(r.address).range(), allowPrivateNetworks);
+      const address = ipaddr.process(r.address);
+      // Cloud metadata endpoints can fall within otherwise allowed LAN/VPN ranges.
+      const normalized = address.toNormalizedString();
+      if (normalized === "fd00:ec2:0:0:0:0:0:254" || normalized === "100.100.100.200") return false;
+      return isAllowedRange(address.range(), allowPrivateNetworks);
     } catch {
       return false;
     }
@@ -95,6 +100,8 @@ export interface SsrfSafeFetchOptions {
   signal?: AbortSignal;
   headers?: Record<string, string>;
   allowPrivateNetworks: boolean;
+  /** Return the first redirect response without connecting to its location. */
+  followRedirects?: boolean;
 }
 
 /**
@@ -151,6 +158,7 @@ export async function ssrfSafeFetch(
     void dispatcher.close().catch(() => {});
 
     if (response.status >= 300 && response.status < 400) {
+      if (options.followRedirects === false) return response;
       const location = response.headers.get("location");
       if (!location) return response;
       // We're discarding this response — cancel its body instead of
