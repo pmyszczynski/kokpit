@@ -62,14 +62,14 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 │   └── plans/              ← implementation plans
 ├── src/
 │   ├── app/                ← Next.js App Router (pages, API routes)
-│   ├── auth/               ← auth system (users, JWT, sessions, bcrypt)
+│   ├── auth/               ← auth system (users, opaque sessions, TOTP JWTs, bcrypt)
 │   ├── components/         ← shared React components (Navbar, etc.)
 │   ├── config/             ← YAML parser, schema, validator, theme helper
 │   ├── integrations/       ← per-service integration modules (Plex, *arr apps, qBittorrent, SABnzbd, Seerr, Immich, Netdata, Unraid, Docker, Actual Budget)
 │   ├── test/               ← Vitest setup
 │   └── widgets/            ← widget plugin system (registry + shared widget types)
 └── public/
-    └── icons/              ← bundled icon sets
+    └── icons/              ← reserved local icon directory; icon sets are CDN-backed
 ```
 
 ---
@@ -160,7 +160,7 @@ If Docker publication fails, the tag and GitHub Release remain but the release r
 
 - **Widget UI library work:** read [`docs/plans/widget-consistency-plan.md`](docs/plans/widget-consistency-plan.md) and the [component/widget tracker](docs/plans/widget-component-and-migration-tracker.md). Work only on the owner-selected step and keep both tables current.
 - **Full roadmap & task list:** [`docs/Roadmap.md`](docs/Roadmap.md)
-- **Architecture decisions:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) *(not yet created)*
+- **Architecture:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Widget/integration specs:** documented per-widget in [`README.md § Widgets`](README.md#widgets) rather than a separate file — add new widgets there
 
 ---
