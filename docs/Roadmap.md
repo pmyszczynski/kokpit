@@ -31,7 +31,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Username/password auth with bcrypt hashing
   - Session tokens (httpOnly cookie, configurable expiry)
   - Dashboard and protected APIs require a session when `auth.enabled: true`;
-    login, setup, recovery, and health remain public
+    login, setup, password reset, and health remain public
   - First-run setup wizard if no users exist
 
 - [x] `P1` **Optional TOTP 2FA**

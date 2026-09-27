@@ -14,7 +14,7 @@ schema_version: 2
 
 # ─── Auth ────────────────────────────────────────────────────
 # When auth.enabled is true, the dashboard and protected APIs require a valid
-# session. Login, setup, recovery, and /api/health remain public.
+# session. Login, setup, password reset, and /api/health remain public.
 # ─────────────────────────────────────────────────────────────
 auth:
   enabled: true # Set false to disable auth (or use KOKPIT_AUTH_DISABLED=true env var)
