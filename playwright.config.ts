@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
+import { resolve } from "node:path";
 
-const runtimeConfigPath = "./e2e/.runtime/settings.yaml";
+const runtimeConfigPath = resolve(__dirname, "e2e/.runtime/settings.yaml");
 // The test workers use this to model external changes to the same file served
 // by the isolated Next.js process below.
 process.env.KOKPIT_E2E_RUNTIME_CONFIG_PATH = runtimeConfigPath;
