@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
+const runtimeConfigPath = "./e2e/.runtime/settings.yaml";
+// The test workers use this to model external changes to the same file served
+// by the isolated Next.js process below.
+process.env.KOKPIT_E2E_RUNTIME_CONFIG_PATH = runtimeConfigPath;
+
 export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
   testDir: "./e2e/tests",
@@ -28,7 +33,7 @@ export default defineConfig({
     command: "node ./e2e/prepare-runtime-config.mjs && npm run dev",
     env: {
       KOKPIT_AUTH_DISABLED: "true",
-      KOKPIT_CONFIG_PATH: "./e2e/.runtime/settings.yaml",
+      KOKPIT_CONFIG_PATH: runtimeConfigPath,
       KOKPIT_SESSION_SECRET: "test-secret-32-chars-minimum-length-xx",
     },
     url: "http://localhost:3000",

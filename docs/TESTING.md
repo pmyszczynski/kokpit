@@ -36,7 +36,7 @@ Run `npm run test:coverage` for an HTML + lcov coverage report in `coverage/` (g
 
 ## E2E tests
 
-`e2e/tests/*.spec.ts` run against `npm run dev` with `KOKPIT_AUTH_DISABLED=true` and a fixture `settings.yaml` (`e2e/fixtures/settings.yaml`). Tests mutate shared state via `PATCH /api/settings` and a mock Plex server (`e2e/helpers/mock-plex-server.ts`) — `playwright.config.ts` pins `workers: 1` so these mutations never race across spec files.
+`e2e/tests/*.spec.ts` run against `npm run dev` with `KOKPIT_AUTH_DISABLED=true`. Before the server starts, Playwright copies the tracked fixture (`e2e/fixtures/settings.yaml`) to its ignored runtime location (`e2e/.runtime/settings.yaml`) and points `KOKPIT_CONFIG_PATH` there. Tests can mutate the served settings through `PATCH /api/settings` or direct filesystem edits without changing the tracked fixture. The suite always starts its own server on `http://localhost:3000` and never reuses an existing dev server, so stop another local server using port 3000 before running it. A mock Plex server (`e2e/helpers/mock-plex-server.ts`) supplies upstream responses, and `playwright.config.ts` pins `workers: 1` so shared runtime-settings mutations never race across spec files.
 
 ### Visual regression (`e2e/tests/visual.spec.ts`)
 

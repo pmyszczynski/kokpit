@@ -48,7 +48,9 @@ test("settings detects a comment-only external edit before saving", async ({ pag
   await expect(page.getByRole("row").filter({ hasText: first.name })).toBeVisible();
   const initial = await request.get("/api/settings");
   const revision = initial.headers()["x-config-revision"];
-  const configPath = resolve("e2e/fixtures/settings.yaml");
+  const runtimeConfigPath = process.env.KOKPIT_E2E_RUNTIME_CONFIG_PATH;
+  if (!runtimeConfigPath) throw new Error("Missing E2E runtime settings path");
+  const configPath = resolve(runtimeConfigPath);
   const originalSource = await readFile(configPath, "utf-8");
   const externalSource = `${originalSource}\n# maintained outside Kokpit\n`;
 
