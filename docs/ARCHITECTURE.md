@@ -122,9 +122,10 @@ configuration sections through `PATCH /api/settings` with `If-Match`; discard
 leaves `settings.yaml` unchanged. Tile and group drag-and-drop do not persist
 until the user saves.
 
-Appearance is resolved server-side for the first render. Sanitized
-`appearance.custom_css` is emitted in the `user-custom` cascade layer, which
-is declared after the application layers so user CSS can override them.
+Appearance is resolved server-side for the first render. Arbitrary
+`appearance.custom_css` is emitted in the `user-custom` cascade layer; only
+closing-style-tag sequences are escaped before interpolation. The layer is
+declared after the application layers so user CSS can override them.
 
 ## Deployment and operations
 

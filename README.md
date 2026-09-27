@@ -32,11 +32,10 @@ services:
     ports:
       - "3000:3000"          # Change the left side to expose on a different host port
     environment:
-      # Required — a stable random string of at least 32 characters.
-      # Used for short-lived 2FA challenges and other server secrets.
-      # Login sessions are opaque tokens stored (hashed) in SQLite.
-      # Generate one with: openssl rand -hex 32
-      KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret
+      # Optional — a stable random string for short-lived 2FA challenges and
+      # other server secrets. If omitted, Kokpit persists a generated secret
+      # in /data. Login sessions are opaque tokens stored (hashed) in SQLite.
+      # KOKPIT_SESSION_SECRET: <generate with `openssl rand -hex 32`>
 
       # Optional — set to "true" to skip authentication entirely.
       # Only use this on a trusted local network behind a firewall.

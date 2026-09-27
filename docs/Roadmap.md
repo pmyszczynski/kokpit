@@ -30,7 +30,8 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 - [X] `P0` **Authentication system**
   - Username/password auth with bcrypt hashing
   - Session tokens (httpOnly cookie, configurable expiry)
-  - All routes protected when `auth.enabled: true` in config
+  - Dashboard and protected APIs require a session when `auth.enabled: true`;
+    login, setup, recovery, and health remain public
   - First-run setup wizard if no users exist
 
 - [x] `P1` **Optional TOTP 2FA**
@@ -154,8 +155,10 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Per-page layout stored in `settings.yaml`
 
 - [ ] `P2` **Mobile-responsive layout**
-  - [x] Responsive breakpoints for tablet and mobile (per-breakpoint column/row-height overrides; size presets collapse gracefully at 768px/480px since v0.5.0)
-  - [ ] Optional separate mobile layout config — *partially done: tablet/mobile can override columns and row height; a full per-device layout (own order/sizes) remains open*
+  - [x] Responsive fixed grid: CSS media queries select 3, 6, 9, 12, or 15
+    columns; widgets can provide mobile footprints below 720px
+  - [ ] Optional separate mobile layout config — a full per-device layout
+    (own order/sizes) remains open; legacy grid overrides are migrated away
   - [x] Web app manifest for home screen installation
   - [ ] Offline support / service worker
 
