@@ -1,4 +1,4 @@
-import { copyFile, lstat, mkdir } from "node:fs/promises";
+import { copyFile, lstat, mkdir, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,6 +40,20 @@ export async function prepareRuntimeConfig({
   await copyFile(sourcePath, runtimeConfig);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const modulePath = fileURLToPath(import.meta.url);
+const canonicalModulePath = await realpath(modulePath);
+
+async function isMainModule() {
+  if (!process.argv[1]) return false;
+
+  try {
+    return (await realpath(resolve(process.argv[1]))) === canonicalModulePath;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+if (await isMainModule()) {
   await prepareRuntimeConfig({ runtimeConfigPath: process.env.KOKPIT_CONFIG_PATH });
 }

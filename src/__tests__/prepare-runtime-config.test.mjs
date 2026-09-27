@@ -1,10 +1,15 @@
 // @vitest-environment node
 import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { test } from "vitest";
 import { prepareRuntimeConfig } from "../../e2e/prepare-runtime-config.mjs";
+
+const prepareRuntimeConfigModule = new URL("../../e2e/prepare-runtime-config.mjs", import.meta.url).href;
+const execFile = promisify(execFileCallback);
 
 async function withTemporaryDirectory(run) {
   const directory = await mkdtemp(join(tmpdir(), "kokpit-runtime-config-"));
@@ -14,6 +19,30 @@ async function withTemporaryDirectory(run) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+test("copies the source into the isolated runtime config", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const sourcePath = join(directory, "source.yaml");
+    const runtimeDirectoryPath = join(directory, "runtime");
+    const runtimeConfigPath = join(runtimeDirectoryPath, "settings.yaml");
+    await writeFile(sourcePath, "copied content");
+
+    await prepareRuntimeConfig({ runtimeConfigPath, runtimeDirectoryPath, sourcePath });
+
+    assert.equal(await readFile(runtimeConfigPath, "utf8"), "copied content");
+  });
+});
+
+test("does not run when imported by a runner with a stale argv path", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const missingArgvPath = join(directory, "stale-runner-entry.mjs");
+    await execFile(process.execPath, [
+      "--input-type=module",
+      "--eval",
+      `process.argv[1] = ${JSON.stringify(missingArgvPath)}; await import(${JSON.stringify(prepareRuntimeConfigModule)});`,
+    ]);
+  });
+});
 
 test("refuses a symlinked runtime directory without overwriting its target", async () => {
   await withTemporaryDirectory(async (directory) => {
