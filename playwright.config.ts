@@ -1,4 +1,10 @@
 import { defineConfig } from "@playwright/test";
+import { resolve } from "node:path";
+
+const runtimeConfigPath = resolve(__dirname, "e2e/.runtime/settings.yaml");
+// The test workers use this to model external changes to the same file served
+// by the isolated Next.js process below.
+process.env.KOKPIT_E2E_RUNTIME_CONFIG_PATH = runtimeConfigPath;
 
 export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
@@ -23,13 +29,17 @@ export default defineConfig({
   },
   use: { baseURL: "http://localhost:3000" },
   webServer: {
-    command: "npm run dev",
+    // The API persists settings changes, so never point E2E at the tracked
+    // fixture. Prepare a disposable copy before starting the test server.
+    command: "node ./e2e/prepare-runtime-config.mjs && npm run dev",
     env: {
       KOKPIT_AUTH_DISABLED: "true",
-      KOKPIT_CONFIG_PATH: "./e2e/fixtures/settings.yaml",
+      KOKPIT_CONFIG_PATH: runtimeConfigPath,
       KOKPIT_SESSION_SECRET: "test-secret-32-chars-minimum-length-xx",
     },
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // An already-running dev server may use a real or tracked config. Always
+    // launch this isolated server so E2E writes stay in the runtime copy.
+    reuseExistingServer: false,
   },
 });
