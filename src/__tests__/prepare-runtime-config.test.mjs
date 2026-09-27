@@ -40,7 +40,7 @@ test("does not run when imported by a runner with a stale argv path", async () =
       "--input-type=module",
       "--eval",
       `process.argv[1] = ${JSON.stringify(missingArgvPath)}; await import(${JSON.stringify(prepareRuntimeConfigModule)});`,
-    ]);
+    ], { env: { ...process.env, KOKPIT_CONFIG_PATH: "" } });
   });
 });
 
