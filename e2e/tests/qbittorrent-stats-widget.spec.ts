@@ -205,6 +205,7 @@ test("qBittorrent compact header retains long service text without taking stat s
     .toHaveAttribute("title", name);
   await expect(tile(page).locator(".service-tile__header .service-tile__description"))
     .toHaveAttribute("title", description);
+  await expect(tile(page).locator(".widget-stat__value")).toHaveText(SPEED_VALUES);
   await assertFits(page, 128);
 });
 
