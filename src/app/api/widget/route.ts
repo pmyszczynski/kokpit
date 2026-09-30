@@ -8,6 +8,7 @@ import {
   widgetFetchTimeoutFailure,
 } from "@/widgets/publicFetchError";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
+import { legacyWidgetFootprint } from "@/layout/grid";
 
 export async function GET(request: Request) {
   const snapshot = getConfigSnapshot();
@@ -88,7 +89,9 @@ export async function GET(request: Request) {
     const data = await fetchWithHardTimeout(
       (signal) => widget.optionsSchema
         ? (widget.fetchData as unknown as (connection: unknown, options: unknown, signal?: AbortSignal) => Promise<unknown>)(parsedConnection?.data ?? connection, parsedOptions?.data ?? options, signal)
-        : widget.fetchData(parsed.data, signal),
+        : widget.fetchData(parsed.data, signal, {
+            footprint: tile.footprint ?? widget.supportedFootprints?.[0] ?? legacyWidgetFootprint(widget.preferredSize),
+          }),
       "Widget fetch timed out",
       widget.fetchTimeoutMs
     );

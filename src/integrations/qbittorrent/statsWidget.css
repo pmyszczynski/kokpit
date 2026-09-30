@@ -1,0 +1,5 @@
+@layer widget-ui {
+  .qbt-stats-widget__activity-unavailable {
+    color: var(--color-text-muted);
+  }
+}

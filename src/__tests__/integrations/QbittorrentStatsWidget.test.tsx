@@ -45,68 +45,121 @@ const SAMPLE_DATA = {
   up_info_speed: 500_000,
   dl_info_data: 1_200_000_000,
   up_info_data: 345_000_000,
+  activity: { active: 16, inactive: 4 },
 };
 
 describe("QbittorrentStatsWidget", () => {
-  it("shows loading hint when data is null and loading", () => {
+  it("shows the shared loading state when data is null and loading", () => {
     render(
       <QbittorrentStatsWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
-  it("shows error message when data is null and error is set", () => {
+  it("shows the shared error state when data is null and error is set", () => {
     render(
       <QbittorrentStatsWidget data={null} loading={false} error="connection refused" refresh={noop} />
     );
-    expect(screen.getByText("connection refused")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("connection refused");
   });
 
-  it("renders download speed above 1 MB/s as MB/s", () => {
-    render(
-      <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
-    );
-    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
-    expect(screen.getByText("↓ Speed")).toBeInTheDocument();
-  });
-
-  it("renders upload speed below 1 MB/s as KB/s", () => {
-    render(
-      <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
-    );
-    expect(screen.getByText("500.0 KB/s")).toBeInTheDocument();
-    expect(screen.getByText("↑ Speed")).toBeInTheDocument();
-  });
-
-  it("renders session download total above 1 GB as GB", () => {
-    render(
-      <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
-    );
-    expect(screen.getByText("1.2 GB")).toBeInTheDocument();
-    expect(screen.getByText("↓ Total")).toBeInTheDocument();
-  });
-
-  it("renders session upload total below 1 GB as MB", () => {
-    render(
-      <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
-    );
-    expect(screen.getByText("345.0 MB")).toBeInTheDocument();
-    expect(screen.getByText("↑ Total")).toBeInTheDocument();
-  });
-
-  it("shows stale error alongside data when data is non-null and error is set", () => {
-    render(
-      <QbittorrentStatsWidget data={SAMPLE_DATA} loading={false} error="refresh failed" refresh={noop} />
-    );
-    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
-  });
-
-  it("renders nothing meaningful when data is null and neither loading nor error", () => {
-    const { container } = render(
-      <QbittorrentStatsWidget data={null} loading={false} error={null} refresh={noop} />
-    );
-    expect(container.querySelector(".qbt-stats-widget--empty")).toBeInTheDocument();
+  it("shows a domain empty state when transfer data is unavailable", () => {
+    render(<QbittorrentStatsWidget data={null} loading={false} error={null} refresh={noop} />);
+    expect(screen.getByText("No transfer data available")).toBeInTheDocument();
     expect(screen.queryByText(/MB\/s/)).not.toBeInTheDocument();
+  });
+
+  it("renders only current download and upload speeds at 3x2", () => {
+    const { container } = render(
+      <QbittorrentStatsWidget
+        data={SAMPLE_DATA}
+        loading={false}
+        error={null}
+        refresh={noop}
+        footprint={{ columnSpan: 3, rowSpan: 2 }}
+      />
+    );
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("500.0 KB/s")).toBeInTheDocument();
+    expect(screen.queryByText("1.2 GB")).not.toBeInTheDocument();
+    expect(screen.queryByText("345.0 MB")).not.toBeInTheDocument();
+    expect(container.querySelector(".qbt-stats-widget")).toHaveAttribute("data-footprint", "3x2");
+    expect(container.querySelector(".qbt-stats-widget__grid")).toHaveAttribute("data-columns", "2");
+    expect(container.querySelector(".qbt-stats-widget__activity-stat")).not.toBeInTheDocument();
+  });
+
+  it("renders speeds and totals in two columns at 3x4", () => {
+    const { container } = render(
+      <QbittorrentStatsWidget
+        data={SAMPLE_DATA}
+        loading={false}
+        error={null}
+        refresh={noop}
+        footprint={{ columnSpan: 3, rowSpan: 4 }}
+      />
+    );
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("500.0 KB/s")).toBeInTheDocument();
+    expect(screen.getByText("1.2 GB")).toBeInTheDocument();
+    expect(screen.getByText("345.0 MB")).toBeInTheDocument();
+    expect(container.querySelector(".qbt-stats-widget__grid")).toHaveAttribute("data-columns", "2");
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
+    expect(container.querySelectorAll(".qbt-stats-widget__activity-stat")).toHaveLength(2);
+    expect(screen.getByText("Active")).toHaveAttribute("title", "All torrents except queued or stopped");
+    expect(screen.getByText("Active").closest("dt")?.nextElementSibling).toHaveTextContent("16");
+    expect(screen.getByText("Inactive")).toHaveAttribute("title", "Queued or stopped torrents");
+    expect(screen.getByText("Inactive").closest("dt")?.nextElementSibling).toHaveTextContent("4");
+  });
+
+  it("keeps all six cards when activity is unavailable at 3x4", () => {
+    const { container } = render(
+      <QbittorrentStatsWidget
+        data={{ ...SAMPLE_DATA, activity: null }}
+        loading={false}
+        error={null}
+        refresh={noop}
+        footprint={{ columnSpan: 3, rowSpan: 4 }}
+      />
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Activity unavailable");
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
+    expect(container.querySelectorAll(".qbt-stats-widget__activity-stat dd"))
+      .toHaveLength(2);
+    expect(Array.from(container.querySelectorAll(".qbt-stats-widget__activity-stat dd"),
+      (item) => item.textContent)).toEqual(["—", "—"]);
+  });
+
+  it("renders all four values in one row at 6x2", () => {
+    const { container } = render(
+      <QbittorrentStatsWidget
+        data={SAMPLE_DATA}
+        loading={false}
+        error={null}
+        refresh={noop}
+        footprint={{ columnSpan: 6, rowSpan: 2 }}
+      />
+    );
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("500.0 KB/s")).toBeInTheDocument();
+    expect(screen.getByText("1.2 GB")).toBeInTheDocument();
+    expect(screen.getByText("345.0 MB")).toBeInTheDocument();
+    expect(container.querySelector(".qbt-stats-widget__grid")).toHaveAttribute("data-columns", "4");
+    expect(container.querySelector(".qbt-stats-widget__activity-stat")).not.toBeInTheDocument();
+  });
+
+  it("shows the stale notice alongside formatted saved data", () => {
+    render(
+      <QbittorrentStatsWidget
+        data={SAMPLE_DATA}
+        loading={false}
+        error="refresh failed"
+        refresh={noop}
+        footprint={{ columnSpan: 6, rowSpan: 2 }}
+      />
+    );
+    expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
+    expect(screen.getByRole("alert", { name: /refresh failed; saved data is shown.*refresh failed/i }))
+      .toHaveTextContent("Refresh failed · saved data");
   });
 });

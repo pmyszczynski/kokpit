@@ -259,6 +259,43 @@ describe("GET /api/widget", () => {
     expect(json.data.streams).toBe(3);
   });
 
+  it("passes the saved tile footprint to a legacy widget fetch", async () => {
+    const { registerWidget } = await import("../../widgets");
+    const { z } = await import("zod");
+    const fetchData = vi.fn(async (
+      _config: Record<string, unknown>,
+      _signal?: AbortSignal,
+      context?: { footprint: { columnSpan: number; rowSpan: number } }
+    ) => context?.footprint);
+    registerWidget({
+      id: "__footprint-context__",
+      name: "Footprint Context",
+      configSchema: z.object({}),
+      integrationType: null,
+      fetchData,
+      component: () => null,
+    });
+    vi.mocked(readFileSync).mockReturnValue(
+      SERVICES_YAML.replace(
+        "service_tiles:",
+        "  - id: 10000000-0000-4000-8000-000000000006\n    name: Footprint Context\nservice_tiles:"
+      ) +
+        "\n  - { id: 20000000-0000-4000-8000-000000000006, service_id: 10000000-0000-4000-8000-000000000006, footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: __footprint-context__ } }"
+    );
+    const { GET } = await import("../../app/api/widget/route");
+
+    const res = await GET(get("20000000-0000-4000-8000-000000000006"));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      data: { columnSpan: 3, rowSpan: 4 },
+    });
+    expect(fetchData).toHaveBeenCalledWith({}, expect.any(AbortSignal), {
+      footprint: { columnSpan: 3, rowSpan: 4 },
+    });
+  });
+
   it("returns a bounded 500 when the widget fetch fails", async () => {
     vi.stubGlobal(
       "fetch",
@@ -359,6 +396,39 @@ service_tiles:`
       integration: "qbittorrent",
       stage: "login",
     });
+  });
+
+  it("returns qBittorrent transfer data when optional 3x4 activity hangs", async () => {
+    vi.useFakeTimers();
+    vi.mocked(readFileSync).mockReturnValue(SERVICES_YAML.replace(
+      "service_tiles:",
+      `  - id: 10000000-0000-4000-8000-000000000006
+    name: qBittorrent
+    integration: { type: qbittorrent, config: { url: http://qbt.local:8080, username: admin, password: secret } }
+service_tiles:`
+    ) + "\n  - { id: 20000000-0000-4000-8000-000000000006, service_id: 10000000-0000-4000-8000-000000000006, footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: qbittorrent-stats } }"
+    );
+    const transfer = {
+      dl_info_speed: 100,
+      up_info_speed: 200,
+      dl_info_data: 300,
+      up_info_data: 400,
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("Ok.", { status: 200, headers: { "set-cookie": "SID=abc; Path=/" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(transfer), { status: 200 }))
+      .mockImplementationOnce(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("../../app/api/widget/route");
+
+    const responsePromise = GET(get("20000000-0000-4000-8000-000000000006"));
+    await vi.advanceTimersByTimeAsync(1_500);
+    const response = await responsePromise;
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, data: { ...transfer, activity: null } });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/torrents/info"))).toBe(true);
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it("returns 504 even when the widget ignores its abort signal", async () => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WIDGET_FETCH_TIMEOUT_MS } from "@/lib/fetchTimeout";
 import { WidgetFetchError } from "@/widgets/publicFetchError";
 
 export interface QbittorrentConfig {
@@ -22,6 +23,19 @@ const TransferInfoSchema = z.object({
 
 export type TransferInfo = z.infer<typeof TransferInfoSchema>;
 
+const TorrentActivitySchema = z.object({
+  state: z.string(),
+});
+
+export type QbittorrentActivity = {
+  active: number;
+  inactive: number;
+};
+
+export type QbittorrentStatsData = TransferInfo & {
+  activity: QbittorrentActivity | null;
+};
+
 const TorrentSchema = z.object({
   hash: z.string(),
   name: z.string(),
@@ -40,6 +54,13 @@ type SessionCookie = {
 const sidCache = new Map<string, SessionCookie>();
 const loginInFlight = new Map<string, Promise<SessionCookie>>();
 const MAX_LOGIN_RESULT_BYTES = 64;
+// Reserve a small margin before the widget route's deadline so a
+// best-effort activity request cannot turn an otherwise useful response into a
+// route timeout after transfer data has already arrived.
+const STATS_FETCH_BUDGET_MS = WIDGET_FETCH_TIMEOUT_MS - 500;
+const ACTIVITY_FETCH_MAX_MS = 1_500;
+
+class OptionalActivityDeadlineError extends Error {}
 
 function isRetryableHttpStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599);
@@ -291,6 +312,118 @@ export async function fetchTransferInfo(
     });
   }
   return parsed.data;
+}
+
+function classifyTorrentActivity(
+  torrents: z.infer<typeof TorrentActivitySchema>[]
+): QbittorrentActivity {
+  const activity: QbittorrentActivity = {
+    active: 0,
+    inactive: 0,
+  };
+
+  for (const { state } of torrents) {
+    switch (state) {
+      case "queuedDL":
+      case "queuedUP":
+      case "stoppedDL":
+      case "stoppedUP":
+      case "pausedDL":
+      case "pausedUP":
+        activity.inactive += 1;
+        break;
+      default:
+        activity.active += 1;
+        break;
+    }
+  }
+
+  return activity;
+}
+
+async function fetchTorrentActivity(
+  config: QbittorrentConfig,
+  signal?: AbortSignal
+): Promise<QbittorrentActivity> {
+  const response = await fetchWithAuth(config, "api/v2/torrents/info", signal);
+  const data = await responseJson(response, "torrents-info-json", signal);
+  const parsed = z.array(TorrentActivitySchema).safeParse(data);
+  if (!parsed.success) {
+    throw new WidgetFetchError("widget_invalid_response", {
+      integration: "qbittorrent",
+      stage: "torrents-info-validation",
+      retryable: true,
+    });
+  }
+  return classifyTorrentActivity(parsed.data);
+}
+
+function statsClock(): number {
+  return performance.now();
+}
+
+async function fetchOptionalTorrentActivity(
+  config: QbittorrentConfig,
+  parentSignal: AbortSignal | undefined,
+  statsStartedAt: number
+): Promise<QbittorrentActivity | null> {
+  if (parentSignal?.aborted) throw abortedRequestError();
+
+  const remainingBudget = STATS_FETCH_BUDGET_MS - (statsClock() - statsStartedAt);
+  const timeoutMs = Math.min(ACTIVITY_FETCH_MAX_MS, remainingBudget);
+  if (timeoutMs <= 0) return null;
+
+  const controller = new AbortController();
+  let abortForParent: (() => void) | undefined;
+  const parentCancellation = parentSignal
+    ? new Promise<never>((_, reject) => {
+        abortForParent = () => {
+          controller.abort();
+          reject(abortedRequestError());
+        };
+        parentSignal.addEventListener("abort", abortForParent, { once: true });
+      })
+    : undefined;
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let activityDeadlineExpired = false;
+  try {
+    const activity = fetchTorrentActivity(config, controller.signal);
+    const deadline = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        activityDeadlineExpired = true;
+        controller.abort();
+        reject(new OptionalActivityDeadlineError());
+      }, timeoutMs);
+    });
+    return await Promise.race(
+      parentCancellation ? [activity, deadline, parentCancellation] : [activity, deadline]
+    );
+  } catch (error) {
+    if (parentSignal?.aborted) throw abortedRequestError();
+    if (activityDeadlineExpired || error instanceof OptionalActivityDeadlineError) return null;
+    if (isAbortError(error)) throw abortedRequestError();
+    return null;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    if (abortForParent) parentSignal?.removeEventListener("abort", abortForParent);
+  }
+}
+
+export async function fetchQbittorrentStats(
+  config: QbittorrentConfig,
+  signal?: AbortSignal,
+  includeActivity = false
+): Promise<QbittorrentStatsData> {
+  const statsStartedAt = statsClock();
+  const transfer = await fetchTransferInfo(config, signal);
+  if (!includeActivity) {
+    return { ...transfer, activity: null };
+  }
+  return {
+    ...transfer,
+    activity: await fetchOptionalTorrentActivity(config, signal, statsStartedAt),
+  };
 }
 
 export async function fetchTorrents(
