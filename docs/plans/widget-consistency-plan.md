@@ -2,11 +2,11 @@
 
 **Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
-**Current state:** Immich is fully migrated to the shared library in merged [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). Tokens, body, stat grid/cards, states and stale notice are implemented, tested and preserve the accepted 3x2 appearance. qBittorrent Stats is the owner-selected widget slice in ready-for-review [PR #114](https://github.com/pmyszczynski/kokpit/pull/114); its six-card 3x4 Active/Inactive layout is implemented, review feedback is being addressed, and owner visual acceptance remains pending. Other widgets remain out of scope.
+**Current state:** Immich is fully migrated in merged [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). qBittorrent Stats is the second migrated widget: its 3x2, 3x4 and 6x2 layouts use the shared body, stat grid/cards and feedback; the owner accepted the six-card 3x4 visual, [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) passed CI with all review feedback resolved, and the change shipped in [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0). Other widgets remain out of scope.
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Next action:** complete validation and owner visual review of qBittorrent Stats with the three selected footprints, then update both tracking tables. The larger Immich views and other widget migrations require separate selection.
+**Next action:** wait for the owner to select the next widget migration. The larger Immich views and other widget migrations require separate selection.
 
 **Working location:** the branch's checkout; both documents live in `docs/plans/` and are explicitly tracked despite that directory's ignore rule.
 
@@ -273,3 +273,9 @@ The owner clarified that the pilot must use the library for all applicable prese
 - **Valid small robustness findings:** the budget test assumes exactly two `performance.now()` reads; keep its first start-time value and make the elapsed-time value the default for later reads. The optional qBittorrent 4.5-second budget duplicates the shared five-second route default; derive it from `WIDGET_FETCH_TIMEOUT_MS` with the existing 500 ms margin. No qBittorrent per-widget override exists today; introducing one would require a separate context contract.
 - **Rejected overflow finding:** the removed legacy qBittorrent grid scrolled because its former 6x2 layout placed four cards in two rows and overflowed. The selected layouts now use six equal cards in three rows at 3x4 and four in one row at 6x2. `e2e/tests/qbittorrent-stats-widget.spec.ts` measures tile/body/grid/card/text bounds and asserts no scrolling across all three footprints and four themes, including unavailable activity and stale data. Restoring scrolling would violate the selected no-scroll summary behavior; retain the current CSS and explain this in the review thread.
 - **Next checks:** run focused tests, the full required pre-commit gate, audit the complete PR diff and staged paths, then commit/push only the valid fixes. Verify CI on the new head, reply to the review threads with evidence and resolve only those addressed or rejected with a reason. No merge or release is authorized.
+
+### Completion — 2026-09-30
+
+- The owner accepted the final six-card 3x4 visual in this task. All six applicable shared-library components are used across the selected 3x2, 3x4 and 6x2 footprints; no qBittorrent-specific stat-card sizing override remains.
+- [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) merged as `37e2fcb` after all five Cubic threads were resolved and Codex completed review of head `012807f`. Its lint, type-check, unit and E2E jobs passed in [CI run 36721761397](https://github.com/pmyszczynski/kokpit/actions/runs/36721761397).
+- [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0) was published from `dd7ac8c`; [release workflow 36725407889](https://github.com/pmyszczynski/kokpit/actions/runs/36725407889) passed the full gate and Docker manifest verification. The qBittorrent Stats tracker status is now `migrated`.
