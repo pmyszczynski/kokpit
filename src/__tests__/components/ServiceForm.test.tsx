@@ -2129,6 +2129,30 @@ describe("ServiceForm – footprint", () => {
     expect(screen.queryByLabelText("Size")).not.toBeInTheDocument();
   });
 
+  it("defaults a new qBittorrent Stats tile to the compact 3x2 footprint", () => {
+    const onSave = vi.fn();
+    render(
+      <ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={noop} />
+    );
+    fireEvent.change(screen.getByLabelText("Tile type"), {
+      target: { value: "qbittorrent-stats" },
+    });
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x2");
+    fireEvent.change(screen.getByLabelText("URL *"), {
+      target: { value: "http://qbit.local:8080" },
+    });
+    fireEvent.change(screen.getByLabelText("Username *"), {
+      target: { value: "admin" },
+    });
+    fireEvent.change(screen.getByLabelText("Password *"), {
+      target: { value: "secret" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      footprint: { columnSpan: 3, rowSpan: 2 },
+    }));
+  });
+
   it("does not revive a legacy position or size through the editor", () => {
     const onSave = vi.fn();
     render(

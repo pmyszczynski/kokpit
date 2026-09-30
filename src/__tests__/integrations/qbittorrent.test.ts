@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clearRegistry } from "@/widgets";
-import { fetchTransferInfo, fetchTorrents, clearSidCache } from "@/integrations/qbittorrent/api";
+import {
+  clearSidCache,
+  fetchQbittorrentStats,
+  fetchTorrents,
+  fetchTransferInfo,
+} from "@/integrations/qbittorrent/api";
 
 const BASE_CONFIG = {
   url: "http://qbt.local:8080",
@@ -528,6 +533,156 @@ describe("fetchTorrents", () => {
 });
 
 // ---------------------------------------------------------------------------
+// fetchQbittorrentStats
+// ---------------------------------------------------------------------------
+
+describe("fetchQbittorrentStats", () => {
+  beforeEach(() => clearSidCache());
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it("requests only transfer info when activity is not selected", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(fetchQbittorrentStats(BASE_CONFIG)).resolves.toEqual({
+      ...MOCK_TRANSFER_INFO,
+      activity: null,
+    });
+    expect(mockFetch.mock.calls.map(([url]) => url)).not.toContainEqual(
+      expect.stringContaining("/torrents/info")
+    );
+  });
+
+  it("maps only the selected mutually exclusive torrent states to activity counts", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockResolvedValueOnce(makeJsonResponse([
+        { state: "downloading" }, { state: "forcedDL" }, { state: "metaDL" },
+        { state: "uploading" }, { state: "forcedUP" },
+        { state: "stalledDL" }, { state: "stalledUP" },
+        { state: "queuedDL" }, { state: "queuedUP" },
+        { state: "pausedDL" }, { state: "checkingDL" }, { state: "future-state" },
+      ]));
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(fetchQbittorrentStats(BASE_CONFIG, undefined, true)).resolves.toEqual({
+      ...MOCK_TRANSFER_INFO,
+      activity: { downloading: 3, seeding: 2, stalled: 2, queued: 2 },
+    });
+  });
+
+  it("reuses the transfer session for the activity request", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sharedSid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockResolvedValueOnce(makeJsonResponse([{ state: "downloading" }]));
+    vi.stubGlobal("fetch", mockFetch);
+
+    await fetchQbittorrentStats(BASE_CONFIG, undefined, true);
+
+    expect(mockFetch.mock.calls.filter(([url]) => (url as string).includes("/auth/login"))).toHaveLength(1);
+    const activityCall = mockFetch.mock.calls.find(([url]) =>
+      (url as string).includes("/torrents/info")
+    );
+    expect(activityCall![1].headers.Cookie).toBe("SID=sharedSid");
+  });
+
+  it("keeps transfer data when the activity request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(makeLoginResponse("sid"))
+        .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+        .mockResolvedValueOnce({ ok: false, status: 500, headers: { get: () => null } })
+    );
+
+    await expect(fetchQbittorrentStats(BASE_CONFIG, undefined, true)).resolves.toEqual({
+      ...MOCK_TRANSFER_INFO,
+      activity: null,
+    });
+  });
+
+  it("keeps transfer data when a noncooperative activity request exceeds its deadline", async () => {
+    vi.useFakeTimers();
+    let activitySignal: AbortSignal | undefined;
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockImplementationOnce((_: string, init: RequestInit) => {
+        activitySignal = init.signal as AbortSignal;
+        return new Promise<Response>(() => {});
+      });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = fetchQbittorrentStats(BASE_CONFIG, undefined, true);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    await expect(result).resolves.toEqual({ ...MOCK_TRANSFER_INFO, activity: null });
+    expect(activitySignal?.aborted).toBe(true);
+  });
+
+  it("keeps transfer data when the activity request rejects on its own deadline abort", async () => {
+    vi.useFakeTimers();
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockImplementationOnce((_: string, init: RequestInit) => new Promise<Response>((_, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          const error = new Error("activity aborted");
+          error.name = "AbortError";
+          reject(error);
+        }, { once: true });
+      }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = fetchQbittorrentStats(BASE_CONFIG, undefined, true);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    await expect(result).resolves.toEqual({ ...MOCK_TRANSFER_INFO, activity: null });
+  });
+
+  it("skips activity when transfer has used the stats request budget", async () => {
+    const clock = vi.spyOn(performance, "now")
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(4_500);
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(fetchQbittorrentStats(BASE_CONFIG, undefined, true)).resolves.toEqual({
+      ...MOCK_TRANSFER_INFO,
+      activity: null,
+    });
+    expect(mockFetch.mock.calls.map(([url]) => url)).not.toContainEqual(
+      expect.stringContaining("/torrents/info")
+    );
+    clock.mockRestore();
+  });
+
+  it("propagates cancellation from the activity request", async () => {
+    const controller = new AbortController();
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockImplementationOnce(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = fetchQbittorrentStats(BASE_CONFIG, controller.signal, true);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    controller.abort();
+
+    await expect(result).rejects.toMatchObject({
+      name: "AbortError",
+      message: "qBittorrent request aborted",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Widget registration — qbittorrent-stats
 // ---------------------------------------------------------------------------
 
@@ -554,6 +709,41 @@ describe("qbittorrent-stats widget registration", () => {
     await import("@/integrations/qbittorrent/statsWidget");
     const { getWidget } = await import("@/widgets");
     expect(getWidget("qbittorrent-stats")?.refreshInterval).toBe(10_000);
+  });
+
+  it("defaults new tiles to compact speeds while retaining detailed and saved wide footprints", async () => {
+    await import("@/integrations/qbittorrent/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    const widget = getWidget("qbittorrent-stats")!;
+    expect(widget.preferredSize).toBe("normal");
+    expect(widget.compactHeader).toBe(true);
+    expect(widget.sharedUI).toBe(true);
+    expect(widget.supportedFootprints).toEqual([
+      { label: "Compact speeds", columnSpan: 3, rowSpan: 2 },
+      { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+      { label: "Wide", columnSpan: 6, rowSpan: 2 },
+    ]);
+  });
+
+  it("requests torrent activity only for the detailed 3x4 footprint", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(makeLoginResponse("sid"))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
+      .mockResolvedValueOnce(makeJsonResponse([{ state: "downloading" }]))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));
+    vi.stubGlobal("fetch", mockFetch);
+    await import("@/integrations/qbittorrent/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    const widget = getWidget("qbittorrent-stats")!;
+
+    await widget.fetchData(BASE_CONFIG, undefined, { footprint: { columnSpan: 3, rowSpan: 2 } });
+    await widget.fetchData(BASE_CONFIG, undefined, { footprint: { columnSpan: 3, rowSpan: 4 } });
+    await widget.fetchData(BASE_CONFIG, undefined, { footprint: { columnSpan: 6, rowSpan: 2 } });
+
+    expect(mockFetch.mock.calls.filter(([url]) =>
+      (url as string).includes("/torrents/info")
+    )).toHaveLength(1);
   });
 
   it("configSchema accepts valid config", async () => {

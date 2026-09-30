@@ -95,8 +95,12 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   /** Schema-v2 per-tile options. New definitions should prefer this over configSchema. */
   optionsSchema?: z.ZodType<Record<string, unknown>>;
   optionFields?: Exclude<WidgetConfigField, { type: "password" }>[];
-  /** fetchData receives an AbortSignal so the caller can cancel a timed-out request. */
-  fetchData: (config: TConfig, signal?: AbortSignal) => Promise<TData>;
+  /** fetchData receives an AbortSignal and, for saved legacy tiles, its resolved footprint. */
+  fetchData: (
+    config: TConfig,
+    signal?: AbortSignal,
+    context?: { footprint: TileFootprint }
+  ) => Promise<TData>;
   /** Refresh interval in milliseconds. Defaults to 30_000. */
   refreshInterval?: number;
   component: React.ComponentType<WidgetProps<TData>>;

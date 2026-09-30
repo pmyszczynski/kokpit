@@ -65,6 +65,31 @@ describe("fixed-grid config migration", () => {
     expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
   });
 
+  it("preserves the historical wide qBittorrent Stats tile when legacy geometry is absent", () => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const tileId = "20000000-0000-4000-8000-000000000002";
+    const base = {
+      schema_version: 2,
+      services: [{
+        id: serviceId,
+        name: "qBittorrent",
+        integration: { type: "qbittorrent", config: { url: "http://qbit.local:8080", username: "admin", password: "secret" } },
+      }],
+      service_tiles: [{ id: tileId, service_id: serviceId, widget: { type: "qbittorrent-stats" } }],
+    };
+
+    expect(migrateFixedGridConfig(base).service_tiles[0].footprint)
+      .toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(migrateFixedGridConfig({
+      ...base,
+      service_tiles: [{ ...base.service_tiles[0], size: "normal" }],
+    }).service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+    expect(migrateFixedGridConfig({
+      ...base,
+      service_tiles: [{ ...base.service_tiles[0], footprint: { columnSpan: 6, rowSpan: 2 } }],
+    }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+  });
+
   it("keeps described generic service cards at the fixed 3×1 footprint", () => {
     const serviceId = "10000000-0000-4000-8000-000000000001";
     const migrated = migrateFixedGridConfig({
