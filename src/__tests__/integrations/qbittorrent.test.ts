@@ -555,13 +555,16 @@ describe("fetchQbittorrentStats", () => {
     );
   });
 
-  it("counts every non-queued torrent as active", async () => {
+  it("counts queued and stopped torrents as inactive across qBittorrent versions", async () => {
     const torrents = [
       { state: "downloading" }, { state: "forcedDL" }, { state: "metaDL" },
       { state: "uploading" }, { state: "forcedUP" },
       { state: "stalledDL" }, { state: "stalledUP" },
       { state: "queuedDL" }, { state: "queuedUP" },
-      { state: "pausedDL" }, { state: "checkingDL" }, { state: "error" },
+      { state: "stoppedDL" }, { state: "stoppedUP" },
+      { state: "pausedDL" }, { state: "pausedUP" },
+      { state: "error" }, { state: "missingFiles" },
+      { state: "checkingDL" }, { state: "checkingUP" },
       { state: "future-state" },
     ];
     const mockFetch = vi.fn()
@@ -574,9 +577,9 @@ describe("fetchQbittorrentStats", () => {
 
     expect(stats).toEqual({
       ...MOCK_TRANSFER_INFO,
-      activity: { active: 11, queued: 2 },
+      activity: { active: 12, inactive: 6 },
     });
-    expect(stats.activity!.active + stats.activity!.queued).toBe(torrents.length);
+    expect(stats.activity!.active + stats.activity!.inactive).toBe(torrents.length);
   });
 
   it("reuses the transfer session for the activity request", async () => {

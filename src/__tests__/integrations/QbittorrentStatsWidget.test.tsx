@@ -45,7 +45,7 @@ const SAMPLE_DATA = {
   up_info_speed: 500_000,
   dl_info_data: 1_200_000_000,
   up_info_data: 345_000_000,
-  activity: { active: 16, queued: 4 },
+  activity: { active: 16, inactive: 4 },
 };
 
 describe("QbittorrentStatsWidget", () => {
@@ -105,9 +105,10 @@ describe("QbittorrentStatsWidget", () => {
     expect(container.querySelector(".qbt-stats-widget__grid")).toHaveAttribute("data-columns", "2");
     expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
     expect(container.querySelectorAll(".qbt-stats-widget__activity-stat")).toHaveLength(2);
-    expect(screen.getByText("Active")).toHaveAttribute("title", "All torrents except queued");
+    expect(screen.getByText("Active")).toHaveAttribute("title", "All torrents except queued or stopped");
     expect(screen.getByText("Active").closest("dt")?.nextElementSibling).toHaveTextContent("16");
-    expect(screen.getByText("Queued").nextElementSibling).toHaveTextContent("4");
+    expect(screen.getByText("Inactive")).toHaveAttribute("title", "Queued or stopped torrents");
+    expect(screen.getByText("Inactive").closest("dt")?.nextElementSibling).toHaveTextContent("4");
   });
 
   it("keeps all six cards when activity is unavailable at 3x4", () => {

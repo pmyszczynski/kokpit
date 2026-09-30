@@ -28,7 +28,7 @@ const TorrentActivitySchema = z.object({
 
 export type QbittorrentActivity = {
   active: number;
-  queued: number;
+  inactive: number;
 };
 
 export type QbittorrentStatsData = TransferInfo & {
@@ -318,14 +318,18 @@ function classifyTorrentActivity(
 ): QbittorrentActivity {
   const activity: QbittorrentActivity = {
     active: 0,
-    queued: 0,
+    inactive: 0,
   };
 
   for (const { state } of torrents) {
     switch (state) {
       case "queuedDL":
       case "queuedUP":
-        activity.queued += 1;
+      case "stoppedDL":
+      case "stoppedUP":
+      case "pausedDL":
+      case "pausedUP":
+        activity.inactive += 1;
         break;
       default:
         activity.active += 1;

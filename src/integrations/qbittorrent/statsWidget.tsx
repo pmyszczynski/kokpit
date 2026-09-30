@@ -84,11 +84,13 @@ export function QbittorrentStatsWidget({
         {showActivity && (
           ([
             ["Active", data.activity?.active],
-            ["Queued", data.activity?.queued],
+            ["Inactive", data.activity?.inactive],
           ] as const).map(([label, value]) => (
             <WidgetStat
               key={label}
-              label={label === "Active" ? <span title="All torrents except queued">Active</span> : label}
+              label={<span title={label === "Inactive"
+                ? "Queued or stopped torrents"
+                : "All torrents except queued or stopped"}>{label}</span>}
               value={value ?? <span title="Activity unavailable">—</span>}
               className="qbt-stats-widget__activity-stat"
             />

@@ -24,7 +24,7 @@ const TRANSFER_RESPONSE = {
     up_info_speed: 123_450_000,
     dl_info_data: 987_654_300_000_000,
     up_info_data: 987_650_000_000,
-    activity: { active: 12_345, queued: 3456 },
+    activity: { active: 12_345, inactive: 3456 },
   },
 };
 const SPEED_VALUES = ["999.9 MB/s", "123.5 MB/s"];
@@ -140,7 +140,7 @@ test("qBittorrent stats show footprint-specific values without clipping in all t
       );
       if (footprint.rowSpan === 4) {
         await expect(grid.locator(".qbt-stats-widget__activity-stat dt"))
-          .toHaveText(["Active", "Queued"]);
+          .toHaveText(["Active", "Inactive"]);
         await expect(grid.locator(".qbt-stats-widget__activity-stat dd"))
           .toHaveText(ACTIVITY_VALUES);
       } else {
@@ -171,7 +171,7 @@ test("qBittorrent stats show footprint-specific values without clipping in all t
 test("qBittorrent 3x4 distinguishes zero activity from unavailable activity without moving cards", async ({ page, request }) => {
   await setFootprint(request, FOOTPRINTS[1]);
   let activity: typeof TRANSFER_RESPONSE.data.activity | null = {
-    active: 0, queued: 0,
+    active: 0, inactive: 0,
   };
   await page.route("**/api/widget*", async (route) => {
     if (new URL(route.request().url()).searchParams.get("tile_id") !== TILE_ID) return route.continue();
