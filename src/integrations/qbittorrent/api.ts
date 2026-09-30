@@ -27,9 +27,7 @@ const TorrentActivitySchema = z.object({
 });
 
 export type QbittorrentActivity = {
-  downloading: number;
-  seeding: number;
-  stalled: number;
+  active: number;
   queued: number;
 };
 
@@ -319,30 +317,18 @@ function classifyTorrentActivity(
   torrents: z.infer<typeof TorrentActivitySchema>[]
 ): QbittorrentActivity {
   const activity: QbittorrentActivity = {
-    downloading: 0,
-    seeding: 0,
-    stalled: 0,
+    active: 0,
     queued: 0,
   };
 
   for (const { state } of torrents) {
     switch (state) {
-      case "downloading":
-      case "forcedDL":
-      case "metaDL":
-        activity.downloading += 1;
-        break;
-      case "uploading":
-      case "forcedUP":
-        activity.seeding += 1;
-        break;
-      case "stalledDL":
-      case "stalledUP":
-        activity.stalled += 1;
-        break;
       case "queuedDL":
       case "queuedUP":
         activity.queued += 1;
+        break;
+      default:
+        activity.active += 1;
         break;
     }
   }

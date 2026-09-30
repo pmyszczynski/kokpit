@@ -730,9 +730,8 @@ Two widgets are available for qBittorrent: a transfer stats overview and a live 
 #### `qbittorrent-stats`
 
 Displays current download/upload speed. The compact 3×2 tile shows only the two
-speeds. The 3×4 tile uses four rows of matching stat cards: download/upload
-speeds, downloaded/uploaded totals, then live Downloading, Seeding, Stalled,
-and Queued torrent counts. The 6×2 tile
+speeds. The 3×4 tile uses three rows of the same stat cards: download/upload
+speeds, downloaded/uploaded totals, then Active and Queued torrent counts. The 6×2 tile
 shows the four speed and total values in one row. New tiles created in the editor default to 3×2;
 existing 6×2 tiles remain supported.
 
@@ -765,8 +764,9 @@ service_tiles:
 
 
 **Displayed stats:** download speed and upload speed at every size; total downloaded
-and total uploaded at 3×4 and 6×2. The 3×4 activity counts omit paused, stopped,
-checking, and error states. If activity cannot be fetched, the transfer values
+and total uploaded at 3×4 and 6×2. At 3×4, Queued counts torrents in the
+`queuedDL` or `queuedUP` state; Active counts all other torrents returned by
+qBittorrent, including stopped, checking, and error states. If activity cannot be fetched, the transfer values
 remain visible and the tile says "Activity unavailable."
 
 #### `qbittorrent-torrents`

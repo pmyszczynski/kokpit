@@ -45,7 +45,7 @@ const SAMPLE_DATA = {
   up_info_speed: 500_000,
   dl_info_data: 1_200_000_000,
   up_info_data: 345_000_000,
-  activity: { downloading: 3, seeding: 12, stalled: 1, queued: 4 },
+  activity: { active: 16, queued: 4 },
 };
 
 describe("QbittorrentStatsWidget", () => {
@@ -103,15 +103,14 @@ describe("QbittorrentStatsWidget", () => {
     expect(screen.getByText("1.2 GB")).toBeInTheDocument();
     expect(screen.getByText("345.0 MB")).toBeInTheDocument();
     expect(container.querySelector(".qbt-stats-widget__grid")).toHaveAttribute("data-columns", "2");
-    expect(container.querySelectorAll(".widget-stat")).toHaveLength(8);
-    expect(container.querySelectorAll(".qbt-stats-widget__activity-stat")).toHaveLength(4);
-    expect(screen.getByText("Downloading").nextElementSibling).toHaveTextContent("3");
-    expect(screen.getByText("Seeding").nextElementSibling).toHaveTextContent("12");
-    expect(screen.getByText("Stalled").nextElementSibling).toHaveTextContent("1");
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
+    expect(container.querySelectorAll(".qbt-stats-widget__activity-stat")).toHaveLength(2);
+    expect(screen.getByText("Active")).toHaveAttribute("title", "All torrents except queued");
+    expect(screen.getByText("Active").closest("dt")?.nextElementSibling).toHaveTextContent("16");
     expect(screen.getByText("Queued").nextElementSibling).toHaveTextContent("4");
   });
 
-  it("keeps all eight cards when activity is unavailable at 3x4", () => {
+  it("keeps all six cards when activity is unavailable at 3x4", () => {
     const { container } = render(
       <QbittorrentStatsWidget
         data={{ ...SAMPLE_DATA, activity: null }}
@@ -123,11 +122,11 @@ describe("QbittorrentStatsWidget", () => {
     );
     expect(screen.getByRole("status")).toHaveTextContent("Activity unavailable");
     expect(screen.getByText("5.5 MB/s")).toBeInTheDocument();
-    expect(container.querySelectorAll(".widget-stat")).toHaveLength(8);
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
     expect(container.querySelectorAll(".qbt-stats-widget__activity-stat dd"))
-      .toHaveLength(4);
+      .toHaveLength(2);
     expect(Array.from(container.querySelectorAll(".qbt-stats-widget__activity-stat dd"),
-      (item) => item.textContent)).toEqual(["—", "—", "—", "—"]);
+      (item) => item.textContent)).toEqual(["—", "—"]);
   });
 
   it("renders all four values in one row at 6x2", () => {

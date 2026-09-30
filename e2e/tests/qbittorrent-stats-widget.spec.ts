@@ -13,7 +13,7 @@ const TILE_ID = TILE_DATA.service_tiles[0].id;
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const FOOTPRINTS = [
   { columnSpan: 3, rowSpan: 2, cards: 2, columns: 2, height: 128 },
-  { columnSpan: 3, rowSpan: 4, cards: 8, columns: 2, height: 264 },
+  { columnSpan: 3, rowSpan: 4, cards: 6, columns: 2, height: 264 },
   { columnSpan: 6, rowSpan: 2, cards: 4, columns: 4, height: 128 },
 ] as const;
 
@@ -24,12 +24,12 @@ const TRANSFER_RESPONSE = {
     up_info_speed: 123_450_000,
     dl_info_data: 987_654_300_000_000,
     up_info_data: 987_650_000_000,
-    activity: { downloading: 12_345, seeding: 67_890, stalled: 12, queued: 3456 },
+    activity: { active: 12_345, queued: 3456 },
   },
 };
 const SPEED_VALUES = ["999.9 MB/s", "123.5 MB/s"];
 const TRANSFER_VALUES = [...SPEED_VALUES, "987654.3 GB", "987.6 GB"];
-const ACTIVITY_VALUES = ["12345", "67890", "12", "3456"];
+const ACTIVITY_VALUES = ["12345", "3456"];
 
 function settingsFor(
   footprint: { columnSpan: number; rowSpan: number },
@@ -140,7 +140,7 @@ test("qBittorrent stats show footprint-specific values without clipping in all t
       );
       if (footprint.rowSpan === 4) {
         await expect(grid.locator(".qbt-stats-widget__activity-stat dt"))
-          .toHaveText(["Downloading", "Seeding", "Stalled", "Queued"]);
+          .toHaveText(["Active", "Queued"]);
         await expect(grid.locator(".qbt-stats-widget__activity-stat dd"))
           .toHaveText(ACTIVITY_VALUES);
       } else {
@@ -152,7 +152,7 @@ test("qBittorrent stats show footprint-specific values without clipping in all t
       expect(new Set(cardBounds.map((item) => item.y)).size)
         .toBe(footprint.cards / footprint.columns);
       if (footprint.rowSpan === 4) {
-        const rows = Array.from({ length: 4 }, (_, index) => cardBounds.slice(index * 2, index * 2 + 2));
+        const rows = Array.from({ length: 3 }, (_, index) => cardBounds.slice(index * 2, index * 2 + 2));
         for (const row of rows) {
           expect(Math.abs(row[0].y - row[1].y)).toBeLessThan(0.5);
           expect(Math.abs(row[0].height - row[1].height)).toBeLessThan(0.5);
@@ -171,7 +171,7 @@ test("qBittorrent stats show footprint-specific values without clipping in all t
 test("qBittorrent 3x4 distinguishes zero activity from unavailable activity without moving cards", async ({ page, request }) => {
   await setFootprint(request, FOOTPRINTS[1]);
   let activity: typeof TRANSFER_RESPONSE.data.activity | null = {
-    downloading: 0, seeding: 0, stalled: 0, queued: 0,
+    active: 0, queued: 0,
   };
   await page.route("**/api/widget*", async (route) => {
     if (new URL(route.request().url()).searchParams.get("tile_id") !== TILE_ID) return route.continue();
@@ -182,7 +182,7 @@ test("qBittorrent 3x4 distinguishes zero activity from unavailable activity with
   });
   await page.goto("/");
   await expect(tile(page).locator(".qbt-stats-widget__activity-stat dd"))
-    .toHaveText(["0", "0", "0", "0"]);
+    .toHaveText(["0", "0"]);
   const healthyBounds = await layoutBounds(page);
   await assertFits(page, 264);
 
@@ -190,8 +190,67 @@ test("qBittorrent 3x4 distinguishes zero activity from unavailable activity with
   await page.reload();
   await expect(tile(page).getByRole("status")).toHaveText("Activity unavailable");
   await expect(tile(page).locator(".qbt-stats-widget__activity-stat dd"))
-    .toHaveText(["—", "—", "—", "—"]);
+    .toHaveText(["—", "—"]);
   expect(await layoutBounds(page)).toEqual(healthyBounds);
+  await assertFits(page, 264);
+});
+
+test("qBittorrent 3x4 cards match the shared Immich stat cards", async ({ page, request }) => {
+  const sharedReference = schemaV2Fixtures([
+    {
+      name: "qBittorrent",
+      description: "Transfer rates and totals",
+      widget: {
+        type: "qbittorrent-stats",
+        config: { url: "http://localhost:8080", username: "admin", password: "dummy" },
+      },
+    },
+    {
+      name: "Immich",
+      description: "Storage and items",
+      widget: {
+        type: "immich-stats",
+        config: { url: "http://localhost:2283/api", api_key: "dummy" },
+      },
+    },
+  ]);
+  const settings = {
+    ...settingsFor(FOOTPRINTS[1]),
+    services: sharedReference.services,
+    service_tiles: sharedReference.service_tiles.map((entry, index) => ({
+      ...entry,
+      footprint: index === 0 ? FOOTPRINTS[1] : FOOTPRINTS[0],
+    })),
+  };
+  expect((await request.patch("/api/settings", { data: settings })).ok()).toBe(true);
+  await page.route("**/api/widget*", async (route) => {
+    const tileId = new URL(route.request().url()).searchParams.get("tile_id");
+    const response = tileId === sharedReference.service_tiles[0].id
+      ? TRANSFER_RESPONSE
+      : { ok: true, data: { usage: 1_200_000_000, photos: 1234, videos: 56 } };
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(response) });
+  });
+  await page.goto("/");
+  const qbittorrentCard = tile(page).locator(".widget-stat").first();
+  const immichCard = page.locator('[data-widget-type="immich-stats"] .widget-stat').first();
+  await expect(tile(page).locator(".widget-stat")).toHaveCount(6);
+  await expect(immichCard).toBeVisible();
+  const metrics = async (card: typeof qbittorrentCard) => card.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const value = element.querySelector(".widget-stat__value")!;
+    const label = element.querySelector(".widget-stat__label")!;
+    const bounds = element.getBoundingClientRect();
+    return {
+      width: bounds.width,
+      height: bounds.height,
+      padding: style.padding,
+      gap: style.gap,
+      valueFontSize: getComputedStyle(value).fontSize,
+      labelFontSize: getComputedStyle(label).fontSize,
+      gridGap: getComputedStyle(element.parentElement!).gap,
+    };
+  });
+  expect(await metrics(qbittorrentCard)).toEqual(await metrics(immichCard));
   await assertFits(page, 264);
 });
 

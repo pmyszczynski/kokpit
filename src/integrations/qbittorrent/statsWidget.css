@@ -1,18 +1,4 @@
 @layer widget-ui {
-  .qbt-stats-widget__grid--with-activity {
-    --widget-stat-grid-gap: 4px;
-    align-content: stretch;
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-  }
-
-  .qbt-stats-widget__grid--with-activity .widget-stat {
-    --widget-stat-padding: 3px 4px;
-    --widget-stat-gap: 1px;
-    --widget-stat-value-font-size: 0.875rem;
-    --widget-stat-label-font-size: 0.625rem;
-    justify-content: center;
-  }
-
   .qbt-stats-widget__activity-unavailable {
     color: var(--color-text-muted);
   }

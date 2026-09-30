@@ -555,23 +555,28 @@ describe("fetchQbittorrentStats", () => {
     );
   });
 
-  it("maps only the selected mutually exclusive torrent states to activity counts", async () => {
+  it("counts every non-queued torrent as active", async () => {
+    const torrents = [
+      { state: "downloading" }, { state: "forcedDL" }, { state: "metaDL" },
+      { state: "uploading" }, { state: "forcedUP" },
+      { state: "stalledDL" }, { state: "stalledUP" },
+      { state: "queuedDL" }, { state: "queuedUP" },
+      { state: "pausedDL" }, { state: "checkingDL" }, { state: "error" },
+      { state: "future-state" },
+    ];
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(makeLoginResponse("sid"))
       .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO))
-      .mockResolvedValueOnce(makeJsonResponse([
-        { state: "downloading" }, { state: "forcedDL" }, { state: "metaDL" },
-        { state: "uploading" }, { state: "forcedUP" },
-        { state: "stalledDL" }, { state: "stalledUP" },
-        { state: "queuedDL" }, { state: "queuedUP" },
-        { state: "pausedDL" }, { state: "checkingDL" }, { state: "future-state" },
-      ]));
+      .mockResolvedValueOnce(makeJsonResponse(torrents));
     vi.stubGlobal("fetch", mockFetch);
 
-    await expect(fetchQbittorrentStats(BASE_CONFIG, undefined, true)).resolves.toEqual({
+    const stats = await fetchQbittorrentStats(BASE_CONFIG, undefined, true);
+
+    expect(stats).toEqual({
       ...MOCK_TRANSFER_INFO,
-      activity: { downloading: 3, seeding: 2, stalled: 2, queued: 2 },
+      activity: { active: 11, queued: 2 },
     });
+    expect(stats.activity!.active + stats.activity!.queued).toBe(torrents.length);
   });
 
   it("reuses the transfer session for the activity request", async () => {

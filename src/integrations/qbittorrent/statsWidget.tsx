@@ -47,7 +47,7 @@ export function QbittorrentStatsWidget({
     >
       <WidgetStatGrid
         columns={columns}
-        className={`qbt-stats-widget__grid${showActivity ? " qbt-stats-widget__grid--with-activity" : ""}`}
+        className="qbt-stats-widget__grid"
       >
         <WidgetStat
           label="↓ Speed"
@@ -83,14 +83,12 @@ export function QbittorrentStatsWidget({
         )}
         {showActivity && (
           ([
-            ["Downloading", data.activity?.downloading],
-            ["Seeding", data.activity?.seeding],
-            ["Stalled", data.activity?.stalled],
+            ["Active", data.activity?.active],
             ["Queued", data.activity?.queued],
           ] as const).map(([label, value]) => (
             <WidgetStat
               key={label}
-              label={label}
+              label={label === "Active" ? <span title="All torrents except queued">Active</span> : label}
               value={value ?? <span title="Activity unavailable">—</span>}
               className="qbt-stats-widget__activity-stat"
             />
