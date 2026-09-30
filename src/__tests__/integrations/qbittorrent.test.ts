@@ -655,7 +655,7 @@ describe("fetchQbittorrentStats", () => {
   it("skips activity when transfer has used the stats request budget", async () => {
     const clock = vi.spyOn(performance, "now")
       .mockReturnValueOnce(0)
-      .mockReturnValueOnce(4_500);
+      .mockReturnValue(4_500);
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(makeLoginResponse("sid"))
       .mockResolvedValueOnce(makeJsonResponse(MOCK_TRANSFER_INFO));

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WIDGET_FETCH_TIMEOUT_MS } from "@/lib/fetchTimeout";
 import { WidgetFetchError } from "@/widgets/publicFetchError";
 
 export interface QbittorrentConfig {
@@ -53,10 +54,10 @@ type SessionCookie = {
 const sidCache = new Map<string, SessionCookie>();
 const loginInFlight = new Map<string, Promise<SessionCookie>>();
 const MAX_LOGIN_RESULT_BYTES = 64;
-// The widget route has a five second deadline. Reserve a small margin so a
+// Reserve a small margin before the widget route's deadline so a
 // best-effort activity request cannot turn an otherwise useful response into a
 // route timeout after transfer data has already arrived.
-const STATS_FETCH_BUDGET_MS = 4_500;
+const STATS_FETCH_BUDGET_MS = WIDGET_FETCH_TIMEOUT_MS - 500;
 const ACTIVITY_FETCH_MAX_MS = 1_500;
 
 class OptionalActivityDeadlineError extends Error {}
