@@ -10,10 +10,12 @@ const SAMPLE_STATS: ProwlarrStats = {
   enabledIndexers: 10,
   failingIndexers: 0,
   totalGrabs: 1234,
+  usenetIndexers: 8,
+  torrentIndexers: 4,
 };
 
 describe("ProwlarrStatsWidget", () => {
-  it("renders all 4 stats with correct values and labels", () => {
+  it("renders all 6 stats with correct values and labels", () => {
     render(
       <ProwlarrStatsWidget data={SAMPLE_STATS} loading={false} error={null} refresh={noop} />
     );
@@ -25,6 +27,8 @@ describe("ProwlarrStatsWidget", () => {
     expect(screen.getByText("Failing")).toBeInTheDocument();
     expect(screen.getByText("1,234")).toBeInTheDocument();
     expect(screen.getByText("Total Grabs")).toBeInTheDocument();
+    expect(screen.getByText("Usenet").closest("dl")).toHaveTextContent("8");
+    expect(screen.getByText("Torrent").closest("dl")).toHaveTextContent("4");
   });
 
   it("formats totalGrabs with toLocaleString separators", () => {
@@ -50,6 +54,7 @@ describe("ProwlarrStatsWidget", () => {
     );
     const failingValue = screen.getByText("0");
     expect(failingValue.className).not.toContain("prowlarr-stats-widget__value--alert");
+    expect(failingValue.closest(".widget-stat")).toHaveClass("widget-stat--tone-neutral");
   });
 
   it("adds the alert class when failingIndexers > 0", () => {
@@ -63,13 +68,14 @@ describe("ProwlarrStatsWidget", () => {
     );
     const failingValue = screen.getByText("3");
     expect(failingValue.className).toContain("prowlarr-stats-widget__value--alert");
+    expect(failingValue.closest(".widget-stat")).toHaveClass("widget-stat--tone-alert");
   });
 
   it("shows loading hint when data is null and loading", () => {
     render(
       <ProwlarrStatsWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toHaveClass("widget-state--loading");
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -81,7 +87,8 @@ describe("ProwlarrStatsWidget", () => {
         refresh={noop}
       />
     );
-    expect(screen.getByText("Prowlarr responded with 401")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Prowlarr responded with 401");
+    expect(screen.getByRole("alert")).toHaveClass("widget-state--error");
   });
 
   it("shows stale error alongside data when data is non-null and error is set", () => {
@@ -95,7 +102,9 @@ describe("ProwlarrStatsWidget", () => {
     );
     expect(screen.getByText("12")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("refresh failed");
+    expect(alert).toHaveTextContent("Refresh failed · saved data");
+    expect(alert).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
+    expect(alert).toHaveAttribute("title", "refresh failed");
   });
 
   it("renders --empty container when data is null and neither loading nor error", () => {
@@ -106,5 +115,25 @@ describe("ProwlarrStatsWidget", () => {
       container.querySelector(".prowlarr-stats-widget--empty")
     ).toBeInTheDocument();
     expect(screen.queryByText("Indexers")).not.toBeInTheDocument();
+    expect(container.querySelector(".prowlarr-stats-widget--empty")).toBeEmptyDOMElement();
+  });
+
+  it("retains a separate notice slot through refresh failure and recovery", () => {
+    const { container, rerender } = render(
+      <ProwlarrStatsWidget data={SAMPLE_STATS} loading={false} error={null} refresh={noop} />
+    );
+    const notice = container.querySelector(".widget-body__notice")!;
+    const grid = container.querySelector(".widget-stat-grid")!;
+    expect(notice).toBeEmptyDOMElement();
+    expect(grid.nextElementSibling).toBe(notice);
+
+    rerender(<ProwlarrStatsWidget data={SAMPLE_STATS} loading={false} error="Timeout" refresh={noop} />);
+    expect(notice).toContainElement(screen.getByRole("alert"));
+    expect(grid.querySelectorAll(".widget-stat")).toHaveLength(6);
+
+    rerender(<ProwlarrStatsWidget data={SAMPLE_STATS} loading={false} error={null} refresh={noop} />);
+    expect(container.querySelector(".widget-body__notice")).toBe(notice);
+    expect(notice).toBeEmptyDOMElement();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

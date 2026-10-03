@@ -1,5 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchStats, ProwlarrConfigSchema } from "./api";
 import type { ProwlarrConfig, ProwlarrStats } from "./api";
 
@@ -11,49 +12,67 @@ export function ProwlarrStatsWidget({
 }: WidgetProps<ProwlarrStats>) {
   if (!data) {
     return (
-      <div className="prowlarr-stats-widget prowlarr-stats-widget--empty">
-        {loading && (
-          <span className="prowlarr-stats-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="prowlarr-stats-widget__hint prowlarr-stats-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
+      <WidgetBody centered className="prowlarr-stats-widget prowlarr-stats-widget--empty">
+        <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>
+          {!loading ? error : undefined}
+        </WidgetState>
+      </WidgetBody>
     );
   }
 
   return (
-    <div className="prowlarr-stats-widget" aria-label="Prowlarr stats">
-      <div className="prowlarr-stats-widget__stat">
-        <span className="prowlarr-stats-widget__value">{data.totalIndexers}</span>
-        <span className="prowlarr-stats-widget__label">Indexers</span>
-      </div>
-      <div className="prowlarr-stats-widget__stat">
-        <span className="prowlarr-stats-widget__value">{data.enabledIndexers}</span>
-        <span className="prowlarr-stats-widget__label">Enabled</span>
-      </div>
-      <div className="prowlarr-stats-widget__stat">
-        <span
-          className={`prowlarr-stats-widget__value${data.failingIndexers > 0 ? " prowlarr-stats-widget__value--alert" : ""}`}
-        >
-          {data.failingIndexers}
-        </span>
-        <span className="prowlarr-stats-widget__label">Failing</span>
-      </div>
-      <div className="prowlarr-stats-widget__stat">
-        <span className="prowlarr-stats-widget__value">
-          {data.totalGrabs.toLocaleString()}
-        </span>
-        <span className="prowlarr-stats-widget__label">Total Grabs</span>
-      </div>
-      {error && (
-        <span className="prowlarr-stats-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
+    <WidgetBody
+      className="prowlarr-stats-widget"
+      aria-label="Prowlarr stats"
+      reserveNotice
+      notice={<WidgetStaleNotice error={error} className="prowlarr-stats-widget__stale-error" />}
+    >
+      <WidgetStatGrid columns={2} className="prowlarr-stats-widget__grid">
+        <WidgetStat
+          label="Enabled"
+          value={data.enabledIndexers}
+          className="prowlarr-stats-widget__stat"
+          valueClassName="prowlarr-stats-widget__value"
+          labelClassName="prowlarr-stats-widget__label"
+        />
+        <WidgetStat
+          label="Failing"
+          value={data.failingIndexers}
+          tone={data.failingIndexers > 0 ? "alert" : "neutral"}
+          className="prowlarr-stats-widget__stat"
+          valueClassName={`prowlarr-stats-widget__value${data.failingIndexers > 0 ? " prowlarr-stats-widget__value--alert" : ""}`}
+          labelClassName="prowlarr-stats-widget__label"
+        />
+        <WidgetStat
+          label="Indexers"
+          value={data.totalIndexers}
+          className="prowlarr-stats-widget__stat"
+          valueClassName="prowlarr-stats-widget__value"
+          labelClassName="prowlarr-stats-widget__label"
+        />
+        <WidgetStat
+          label="Total Grabs"
+          value={data.totalGrabs.toLocaleString()}
+          className="prowlarr-stats-widget__stat"
+          valueClassName="prowlarr-stats-widget__value"
+          labelClassName="prowlarr-stats-widget__label"
+        />
+        <WidgetStat
+          label="Usenet"
+          value={data.usenetIndexers}
+          className="prowlarr-stats-widget__stat"
+          valueClassName="prowlarr-stats-widget__value"
+          labelClassName="prowlarr-stats-widget__label"
+        />
+        <WidgetStat
+          label="Torrent"
+          value={data.torrentIndexers}
+          className="prowlarr-stats-widget__stat"
+          valueClassName="prowlarr-stats-widget__value"
+          labelClassName="prowlarr-stats-widget__label"
+        />
+      </WidgetStatGrid>
+    </WidgetBody>
   );
 }
 
@@ -61,6 +80,8 @@ registerWidget<ProwlarrConfig, ProwlarrStats>({
   id: "prowlarr-stats",
   name: "Prowlarr Stats",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Prowlarr",

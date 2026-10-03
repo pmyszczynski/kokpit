@@ -34,6 +34,8 @@ export interface ProwlarrStats {
   enabledIndexers: number;
   failingIndexers: number;
   totalGrabs: number;
+  usenetIndexers: number;
+  torrentIndexers: number;
 }
 
 async function fetchWithAuth(
@@ -81,5 +83,8 @@ export async function fetchStats(
     enabledIndexers: indexers.filter((i) => i.enable).length,
     failingIndexers: statuses.length,
     totalGrabs: history.totalRecords,
+    // Protocol totals include disabled indexers, just like totalIndexers.
+    usenetIndexers: indexers.filter((i) => i.protocol === "usenet").length,
+    torrentIndexers: indexers.filter((i) => i.protocol === "torrent").length,
   };
 }

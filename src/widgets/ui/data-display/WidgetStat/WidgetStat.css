@@ -40,6 +40,10 @@
     --widget-stat-tone: var(--widget-stat-tone-neutral);
   }
 
+  .widget-stat--tone-alert {
+    --widget-stat-tone: var(--widget-stat-tone-alert);
+  }
+
   .widget-stat--tone-positive {
     --widget-stat-tone: var(--widget-stat-tone-positive);
   }

@@ -2,11 +2,11 @@
 
 **Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
-**Current state:** Immich is fully migrated in merged [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). qBittorrent Stats is the second migrated widget: its 3x2, 3x4 and 6x2 layouts use the shared body, stat grid/cards and feedback; the owner accepted the six-card 3x4 visual, [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) passed CI with all review feedback resolved, and the change shipped in [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0). Other widgets remain out of scope.
+**Current state:** Immich is fully migrated in merged [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). qBittorrent Stats is the second migrated widget: its 3x2, 3x4 and 6x2 layouts use the shared body, stat grid/cards and feedback; the owner accepted the six-card 3x4 visual, [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) passed CI with all review feedback resolved, and the change shipped in [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0). Prowlarr Stats is the third migrated widget: the owner accepted its final six-card 3x4 appearance and requested PR publication with CI/review monitoring. Publication and remote verification are pending. Remaining widgets are out of scope.
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Next action:** wait for the owner to select the next widget migration. The larger Immich views and other widget migrations require separate selection.
+**Next action:** run the final required pre-commit gate, publish the scoped Prowlarr Stats PR, and monitor current-head CI and reviews. Address verified findings and intentional CI visual-snapshot changes. Other widgets and larger Immich views require separate selection.
 
 **Working location:** the branch's checkout; both documents live in `docs/plans/` and are explicitly tracked despite that directory's ignore rule.
 
@@ -279,3 +279,39 @@ The owner clarified that the pilot must use the library for all applicable prese
 - The owner accepted the final six-card 3x4 visual in this task. All six applicable shared-library components are used across the selected 3x2, 3x4 and 6x2 footprints; no qBittorrent-specific stat-card sizing override remains.
 - [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) merged as `37e2fcb` after all five Cubic threads were resolved and Codex completed review of head `012807f`. Its lint, type-check, unit and E2E jobs passed in [CI run 36721761397](https://github.com/pmyszczynski/kokpit/actions/runs/36721761397).
 - [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0) was published from `dd7ac8c`; [release workflow 36725407889](https://github.com/pmyszczynski/kokpit/actions/runs/36725407889) passed the full gate and Docker manifest verification. The qBittorrent Stats tracker status is now `migrated`.
+
+## Prowlarr Stats slice — 2026-10-03
+
+### Selected scope and implementation
+
+- The owner selected Prowlarr Stats and, after reviewing the four-card prototype, selected six metrics at the existing 3x4 footprint. Render Enabled / Failing, Indexers / Total Grabs, and Usenet / Torrent in a two-column, three-row grid. Keep the existing polling, configuration, footprint and mobile fallback.
+- Derive `usenetIndexers` and `torrentIndexers` from exact `protocol` values in the existing indexer response. Include enabled and disabled indexers in these totals, like total Indexers. Unknown/future protocols remain in the overall total without being silently classified as Usenet or Torrent. No additional upstream request is needed.
+- Compose all six applicable library entries: tokens, Body, StatGrid, Stat, State and StaleNotice. Initial loading/error presentation opts into WidgetRenderer through `sharedUI`; direct no-data rendering preserves the blank domain-empty state.
+- Extend WidgetStat with a named `alert` tone for nonzero Failing values, with theme-aware red tokens meeting 4.5:1 contrast on all four default card surfaces. Existing error red fails that threshold in dark and light themes; only the new stat tone uses the corrected palette. Preserve legacy Prowlarr class hooks. Remove only Prowlarr selectors from shared legacy rules, retaining other widgets' styles.
+- Reserve the stale-notice row in healthy and failed-refresh states. Use accepted shared card padding/type/gaps. Opt into the existing desktop compact service header so long service text cannot consume stat/notice space. Full text stays accessible through titles; outer 340x264 geometry and mobile fallback remain unchanged.
+- The owner accepted the final ordered six-card appearance. Prowlarr is `migrated` and WidgetStat (including its alert extension) is `done`; publication and remote CI remain separate. No other widget is selected.
+
+### Browser evidence and validation
+
+- Seven six-card Prowlarr browser checks pass: all four themes, two-column/three-row composition, actual text-range and inner bounds, large values, long service text, zero/nonzero failing counts, shared initial loading/error and blank null-data states, stale failure/recovery with exact stable bounds, ordinary custom-CSS overrides and equality with Immich card sizing.
+- Current preview paths: [before/dark](../assets/widget-ui/prowlarr/before-dark.png), [six-card/dark](../assets/widget-ui/prowlarr/ordered-dark.png), [light](../assets/widget-ui/prowlarr/ordered-light.png), [OLED](../assets/widget-ui/prowlarr/ordered-oled.png), [high contrast](../assets/widget-ui/prowlarr/ordered-high-contrast.png) and [stale/dark](../assets/widget-ui/prowlarr/ordered-stale-dark.png). Screenshots use fixture data and the icon fallback; they are review evidence, not CI snapshot replacements.
+- Local browser checks use installed Chromium 151 through ignored `.codex` config wrappers that change only the executable and resolve the original test/server paths. Playwright's pinned Chromium 145 download is blocked by the environment's host policy. CI must independently verify its pinned browser and visual baselines.
+- Focused behavior validation: 42 tests across Prowlarr component/API/registration, WidgetStat and WidgetRenderer pass, including disabled/unknown protocols, empty indexer lists and unchanged request count. Before the subsequent card-order correction, all seven six-card browser checks and the full local gate passed: `CI=true` lint (existing Netdata unused-import warning), type-check, coverage (2,122 tests / 133 files), nonvisual E2E (54 tests) and production build/auth E2E (21 tests). Browser commands used the executable-only wrappers described above; no suites or assertions were skipped. Auth fixture changes and generated backups were restored/removed afterward.
+- Delivery state: owner-approved local changes on `feature/prowlarr-widget-ui`. The owner explicitly authorized commit/push, PR creation and CI/review monitoring on 2026-10-03. Commit, branch publication, PR and remote CI are pending the final pre-commit gate. No visual baselines were regenerated locally.
+
+### Composition correction
+
+- The initial four-card 3x4 prototype passed the local gate (2,120 unit tests, 54 nonvisual browser tests and 21 production-auth tests), but the owner flagged its two-row composition as unbalanced beside qBittorrent's six-card view. Those results verify the historical four-card implementation only.
+- The owner accepted the proposed Usenet/Torrent third row. The two-metric 3x2 alternative was not selected. Update composition, API types/derivation, fixtures, README and tracking evidence together; rerun validation and show the six-card preview. Shared card sizing and the stable notice slot remain the intended foundation.
+
+### Card-order correction — 2026-10-03
+
+- The owner selected Enabled / Failing for the top row, Indexers / Total Grabs for the middle row, and Usenet / Torrent for the bottom row. Reorder the DOM cards, expected browser values/labels and README together. Data derivation, shared card sizing, 3x4 geometry and feedback behavior stay as selected.
+- Updated order verified: all nine Prowlarr component tests and seven widget browser checks pass, including all four themes, large values, custom CSS, initial states and stable stale-data feedback. Current previews above show the corrected order. The earlier full gate predates this presentation-only reorder; rerun the required gate immediately before committing the final result. The owner accepted this final appearance and requested PR publication with CI/review monitoring.
+
+### Publication handoff — 2026-10-03
+
+- Approved order: Enabled / Failing, Indexers / Total Grabs, Usenet / Torrent. Preserve the accepted shared sizing and fixed notice slot during review fixes.
+- Re-run the entire required local gate after final edits and immediately before each commit. Its final result is reported in the PR; do not treat older runs as current-head verification.
+- Publish this selected widget only; inspect actual current-head check runs, including E2E, and review threads. If CI reports intentional visual differences, review its Ubuntu-generated artifact and commit only intended snapshots after another local gate.
+- Historical pre-order preview: [six-card dark](../assets/widget-ui/prowlarr/six-card-dark.png). Current previews above show the owner-approved order.

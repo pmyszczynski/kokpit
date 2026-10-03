@@ -53,6 +53,35 @@ describe("fetchStats", () => {
     expect(result.enabledIndexers).toBe(2);
     expect(result.failingIndexers).toBe(1);
     expect(result.totalGrabs).toBe(157);
+    expect(result.usenetIndexers).toBe(1);
+    expect(result.torrentIndexers).toBe(2);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts enabled and disabled protocol indexers without classifying unknown protocols", async () => {
+    const indexers = [
+      { id: 1, name: "Enabled Usenet", enable: true, protocol: "usenet" },
+      { id: 2, name: "Disabled Usenet", enable: false, protocol: "usenet" },
+      { id: 3, name: "Disabled Torrent", enable: false, protocol: "torrent" },
+      { id: 4, name: "Other protocol", enable: true, protocol: "future-protocol" },
+    ];
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeJsonResponse(indexers))
+      .mockResolvedValueOnce(makeJsonResponse([]))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_HISTORY)));
+
+    const result = await fetchStats(BASE_CONFIG);
+    expect(result).toMatchObject({ totalIndexers: 4, enabledIndexers: 2, usenetIndexers: 2, torrentIndexers: 1 });
+  });
+
+  it("returns zero protocol counts for an empty indexer list", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeJsonResponse([]))
+      .mockResolvedValueOnce(makeJsonResponse([]))
+      .mockResolvedValueOnce(makeJsonResponse(MOCK_HISTORY)));
+
+    const result = await fetchStats(BASE_CONFIG);
+    expect(result).toMatchObject({ totalIndexers: 0, enabledIndexers: 0, usenetIndexers: 0, torrentIndexers: 0 });
   });
 
   it("fetches indexer, indexerstatus, and history endpoints", async () => {
@@ -217,6 +246,8 @@ describe("prowlarr-stats widget registration", () => {
     const { getWidget } = await import("@/widgets");
     const definition = getWidget("prowlarr-stats");
     expect(definition?.preferredSize).toBe("tall");
+    expect(definition?.sharedUI).toBe(true);
+    expect(definition?.compactHeader).toBe(true);
     expect(definition?.supportedFootprints).toEqual([
       { label: "Default", columnSpan: 3, rowSpan: 4 },
     ]);

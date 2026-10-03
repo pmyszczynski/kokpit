@@ -2,7 +2,7 @@ import { joinClassNames } from "../../joinClassNames";
 import "./WidgetStat.css";
 import type { ReactNode } from "react";
 
-export type WidgetStatTone = "neutral" | "positive" | "info" | "positive-soft" | "info-soft";
+export type WidgetStatTone = "neutral" | "positive" | "info" | "positive-soft" | "info-soft" | "alert";
 
 export interface WidgetStatProps {
   label: ReactNode;
