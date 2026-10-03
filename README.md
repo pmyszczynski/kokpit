@@ -713,10 +713,12 @@ service_tiles:
 
 | Stat        | Description                                                  |
 | ----------- | ------------------------------------------------------------ |
-| Indexers    | Total number of configured indexers                          |
 | Enabled     | Indexers currently enabled                                   |
 | Failing     | Indexers with an active error status (shown in red when > 0) |
+| Indexers    | Total number of configured indexers                          |
 | Total Grabs | Cumulative grab count across all indexers and history        |
+| Usenet      | Configured Usenet indexers, including disabled indexers       |
+| Torrent     | Configured Torrent indexers, including disabled indexers      |
 
 
 ---
