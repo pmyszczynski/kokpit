@@ -125,9 +125,14 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       : legacySize;
     const hintedWidgetFootprint = legacyWidgetFootprint(effectiveWidgetSize);
     const supportedFootprints = definition?.supportedFootprints;
+    // Unsupported legacy geometry (for example 6x4/large) must keep the
+    // historical summary fields rather than shrink to a new compact default.
+    const historicalWideFootprint = legacyWideDefault
+      ? supportedFootprints?.find((candidate) => sameFootprint(candidate, legacyWidgetFootprint("wide")))
+      : undefined;
     const supportedFallback = supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
-    ) ?? supportedFootprints?.[0];
+    ) ?? historicalWideFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit
     // secondary content such as descriptions rather than changing geometry.
     const fallback = entry.widget
@@ -144,7 +149,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const supported = supportedFootprints?.length
       ? supportedFootprints.some((candidate) => sameFootprint(candidate, normalized))
         ? normalized
-        : supportedFallback!
+        : historicalWideFootprint ?? supportedFallback!
       : normalized;
     const footprint = entry.widget
       ? { columnSpan: supported.columnSpan, rowSpan: supported.rowSpan }

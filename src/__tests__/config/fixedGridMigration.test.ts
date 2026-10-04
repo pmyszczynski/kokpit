@@ -106,6 +106,8 @@ describe("fixed-grid config migration", () => {
     expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, size: explicitSize }] }).service_tiles[0].footprint).toEqual(expected);
     expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 3, rowSpan: 4 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
     expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 6, rowSpan: 2 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, size: "large" }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 6, rowSpan: 4 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
   });
 
   it("keeps described generic service cards at the fixed 3×1 footprint", () => {
