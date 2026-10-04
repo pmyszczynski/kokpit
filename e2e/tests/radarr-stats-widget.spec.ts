@@ -152,7 +152,7 @@ test("Radarr fits large values and preserves long service text", async ({ page, 
 
 test("Radarr card sizing matches the accepted Immich library cards", async ({ page, request }) => {
   const reference = schemaV2Fixtures([
-    { name: "Radarr", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
+    { name: "Radarr", size: "tall", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
     { name: "Immich", widget: { type: "immich-stats", config: { url: "http://localhost:2283/api", api_key: "dummy" } } },
   ]);
   expect((await request.patch("/api/settings", { data: {
@@ -273,7 +273,7 @@ test("Radarr preview alongside the accepted Prowlarr design", async ({ page, req
   await page.setViewportSize({ width: 760, height: 780 });
   const reference = schemaV2Fixtures([
     { name: "Prowlarr", description: "Indexer health and grabs", widget: { type: "prowlarr-stats", config: { url: "http://localhost:9696", api_key: "dummy" } } },
-    { name: "Radarr", description: "Movie library and downloads", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
+    { name: "Radarr", description: "Movie library and downloads", size: "tall", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
     { name: "Radarr · Wide", description: "All six metrics at 6×2", size: "wide", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
   ]);
   await page.route("**/api/widget*", async (route) => {

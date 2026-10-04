@@ -5,7 +5,7 @@ const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const FIXTURES = schemaV2Fixtures([
   { name: "qBittorrent", description: "Transfer rates and activity", size: "tall", widget: { type: "qbittorrent-stats", config: { url: "http://localhost:8080", username: "admin", password: "dummy" } } },
   { name: "Prowlarr", description: "Indexer health and grabs", widget: { type: "prowlarr-stats", config: { url: "http://localhost:9696", api_key: "dummy" } } },
-  { name: "Radarr", description: "Movie library and downloads", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
+  { name: "Radarr", description: "Movie library and downloads", size: "tall", widget: { type: "radarr-stats", config: { url: "http://localhost:7878", api_key: "dummy" } } },
   { name: "Immich", description: "Photo library and storage", widget: { type: "immich-stats", config: { url: "http://localhost:2283/api", api_key: "dummy" } } },
 ]);
 const DATA = [

@@ -110,9 +110,10 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       ? size as Size
       : undefined;
     const definition = widgetDefinitionForTile(entry);
-    // Before fixed footprints, qBittorrent Stats inherited its 6x2 wide hint
-    // when no size was saved. Keep that upgrade path despite its new 3x2 editor default.
-    const preferredSize = definition?.id === "qbittorrent-stats" && !legacySize && !savedFootprint
+    // These widgets historically inherited a 6x2 wide hint when no size was
+    // saved. Preserve that upgrade path independently of new editor defaults.
+    const legacyWideDefault = definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd"].includes(definition.id);
+    const preferredSize = legacyWideDefault && !legacySize && !savedFootprint
       ? "wide"
       : definition?.preferredSize;
     const effectiveWidgetSize = definition
