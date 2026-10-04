@@ -112,7 +112,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const definition = widgetDefinitionForTile(entry);
     // These widgets historically inherited a 6x2 wide hint when no size was
     // saved. Preserve that upgrade path independently of new editor defaults.
-    const legacyWideDefault = definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd"].includes(definition.id);
+    const legacyWideDefault = definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd", "tdarr-stats"].includes(definition.id);
     const preferredSize = legacyWideDefault && !legacySize && !savedFootprint
       ? "wide"
       : definition?.preferredSize;

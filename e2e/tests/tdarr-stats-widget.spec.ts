@@ -3,20 +3,20 @@ import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
 
 const TILE_DATA = schemaV2Fixtures([{
-  name: "SABnzbd",
-  description: "Download queue and speed",
-  widget: { type: "sabnzbd", config: { url: "http://localhost:8080", apikey: "dummy" } },
+  name: "Tdarr",
+  description: "Transcodes and storage savings",
+  widget: { type: "tdarr-stats", config: { url: "http://localhost:8265", apikey: "dummy" } },
 }]);
 const TILE_ID = TILE_DATA.service_tiles[0].id;
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
-const STATS = { speedBytesPerSec: 5_500_000, queueCount: 4, totalMb: 1200, remainingMb: 800, timeLeft: "0:16:44", status: "Downloading" };
+const STATS = { transcodeQueue: 12, healthCheckQueue: 5, errored: 3, spaceSavedGb: 12400, activeWorkers: 4, fps: 65.8, transcoded: 480, totalFiles: 1000 };
 const FOOTPRINTS = [{ columnSpan: 3, rowSpan: 2 }, { columnSpan: 3, rowSpan: 4 }, { columnSpan: 6, rowSpan: 2 }] as const;
 const RESPONSE = { ok: true, data: STATS };
 
 test.use({ locale: "en-US" });
 
 function tile(page: Page) {
-  return page.locator(".service-tile").filter({ has: page.locator('[data-widget-type="sabnzbd"]') });
+  return page.locator(".service-tile").filter({ has: page.locator('[data-widget-type="tdarr-stats"]') });
 }
 
 async function configure(request: APIRequestContext, options: {
@@ -56,16 +56,16 @@ async function assertFits(page: Page, footprint = { columnSpan: 3, rowSpan: 2 })
 
 
 function labelsFor(footprint: { columnSpan: number; rowSpan: number }) {
-  return footprint.rowSpan === 4 ? ["↓ Speed", "Queue", "Queue Size", "Remaining", "ETA", "Status"]
-    : footprint.columnSpan === 6 ? ["↓ Speed", "Queue", "Queue Size"] : ["↓ Speed", "Queue"];
+  return footprint.rowSpan === 4 ? ["Transcode Queue", "Health Checks", "Errored", "Space Saved", "Workers", "FPS"]
+    : footprint.columnSpan === 6 ? ["Transcode Queue", "Workers", "Space Saved"] : ["Transcode Queue", "Workers"];
 }
 
 function valuesFor(footprint: { columnSpan: number; rowSpan: number }) {
-  return footprint.rowSpan === 4 ? ["5.5 MB/s", "4", "1.2 GB", "800.0 MB", "0:16:44", "Downloading"]
-    : footprint.columnSpan === 6 ? ["5.5 MB/s", "4", "1.2 GB"] : ["5.5 MB/s", "4"];
+  return footprint.rowSpan === 4 ? ["12", "5", "3", "12.4 TB", "4", "65.8"]
+    : footprint.columnSpan === 6 ? ["12", "4", "12.4 TB"] : ["12", "4"];
 }
 
-test("SABnzbd uses two compact, three wide, and six detailed cards in every theme", async ({ page, request }, testInfo) => {
+test("Tdarr uses two compact, three wide, and six detailed cards in every theme", async ({ page, request }, testInfo) => {
   await mockWidget(page);
   for (const footprint of FOOTPRINTS) {
     for (const theme of THEMES) {
@@ -73,11 +73,14 @@ test("SABnzbd uses two compact, three wide, and six detailed cards in every them
       await page.goto("/");
       await expect(tile(page).locator(".widget-stat__label")).toHaveText(labelsFor(footprint));
       await expect(tile(page).locator(".widget-stat__value")).toHaveText(valuesFor(footprint));
-      await expect(tile(page).locator(".widget-stat").first()).toHaveClass(/widget-stat--tone-positive/);
-      await expect(tile(page).locator(".widget-stat").nth(1)).toHaveClass(/widget-stat--tone-warning/);
+      const tones = footprint.rowSpan === 4 ? ["warning", "warning", "alert", "positive", "positive", "info"]
+        : footprint.columnSpan === 6 ? ["warning", "positive", "positive"] : ["warning", "positive"];
+      for (const [index, tone] of tones.entries()) {
+        await expect(tile(page).locator(".widget-stat").nth(index)).toHaveClass(new RegExp(`widget-stat--tone-${tone}`));
+      }
       await assertFits(page, footprint);
       await expectWidgetStatContrast(tile(page));
-      const name = `sabnzbd-${footprint.columnSpan}x${footprint.rowSpan}-${theme}`;
+      const name = `tdarr-stats-${footprint.columnSpan}x${footprint.rowSpan}-${theme}`;
       await testInfo.attach(name, { body: await tile(page).screenshot({
         path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/${name}.png` : undefined,
       }), contentType: "image/png" });
@@ -85,33 +88,46 @@ test("SABnzbd uses two compact, three wide, and six detailed cards in every them
   }
 });
 
-test("SABnzbd retains large values and accessible long service text", async ({ page, request }) => {
-  const name = "SABnzbd download service with an intentionally long name";
-  const description = "A deliberately long description of pending downloads and queue volume";
-  await mockWidget(page, { ok: true, data: { speedBytesPerSec: 999_900_000, queueCount: 123456789,
-    totalMb: 98765432.1, remainingMb: 87654321, timeLeft: "1234:56:00", status: "Waiting for post-processing" } });
+test("Tdarr retains large values and accessible long service text", async ({ page, request }) => {
+  const name = "Tdarr transcoding service with an intentionally long name";
+  const description = "A deliberately long description of transcoding jobs, worker activity and storage savings";
+  await mockWidget(page, { ok: true, data: { ...STATS, transcodeQueue: 123456789, healthCheckQueue: 987654321,
+    errored: 12345678, spaceSavedGb: 99999999, activeWorkers: 123456789, fps: 123456.7 } });
   for (const footprint of FOOTPRINTS) {
     await configure(request, { name, description, footprint });
     await page.goto("/");
     await expect(tile(page).locator(".widget-stat")).toHaveCount(labelsFor(footprint).length);
-    await expect(tile(page).locator(".widget-stat__value").first()).toHaveText("999.9 MB/s");
+    await expect(tile(page).locator(".widget-stat__value").first()).toHaveText("123456789");
     await expect(tile(page).locator(".service-tile__name")).toHaveAttribute("title", name);
     await expect(tile(page).locator(".service-tile__description")).toHaveAttribute("title", description);
     await assertFits(page, footprint);
   }
 });
 
-test("SABnzbd keeps an empty queue neutral and absent details visible", async ({ page, request }) => {
+test("Tdarr keeps zero and unavailable optional activity neutral", async ({ page, request }) => {
   await configure(request, { footprint: { columnSpan: 3, rowSpan: 4 } });
-  await mockWidget(page, { ok: true, data: { speedBytesPerSec: 0, queueCount: 0, totalMb: 0, status: "Idle" } });
+  await mockWidget(page, { ok: true, data: { ...STATS, transcodeQueue: 0, healthCheckQueue: 0, errored: 0, spaceSavedGb: 0, activeWorkers: 0, fps: 0 } });
   await page.goto("/");
-  await expect(tile(page).locator(".widget-stat__value")).toHaveText(["0.0 KB/s", "0", "0.0 MB", "—", "—", "Idle"]);
-  await expect(tile(page).locator(".widget-stat").nth(1)).toHaveClass(/widget-stat--tone-neutral/);
-  await expect(tile(page).locator(".widget-stat").last()).toHaveClass(/widget-stat--tone-neutral/);
+  await expect(tile(page).locator(".widget-stat__value")).toHaveText(["0", "0", "0", "0 B", "0", "0.0"]);
+  for (const card of await tile(page).locator(".widget-stat").all()) {
+    await expect(card).toHaveClass(/widget-stat--tone-neutral/);
+  }
   await assertFits(page, { columnSpan: 3, rowSpan: 4 });
 });
 
-test("SABnzbd initial states use shared feedback and null data stays blank", async ({ page, request }) => {
+test("Tdarr keeps negative storage savings readable and neutral in wide and detailed views", async ({ page, request }) => {
+  await mockWidget(page, { ok: true, data: { ...STATS, spaceSavedGb: -45000 } });
+  for (const footprint of FOOTPRINTS.filter((size) => size.columnSpan === 6 || size.rowSpan === 4)) {
+    await configure(request, { footprint });
+    await page.goto("/");
+    const savings = tile(page).locator(".tdarr-stats-widget__stat--spaceSavedGb");
+    await expect(savings.locator(".widget-stat__value")).toHaveText("-45.0 TB");
+    await expect(savings).toHaveClass(/widget-stat--tone-neutral/);
+    await assertFits(page, footprint);
+  }
+});
+
+test("Tdarr initial states use shared feedback and null data stays blank", async ({ page, request }) => {
   await configure(request);
   let releaseInitial!: () => void;
   const initial = new Promise<void>((resolve) => { releaseInitial = resolve; });
@@ -125,18 +141,18 @@ test("SABnzbd initial states use shared feedback and null data stays blank", asy
   await expect(tile(page).getByRole("status", { name: "Loading widget" })).toHaveClass(/widget-state--loading/);
   releaseInitial();
   await expect(tile(page).locator(".widget-stat")).toHaveCount(2);
-  response = { ok: false, error: "SABnzbd unavailable" };
+  response = { ok: false, error: "Tdarr unavailable" };
   await page.reload();
   await expect(tile(page).getByRole("alert")).toHaveClass(/widget-state--error/);
-  await expect(tile(page).getByRole("alert")).toHaveText("SABnzbd unavailable");
+  await expect(tile(page).getByRole("alert")).toHaveText("Tdarr unavailable");
   response = { ok: true, data: null };
   await page.reload();
-  await expect(tile(page).locator(".sabnzbd-widget--empty")).toBeEmpty();
+  await expect(tile(page).locator(".tdarr-stats-widget--empty")).toBeEmpty();
 });
 
-test("SABnzbd refresh failure/recovery retains metrics and positions", async ({ page, request }) => {
+test("Tdarr refresh failure/recovery retains metrics and positions", async ({ page, request }, testInfo) => {
   let fails = false;
-  const error = "SABnzbd rejected the API key during refresh";
+  const error = "Tdarr rejected the API key during refresh";
   await page.route("**/api/widget*", async (route) => {
     if (new URL(route.request().url()).searchParams.get("tile_id") !== TILE_ID) return route.continue();
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(fails ? { ok: false, error } : RESPONSE) });
@@ -157,6 +173,12 @@ test("SABnzbd refresh failure/recovery retains metrics and positions", async ({ 
       await expect(tile(page).locator(".widget-stat__value")).toHaveText(valuesFor(footprint));
       expect(await layoutBounds(page)).toEqual(healthy);
       await assertFits(page, footprint);
+      if (theme === "dark") {
+        const name = `tdarr-stats-stale-${footprint.columnSpan}x${footprint.rowSpan}-${theme}`;
+        await testInfo.attach(name, { body: await tile(page).screenshot({
+          path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/${name}.png` : undefined,
+        }), contentType: "image/png" });
+      }
       fails = false;
       await page.clock.fastForward(10_000);
       await expect(alert).toHaveCount(0);
@@ -165,12 +187,12 @@ test("SABnzbd refresh failure/recovery retains metrics and positions", async ({ 
   }
 });
 
-test("ordinary custom CSS overrides SABnzbd shared cards and notice", async ({ page, request }) => {
+test("ordinary custom CSS overrides Tdarr shared cards and notice", async ({ page, request }) => {
   await configure(request, { custom_css: `
-    .sabnzbd-widget__stat { background: #010203; border-radius: 12px; }
-    .sabnzbd-widget__value { color: #040506; }
-    .sabnzbd-widget__grid { gap: 10px; }
-    .sabnzbd-widget { --widget-notice-padding-block: 3px; }
+    .tdarr-stats-widget__stat { background: #010203; border-radius: 12px; }
+    .tdarr-stats-widget__value { color: #040506; }
+    .tdarr-stats-widget__grid { gap: 10px; }
+    .tdarr-stats-widget { --widget-notice-padding-block: 3px; }
   ` });
   await mockWidget(page);
   await page.goto("/");
@@ -183,13 +205,13 @@ test("ordinary custom CSS overrides SABnzbd shared cards and notice", async ({ p
   await assertFits(page);
 });
 
-test("SABnzbd compact, detailed and wide previews match the library design", async ({ page, request }, testInfo) => {
+test("Tdarr compact, detailed and wide previews match the library design", async ({ page, request }, testInfo) => {
   await page.setViewportSize({ width: 1108, height: 780 });
   const reference = schemaV2Fixtures([
     { name: "qBittorrent", description: "Download and upload speeds", size: "normal", widget: { type: "qbittorrent-stats", config: { url: "http://localhost:8081", username: "admin", password: "dummy" } } },
-    { name: "SABnzbd", description: "Speed and pending downloads", size: "normal", widget: { type: "sabnzbd", config: { url: "http://localhost:8080", apikey: "dummy" } } },
-    { name: "SABnzbd · Detailed", description: "Queue, remaining size and ETA", size: "tall", widget: { type: "sabnzbd", config: { url: "http://localhost:8080", apikey: "dummy" } } },
-    { name: "SABnzbd · Wide", description: "Speed, queue and total size", size: "wide", widget: { type: "sabnzbd", config: { url: "http://localhost:8080", apikey: "dummy" } } },
+    { name: "Tdarr · Compact", description: "Queue and active workers", size: "normal", widget: { type: "tdarr-stats", config: { url: "http://localhost:8265", apikey: "dummy" } } },
+    { name: "Tdarr · Detailed", description: "Queues, errors, savings and activity", size: "tall", widget: { type: "tdarr-stats", config: { url: "http://localhost:8265", apikey: "dummy" } } },
+    { name: "Tdarr · Wide", description: "Queue, workers and storage savings", size: "wide", widget: { type: "tdarr-stats", config: { url: "http://localhost:8265", apikey: "dummy" } } },
   ]);
   await page.route("**/api/widget*", async (route) => {
     const id = new URL(route.request().url()).searchParams.get("tile_id");
@@ -209,9 +231,9 @@ test("SABnzbd compact, detailed and wide previews match the library design", asy
         valueFontSize: getComputedStyle(element.querySelector(".widget-stat__value")!).fontSize,
         labelFontSize: getComputedStyle(element.querySelector(".widget-stat__label")!).fontSize };
     });
-    expect(await metrics("sabnzbd")).toEqual(await metrics("qbittorrent-stats"));
-    await testInfo.attach(`SABnzbd-comparison-${theme}`, { body: await page.locator(".dashboard-tile-grid").screenshot({
-      path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/sabnzbd-comparison-${theme}.png` : undefined,
+    expect(await metrics("tdarr-stats")).toEqual(await metrics("qbittorrent-stats"));
+    await testInfo.attach(`Tdarr-comparison-${theme}`, { body: await page.locator(".dashboard-tile-grid").screenshot({
+      path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/tdarr-stats-comparison-${theme}.png` : undefined,
     }), contentType: "image/png" });
   }
 });
