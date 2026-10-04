@@ -2,11 +2,11 @@
 
 **Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
-**Current state:** Immich is fully migrated in merged [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). qBittorrent Stats is the second migrated widget: its 3x2, 3x4 and 6x2 layouts use the shared body, stat grid/cards and feedback; the owner accepted the six-card 3x4 visual, [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) passed CI with all review feedback resolved, and the change shipped in [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0). Prowlarr Stats is the third migrated widget: the owner accepted its final six-card 3x4 appearance, and [PR #117](https://github.com/pmyszczynski/kokpit/pull/117) is open. Implementation commit `20946f8` passed the full local gate and independent GitHub CI. Follow the PR for current-head checks and reviews. Remaining widgets are out of scope.
+**Current state:** Immich is fully migrated in merged [PR #108](https://github.com/pmyszczynski/kokpit/pull/108). qBittorrent Stats is the second migrated widget: its 3x2, 3x4 and 6x2 layouts use the shared body, stat grid/cards and feedback; the owner accepted the six-card 3x4 visual, [PR #114](https://github.com/pmyszczynski/kokpit/pull/114) passed CI with all review feedback resolved, and the change shipped in [v0.14.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.14.0). Prowlarr Stats is the third migrated widget: the owner accepted its final six-card 3x4 appearance, and [PR #117](https://github.com/pmyszczynski/kokpit/pull/117) merged as `d45756d` after final-head CI passed and all review threads were resolved. The owner authorized the merge override and a release on 2026-10-04. Release preparation targets v0.15.0; release and Docker publication require successful completion of the release workflow. Remaining widgets are out of scope.
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Next action:** verify current-head CI and reviews on existing [PR #117](https://github.com/pmyszczynski/kokpit/pull/117). Address verified findings and intentional CI visual-snapshot changes, running the complete required local gate immediately before each follow-up commit. Wait for the owner’s next selection after review completion; other widgets and larger Immich views require separate selection.
+**Next action:** verify that `package.json` on `main` is at `0.15.0`, then run `release.yml` on `main` with version `0.15.0` and verify release creation plus Docker publication. Follow the release process in `AGENTS.md`. After release verification, wait for the owner’s next widget selection; other widgets and larger Immich views require separate selection.
 
 **Working location:** the branch's checkout; both documents live in `docs/plans/` and are explicitly tracked despite that directory's ignore rule.
 
@@ -311,9 +311,14 @@ This records the completed Immich session; the current state and next action at 
 - The owner selected Enabled / Failing for the top row, Indexers / Total Grabs for the middle row, and Usenet / Torrent for the bottom row. Reorder the DOM cards, expected browser values/labels and README together. Data derivation, shared card sizing, 3x4 geometry and feedback behavior stay as selected.
 - Updated order verified: all nine Prowlarr component tests and seven widget browser checks pass, including all four themes, large values, custom CSS, initial states and stable stale-data feedback. Current previews above show the corrected order. The full pre-commit gate subsequently passed on the final ordered implementation, followed by independent GitHub CI as recorded above. The owner accepted this final appearance and requested PR publication with CI/review monitoring.
 
-### PR review handoff — 2026-10-03
+### PR review handoff — 2026-10-03 (historical)
 
 - Approved order: Enabled / Failing, Indexers / Total Grabs, Usenet / Torrent. Preserve the accepted shared sizing and fixed notice slot during review fixes.
 - Re-run the entire required local gate after final edits and immediately before each commit. Its final result is reported in the PR; do not treat older runs as current-head verification.
 - Continue review of existing [PR #117](https://github.com/pmyszczynski/kokpit/pull/117) for this selected widget; inspect actual current-head check runs, including E2E, and review threads. If CI reports intentional visual differences, review its Ubuntu-generated artifact and commit only intended snapshots after another local gate.
 - Historical pre-order preview: [six-card dark](../assets/widget-ui/prowlarr/six-card-dark.png). Current previews above show the owner-approved order.
+
+### Merge and release preparation — 2026-10-04
+
+- The owner authorized overriding the required-approval rule, merging PR #117 and making a release. The PR merged as `d45756d`; its final head `99e1a64` passed all CI checks in [run 37150122981](https://github.com/pmyszczynski/kokpit/actions/runs/37150122981), including visual and authentication E2E. Codex and Cubic completed review, and all three documentation threads were addressed and resolved.
+- v0.15.0 is the next minor release for the six-card Prowlarr migration and protocol-count additions. The version metadata is updated in `package.json` and `package-lock.json` through the release PR. After confirming that metadata on `main`, use the existing release workflow to test, tag, release, publish and verify Docker. A version bump or merged feature alone does not establish release publication.
