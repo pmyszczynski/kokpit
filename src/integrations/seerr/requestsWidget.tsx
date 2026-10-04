@@ -67,14 +67,14 @@ const STATUS_TONES = {
 export function SeerrRequestsWidget({ data, loading, error }: WidgetProps<SeerrRequest[]>) {
   if (!data) {
     return <WidgetBody centered className="seerr-requests-widget seerr-requests-widget--empty">
-      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error : undefined}</WidgetState>
+      <WidgetState className={loading ? "seerr-requests-widget__hint" : undefined} labelClassName="seerr-requests-widget__hint seerr-requests-widget__hint--error" state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error : undefined}</WidgetState>
     </WidgetBody>;
   }
   return <WidgetBody className={`seerr-requests-widget${data.length === 0 ? " seerr-requests-widget--empty" : ""}`}
     aria-label="Seerr requests" reserveNotice
     notice={<WidgetStaleNotice error={error} className="seerr-requests-widget__stale-error" />}>
     <WidgetList label="Recent Seerr requests" listClassName="seerr-requests-widget__list"
-      empty={data.length === 0 ? <WidgetState state="empty">No requests</WidgetState> : undefined}>
+      empty={data.length === 0 ? <WidgetState state="empty" className="seerr-requests-widget__hint">No requests</WidgetState> : undefined}>
       {data.map(req => {
         const status = effectiveStatus(req);
         return <WidgetListItem key={req.id} className="seerr-requests-widget__row" title={displayTitle(req)}
@@ -96,6 +96,10 @@ registerWidget<SeerrConfig, SeerrRequest[]>({
   preferredSize: "tall",
   compactHeader: true,
   sharedUI: true,
+  sharedStateClassNames: {
+    loading: "seerr-requests-widget__hint",
+    error: "seerr-requests-widget__hint seerr-requests-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   configSchema: SeerrConfigSchema,

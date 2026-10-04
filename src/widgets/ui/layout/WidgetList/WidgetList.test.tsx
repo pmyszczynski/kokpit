@@ -5,6 +5,10 @@ describe("WidgetList", () => {
  it("keeps fixed slots outside the named focusable list", () => {
   render(<WidgetList label="Recent items" header="Summary" footer="Total"><li>Item</li></WidgetList>);
   const list=screen.getByRole("list", {name:"Recent items"});
+  expect(screen.getByText("Summary")).toBeVisible();
+  expect(screen.getByText("Total")).toBeVisible();
+  expect(list).not.toContainElement(screen.getByText("Summary"));
+  expect(list).not.toContainElement(screen.getByText("Total"));
   expect(list).toHaveAttribute("tabindex","0");
   expect(list).toHaveTextContent("Item");
   expect(list).not.toHaveTextContent("Summary");

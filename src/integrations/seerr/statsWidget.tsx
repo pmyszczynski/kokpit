@@ -8,7 +8,7 @@ import type { SeerrConfig, SeerrStats } from "./api";
 export function SeerrStatsWidget({ data, loading, error, footprint }: WidgetProps<SeerrStats>) {
   if (!data) {
     return <WidgetBody centered className="seerr-stats-widget seerr-stats-widget--empty">
-      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error : undefined}</WidgetState>
+      <WidgetState className={loading ? "seerr-stats-widget__hint" : undefined} labelClassName="seerr-stats-widget__hint seerr-stats-widget__hint--error" state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error : undefined}</WidgetState>
     </WidgetBody>;
   }
   const footprintName = `${footprint?.columnSpan ?? 6}x${footprint?.rowSpan ?? 2}`;
@@ -37,6 +37,10 @@ registerWidget<SeerrConfig, SeerrStats>({
   preferredSize: "normal",
   compactHeader: true,
   sharedUI: true,
+  sharedStateClassNames: {
+    loading: "seerr-stats-widget__hint",
+    error: "seerr-stats-widget__hint seerr-stats-widget__hint--error",
+  },
   supportedFootprints: [
     { label: "Compact", columnSpan: 3, rowSpan: 2 },
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },

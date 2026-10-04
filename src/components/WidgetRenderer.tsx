@@ -42,7 +42,7 @@ function KnownWidgetContent({
   );
 
   if (loading && data === null) {
-    if (widget.sharedUI) return <WidgetState state="loading" />;
+    if (widget.sharedUI) return <WidgetState state="loading" className={widget.sharedStateClassNames?.loading} />;
     return (
       <div className="widget-loading" aria-label="Loading widget">
         <span className="widget-loading__spinner" aria-hidden="true" />
@@ -51,7 +51,7 @@ function KnownWidgetContent({
   }
 
   if (error && data === null) {
-    if (widget.sharedUI) return <WidgetState state="error">{error}</WidgetState>;
+    if (widget.sharedUI) return <WidgetState state="error" labelClassName={widget.sharedStateClassNames?.error}>{error}</WidgetState>;
     return (
       <div className="widget-error" role="alert">
         <span className="widget-error__label">{error}</span>

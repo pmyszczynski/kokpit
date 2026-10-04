@@ -110,6 +110,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   compactHeader?: boolean;
   /** Use library feedback for initial states while unmigrated widgets retain their presentation. */
   sharedUI?: boolean;
+  /** Optional legacy custom-CSS hooks on shared initial feedback for this widget. */
+  sharedStateClassNames?: { loading?: string; error?: string };
   /** Mobile support is explicit; desktop renderers are never reused implicitly. */
   mobile?: {
     footprint: TileFootprint;

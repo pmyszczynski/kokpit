@@ -117,14 +117,24 @@ test("Seerr keeps status priority, category colors and zero meanings",async({pag
 });
 
 test("Seerr initial loading, error, null data and empty request states use shared feedback",async({page,request})=>{
- await configure(request);
+ await configure(request,{custom_css:`.seerr-requests-widget__hint, .seerr-stats-widget__hint { padding-top:7px; } .seerr-requests-widget__hint--error, .seerr-stats-widget__hint--error { color:#040506; }`});
  let release!:()=>void;const initial=new Promise<void>(resolve=>{release=resolve;});
  let response:unknown={ok:false,error:"Seerr unavailable"};
  await page.route("**/api/widget*",async route=>{await initial;await route.fulfill({contentType:"application/json",body:JSON.stringify(response)});});
  await page.goto("/");
- for(const type of ["seerr-stats","seerr-requests"]) await expect(tile(page,type).getByRole("status",{name:"Loading widget"})).toHaveClass(/widget-state--loading/);
+ for(const type of ["seerr-stats","seerr-requests"]) {
+  const loading=tile(page,type).getByRole("status",{name:"Loading widget"});
+  await expect(loading).toHaveClass(/widget-state--loading/);
+  await expect(loading).toHaveClass(new RegExp(`${type}-widget__hint`));
+  await expect(loading).toHaveCSS("padding-top","7px");
+ }
  release();
- for(const type of ["seerr-stats","seerr-requests"]) await expect(tile(page,type).getByRole("alert")).toHaveText("Seerr unavailable");
+ for(const type of ["seerr-stats","seerr-requests"]) {
+  const error=tile(page,type).getByRole("alert");
+  await expect(error).toHaveText("Seerr unavailable");
+  await expect(error.locator(".widget-state__label")).toHaveClass(new RegExp(`${type}-widget__hint--error`));
+  await expect(error.locator(".widget-state__label")).toHaveCSS("color","rgb(4, 5, 6)");
+ }
  response={ok:true,data:null};await page.reload();
  for(const type of ["seerr-stats","seerr-requests"]) await expect(tile(page,type).locator(".widget-body")).toBeEmpty();
  await page.unroute("**/api/widget*");await mock(page,STATS,[]);await page.reload();
