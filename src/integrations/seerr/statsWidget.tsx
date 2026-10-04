@@ -38,6 +38,7 @@ registerWidget<SeerrConfig, SeerrStats>({
   compactHeader: true,
   sharedUI: true,
   sharedStateClassNames: {
+    wrapper: "seerr-stats-widget seerr-stats-widget--empty",
     loading: "seerr-stats-widget__hint",
     error: "seerr-stats-widget__hint seerr-stats-widget__hint--error",
   },

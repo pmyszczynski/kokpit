@@ -4,7 +4,7 @@
 // getWidget() resolves on any page that renders a WidgetRenderer.
 import "@/integrations";
 import { getWidget } from "@/widgets";
-import { WidgetState } from "@/widgets/ui";
+import { WidgetBody, WidgetState } from "@/widgets/ui";
 import type { WidgetDefinition } from "@/widgets";
 import { useWidget } from "@/widgets/useWidget";
 import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
@@ -41,8 +41,21 @@ function KnownWidgetContent({
     type
   );
 
+  // Only selected widgets opt into a legacy wrapper around shared initial feedback.
+  const sharedFeedback = (state: "loading" | "error") => {
+    const classes = widget.sharedStateClassNames;
+    const feedback = <WidgetState state={state}
+      className={state === "loading" ? classes?.loading : undefined}
+      labelClassName={state === "error" ? classes?.error : undefined}>
+      {state === "error" ? error : undefined}
+    </WidgetState>;
+    return classes?.wrapper
+      ? <WidgetBody centered className={classes.wrapper}>{feedback}</WidgetBody>
+      : feedback;
+  };
+
   if (loading && data === null) {
-    if (widget.sharedUI) return <WidgetState state="loading" className={widget.sharedStateClassNames?.loading} />;
+    if (widget.sharedUI) return sharedFeedback("loading");
     return (
       <div className="widget-loading" aria-label="Loading widget">
         <span className="widget-loading__spinner" aria-hidden="true" />
@@ -51,7 +64,7 @@ function KnownWidgetContent({
   }
 
   if (error && data === null) {
-    if (widget.sharedUI) return <WidgetState state="error" labelClassName={widget.sharedStateClassNames?.error}>{error}</WidgetState>;
+    if (widget.sharedUI) return sharedFeedback("error");
     return (
       <div className="widget-error" role="alert">
         <span className="widget-error__label">{error}</span>

@@ -117,7 +117,7 @@ test("Seerr keeps status priority, category colors and zero meanings",async({pag
 });
 
 test("Seerr initial loading, error, null data and empty request states use shared feedback",async({page,request})=>{
- await configure(request,{custom_css:`.seerr-requests-widget__hint, .seerr-stats-widget__hint { padding-top:7px; } .seerr-requests-widget__hint--error, .seerr-stats-widget__hint--error { color:#040506; }`});
+ await configure(request,{custom_css:`.seerr-requests-widget__hint, .seerr-stats-widget__hint { padding-top:7px; } .seerr-requests-widget--empty .seerr-requests-widget__hint, .seerr-stats-widget--empty .seerr-stats-widget__hint { padding-bottom:9px; } .seerr-requests-widget--empty .seerr-requests-widget__hint--error, .seerr-stats-widget--empty .seerr-stats-widget__hint--error { color:#040506; }`});
  let release!:()=>void;const initial=new Promise<void>(resolve=>{release=resolve;});
  let response:unknown={ok:false,error:"Seerr unavailable"};
  await page.route("**/api/widget*",async route=>{await initial;await route.fulfill({contentType:"application/json",body:JSON.stringify(response)});});
@@ -127,6 +127,8 @@ test("Seerr initial loading, error, null data and empty request states use share
   await expect(loading).toHaveClass(/widget-state--loading/);
   await expect(loading).toHaveClass(new RegExp(`${type}-widget__hint`));
   await expect(loading).toHaveCSS("padding-top","7px");
+  await expect(loading).toHaveCSS("padding-bottom","9px");
+  await expect(tile(page,type).locator(`.${type}-widget--empty`)).toHaveClass(/widget-body--centered/);
  }
  release();
  for(const type of ["seerr-stats","seerr-requests"]) {
@@ -138,7 +140,11 @@ test("Seerr initial loading, error, null data and empty request states use share
  response={ok:true,data:null};await page.reload();
  for(const type of ["seerr-stats","seerr-requests"]) await expect(tile(page,type).locator(".widget-body")).toBeEmpty();
  await page.unroute("**/api/widget*");await mock(page,STATS,[]);await page.reload();
- await expect(tile(page,"seerr-requests").getByText("No requests")).toHaveClass(/widget-state--empty/);
+ const empty=tile(page,"seerr-requests").getByText("No requests");
+ await expect(empty).toHaveClass(/widget-state--empty/);
+ await expect(empty).toHaveClass(/seerr-requests-widget__hint/);
+ await expect(empty).toHaveCSS("padding-top","7px");
+ await expect(empty).toHaveCSS("padding-bottom","9px");
 });
 
 test("Seerr refresh failure and recovery preserve stats, list scroll and notice positions",async({page,request},testInfo)=>{

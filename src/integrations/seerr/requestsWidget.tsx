@@ -97,6 +97,7 @@ registerWidget<SeerrConfig, SeerrRequest[]>({
   compactHeader: true,
   sharedUI: true,
   sharedStateClassNames: {
+    wrapper: "seerr-requests-widget seerr-requests-widget--empty",
     loading: "seerr-requests-widget__hint",
     error: "seerr-requests-widget__hint seerr-requests-widget__hint--error",
   },
