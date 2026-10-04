@@ -602,7 +602,7 @@ Two widgets are available for Radarr: a stats overview and a download queue moni
 
 #### `radarr-stats`
 
-Displays a six-stat grid showing the state of your movie library.
+Displays six shared stat cards showing the state of your movie library. New tiles default to a two-column, three-row 3×4 layout; existing 6×2 tiles keep all six metrics in one row. Positive Missing counts are red, Wanted/Queued are amber when non-zero, Available is green, and Upcoming/Total are informational blue. Refresh failures retain saved data and show a separate warning without moving the cards.
 
 ```yaml
 services:
@@ -800,7 +800,13 @@ Takes the same `url` / `username` / `password` fields as `qbittorrent-stats`.
 
 ### SABnzbd
 
-Displays download queue speed, item count, and total queue size.
+Uses the same shared cards and size progression as the other migrated widgets:
+
+- **3×2 compact (default):** download speed and queue count.
+- **6×2 wide:** download speed, queue count, and total queue size; existing wide tiles remain supported.
+- **3×4 detailed:** Speed / Queue, Queue Size / Remaining, and ETA / Status in a two-column, three-row grid. Remaining size, ETA, and status come from the existing queue response, with no additional request. Missing optional details show “—” while retaining the summary data.
+
+Download speed is green, positive queue counts amber (neutral when empty), and size/ETA values informational blue. Status uses the reported download state: active work green, paused/idle/stopped neutral, queued work amber, explicit errors red, and other reported states blue. An empty queue has no ETA. Refresh failures preserve the last data and show a separate warning without moving the cards.
 
 **Prerequisites:** An API key from SABnzbd → Config → General → Security.
 
@@ -829,7 +835,7 @@ service_tiles:
 | `apikey` | Yes      | API key from Config → General → Security |
 
 
-**Displayed stats:** download speed, queue item count, total queue size.
+**Displayed stats:** download speed and queue item count; wide/detailed views add total queue size, and detailed adds remaining size, estimated time left and download status.
 
 ---
 

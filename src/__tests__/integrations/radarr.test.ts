@@ -261,6 +261,18 @@ describe("radarr-stats widget registration", () => {
     vi.resetModules();
   });
 
+  it("uses shared feedback, compact headers, and preserves the historical wide footprint", async () => {
+    await import("@/integrations/radarr/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("radarr-stats")).toMatchObject({
+      preferredSize: "tall", compactHeader: true, sharedUI: true,
+      supportedFootprints: [
+        { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+        { label: "Wide", columnSpan: 6, rowSpan: 2 },
+      ],
+    });
+  });
+
   it("registers a widget with id 'radarr-stats' on import", async () => {
     await import("@/integrations/radarr/statsWidget");
     const { getWidget } = await import("@/widgets");

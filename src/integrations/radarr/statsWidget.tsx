@@ -1,5 +1,7 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
+import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchStats, RadarrConfigSchema } from "./api";
 import type { RadarrConfig, RadarrStats } from "./api";
 
@@ -8,64 +10,63 @@ export function RadarrStatsWidget({
   loading,
   error,
   refresh: _refresh,
+  footprint,
 }: WidgetProps<RadarrStats>) {
   if (!data) {
     return (
-      <div className="radarr-stats-widget radarr-stats-widget--empty">
-        {loading && (
-          <span className="radarr-stats-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="radarr-stats-widget__hint radarr-stats-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
+      <WidgetBody centered className="radarr-stats-widget radarr-stats-widget--empty">
+        <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>
+          {!loading ? error : undefined}
+        </WidgetState>
+      </WidgetBody>
     );
   }
 
+  const wide = footprint?.columnSpan === 6 && footprint.rowSpan === 2;
+  const stats: { key: keyof RadarrStats; label: string; tone: WidgetStatTone }[] = [
+    { key: "missing", label: "Missing", tone: data.missing > 0 ? "alert" : "neutral" },
+    { key: "upcoming", label: "Upcoming", tone: "info" },
+    { key: "wanted", label: "Wanted", tone: data.wanted > 0 ? "warning" : "neutral" },
+    { key: "queued", label: "Queued", tone: data.queued > 0 ? "warning" : "neutral" },
+    { key: "available", label: "Available", tone: "positive" },
+    { key: "total", label: "Total", tone: "info" },
+  ];
+
   return (
-    <div className="radarr-stats-widget" aria-label="Radarr stats">
-      <div className="radarr-stats-widget__grid">
-        <div className="radarr-stats-widget__stat radarr-stats-widget__stat--missing">
-          <span className="radarr-stats-widget__value">{data.missing}</span>
-          <span className="radarr-stats-widget__label">Missing</span>
-        </div>
-        <div className="radarr-stats-widget__stat radarr-stats-widget__stat--upcoming">
-          <span className="radarr-stats-widget__value">{data.upcoming}</span>
-          <span className="radarr-stats-widget__label">Upcoming</span>
-        </div>
-        <div className="radarr-stats-widget__stat radarr-stats-widget__stat--wanted">
-          <span className="radarr-stats-widget__value">{data.wanted}</span>
-          <span className="radarr-stats-widget__label">Wanted</span>
-        </div>
-        <div className="radarr-stats-widget__stat radarr-stats-widget__stat--queued">
-          <span className="radarr-stats-widget__value">{data.queued}</span>
-          <span className="radarr-stats-widget__label">Queued</span>
-        </div>
-        <div className="radarr-stats-widget__stat radarr-stats-widget__stat--available">
-          <span className="radarr-stats-widget__value">{data.available}</span>
-          <span className="radarr-stats-widget__label">Available</span>
-        </div>
-        <div className="radarr-stats-widget__stat radarr-stats-widget__stat--total">
-          <span className="radarr-stats-widget__value">{data.total}</span>
-          <span className="radarr-stats-widget__label">Total</span>
-        </div>
-      </div>
-      {error && (
-        <span className="radarr-stats-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
+    <WidgetBody
+      className="radarr-stats-widget"
+      data-footprint={wide ? "6x2" : "3x4"}
+      aria-label="Radarr stats"
+      reserveNotice
+      notice={<WidgetStaleNotice error={error} className="radarr-stats-widget__stale-error" />}
+    >
+      <WidgetStatGrid columns={wide ? 6 : 2} className="radarr-stats-widget__grid">
+        {stats.map(({ key, label, tone }) => (
+          <WidgetStat
+            key={key}
+            label={label}
+            value={data[key]}
+            tone={tone}
+            className={`radarr-stats-widget__stat radarr-stats-widget__stat--${key}`}
+            valueClassName="radarr-stats-widget__value"
+            labelClassName="radarr-stats-widget__label"
+          />
+        ))}
+      </WidgetStatGrid>
+    </WidgetBody>
   );
 }
 
 registerWidget<RadarrConfig, RadarrStats>({
   id: "radarr-stats",
   name: "Radarr Stats",
-  preferredSize: "wide",
-  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
+  preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  supportedFootprints: [
+    { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+    { label: "Wide", columnSpan: 6, rowSpan: 2 },
+  ],
   serviceEditorPreset: {
     defaultName: "Radarr",
     defaultIconUrl: "https://cdn.simpleicons.org/radarr/ffc230",

@@ -22,7 +22,7 @@ describe("WidgetStatGrid", () => {
     expect(grid).toHaveTextContent("Items");
   });
 
-  it.each([1, 2, 3, 4] as const)("marks the requested %i-column layout", (columns) => {
+  it.each([1, 2, 3, 4, 6] as const)("marks the requested %i-column layout", (columns) => {
     const { container } = render(<WidgetStatGrid columns={columns}>Metrics</WidgetStatGrid>);
 
     expect(container.firstElementChild).toHaveAttribute("data-columns", String(columns));

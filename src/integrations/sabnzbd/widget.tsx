@@ -1,5 +1,7 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
+import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchQueueData, SabnzbdConfigSchema } from "./api";
 import type { SabnzbdConfig, SabnzbdQueueData } from "./api";
 
@@ -17,55 +19,119 @@ function formatSize(mb: number): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+function statusTone(status: string | null | undefined): WidgetStatTone {
+  switch (status?.toLowerCase()) {
+    case "downloading":
+    case "checking":
+    case "repairing":
+    case "extracting":
+    case "moving":
+    case "fetching": return "positive";
+    case "paused":
+    case "idle":
+    case "stopped": return "neutral";
+    case "queued": return "warning";
+    case "error":
+    case "failed": return "alert";
+    default: return status ? "info" : "neutral";
+  }
+}
+
 export function SabnzbdWidget({
   data,
   loading,
   error,
   refresh: _refresh,
+  footprint,
 }: WidgetProps<SabnzbdQueueData>) {
   if (!data) {
     return (
-      <div className="sabnzbd-widget sabnzbd-widget--empty">
-        {loading && (
-          <span className="sabnzbd-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="sabnzbd-widget__hint sabnzbd-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
+      <WidgetBody centered className="sabnzbd-widget sabnzbd-widget--empty">
+        <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>
+          {!loading ? error : undefined}
+        </WidgetState>
+      </WidgetBody>
     );
   }
 
+  // Direct legacy renders retain their original wide set of metrics.
+  const footprintName = `${footprint?.columnSpan ?? 6}x${footprint?.rowSpan ?? 2}`;
+  const detailed = footprintName === "3x4";
+  const showSize = footprintName !== "3x2";
+
   return (
-    <div className="sabnzbd-widget" aria-label="SABnzbd stats">
-      <div className="sabnzbd-widget__stat">
-        <span className="sabnzbd-widget__value">{formatSpeed(data.speedBytesPerSec)}</span>
-        <span className="sabnzbd-widget__label">↓ Speed</span>
-      </div>
-      <div className="sabnzbd-widget__stat">
-        <span className="sabnzbd-widget__value">{data.queueCount}</span>
-        <span className="sabnzbd-widget__label">Queue</span>
-      </div>
-      <div className="sabnzbd-widget__stat sabnzbd-widget__stat--wide">
-        <span className="sabnzbd-widget__value">{formatSize(data.totalMb)}</span>
-        <span className="sabnzbd-widget__label">Queue Size</span>
-      </div>
-      {error && (
-        <span className="sabnzbd-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
+    <WidgetBody
+      className="sabnzbd-widget"
+      data-footprint={footprintName}
+      aria-label="SABnzbd stats"
+      reserveNotice
+      notice={<WidgetStaleNotice error={error} className="sabnzbd-widget__stale-error" />}
+    >
+      <WidgetStatGrid columns={footprintName === "6x2" ? 3 : 2} className="sabnzbd-widget__grid">
+        <WidgetStat
+          label="↓ Speed"
+          value={formatSpeed(data.speedBytesPerSec)}
+          tone="positive"
+          className="sabnzbd-widget__stat"
+          valueClassName="sabnzbd-widget__value"
+          labelClassName="sabnzbd-widget__label"
+        />
+        <WidgetStat
+          label="Queue"
+          value={data.queueCount}
+          tone={data.queueCount > 0 ? "warning" : "neutral"}
+          className="sabnzbd-widget__stat"
+          valueClassName="sabnzbd-widget__value"
+          labelClassName="sabnzbd-widget__label"
+        />
+        {showSize && <WidgetStat
+          label="Queue Size"
+          value={formatSize(data.totalMb)}
+          tone="info"
+          className="sabnzbd-widget__stat sabnzbd-widget__stat--wide"
+          valueClassName="sabnzbd-widget__value"
+          labelClassName="sabnzbd-widget__label"
+        />}
+        {detailed && <WidgetStat
+          label="Remaining"
+          value={data.remainingMb == null ? "—" : formatSize(data.remainingMb)}
+          tone={data.remainingMb == null ? "neutral" : "info"}
+          className="sabnzbd-widget__stat"
+          valueClassName="sabnzbd-widget__value"
+          labelClassName="sabnzbd-widget__label"
+        />}
+        {detailed && <WidgetStat
+          label="ETA"
+          value={data.queueCount > 0 ? data.timeLeft ?? "—" : "—"}
+          tone={data.queueCount > 0 && data.timeLeft ? "info" : "neutral"}
+          className="sabnzbd-widget__stat"
+          valueClassName="sabnzbd-widget__value"
+          labelClassName="sabnzbd-widget__label"
+        />}
+        {detailed && <WidgetStat
+          label="Status"
+          value={data.status ?? "—"}
+          tone={statusTone(data.status)}
+          className="sabnzbd-widget__stat"
+          valueClassName="sabnzbd-widget__value"
+          labelClassName="sabnzbd-widget__label"
+        />}
+      </WidgetStatGrid>
+    </WidgetBody>
   );
 }
 
 registerWidget<SabnzbdConfig, SabnzbdQueueData>({
   id: "sabnzbd",
   name: "SABnzbd",
-  preferredSize: "wide",
-  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
+  preferredSize: "normal",
+  compactHeader: true,
+  sharedUI: true,
+  supportedFootprints: [
+    { label: "Compact", columnSpan: 3, rowSpan: 2 },
+    { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+    { label: "Wide", columnSpan: 6, rowSpan: 2 },
+  ],
   serviceEditorPreset: {
     defaultName: "SABnzbd",
     defaultIconUrl: "https://cdn.simpleicons.org/sabnzbd",

@@ -31,6 +31,7 @@ export function ProwlarrStatsWidget({
         <WidgetStat
           label="Enabled"
           value={data.enabledIndexers}
+          tone="positive"
           className="prowlarr-stats-widget__stat"
           valueClassName="prowlarr-stats-widget__value"
           labelClassName="prowlarr-stats-widget__label"
@@ -46,6 +47,7 @@ export function ProwlarrStatsWidget({
         <WidgetStat
           label="Indexers"
           value={data.totalIndexers}
+          tone="info"
           className="prowlarr-stats-widget__stat"
           valueClassName="prowlarr-stats-widget__value"
           labelClassName="prowlarr-stats-widget__label"
@@ -53,6 +55,7 @@ export function ProwlarrStatsWidget({
         <WidgetStat
           label="Total Grabs"
           value={data.totalGrabs.toLocaleString()}
+          tone="info"
           className="prowlarr-stats-widget__stat"
           valueClassName="prowlarr-stats-widget__value"
           labelClassName="prowlarr-stats-widget__label"
@@ -60,6 +63,7 @@ export function ProwlarrStatsWidget({
         <WidgetStat
           label="Usenet"
           value={data.usenetIndexers}
+          tone="info"
           className="prowlarr-stats-widget__stat"
           valueClassName="prowlarr-stats-widget__value"
           labelClassName="prowlarr-stats-widget__label"
@@ -67,6 +71,7 @@ export function ProwlarrStatsWidget({
         <WidgetStat
           label="Torrent"
           value={data.torrentIndexers}
+          tone="info"
           className="prowlarr-stats-widget__stat"
           valueClassName="prowlarr-stats-widget__value"
           labelClassName="prowlarr-stats-widget__label"

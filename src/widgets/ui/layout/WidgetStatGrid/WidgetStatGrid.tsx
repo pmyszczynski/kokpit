@@ -4,7 +4,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 export interface WidgetStatGridProps extends HTMLAttributes<HTMLDivElement> {
   children?: ReactNode;
-  columns?: 1 | 2 | 3 | 4;
+  columns?: 1 | 2 | 3 | 4 | 6;
 }
 
 /** A shrinkable grid that arranges widget statistics into caller-selected columns. */
