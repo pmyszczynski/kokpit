@@ -1,5 +1,7 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
+import type { WidgetBadgeTone } from "@/widgets/ui";
 import { fetchRequests, SeerrConfigSchema } from "./api";
 import type { SeerrConfig, SeerrRequest } from "./api";
 
@@ -58,91 +60,47 @@ const STATUS_LABELS: Record<EffectiveStatus, string> = {
   failed: "failed",
 };
 
-export function SeerrRequestsWidget({
-  data,
-  loading,
-  error,
-}: WidgetProps<SeerrRequest[]>) {
+const STATUS_TONES = {
+  pending: "warning", approved: "info", available: "positive", declined: "neutral", failed: "alert",
+} satisfies Record<EffectiveStatus, WidgetBadgeTone>;
+
+export function SeerrRequestsWidget({ data, loading, error }: WidgetProps<SeerrRequest[]>) {
   if (!data) {
-    return (
-      <div className="seerr-requests-widget seerr-requests-widget--empty">
-        {loading && (
-          <span className="seerr-requests-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="seerr-requests-widget__hint seerr-requests-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="seerr-requests-widget seerr-requests-widget--empty">
+      <WidgetState className={loading ? "seerr-requests-widget__hint" : undefined} labelClassName="seerr-requests-widget__hint seerr-requests-widget__hint--error" state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error : undefined}</WidgetState>
+    </WidgetBody>;
   }
-
-  if (data.length === 0) {
-    return (
-      <div className="seerr-requests-widget seerr-requests-widget--empty">
-        <span className="seerr-requests-widget__hint">No requests</span>
-        {error && (
-          <span
-            className="seerr-requests-widget__stale-error"
-            role="alert"
-          >
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="seerr-requests-widget" aria-label="Seerr requests">
-      <div className="seerr-requests-widget__list">
-        {data.map((req) => {
-          const status = effectiveStatus(req);
-          const title = displayTitle(req);
-          return (
-            <div key={req.id} className="seerr-requests-widget__row">
-              <span
-                className={`seerr-requests-widget__badge seerr-requests-widget__badge--${status}`}
-              >
-                {STATUS_LABELS[status]}
-              </span>
-              <span
-                className={`seerr-requests-widget__type seerr-requests-widget__type--${req.mediaType}`}
-              >
-                {req.mediaType}
-              </span>
-              <div className="seerr-requests-widget__info">
-                <span
-                  className="seerr-requests-widget__title"
-                  title={title}
-                >
-                  {title}
-                </span>
-                <span className="seerr-requests-widget__requester">
-                  {req.requestedBy}
-                </span>
-              </div>
-              <span className="seerr-requests-widget__time">
-                {relativeTime(req.createdAt)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {error && (
-        <span className="seerr-requests-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  return <WidgetBody className={`seerr-requests-widget${data.length === 0 ? " seerr-requests-widget--empty" : ""}`}
+    aria-label="Seerr requests" reserveNotice
+    notice={<WidgetStaleNotice error={error} className="seerr-requests-widget__stale-error" />}>
+    <WidgetList label="Recent Seerr requests" listClassName="seerr-requests-widget__list"
+      empty={data.length === 0 ? <WidgetState state="empty" className="seerr-requests-widget__hint">No requests</WidgetState> : undefined}>
+      {data.map(req => {
+        const status = effectiveStatus(req);
+        return <WidgetListItem key={req.id} className="seerr-requests-widget__row" title={displayTitle(req)}
+          contentClassName="seerr-requests-widget__info" titleClassName="seerr-requests-widget__title" secondary={req.requestedBy}
+          secondaryClassName="seerr-requests-widget__requester"
+          leading={<>
+            <WidgetBadge tone={STATUS_TONES[status]} className={`seerr-requests-widget__badge seerr-requests-widget__badge--${status}`}>{STATUS_LABELS[status]}</WidgetBadge>
+            <WidgetBadge tone="info" className={`seerr-requests-widget__type seerr-requests-widget__type--${req.mediaType}`}>{req.mediaType}</WidgetBadge>
+          </>}
+          trailing={<span className="seerr-requests-widget__time" title={req.createdAt}>{relativeTime(req.createdAt)}</span>} />;
+      })}
+    </WidgetList>
+  </WidgetBody>;
 }
 
 registerWidget<SeerrConfig, SeerrRequest[]>({
   id: "seerr-requests",
   name: "Seerr Requests",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "seerr-requests-widget seerr-requests-widget--empty",
+    loading: "seerr-requests-widget__hint",
+    error: "seerr-requests-widget__hint seerr-requests-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   configSchema: SeerrConfigSchema,

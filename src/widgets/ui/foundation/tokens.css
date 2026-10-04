@@ -23,6 +23,10 @@
     --widget-stat-value-line-height: 1.2;
     --widget-stat-label-font-size: 0.6875rem;
     --widget-stat-label-line-height: 1.25;
+  }
+
+  .widget-stat,
+  .widget-badge {
     --widget-stat-tone-neutral: var(--color-text);
     --widget-stat-tone-alert: #f87171;
     --widget-stat-tone-warning: #fbbf24;
@@ -33,7 +37,9 @@
   }
 
   [data-theme="light"] .widget-stat,
-  [data-theme="high-contrast"] .widget-stat {
+  [data-theme="light"] .widget-badge,
+  [data-theme="high-contrast"] .widget-stat,
+  [data-theme="high-contrast"] .widget-badge {
     --widget-stat-tone-alert: #b91c1c;
     --widget-stat-tone-warning: #92400e;
     --widget-stat-tone-positive: #166534;

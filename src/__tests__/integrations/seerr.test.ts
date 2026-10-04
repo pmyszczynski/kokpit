@@ -396,6 +396,20 @@ describe.each(WIDGET_DESCRIPTORS)(
       expect(getWidget(id)?.refreshInterval).toBe(refreshInterval);
     });
 
+    it("opts into shared feedback and preserves size choices", async () => {
+      await import(importPath);
+      const { getWidget } = await import("@/widgets");
+      const widget = getWidget(id)!;
+      expect(widget.sharedUI).toBe(true);
+      expect(widget.compactHeader).toBe(true);
+      expect(widget.preferredSize).toBe(id === "seerr-stats" ? "normal" : "tall");
+      expect(widget.supportedFootprints).toEqual(id === "seerr-stats" ? [
+        { label: "Compact", columnSpan: 3, rowSpan: 2 },
+        { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+        { label: "Wide", columnSpan: 6, rowSpan: 2 },
+      ] : [{ label: "Default", columnSpan: 3, rowSpan: 4 }]);
+    });
+
     it("configSchema accepts valid config", async () => {
       await import(importPath);
       const { getWidget } = await import("@/widgets");

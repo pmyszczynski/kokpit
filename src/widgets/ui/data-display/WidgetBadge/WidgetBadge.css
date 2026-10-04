@@ -1,0 +1,8 @@
+@layer widget-ui {
+  .widget-badge { display: inline-flex; align-items: center; width: max-content; padding: 2px 5px; border-radius: 4px; font-size: 0.625rem; font-weight: 600; line-height: 1.2; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; color: var(--widget-badge-tone); background: color-mix(in srgb, var(--widget-badge-tone) 12%, var(--color-surface)); }
+  .widget-badge--tone-neutral { --widget-badge-tone: var(--widget-stat-tone-neutral); }
+  .widget-badge--tone-positive { --widget-badge-tone: var(--widget-stat-tone-positive); }
+  .widget-badge--tone-info { --widget-badge-tone: var(--widget-stat-tone-info); }
+  .widget-badge--tone-warning { --widget-badge-tone: var(--widget-stat-tone-warning); }
+  .widget-badge--tone-alert { --widget-badge-tone: var(--widget-stat-tone-alert); }
+}

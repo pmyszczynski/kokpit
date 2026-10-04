@@ -14,7 +14,7 @@ const SAMPLE_DATA = {
 describe("SeerrStatsWidget component", () => {
   it("renders all stats with correct values and labels", () => {
     render(
-      <SeerrStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} />
+      <SeerrStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />
     );
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe("SeerrStatsWidget component", () => {
     render(
       <SeerrStatsWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -56,7 +56,7 @@ describe("SeerrStatsWidget component", () => {
     );
     expect(screen.getByText("3")).toBeInTheDocument();
     const errorEl = screen.getByRole("alert");
-    expect(errorEl).toHaveTextContent("refresh failed");
+    expect(errorEl).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders nothing meaningful when data is null and neither loading nor error", () => {
@@ -67,5 +67,21 @@ describe("SeerrStatsWidget component", () => {
       container.querySelector(".seerr-stats-widget--empty")
     ).toBeInTheDocument();
     expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+  });
+});
+
+describe("Seerr shared composition", () => {
+  it.each([
+    [3, 2, ["Pending", "Available"]],
+    [6, 2, ["Pending", "Available", "Total"]],
+    [3, 4, ["Pending", "Approved", "Available", "Total"]],
+  ] as const)("selects existing metrics at %sx%s", (columnSpan, rowSpan, labels) => {
+    const { container } = render(<SeerrStatsWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} footprint={{ columnSpan, rowSpan }} />);
+    expect(Array.from(container.querySelectorAll("dt")).map(node => node.textContent)).toEqual(labels);
+  });
+  it("keeps zero pending and available neutral but categories informational", () => {
+    const { container } = render(<SeerrStatsWidget data={{pending:0,approved:0,available:0,total:0}} loading={false} error={null} refresh={noop} footprint={{columnSpan:3,rowSpan:4}} />);
+    for (const key of ["pending", "available"]) expect(container.querySelector(`.seerr-stats-widget__stat--${key}`)).toHaveClass("widget-stat--tone-neutral");
+    for (const key of ["approved", "total"]) expect(container.querySelector(`.seerr-stats-widget__stat--${key}`)).toHaveClass("widget-stat--tone-info");
   });
 });
