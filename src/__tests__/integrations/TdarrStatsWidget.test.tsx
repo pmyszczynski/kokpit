@@ -109,9 +109,15 @@ describe("Tdarr size-specific summaries", () => {
     expect(screen.getByText("0 B")).toBeInTheDocument();
   });
 
-  it("preserves negative storage savings without assigning a positive tone", () => {
-    const { container } = render(<TdarrStatsWidget data={{ ...SAMPLE_DATA, spaceSavedGb: -1 }} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />);
-    expect(screen.getByText("-1000000000 B")).toBeInTheDocument();
+  it.each([
+    { spaceSavedGb: -0.000000012, formatted: "-12 B" },
+    { spaceSavedGb: -0.000002, formatted: "-2.0 KB" },
+    { spaceSavedGb: -0.002, formatted: "-2.0 MB" },
+    { spaceSavedGb: -1, formatted: "-1.0 GB" },
+    { spaceSavedGb: -45000, formatted: "-45.0 TB" },
+  ])("keeps signed savings readable as $formatted without assigning a positive tone", ({ spaceSavedGb, formatted }) => {
+    const { container } = render(<TdarrStatsWidget data={{ ...SAMPLE_DATA, spaceSavedGb }} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />);
+    expect(screen.getByText(formatted)).toBeInTheDocument();
     expect(container.querySelector(".tdarr-stats-widget__stat--spaceSavedGb")).toHaveClass("widget-stat--tone-neutral");
   });
 

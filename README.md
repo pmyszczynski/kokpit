@@ -1121,7 +1121,7 @@ New tiles default to a compact **3×2** summary. Choose a footprint in the servi
 | Wide (6×2) | Transcode Queue, Workers, Space Saved |
 | Detailed (3×4) | Transcode Queue / Health Checks, Errored / Space Saved, Workers / FPS |
 
-The detailed view keeps all six measurements. Positive queue counts are amber, errors red, storage savings and active workers green, and FPS blue. Zero queue/problem counts and inactive or unavailable activity are neutral. Storage savings retain the decimal KB/MB/GB/TB formatter; FPS uses one decimal place. Successful data remains visible with a refresh warning if polling fails.
+The detailed view keeps all six measurements. Positive queue counts are amber, errors red, storage savings and active workers green, and FPS blue. Zero queue/problem counts and inactive or unavailable activity are neutral. Storage savings use signed decimal KB/MB/GB/TB units; FPS uses one decimal place. Successful data remains visible with a refresh warning if polling fails.
 
 Existing configurations without geometry, or with unsupported legacy sizes/footprints, retain a 6×2 wide summary; supported explicit footprints are preserved. Worker/FPS data remains best-effort and defaults to zero when the optional nodes request fails.
 

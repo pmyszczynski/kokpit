@@ -9,19 +9,21 @@ import type { TdarrConfig, TdarrStats } from "./api";
 // install, so we use a TB-aware decimal formatter (matching the Immich stats
 // widget) rather than qBittorrent's GB-capped download formatter.
 function formatBytes(bytes: number): string {
-  if (bytes >= 1_000_000_000_000) {
-    return `${(bytes / 1_000_000_000_000).toFixed(1)} TB`;
+  const sign = bytes < 0 ? "-" : "";
+  const magnitude = Math.abs(bytes);
+  if (magnitude >= 1_000_000_000_000) {
+    return `${sign}${(magnitude / 1_000_000_000_000).toFixed(1)} TB`;
   }
-  if (bytes >= 1_000_000_000) {
-    return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  if (magnitude >= 1_000_000_000) {
+    return `${sign}${(magnitude / 1_000_000_000).toFixed(1)} GB`;
   }
-  if (bytes >= 1_000_000) {
-    return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  if (magnitude >= 1_000_000) {
+    return `${sign}${(magnitude / 1_000_000).toFixed(1)} MB`;
   }
-  if (bytes >= 1_000) {
-    return `${(bytes / 1_000).toFixed(1)} KB`;
+  if (magnitude >= 1_000) {
+    return `${sign}${(magnitude / 1_000).toFixed(1)} KB`;
   }
-  return `${bytes} B`;
+  return `${sign}${magnitude} B`;
 }
 
 export function TdarrStatsWidget({

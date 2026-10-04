@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
+import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
 
 const TILE_DATA = schemaV2Fixtures([{
   name: "Tdarr",
@@ -46,65 +47,11 @@ async function layoutBounds(page: Page) {
   }));
 }
 
-/** Check actual text and inner scroll bounds, not just the tile's clipped exterior. */
 async function assertFits(page: Page, footprint = { columnSpan: 3, rowSpan: 2 }) {
-  const fit = await tile(page).evaluate((element) => {
-    const body = element.querySelector(".widget-body");
-    const grid = element.querySelector(".widget-stat-grid");
-    const notice = element.querySelector(".widget-body__notice");
-    if (!body || !grid || !notice) return null;
-    const rect = (node: Element) => node.getBoundingClientRect();
-    const contains = (outer: DOMRect, inner: DOMRect) =>
-      inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 &&
-      inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
-    const noScroll = (node: Element) => node.scrollWidth <= node.clientWidth && node.scrollHeight <= node.clientHeight;
-    const cards = Array.from(grid.querySelectorAll(".widget-stat"));
-    const texts = cards.flatMap((card) => Array.from(card.children));
-    const contentBounds = texts.map((text) => {
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      return { parent: text.parentElement!, bounds: range.getBoundingClientRect() };
-    });
-    const scrollBounds = [element, body, grid, ...cards, ...texts].map((node) => ({
-      className: node.className, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth,
-      scrollHeight: node.scrollHeight, clientHeight: node.clientHeight,
-    }));
-    return {
-      scrollBounds,
-      width: rect(element).width, height: rect(element).height,
-      columns: new Set(cards.map((card) => Math.round(rect(card).left))).size,
-      rows: new Set(cards.map((card) => Math.round(rect(card).top))).size,
-      bodyInsideTile: contains(rect(element), rect(body)),
-      gridInsideBody: contains(rect(body), rect(grid)),
-      noticeInsideBody: contains(rect(body), rect(notice)),
-      noticeAfterGrid: rect(notice).top >= rect(grid).bottom - 0.5,
-      cardsInsideGrid: cards.every((card) => contains(rect(grid), rect(card))),
-      textInsideCards: contentBounds.every(({ parent, bounds }) => contains(rect(parent), bounds)),
-      noScroll: [element, body, grid, ...cards].every(noScroll),
-    };
-  });
-  const { scrollBounds, ...measured } = fit!;
-  expect(measured, JSON.stringify(scrollBounds)).toEqual({
+  await expectWidgetStatLayout(tile(page), {
     width: footprint.columnSpan === 6 ? 688 : 340, height: footprint.rowSpan === 4 ? 264 : 128,
     columns: footprint.columnSpan === 6 ? 3 : 2, rows: footprint.rowSpan === 4 ? 3 : 1,
-    bodyInsideTile: true, gridInsideBody: true, noticeInsideBody: true, noticeAfterGrid: true,
-    cardsInsideGrid: true, textInsideCards: true, noScroll: true,
   });
-}
-
-async function assertContrast(page: Page) {
-  const contrast = await tile(page).locator(".widget-stat").evaluateAll((cards) => {
-    const luminance = (color: string) => color.match(/\d+(?:\.\d+)?/g)!.slice(0, 3).map(Number)
-      .map((channel) => {
-        const value = channel / 255;
-        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-      }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
-    return cards.flatMap((card) => Array.from(card.children).map((text) => {
-      const values = [luminance(getComputedStyle(text).color), luminance(getComputedStyle(card).backgroundColor)].sort((a, b) => b - a);
-      return (values[0] + 0.05) / (values[1] + 0.05);
-    }));
-  });
-  expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
 }
 
 
@@ -132,7 +79,7 @@ test("Tdarr uses two compact, three wide, and six detailed cards in every theme"
         await expect(tile(page).locator(".widget-stat").nth(index)).toHaveClass(new RegExp(`widget-stat--tone-${tone}`));
       }
       await assertFits(page, footprint);
-      await assertContrast(page);
+      await expectWidgetStatContrast(tile(page));
       const name = `tdarr-stats-${footprint.columnSpan}x${footprint.rowSpan}-${theme}`;
       await testInfo.attach(name, { body: await tile(page).screenshot({
         path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/${name}.png` : undefined,
@@ -166,6 +113,18 @@ test("Tdarr keeps zero and unavailable optional activity neutral", async ({ page
     await expect(card).toHaveClass(/widget-stat--tone-neutral/);
   }
   await assertFits(page, { columnSpan: 3, rowSpan: 4 });
+});
+
+test("Tdarr keeps negative storage savings readable and neutral in wide and detailed views", async ({ page, request }) => {
+  await mockWidget(page, { ok: true, data: { ...STATS, spaceSavedGb: -45000 } });
+  for (const footprint of FOOTPRINTS.filter((size) => size.columnSpan === 6 || size.rowSpan === 4)) {
+    await configure(request, { footprint });
+    await page.goto("/");
+    const savings = tile(page).locator(".tdarr-stats-widget__stat--spaceSavedGb");
+    await expect(savings.locator(".widget-stat__value")).toHaveText("-45.0 TB");
+    await expect(savings).toHaveClass(/widget-stat--tone-neutral/);
+    await assertFits(page, footprint);
+  }
 });
 
 test("Tdarr initial states use shared feedback and null data stays blank", async ({ page, request }) => {
