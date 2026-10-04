@@ -10,3 +10,6 @@ export { WidgetState } from "./feedback/WidgetState";
 export type { WidgetStateProps } from "./feedback/WidgetState";
 export { WidgetStaleNotice } from "./feedback/WidgetStaleNotice";
 export type { WidgetStaleNoticeProps } from "./feedback/WidgetStaleNotice";
+export * from "./layout/WidgetList";
+export * from "./data-display/WidgetListItem";
+export * from "./data-display/WidgetBadge";

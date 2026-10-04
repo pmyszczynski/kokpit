@@ -224,14 +224,14 @@ describe("SeerrRequestsWidget component", () => {
     );
     expect(screen.getByText("No requests")).toBeInTheDocument();
     const errorEl = screen.getByRole("alert");
-    expect(errorEl).toHaveTextContent("refresh failed");
+    expect(errorEl).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("shows loading hint when data is null and loading", () => {
     render(
       <SeerrRequestsWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -257,7 +257,7 @@ describe("SeerrRequestsWidget component", () => {
     );
     expect(screen.getByText("Stale Movie")).toBeInTheDocument();
     const errorEl = screen.getByRole("alert");
-    expect(errorEl).toHaveTextContent("refresh failed");
+    expect(errorEl).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders nothing meaningful when data is null and neither loading nor error, distinct from the empty-list state", () => {

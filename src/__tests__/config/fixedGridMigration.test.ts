@@ -92,6 +92,7 @@ describe("fixed-grid config migration", () => {
 
   it.each([
     { widgetType: "radarr-stats", integrationType: "radarr", explicitSize: "tall", expected: { columnSpan: 3, rowSpan: 4 } },
+    { widgetType: "seerr-stats", integrationType: "seerr", explicitSize: "normal", expected: { columnSpan: 3, rowSpan: 2 } },
     { widgetType: "tdarr-stats", integrationType: "tdarr", explicitSize: "normal", expected: { columnSpan: 3, rowSpan: 2 } },
     { widgetType: "sabnzbd", integrationType: "sabnzbd", explicitSize: "normal", expected: { columnSpan: 3, rowSpan: 2 } },
   ] as const)("preserves legacy wide $widgetType tiles while honoring saved geometry", ({ widgetType, integrationType, explicitSize, expected }) => {

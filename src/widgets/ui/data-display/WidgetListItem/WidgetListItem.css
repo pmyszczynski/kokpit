@@ -1,0 +1,10 @@
+@layer widget-ui {
+  .widget-list-item { display: flex; align-items: center; gap: var(--widget-list-item-gap, 8px); padding: var(--widget-list-item-padding, 7px 4px); border-bottom: 1px solid var(--color-border); min-width: 0; }
+  .widget-list-item:last-child { border-bottom: 0; }
+  .widget-list-item__leading { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; flex-shrink: 0; }
+  .widget-list-item__content { display: flex; flex: 1 1 0; flex-direction: column; gap: 2px; min-width: 0; }
+  .widget-list-item__title { color: var(--color-text); font-size: 0.8rem; line-height: 1.5; }
+  .widget-list-item__secondary { color: var(--color-text-muted); font-size: 0.6875rem; line-height: 1.5; }
+  .widget-list-item__title, .widget-list-item__secondary { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .widget-list-item__trailing { color: var(--color-text-muted); font-size: 0.6875rem; line-height: 1.5; white-space: nowrap; flex-shrink: 0; }
+}

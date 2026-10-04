@@ -847,7 +847,15 @@ Two widgets are available for Seerr. Both are also compatible with Jellyseerr an
 
 #### `seerr-stats`
 
-Displays a four-stat grid summarising the current state of all media requests.
+Summarises media requests using shared stat cards and theme-aware colors.
+
+| Size | Footprint | Stats |
+| --- | --- | --- |
+| Compact (default) | 3×2 | Pending / Available |
+| Wide | 6×2 | Pending / Available / Total |
+| Detailed | 3×4 | Pending / Approved / Available / Total |
+
+Pending uses amber when positive, Available green when positive, and Approved/Total informational blue. Zero pending/available counts are neutral. Detailed retains all four API metrics. Existing wide tiles, missing geometry and unsupported legacy footprints retain 6×2; supported saved geometry remains intact. A reserved warning row keeps cards stationary after refresh failures.
 
 ```yaml
 services:
@@ -887,7 +895,9 @@ service_tiles:
 
 #### `seerr-requests`
 
-Shows a scrollable list of the 15 most recently submitted requests. Each row displays a colour-coded status badge (pending / approved / available / declined), a media type chip (movie / tv), the title, the requester's name, and a relative timestamp.
+Shows the 15 most recently submitted requests in a shared, keyboard-scrollable list at 3×4. Each row displays a status badge, a media type badge (movie / tv), the title with requested seasons, the requester's name, and a relative timestamp. Long titles and requester names retain their complete text for assistive technology and in tooltips.
+
+Status colors match the shared library: pending amber, approved blue, available green, failed red, declined neutral. Both media categories use informational blue. A reserved warning row preserves the list's position and scroll offset on refresh failure, including when the last saved result contains no requests. Both Seerr widgets refresh every 60 seconds.
 
 ```yaml
 services:
