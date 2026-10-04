@@ -1,5 +1,7 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
+import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchTdarrStats, TdarrConfigSchema } from "./api";
 import type { TdarrConfig, TdarrStats } from "./api";
 
@@ -27,64 +29,76 @@ export function TdarrStatsWidget({
   loading,
   error,
   refresh: _refresh,
+  footprint,
 }: WidgetProps<TdarrStats>) {
   if (!data) {
     return (
-      <div className="tdarr-stats-widget tdarr-stats-widget--empty">
-        {loading && (
-          <span className="tdarr-stats-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="tdarr-stats-widget__hint tdarr-stats-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
+      <WidgetBody centered className="tdarr-stats-widget tdarr-stats-widget--empty">
+        <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>
+          {!loading ? error : undefined}
+        </WidgetState>
+      </WidgetBody>
     );
   }
 
+  const footprintName = `${footprint?.columnSpan ?? 6}x${footprint?.rowSpan ?? 2}`;
+  const detailed = footprintName === "3x4";
+  const stats = {
+    transcodeQueue: { label: "Transcode Queue", value: data.transcodeQueue,
+      tone: data.transcodeQueue > 0 ? "warning" : "neutral" },
+    healthCheckQueue: { label: "Health Checks", value: data.healthCheckQueue,
+      tone: data.healthCheckQueue > 0 ? "warning" : "neutral" },
+    errored: { label: "Errored", value: data.errored,
+      tone: data.errored > 0 ? "alert" : "neutral" },
+    spaceSavedGb: { label: "Space Saved", value: formatBytes(data.spaceSavedGb * 1_000_000_000),
+      tone: data.spaceSavedGb > 0 ? "positive" : "neutral" },
+    activeWorkers: { label: "Workers", value: data.activeWorkers,
+      tone: data.activeWorkers > 0 ? "positive" : "neutral" },
+    fps: { label: "FPS", value: data.fps.toFixed(1),
+      tone: data.fps > 0 ? "info" : "neutral" },
+  } satisfies Record<string, { label: string; value: string | number; tone: WidgetStatTone }>;
+  const fields: (keyof typeof stats)[] = detailed
+    ? ["transcodeQueue", "healthCheckQueue", "errored", "spaceSavedGb", "activeWorkers", "fps"]
+    : footprintName === "6x2"
+      ? ["transcodeQueue", "activeWorkers", "spaceSavedGb"]
+      : ["transcodeQueue", "activeWorkers"];
+
   return (
-    <div className="tdarr-stats-widget" aria-label="Tdarr stats">
-      <div className="tdarr-stats-widget__stat">
-        <span className="tdarr-stats-widget__value">{data.transcodeQueue}</span>
-        <span className="tdarr-stats-widget__label">Transcode Queue</span>
-      </div>
-      <div className="tdarr-stats-widget__stat">
-        <span className="tdarr-stats-widget__value">{data.healthCheckQueue}</span>
-        <span className="tdarr-stats-widget__label">Health Checks</span>
-      </div>
-      <div className="tdarr-stats-widget__stat">
-        <span className="tdarr-stats-widget__value">{data.errored}</span>
-        <span className="tdarr-stats-widget__label">Errored</span>
-      </div>
-      <div className="tdarr-stats-widget__stat">
-        <span className="tdarr-stats-widget__value">
-          {formatBytes(data.spaceSavedGb * 1_000_000_000)}
-        </span>
-        <span className="tdarr-stats-widget__label">Space Saved</span>
-      </div>
-      <div className="tdarr-stats-widget__stat">
-        <span className="tdarr-stats-widget__value">{data.activeWorkers}</span>
-        <span className="tdarr-stats-widget__label">Workers</span>
-      </div>
-      <div className="tdarr-stats-widget__stat">
-        <span className="tdarr-stats-widget__value">{data.fps.toFixed(1)}</span>
-        <span className="tdarr-stats-widget__label">FPS</span>
-      </div>
-      {error && (
-        <span className="tdarr-stats-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
+    <WidgetBody
+      className="tdarr-stats-widget"
+      data-footprint={footprintName}
+      aria-label="Tdarr stats"
+      reserveNotice
+      notice={<WidgetStaleNotice error={error} className="tdarr-stats-widget__stale-error" />}
+    >
+      <WidgetStatGrid columns={footprintName === "6x2" ? 3 : 2} className="tdarr-stats-widget__grid">
+        {fields.map((key) => (
+          <WidgetStat
+            key={key}
+            label={stats[key].label}
+            value={stats[key].value}
+            tone={stats[key].tone}
+            className={`tdarr-stats-widget__stat tdarr-stats-widget__stat--${key}`}
+            valueClassName="tdarr-stats-widget__value"
+            labelClassName="tdarr-stats-widget__label"
+          />
+        ))}
+      </WidgetStatGrid>
+    </WidgetBody>
   );
 }
 
 registerWidget<TdarrConfig, TdarrStats>({
   id: "tdarr-stats",
   name: "Tdarr Stats",
-  preferredSize: "wide",
-  supportedFootprints: [{ label: "Default", columnSpan: 6, rowSpan: 2 }],
+  preferredSize: "normal",
+  compactHeader: true,
+  sharedUI: true,
+  supportedFootprints: [
+    { label: "Compact", columnSpan: 3, rowSpan: 2 },
+    { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+    { label: "Wide", columnSpan: 6, rowSpan: 2 },
+  ],
   serviceEditorPreset: {
     defaultName: "Tdarr",
     defaultIconUrl: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/tdarr.svg",

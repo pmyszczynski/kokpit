@@ -342,10 +342,17 @@ describe("tdarr-stats widget registration", () => {
     expect(getWidget("tdarr-stats")?.refreshInterval).toBe(10_000);
   });
 
-  it("preferredSize is 'wide'", async () => {
+  it("uses shared feedback and compact headers with two, three and six-stat footprints", async () => {
     await import("@/integrations/tdarr/statsWidget");
     const { getWidget } = await import("@/widgets");
-    expect(getWidget("tdarr-stats")?.preferredSize).toBe("wide");
+    expect(getWidget("tdarr-stats")).toMatchObject({
+      preferredSize: "normal", compactHeader: true, sharedUI: true,
+      supportedFootprints: [
+        { label: "Compact", columnSpan: 3, rowSpan: 2 },
+        { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+        { label: "Wide", columnSpan: 6, rowSpan: 2 },
+      ],
+    });
   });
 
   it("serviceEditorPreset has the expected default name and icon", async () => {
