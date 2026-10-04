@@ -25,6 +25,7 @@
     --widget-stat-label-line-height: 1.25;
     --widget-stat-tone-neutral: var(--color-text);
     --widget-stat-tone-alert: #f87171;
+    --widget-stat-tone-warning: #fbbf24;
     --widget-stat-tone-positive: #22c55e;
     --widget-stat-tone-info: #60a5fa;
     --widget-stat-tone-positive-soft: #86efac;
@@ -34,6 +35,7 @@
   [data-theme="light"] .widget-stat,
   [data-theme="high-contrast"] .widget-stat {
     --widget-stat-tone-alert: #b91c1c;
+    --widget-stat-tone-warning: #92400e;
     --widget-stat-tone-positive: #166534;
     --widget-stat-tone-info: #1d4ed8;
     --widget-stat-tone-positive-soft: #397547;

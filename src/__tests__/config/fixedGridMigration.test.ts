@@ -90,6 +90,26 @@ describe("fixed-grid config migration", () => {
     }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
   });
 
+  it.each([
+    { widgetType: "radarr-stats", integrationType: "radarr", explicitSize: "tall", expected: { columnSpan: 3, rowSpan: 4 } },
+    { widgetType: "sabnzbd", integrationType: "sabnzbd", explicitSize: "normal", expected: { columnSpan: 3, rowSpan: 2 } },
+  ] as const)("preserves legacy wide $widgetType tiles while honoring saved geometry", ({ widgetType, integrationType, explicitSize, expected }) => {
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const tile = { id: "20000000-0000-4000-8000-000000000002", service_id: serviceId, widget: { type: widgetType } };
+    const base = {
+      schema_version: 2,
+      services: [{ id: serviceId, name: integrationType, integration: { type: integrationType, config: { url: "http://media.local", api_key: "secret", apikey: "secret" } } }],
+      service_tiles: [tile],
+    };
+
+    expect(migrateFixedGridConfig(base).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, size: explicitSize }] }).service_tiles[0].footprint).toEqual(expected);
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 3, rowSpan: 4 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 6, rowSpan: 2 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, size: "large" }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 6, rowSpan: 4 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+  });
+
   it("keeps described generic service cards at the fixed 3×1 footprint", () => {
     const serviceId = "10000000-0000-4000-8000-000000000001";
     const migrated = migrateFixedGridConfig({

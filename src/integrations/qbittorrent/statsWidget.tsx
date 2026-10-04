@@ -52,6 +52,7 @@ export function QbittorrentStatsWidget({
         <WidgetStat
           label="↓ Speed"
           value={formatSpeed(data.dl_info_speed)}
+          tone="positive"
           className="qbt-stats-widget__stat"
           valueClassName="qbt-stats-widget__value"
           labelClassName="qbt-stats-widget__label"
@@ -59,6 +60,7 @@ export function QbittorrentStatsWidget({
         <WidgetStat
           label="↑ Speed"
           value={formatSpeed(data.up_info_speed)}
+          tone="info"
           className="qbt-stats-widget__stat"
           valueClassName="qbt-stats-widget__value"
           labelClassName="qbt-stats-widget__label"
@@ -67,6 +69,7 @@ export function QbittorrentStatsWidget({
           <WidgetStat
             label="↓ Total"
             value={formatBytes(data.dl_info_data)}
+            tone="positive"
             className="qbt-stats-widget__stat"
             valueClassName="qbt-stats-widget__value"
             labelClassName="qbt-stats-widget__label"
@@ -76,6 +79,7 @@ export function QbittorrentStatsWidget({
           <WidgetStat
             label="↑ Total"
             value={formatBytes(data.up_info_data)}
+            tone="info"
             className="qbt-stats-widget__stat"
             valueClassName="qbt-stats-widget__value"
             labelClassName="qbt-stats-widget__label"
@@ -92,6 +96,7 @@ export function QbittorrentStatsWidget({
                 ? "Queued or stopped torrents"
                 : "All torrents except queued or stopped"}>{label}</span>}
               value={value ?? <span title="Activity unavailable">—</span>}
+              tone={label === "Active" && value !== undefined && value > 0 ? "positive" : "neutral"}
               className="qbt-stats-widget__activity-stat"
             />
           ))

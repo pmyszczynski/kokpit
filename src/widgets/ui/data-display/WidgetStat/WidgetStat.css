@@ -44,6 +44,10 @@
     --widget-stat-tone: var(--widget-stat-tone-alert);
   }
 
+  .widget-stat--tone-warning {
+    --widget-stat-tone: var(--widget-stat-tone-warning);
+  }
+
   .widget-stat--tone-positive {
     --widget-stat-tone: var(--widget-stat-tone-positive);
   }

@@ -47,6 +47,7 @@ export function ImmichStatsWidget({
         <WidgetStat
           label="Storage"
           value={formatBytes(data.usage)}
+          tone="info"
           className="immich-stats-widget__stat immich-stats-widget__stat--usage"
           valueClassName="immich-stats-widget__value"
           labelClassName="immich-stats-widget__label"

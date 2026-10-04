@@ -1796,9 +1796,8 @@ button {
   margin: 0;
 }
 
-/* ── Shared legacy stat widget base (SABnzbd, Unraid, …) ────────────────── */
+/* ── Shared legacy stat widget base (Unraid, Tdarr, …) ────────────────── */
 
-.sabnzbd-widget,
 .unraid-stats-widget,
 .tdarr-stats-widget,
 .actualbudget-summary-widget {
@@ -1810,7 +1809,6 @@ button {
   min-height: 0;
 }
 
-.sabnzbd-widget__stat,
 .unraid-stats-widget__stat,
 .tdarr-stats-widget__stat,
 .actualbudget-summary-widget__stat {
@@ -1826,7 +1824,6 @@ button {
   min-width: 0;
 }
 
-.sabnzbd-widget__value,
 .unraid-stats-widget__value,
 .tdarr-stats-widget__value,
 .actualbudget-summary-widget__value {
@@ -1840,7 +1837,6 @@ button {
   max-width: 100%;
 }
 
-.sabnzbd-widget__label,
 .unraid-stats-widget__label,
 .tdarr-stats-widget__label,
 .actualbudget-summary-widget__label {
@@ -1852,7 +1848,6 @@ button {
   white-space: nowrap;
 }
 
-.sabnzbd-widget__stale-error,
 .unraid-stats-widget__stale-error,
 .tdarr-stats-widget__stale-error {
   grid-column: 1 / -1;
@@ -1862,7 +1857,6 @@ button {
   padding: 2px 0;
 }
 
-.sabnzbd-widget--empty,
 .unraid-stats-widget--empty,
 .tdarr-stats-widget--empty,
 .actualbudget-summary-widget--empty {
@@ -1872,7 +1866,6 @@ button {
   min-height: 2rem;
 }
 
-.sabnzbd-widget__hint,
 .unraid-stats-widget__hint,
 .tdarr-stats-widget__hint,
 .actualbudget-summary-widget__hint {
@@ -1880,7 +1873,6 @@ button {
   color: var(--color-text-muted);
 }
 
-.sabnzbd-widget__hint--error,
 .unraid-stats-widget__hint--error,
 .tdarr-stats-widget__hint--error {
   color: #f87171;
@@ -2374,100 +2366,6 @@ button {
   color: #f87171;
 }
 
-/* ── Radarr stats widget ─────────────────────────────────────────────────── */
-
-.radarr-stats-widget {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.radarr-stats-widget__grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  flex: 1 1 0;
-  align-content: center;
-  padding: 4px;
-}
-
-.radarr-stats-widget__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border-radius: 4px;
-  background: var(--color-surface-2);
-  min-width: 0;
-}
-
-.radarr-stats-widget__value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.radarr-stats-widget__label {
-  font-size: 0.65rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.radarr-stats-widget__stat--missing .radarr-stats-widget__value {
-  color: #f87171;
-}
-
-.radarr-stats-widget__stat--upcoming .radarr-stats-widget__value {
-  color: var(--color-accent);
-}
-
-.radarr-stats-widget__stat--wanted .radarr-stats-widget__value {
-  color: #fbbf24;
-}
-
-.radarr-stats-widget__stat--queued .radarr-stats-widget__value {
-  color: var(--color-text-muted);
-}
-
-.radarr-stats-widget__stat--available .radarr-stats-widget__value {
-  color: #22c55e;
-}
-
-.radarr-stats-widget__stat--total .radarr-stats-widget__value {
-  color: var(--color-text);
-}
-
-.radarr-stats-widget--empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-  gap: 4px;
-}
-
-.radarr-stats-widget__hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.radarr-stats-widget__hint--error {
-  color: #f87171;
-}
-
-.radarr-stats-widget__stale-error {
-  font-size: 0.7rem;
-  color: #f87171;
-  text-align: center;
-  padding: 4px 0;
-  flex-shrink: 0;
-}
-
 /* ── Radarr queue widget ─────────────────────────────────────────────────── */
 
 .radarr-queue-widget {
@@ -2601,12 +2499,6 @@ button {
 
 .radarr-queue-widget__hint--error {
   color: #f87171;
-}
-
-/* ── SABnzbd widget ───────────────────────────────────────────────────────── */
-
-.sabnzbd-widget__stat--wide {
-  grid-column: 1 / -1;
 }
 
 /* ── Tdarr stats widget ───────────────────────────────────────────────────── */

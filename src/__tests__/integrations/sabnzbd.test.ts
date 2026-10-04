@@ -48,7 +48,24 @@ describe("fetchQueueData", () => {
       speedBytesPerSec: 5_120_000,
       totalMb: 4096.5,
       queueCount: 3,
+      remainingMb: null, timeLeft: null, status: null,
     });
+  });
+
+  it("reads detailed metrics from the same queue response without extra requests", async () => {
+    const fetch = vi.fn().mockResolvedValue(makeJsonResponse({ queue: {
+      ...MOCK_QUEUE_RESPONSE.queue, mbleft: "1024.50", timeleft: "0:16:44", status: "Downloading",
+    } }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await fetchQueueData(BASE_CONFIG)).toMatchObject({ remainingMb: 1024.5, timeLeft: "0:16:44", status: "Downloading" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([null, "", "not a number", -1, true])("keeps summary data when optional remaining size is invalid: %j", async (mbleft) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeJsonResponse({ queue: {
+      ...MOCK_QUEUE_RESPONSE.queue, mbleft, timeleft: "", status: 42,
+    } })));
+    expect(await fetchQueueData(BASE_CONFIG)).toMatchObject({ speedBytesPerSec: 5_120_000, queueCount: 3, remainingMb: null, timeLeft: null, status: null });
   });
 
   it("builds the correct URL with required query params", async () => {
@@ -102,6 +119,19 @@ describe("sabnzbd widget registration", () => {
     await import("@/integrations/sabnzbd/widget");
     const { getWidget } = await import("@/widgets");
     expect(getWidget("sabnzbd")).toBeDefined();
+  });
+
+  it("uses shared feedback and keeps the wide footprint alongside the compact default", async () => {
+    await import("@/integrations/sabnzbd/widget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("sabnzbd")).toMatchObject({
+      preferredSize: "normal", compactHeader: true, sharedUI: true,
+      supportedFootprints: [
+        { label: "Compact", columnSpan: 3, rowSpan: 2 },
+        { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+        { label: "Wide", columnSpan: 6, rowSpan: 2 },
+      ],
+    });
   });
 
   it("widget name is 'SABnzbd'", async () => {

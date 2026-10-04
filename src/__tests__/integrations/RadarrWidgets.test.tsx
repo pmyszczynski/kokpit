@@ -183,7 +183,7 @@ describe("RadarrStatsWidget", () => {
     render(
       <RadarrStatsWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toHaveClass("widget-state--loading");
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -209,7 +209,8 @@ describe("RadarrStatsWidget", () => {
     );
     expect(screen.getByText("120")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("refresh failed");
+    expect(alert).toHaveTextContent("Refresh failed · saved data");
+    expect(alert).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders --empty container when data is null and neither loading nor error", () => {
@@ -220,5 +221,29 @@ describe("RadarrStatsWidget", () => {
       container.querySelector(".radarr-stats-widget--empty")
     ).toBeInTheDocument();
     expect(screen.queryByText("Missing")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("Radarr shared UI composition", () => {
+  it.each([
+    [{ columnSpan: 3, rowSpan: 4 }, "2"],
+    [{ columnSpan: 6, rowSpan: 2 }, "6"],
+  ] as const)("keeps every metric at footprint %j", (footprint, columns) => {
+    const { container } = render(
+      <RadarrStatsWidget data={SAMPLE_STATS} loading={false} error={null} refresh={noop} footprint={footprint} />
+    );
+    expect(container.querySelector(".widget-stat-grid")).toHaveAttribute("data-columns", columns);
+    expect([...container.querySelectorAll(".widget-stat__label")].map((node) => node.textContent))
+      .toEqual(["Missing", "Upcoming", "Wanted", "Queued", "Available", "Total"]);
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
+    expect(screen.getByText("Missing").closest(".widget-stat")).toHaveClass("widget-stat--tone-alert");
+    expect(screen.getByText("Wanted").closest(".widget-stat")).toHaveClass("widget-stat--tone-warning");
+  });
+
+  it("uses neutral tones when missing and wanted counts are zero", () => {
+    render(<RadarrStatsWidget data={{ ...SAMPLE_STATS, missing: 0, wanted: 0 }} loading={false} error={null} refresh={noop} />);
+    expect(screen.getByText("Missing").closest(".widget-stat")).toHaveClass("widget-stat--tone-neutral");
+    expect(screen.getByText("Wanted").closest(".widget-stat")).toHaveClass("widget-stat--tone-neutral");
   });
 });

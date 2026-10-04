@@ -15,6 +15,12 @@ const QueueResponseSchema = z.object({
     kbpersec: z.coerce.number(),
     mb: z.coerce.number(),
     noofslots: z.number(),
+    mbleft: z.preprocess(
+      (value) => typeof value === "string" && value.trim() === "" ? null : value,
+      z.union([z.number(), z.string()]).pipe(z.coerce.number<string | number>().nonnegative()).nullish().catch(null)
+    ),
+    timeleft: z.string().trim().min(1).nullish().catch(null),
+    status: z.string().trim().min(1).nullish().catch(null),
   }),
 });
 
@@ -22,6 +28,10 @@ export interface SabnzbdQueueData {
   speedBytesPerSec: number;
   totalMb: number;
   queueCount: number;
+  /** Optional for compatibility with older or partial queue responses. */
+  remainingMb?: number | null;
+  timeLeft?: string | null;
+  status?: string | null;
 }
 
 export async function fetchQueueData(
@@ -48,5 +58,8 @@ export async function fetchQueueData(
     speedBytesPerSec: q.kbpersec * 1000,
     totalMb: q.mb,
     queueCount: q.noofslots,
+    remainingMb: q.mbleft ?? null,
+    timeLeft: q.timeleft ?? null,
+    status: q.status ?? null,
   };
 }
