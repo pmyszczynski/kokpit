@@ -681,7 +681,7 @@ Displays indexer health and lifetime grab statistics from Prowlarr.
 
 #### `prowlarr-stats`
 
-Shows a four-stat grid: total indexers, enabled indexers, failing indexers (highlighted in red when non-zero), and total grabs across all time.
+Shows six shared stat cards in a two-column, three-row grid at 3×4: Enabled / Failing on top, Indexers / Total Grabs in the middle, and Usenet / Torrent on the bottom. Failing indexers are highlighted in red when non-zero. Protocol counts include enabled and disabled indexers and come from the existing indexer request. Refresh failures retain the last data and show a separate warning without moving the cards.
 
 ```yaml
 services:
@@ -713,10 +713,12 @@ service_tiles:
 
 | Stat        | Description                                                  |
 | ----------- | ------------------------------------------------------------ |
-| Indexers    | Total number of configured indexers                          |
 | Enabled     | Indexers currently enabled                                   |
 | Failing     | Indexers with an active error status (shown in red when > 0) |
+| Indexers    | Total number of configured indexers                          |
 | Total Grabs | Cumulative grab count across all indexers and history        |
+| Usenet      | Configured Usenet indexers, including disabled indexers       |
+| Torrent     | Configured Torrent indexers, including disabled indexers      |
 
 
 ---
