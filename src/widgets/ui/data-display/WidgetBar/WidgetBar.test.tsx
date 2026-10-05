@@ -17,7 +17,8 @@ describe("WidgetBar", () => {
     expect(bar).toHaveAttribute("aria-valuemax", "100");
     expect(bar).toHaveAttribute("aria-valuetext", "73%");
     expect(screen.getByText("73%")).toBeVisible();
-    expect(bar.firstElementChild).toHaveStyle({ width: "73%" });
+    expect((bar.parentElement as HTMLElement).style.getPropertyValue("--widget-bar-value")).toBe("73%");
+    expect(bar.firstElementChild).not.toHaveAttribute("style");
   });
   it.each([-20, 120])("clamps usage fill but retains the domain value %s", value => {
     render(<WidgetBar kind="usage" label="Budget used" value={value} valueLabel={`${value}%`} />);
@@ -25,14 +26,14 @@ describe("WidgetBar", () => {
     const bounded = value < 0 ? 0 : 100;
     expect(meter).toHaveAttribute("aria-valuenow", String(bounded));
     expect(meter).toHaveAttribute("aria-valuetext", `${value}%`);
-    expect(meter.firstElementChild).toHaveStyle({ width: `${bounded}%` });
+    expect((meter.parentElement as HTMLElement).style.getPropertyValue("--widget-bar-value")).toBe(`${bounded}%`);
     expect(screen.getByText(`${value}%`)).toBeVisible();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
   it("normalizes a non-percentage range and accepts rich domain labels", () => {
     render(<WidgetBar kind="usage" label="Space used" min={20} max={60} value={40} valueText="40 GB of 60 GB" valueLabel={<strong>40 GB</strong>} />);
     const meter = screen.getByRole("meter");
-    expect(meter.firstElementChild).toHaveStyle({ width: "50%" });
+    expect((meter.parentElement as HTMLElement).style.getPropertyValue("--widget-bar-value")).toBe("50%");
     expect(meter).toHaveAttribute("aria-valuetext", "40 GB of 60 GB");
     expect(screen.getByText("40 GB")).toBeVisible();
   });

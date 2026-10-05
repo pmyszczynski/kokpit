@@ -138,6 +138,11 @@ test("Arr list semantics preserve progress boundaries, status priority, dates an
     const queueWidget = tile(page, type);
     await expect(queueWidget.getByRole("progressbar").nth(0)).toHaveAttribute("aria-valuenow", "0");
     await expect(queueWidget.getByRole("progressbar").nth(3)).toHaveAttribute("aria-valuenow", "100");
+    const fillRatios = await queueWidget.getByRole("progressbar").evaluateAll(bars => bars.map(bar => {
+      const track = bar.getBoundingClientRect(), fill = bar.firstElementChild!.getBoundingClientRect();
+      return Math.abs(fill.width / track.width * 100 - Number(bar.getAttribute("aria-valuenow"))) < 0.05;
+    }));
+    expect(fillRatios.every(Boolean)).toBe(true);
     await expect(queueWidget.getByRole("progressbar").nth(1)).toHaveAccessibleName(new RegExp(type === "sonarr-queue" ? "The.Bear" : "Interstellar"));
     await expect(queueWidget.locator(`.${type}-widget__status`).nth(0)).toHaveClass(/tone-neutral/);
     await expect(queueWidget.locator(`.${type}-widget__status`).nth(1)).toHaveClass(/tone-warning/);
@@ -208,7 +213,7 @@ for (const empty of [false, true]) test(`Arr saved ${empty ? "empty" : "populate
 });
 
 test("Arr shared list cells, badge and bar respect ordinary custom CSS", async ({ page, request }) => {
-  await configure(request, "dark", `.sonarr-calendar-widget__row { padding-top:10px; } .sonarr-calendar-widget__badge { color:#040506; } .sonarr-queue-widget, .radarr-queue-widget { --widget-list-column-template:minmax(0,1fr) 68px 76px 56px; --widget-list-item-gap:9px; } .sonarr-queue-widget__progress-bar, .radarr-queue-widget__progress-bar { height:7px; } .sonarr-queue-widget__progress-fill, .radarr-queue-widget__progress-fill { background:#112233; } .sonarr-queue-widget__status, .radarr-queue-widget__status { color:#040506; }`);
+  await configure(request, "dark", `.sonarr-calendar-widget__row { padding-top:10px; } .sonarr-calendar-widget__badge { color:#040506; } .sonarr-queue-widget, .radarr-queue-widget { --widget-list-column-template:minmax(0,1fr) 68px 76px 56px; --widget-list-item-gap:9px; } .sonarr-queue-widget__progress-bar, .radarr-queue-widget__progress-bar { height:7px; } .sonarr-queue-widget__progress-fill, .radarr-queue-widget__progress-fill { width:11px; background:#112233; } .sonarr-queue-widget__status, .radarr-queue-widget__status { color:#040506; }`);
   await mock(page); await page.goto("/");
   await expect(tile(page, TYPES[0]).getByRole("listitem").first()).toHaveCSS("padding-top", "10px");
   await expect(tile(page, TYPES[0]).locator(".widget-badge").first()).toHaveCSS("color", "rgb(4, 5, 6)");
@@ -218,6 +223,7 @@ test("Arr shared list cells, badge and bar respect ordinary custom CSS", async (
     await expect(tile(page, type).getByRole("listitem").first()).toHaveCSS("column-gap", "9px");
     await expect(tile(page, type).getByRole("progressbar").first()).toHaveCSS("height", "7px");
     await expect(tile(page, type).locator(".widget-bar__fill").first()).toHaveCSS("background-color", "rgb(17, 34, 51)");
+    await expect(tile(page, type).locator(".widget-bar__fill").first()).toHaveCSS("width", "11px");
     await expect(tile(page, type).locator(`.${type}-widget__status`).first()).toHaveCSS("color", "rgb(4, 5, 6)");
   }
 });
@@ -281,6 +287,20 @@ test("Aligned shared rows keep slot positions when accessories are absent and ha
     });
   }));
   expect(fallback).toBe(true);
+  const fallbackColumns = await widget.getByRole("listitem").evaluateAll(rows => {
+    const contents = rows.map(row => row.querySelector(".widget-list-item__content")!.getBoundingClientRect());
+    const trailing = rows.flatMap(row => Array.from(row.querySelectorAll(".widget-list-item__trailing"), node => node.getBoundingClientRect()));
+    return {
+      contentAligned: contents.every(r => Math.abs(r.left - contents[0].left) < 0.5 && Math.abs(r.width - contents[0].width) < 0.5),
+      trailingAligned: trailing.every(r => Math.abs(r.left - trailing[0].left) < 0.5 && Math.abs(r.width - trailing[0].width) < 0.5),
+      textFits: rows.every(row => Array.from(row.querySelectorAll(".widget-list-item__leading,.widget-list-item__trailing")).every(node => {
+        const range = document.createRange(); range.selectNodeContents(node);
+        const text = range.getBoundingClientRect(), r = node.getBoundingClientRect();
+        return text.left >= r.left - 0.5 && text.right <= r.right + 0.5;
+      })),
+    };
+  });
+  expect(fallbackColumns).toEqual({ contentAligned: true, trailingAligned: true, textFits: true });
   expect(await widget.getByRole("list").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
 });
 

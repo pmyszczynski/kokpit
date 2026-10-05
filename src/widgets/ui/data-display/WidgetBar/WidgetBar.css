@@ -1,7 +1,7 @@
 @layer widget-ui {
   .widget-bar { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .widget-bar__track { height: var(--widget-bar-height, 4px); background: var(--color-border); border-radius: 2px; overflow: hidden; }
-  .widget-bar__fill { height: 100%; background: var(--widget-bar-tone); border-radius: inherit; transition: width 400ms ease; }
+  .widget-bar__fill { width: var(--widget-bar-value); height: 100%; background: var(--widget-bar-tone); border-radius: inherit; transition: width 400ms ease; }
   .widget-bar__label { color: var(--color-text-muted); font-size: 0.625rem; line-height: 1.5; text-align: right; }
   .widget-bar--tone-neutral { --widget-bar-tone: var(--widget-stat-tone-neutral); }
   .widget-bar--tone-positive { --widget-bar-tone: var(--widget-stat-tone-positive); }
