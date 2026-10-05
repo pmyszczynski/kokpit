@@ -138,11 +138,14 @@ test("Arr list semantics preserve progress boundaries, status priority, dates an
     const queueWidget = tile(page, type);
     await expect(queueWidget.getByRole("progressbar").nth(0)).toHaveAttribute("aria-valuenow", "0");
     await expect(queueWidget.getByRole("progressbar").nth(3)).toHaveAttribute("aria-valuenow", "100");
-    const fillRatios = await queueWidget.getByRole("progressbar").evaluateAll(bars => bars.map(bar => {
+    const fillMeasurements = await queueWidget.getByRole("progressbar").evaluateAll(bars => bars.map((bar, index) => {
       const track = bar.getBoundingClientRect(), fill = bar.firstElementChild!.getBoundingClientRect();
-      return Math.abs(fill.width / track.width * 100 - Number(bar.getAttribute("aria-valuenow"))) < 0.05;
+      return { index, label: bar.getAttribute("aria-label"), actual: fill.width / track.width * 100, expected: Number(bar.getAttribute("aria-valuenow")) };
     }));
-    expect(fillRatios.every(Boolean)).toBe(true);
+    expect(fillMeasurements).toHaveLength(15);
+    for (const measurement of fillMeasurements) {
+      expect(measurement.actual, JSON.stringify(measurement)).toBeCloseTo(measurement.expected, 1);
+    }
     await expect(queueWidget.getByRole("progressbar").nth(1)).toHaveAccessibleName(new RegExp(type === "sonarr-queue" ? "The.Bear" : "Interstellar"));
     await expect(queueWidget.locator(`.${type}-widget__status`).nth(0)).toHaveClass(/tone-neutral/);
     await expect(queueWidget.locator(`.${type}-widget__status`).nth(1)).toHaveClass(/tone-warning/);
