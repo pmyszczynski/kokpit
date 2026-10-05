@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
-import { WidgetBar } from "./WidgetBar";
+import { describe, it, expect, expectTypeOf } from "vitest";
+import type { ReactElement } from "react";
+import { WidgetBar, type WidgetBarProps } from "./WidgetBar";
 
 describe("WidgetBar", () => {
+  it("requires equivalent accessible text for rich labels", () => {
+    expectTypeOf<{ label: string; value: number; valueLabel: ReactElement }>().not.toExtend<WidgetBarProps>();
+    expectTypeOf<{ label: string; value: number; valueLabel: ReactElement; valueText: string }>().toExtend<WidgetBarProps>();
+    expectTypeOf<{ label: string; value: number; valueLabel: string }>().toExtend<WidgetBarProps>();
+  });
   it("names task progress and retains visible formatted values", () => {
     render(<WidgetBar label="Episode download" value={73} valueLabel="73%" tone="positive" />);
     const bar = screen.getByRole("progressbar", { name: "Episode download" });

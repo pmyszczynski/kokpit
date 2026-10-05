@@ -17,7 +17,7 @@ export function RadarrQueueWidget({ data, loading, error }: WidgetProps<RadarrQu
     aria-label="Radarr queue" reserveNotice
     notice={<WidgetStaleNotice error={error} className="radarr-queue-widget__stale-error" />}>
     <WidgetList label="Radarr queue" listClassName="radarr-queue-widget__list"
-      columnLabels={["Name", "Progress", "Status", "ETA"]} headerClassName="radarr-queue-widget__header"
+      columnLabels={["Name", "Progress", "Status", "ETA"]} columnsClassName="radarr-queue-widget__header"
       empty={data.length === 0 ? <WidgetState state="empty" className="radarr-queue-widget__hint">Queue is empty</WidgetState> : undefined}>
       {data.map(item => {
         const pct = calcProgress(item.size, item.sizeleft);

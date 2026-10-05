@@ -17,7 +17,7 @@ export function SonarrQueueWidget({ data, loading, error }: WidgetProps<SonarrQu
     aria-label="Sonarr queue" reserveNotice
     notice={<WidgetStaleNotice error={error} className="sonarr-queue-widget__stale-error" />}>
     <WidgetList label="Sonarr queue" listClassName="sonarr-queue-widget__list"
-      columnLabels={["Name", "Progress", "Status", "ETA"]} headerClassName="sonarr-queue-widget__header"
+      columnLabels={["Name", "Progress", "Status", "ETA"]} columnsClassName="sonarr-queue-widget__header"
       empty={data.length === 0 ? <WidgetState state="empty" className="sonarr-queue-widget__hint">Queue is empty</WidgetState> : undefined}>
       {data.map(item => {
         const pct = calcProgress(item.size, item.sizeleft);

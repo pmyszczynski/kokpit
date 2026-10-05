@@ -188,30 +188,100 @@ for (const empty of [false, true]) test(`Arr saved ${empty ? "empty" : "populate
     }
     const bounds = async () => Promise.all(TYPES.map(type => tile(page, type).locator(".widget-list,.widget-body__notice").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }))));
     const scrolls = async () => Promise.all(TYPES.map(type => tile(page, type).locator(".widget-list__scroll").evaluateAll(nodes => nodes.map(node => node.scrollTop))));
-    const healthy = await bounds(), offsets = await scrolls();
+    const healthy = await bounds(), offsets = empty ? undefined : await scrolls();
+    const expectScrollContract = async () => {
+      if (empty) for (const type of TYPES) await expect(tile(page, type).getByRole("list")).toHaveCount(0);
+      else expect(await scrolls()).toEqual(offsets);
+    };
+    await expectScrollContract();
     fails = true; await page.clock.fastForward(15000);
     for (const type of TYPES.slice(1)) await expect(tile(page, type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
     await expect(tile(page, TYPES[0]).getByRole("alert")).toHaveCount(0);
     await page.clock.fastForward(45000);
     for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
-    expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
+    expect(await bounds()).toEqual(healthy); await expectScrollContract();
     if (!empty && theme === "dark") await testInfo.attach("Arr stale", { body: await page.locator(".dashboard-tile-grid").screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
     fails = false; await page.clock.fastForward(60000);
     for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveCount(0);
-    expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
+    expect(await bounds()).toEqual(healthy); await expectScrollContract();
   }
 });
 
 test("Arr shared list cells, badge and bar respect ordinary custom CSS", async ({ page, request }) => {
-  await configure(request, "dark", `.sonarr-calendar-widget__row { padding-top:10px; } .sonarr-calendar-widget__badge { color:#040506; } .sonarr-queue-widget__progress-bar, .radarr-queue-widget__progress-bar { height:7px; } .sonarr-queue-widget__progress-fill, .radarr-queue-widget__progress-fill { background:#112233; } .sonarr-queue-widget__status, .radarr-queue-widget__status { color:#040506; }`);
+  await configure(request, "dark", `.sonarr-calendar-widget__row { padding-top:10px; } .sonarr-calendar-widget__badge { color:#040506; } .sonarr-queue-widget, .radarr-queue-widget { --widget-list-column-template:minmax(0,1fr) 68px 76px 56px; --widget-list-item-gap:9px; } .sonarr-queue-widget__progress-bar, .radarr-queue-widget__progress-bar { height:7px; } .sonarr-queue-widget__progress-fill, .radarr-queue-widget__progress-fill { background:#112233; } .sonarr-queue-widget__status, .radarr-queue-widget__status { color:#040506; }`);
   await mock(page); await page.goto("/");
   await expect(tile(page, TYPES[0]).getByRole("listitem").first()).toHaveCSS("padding-top", "10px");
   await expect(tile(page, TYPES[0]).locator(".widget-badge").first()).toHaveCSS("color", "rgb(4, 5, 6)");
   for (const type of TYPES.slice(1)) {
+    await expectFit(tile(page, type), true);
+    await expect(tile(page, type).locator(".widget-list__columns")).toHaveCSS("column-gap", "9px");
+    await expect(tile(page, type).getByRole("listitem").first()).toHaveCSS("column-gap", "9px");
     await expect(tile(page, type).getByRole("progressbar").first()).toHaveCSS("height", "7px");
     await expect(tile(page, type).locator(".widget-bar__fill").first()).toHaveCSS("background-color", "rgb(17, 34, 51)");
     await expect(tile(page, type).locator(`.${type}-widget__status`).first()).toHaveCSS("color", "rgb(4, 5, 6)");
   }
+});
+
+test("All advertised shared bar and column tones produce their theme colors", async ({ page, request }) => {
+  await mock(page);
+  for (const theme of THEMES) {
+    await configure(request, theme); await page.goto("/");
+    const widget = tile(page, TYPES[1]); await expect(widget.getByRole("listitem")).toHaveCount(15);
+    const colors = await widget.evaluate(element => {
+      const bar = element.querySelector(".widget-bar")!, cell = element.querySelector(".sonarr-queue-widget__status")!;
+      const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d")!;
+      const rgb = (color: string) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1); return Array.from(ctx.getImageData(0, 0, 1, 1).data); };
+      const originalBar = bar.className, originalCell = cell.className;
+      const result = ["neutral", "positive", "info", "warning", "alert", "positive-soft", "info-soft"].map(tone => {
+        bar.className = originalBar.replace(/widget-bar--tone-\S+/, `widget-bar--tone-${tone}`);
+        cell.className = originalCell.replace(/widget-list-item__column--tone-\S+/, `widget-list-item__column--tone-${tone}`);
+        const barStyle = getComputedStyle(bar), cellStyle = getComputedStyle(cell);
+        return {
+          tone, barMatches: JSON.stringify(rgb(getComputedStyle(bar.querySelector(".widget-bar__fill")!).backgroundColor)) === JSON.stringify(rgb(barStyle.getPropertyValue(`--widget-stat-tone-${tone}`))),
+          cellMatches: JSON.stringify(rgb(cellStyle.color)) === JSON.stringify(rgb(cellStyle.getPropertyValue(tone === "neutral" ? "--color-text-muted" : `--widget-stat-tone-${tone}`))),
+        };
+      });
+      bar.className = originalBar; cell.className = originalCell; return result;
+    });
+    expect(colors).toEqual(["neutral", "positive", "info", "warning", "alert", "positive-soft", "info-soft"].map(tone => ({ tone, barMatches: true, cellMatches: true })));
+  }
+});
+
+test("Aligned shared rows keep slot positions when accessories are absent and have a non-subgrid fallback", async ({ page, request }) => {
+  await mock(page); await configure(request); await page.goto("/");
+  const widget = tile(page, TYPES[0]); await expect(widget.getByRole("listitem")).toHaveCount(15);
+  await widget.evaluate(element => {
+    const rows = element.querySelectorAll(".widget-list-item");
+    rows[0].querySelector(".widget-list-item__leading")!.remove();
+    rows[1].querySelector(".widget-list-item__trailing")!.remove();
+    rows[2].querySelector(".widget-list-item__leading")!.remove(); rows[2].querySelector(".widget-list-item__trailing")!.remove();
+  });
+  const aligned = await widget.locator(".widget-list-item__content").evaluateAll(nodes => nodes.every(node => Math.abs(node.getBoundingClientRect().left - nodes[0].getBoundingClientRect().left) < 0.5));
+  expect(aligned).toBe(true);
+  const removed = await page.evaluate(() => {
+    let count = 0;
+    const strip = (sheet: CSSStyleSheet | CSSGroupingRule) => {
+      for (let i = sheet.cssRules.length - 1; i >= 0; i--) {
+        const rule = sheet.cssRules[i];
+        if (rule instanceof CSSSupportsRule && rule.conditionText.includes("subgrid")) { sheet.deleteRule(i); count++; }
+        else if (rule instanceof CSSGroupingRule) strip(rule);
+      }
+    };
+    for (const sheet of Array.from(document.styleSheets)) strip(sheet);
+    return count;
+  });
+  expect(removed).toBeGreaterThan(0);
+  const fallback = await widget.getByRole("listitem").evaluateAll(rows => rows.every(row => {
+    const cells = Array.from(row.children).map(node => ({ node, rect: node.getBoundingClientRect(), column: getComputedStyle(node).gridColumnStart }));
+    const r = row.getBoundingClientRect();
+    return getComputedStyle(row).gridTemplateColumns.split(" ").length === 3 && cells.every(({ node, rect, column }) => {
+      const expected = node.classList.contains("widget-list-item__leading") ? "1" : node.classList.contains("widget-list-item__content") ? "2" : "3";
+      return column === expected && rect.top >= r.top && rect.bottom <= r.bottom && rect.left >= r.left && rect.right <= r.right;
+    });
+  }));
+  expect(fallback).toBe(true);
+  expect(await widget.getByRole("list").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
 });
 
 test("Arr list comparison previews", async ({ page, request }, testInfo) => {

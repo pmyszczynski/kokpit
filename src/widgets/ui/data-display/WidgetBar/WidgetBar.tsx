@@ -8,9 +8,6 @@ interface WidgetBarBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, "child
   min?: number;
   max?: number;
   tone?: WidgetStatTone;
-  /** Caller-formatted visible domain value, including values beyond the range. */
-  valueLabel?: ReactNode;
-  valueText?: string;
   trackClassName?: string;
   fillClassName?: string;
   labelClassName?: string;
@@ -18,6 +15,10 @@ interface WidgetBarBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, "child
 export type WidgetBarProps = WidgetBarBaseProps & (
   | { kind?: "progress"; value: number | null }
   | { kind: "usage"; value: number }
+) & (
+  | { valueLabel?: string | null; valueText?: string }
+  /** Rich domain labels must supply their equivalent accessible value text. */
+  | { valueLabel?: ReactNode; valueText: string }
 );
 
 /** A named progress or usage measurement; integrations retain domain formatting. */

@@ -1,4 +1,5 @@
 @layer widget-ui {
+  :root { --widget-list-column-template: minmax(0, 1fr) 72px 72px 56px; }
   :where(.widget-ui, .widget-ui::before, .widget-ui::after,
     .widget-ui *, .widget-ui *::before, .widget-ui *::after) {
     box-sizing: border-box;

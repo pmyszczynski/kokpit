@@ -8,6 +8,8 @@
   .widget-bar--tone-info { --widget-bar-tone: var(--widget-stat-tone-info); }
   .widget-bar--tone-warning { --widget-bar-tone: var(--widget-stat-tone-warning); }
   .widget-bar--tone-alert { --widget-bar-tone: var(--widget-stat-tone-alert); }
+  .widget-bar--tone-positive-soft { --widget-bar-tone: var(--widget-stat-tone-positive-soft); }
+  .widget-bar--tone-info-soft { --widget-bar-tone: var(--widget-stat-tone-info-soft); }
   .widget-bar--indeterminate .widget-bar__track { background: repeating-linear-gradient(90deg, var(--color-border) 0 6px, var(--widget-bar-tone) 6px 8px); }
   @media (prefers-reduced-motion: reduce) { .widget-bar__fill { transition: none; } }
 }
