@@ -33,7 +33,7 @@ describe("SonarrQueueWidget", () => {
     render(
       <SonarrQueueWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toHaveClass("widget-state--loading");
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -65,7 +65,7 @@ describe("SonarrQueueWidget", () => {
       />
     );
     expect(screen.getByText("Queue is empty")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders item titles", () => {
@@ -128,7 +128,7 @@ describe("SonarrQueueWidget", () => {
       />
     );
     expect(screen.getByText("Breaking.Bad.S01E01")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders --empty container when data is null and neither loading nor error", () => {

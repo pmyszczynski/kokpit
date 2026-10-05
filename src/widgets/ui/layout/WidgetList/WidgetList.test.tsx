@@ -19,4 +19,11 @@ describe("WidgetList", () => {
   expect(screen.getByText("No items")).toBeInTheDocument();
   expect(screen.queryByRole("list")).not.toBeInTheDocument();
  });
+ it("keeps column labels fixed outside the list and omits them for empty data", () => {
+  const { rerender } = render(<WidgetList label="Downloads" columnLabels={["Name", "Progress", "Status", "ETA"]}><li>Download</li></WidgetList>);
+  expect(screen.getByText("Progress")).toBeVisible();
+  expect(screen.getByRole("list")).not.toContainElement(screen.getByText("Progress"));
+  rerender(<WidgetList label="Downloads" columnLabels={["Name", "Progress", "Status", "ETA"]} empty="Queue is empty" />);
+  expect(screen.queryByText("Progress")).not.toBeInTheDocument();
+ });
 });

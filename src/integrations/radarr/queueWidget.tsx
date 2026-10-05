@@ -2,97 +2,52 @@ import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { fetchQueue, RadarrConfigSchema } from "./api";
 import type { RadarrConfig, RadarrQueueItem } from "./api";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { calcProgress } from "@/integrations/shared/queue";
 
-export function RadarrQueueWidget({
-  data,
-  loading,
-  error,
-  refresh: _refresh,
-}: WidgetProps<RadarrQueueItem[]>) {
+export function RadarrQueueWidget({ data, loading, error }: WidgetProps<RadarrQueueItem[]>) {
   if (!data) {
-    return (
-      <div className="radarr-queue-widget radarr-queue-widget--empty">
-        {loading && (
-          <span className="radarr-queue-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="radarr-queue-widget__hint radarr-queue-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="radarr-queue-widget radarr-queue-widget--empty">
+      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+        className={loading ? "radarr-queue-widget__hint" : undefined}
+        labelClassName="radarr-queue-widget__hint radarr-queue-widget__hint--error">{!loading ? error : undefined}</WidgetState>
+    </WidgetBody>;
   }
-
-  if (data.length === 0) {
-    return (
-      <div className="radarr-queue-widget radarr-queue-widget--empty">
-        <span className="radarr-queue-widget__hint">Queue is empty</span>
-        {error && (
-          <span className="radarr-queue-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="radarr-queue-widget" aria-label="Radarr queue">
-      <div className="radarr-queue-widget__header">
-        <span>Name</span>
-        <span>Progress</span>
-        <span>Status</span>
-        <span>ETA</span>
-      </div>
-      <div className="radarr-queue-widget__list">
-        {data.map((item) => {
-          const pct = calcProgress(item.size, item.sizeleft);
-          const showStatusBadge =
-            item.trackedDownloadStatus &&
-            item.trackedDownloadStatus.toLowerCase() !== "ok";
-          return (
-            <div key={item.id} className="radarr-queue-widget__row">
-              <span className="radarr-queue-widget__name" title={item.title}>
-                {item.movieTitle}
-              </span>
-              <div className="radarr-queue-widget__progress-cell">
-                <div className="radarr-queue-widget__progress-bar">
-                  <div
-                    className="radarr-queue-widget__progress-fill"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="radarr-queue-widget__progress-text">
-                  {pct}%
-                </span>
-              </div>
-              <span
-                className={`radarr-queue-widget__status${showStatusBadge ? ` radarr-queue-widget__status--${item.trackedDownloadStatus.toLowerCase()}` : ""}`}
-              >
-                {item.status}
-              </span>
-              <span className="radarr-queue-widget__timeleft">
-                {item.timeleft ?? "—"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {error && (
-        <span className="radarr-queue-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  return <WidgetBody className={`radarr-queue-widget${data.length === 0 ? " radarr-queue-widget--empty" : ""}`}
+    aria-label="Radarr queue" reserveNotice
+    notice={<WidgetStaleNotice error={error} className="radarr-queue-widget__stale-error" />}>
+    <WidgetList label="Radarr queue" listClassName="radarr-queue-widget__list"
+      columnLabels={["Name", "Progress", "Status", "ETA"]} headerClassName="radarr-queue-widget__header"
+      empty={data.length === 0 ? <WidgetState state="empty" className="radarr-queue-widget__hint">Queue is empty</WidgetState> : undefined}>
+      {data.map(item => {
+        const pct = calcProgress(item.size, item.sizeleft);
+        const tracked = item.trackedDownloadStatus?.toLowerCase();
+        const tone = tracked === "warning" ? "warning" : tracked === "error" ? "alert" : "neutral";
+        const statusClass = tracked && tracked !== "ok" ? ` radarr-queue-widget__status--${tracked}` : "";
+        return <WidgetListItem key={item.id} className="radarr-queue-widget__row" title={item.movieTitle} titleTooltip={item.title}
+          titleClassName="radarr-queue-widget__name" columns={[
+            { content: <WidgetBar label={`Download progress for ${item.movieTitle}`} value={pct} valueLabel={`${pct}%`} tone="positive"
+              className="radarr-queue-widget__progress-cell" trackClassName="radarr-queue-widget__progress-bar"
+              fillClassName="radarr-queue-widget__progress-fill" labelClassName="radarr-queue-widget__progress-text" /> },
+            { content: item.status, tone, className: `radarr-queue-widget__status${statusClass}` },
+            { content: item.timeleft ?? "—", className: "radarr-queue-widget__timeleft" },
+          ]} />;
+      })}
+    </WidgetList>
+  </WidgetBody>;
 }
 
 registerWidget<RadarrConfig, RadarrQueueItem[]>({
   id: "radarr-queue",
   name: "Radarr Queue",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "radarr-queue-widget radarr-queue-widget--empty",
+    loading: "radarr-queue-widget__hint",
+    error: "radarr-queue-widget__hint radarr-queue-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {
