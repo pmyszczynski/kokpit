@@ -2,97 +2,52 @@ import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { fetchQueue, SonarrConfigSchema } from "./api";
 import type { SonarrConfig, SonarrQueueItem } from "./api";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { calcProgress } from "@/integrations/shared/queue";
 
-export function SonarrQueueWidget({
-  data,
-  loading,
-  error,
-  refresh: _refresh,
-}: WidgetProps<SonarrQueueItem[]>) {
+export function SonarrQueueWidget({ data, loading, error }: WidgetProps<SonarrQueueItem[]>) {
   if (!data) {
-    return (
-      <div className="sonarr-queue-widget sonarr-queue-widget--empty">
-        {loading && (
-          <span className="sonarr-queue-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="sonarr-queue-widget__hint sonarr-queue-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="sonarr-queue-widget sonarr-queue-widget--empty">
+      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+        className={loading ? "sonarr-queue-widget__hint" : undefined}
+        labelClassName="sonarr-queue-widget__hint sonarr-queue-widget__hint--error">{!loading ? error : undefined}</WidgetState>
+    </WidgetBody>;
   }
-
-  if (data.length === 0) {
-    return (
-      <div className="sonarr-queue-widget sonarr-queue-widget--empty">
-        <span className="sonarr-queue-widget__hint">Queue is empty</span>
-        {error && (
-          <span className="sonarr-queue-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="sonarr-queue-widget" aria-label="Sonarr queue">
-      <div className="sonarr-queue-widget__header">
-        <span>Name</span>
-        <span>Progress</span>
-        <span>Status</span>
-        <span>ETA</span>
-      </div>
-      <div className="sonarr-queue-widget__list">
-        {data.map((item) => {
-          const pct = calcProgress(item.size, item.sizeleft);
-          const showStatusBadge =
-            item.trackedDownloadStatus &&
-            item.trackedDownloadStatus.toLowerCase() !== "ok";
-          return (
-            <div key={item.id} className="sonarr-queue-widget__row">
-              <span className="sonarr-queue-widget__name" title={item.title}>
-                {item.title}
-              </span>
-              <div className="sonarr-queue-widget__progress-cell">
-                <div className="sonarr-queue-widget__progress-bar">
-                  <div
-                    className="sonarr-queue-widget__progress-fill"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="sonarr-queue-widget__progress-text">
-                  {pct}%
-                </span>
-              </div>
-              <span
-                className={`sonarr-queue-widget__status${showStatusBadge ? ` sonarr-queue-widget__status--${item.trackedDownloadStatus.toLowerCase()}` : ""}`}
-              >
-                {item.status}
-              </span>
-              <span className="sonarr-queue-widget__timeleft">
-                {item.timeleft ?? "—"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {error && (
-        <span className="sonarr-queue-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  return <WidgetBody className={`sonarr-queue-widget${data.length === 0 ? " sonarr-queue-widget--empty" : ""}`}
+    aria-label="Sonarr queue" reserveNotice
+    notice={<WidgetStaleNotice error={error} className="sonarr-queue-widget__stale-error" />}>
+    <WidgetList label="Sonarr queue" listClassName="sonarr-queue-widget__list"
+      columnLabels={["Name", "Progress", "Status", "ETA"]} columnsClassName="sonarr-queue-widget__header"
+      empty={data.length === 0 ? <WidgetState state="empty" className="sonarr-queue-widget__hint">Queue is empty</WidgetState> : undefined}>
+      {data.map(item => {
+        const pct = calcProgress(item.size, item.sizeleft);
+        const tracked = item.trackedDownloadStatus?.toLowerCase();
+        const tone = tracked === "warning" ? "warning" : tracked === "error" ? "alert" : "neutral";
+        const statusClass = tracked && tracked !== "ok" ? ` sonarr-queue-widget__status--${tracked}` : "";
+        return <WidgetListItem key={item.id} className="sonarr-queue-widget__row" title={item.title} titleTooltip={item.title}
+          titleClassName="sonarr-queue-widget__name" columns={[
+            { content: <WidgetBar label={`Download progress for ${item.title}`} value={pct} valueLabel={`${pct}%`} tone="positive"
+              className="sonarr-queue-widget__progress-cell" trackClassName="sonarr-queue-widget__progress-bar"
+              fillClassName="sonarr-queue-widget__progress-fill" labelClassName="sonarr-queue-widget__progress-text" /> },
+            { content: item.status, tone, className: `sonarr-queue-widget__status${statusClass}` },
+            { content: item.timeleft ?? "—", className: "sonarr-queue-widget__timeleft" },
+          ]} />;
+      })}
+    </WidgetList>
+  </WidgetBody>;
 }
 
 registerWidget<SonarrConfig, SonarrQueueItem[]>({
   id: "sonarr-queue",
   name: "Sonarr Queue",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "sonarr-queue-widget sonarr-queue-widget--empty",
+    loading: "sonarr-queue-widget__hint",
+    error: "sonarr-queue-widget__hint sonarr-queue-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {

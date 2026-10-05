@@ -261,6 +261,16 @@ describe("sonarr-calendar widget registration", () => {
     vi.resetModules();
   });
 
+  it("opts into shared feedback without changing the tall footprint", async () => {
+    await import("@/integrations/sonarr/calendarWidget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("sonarr-calendar")).toMatchObject({
+      preferredSize: "tall", minSize: "tall", compactHeader: true, sharedUI: true,
+      supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+      sharedStateClassNames: { wrapper: "sonarr-calendar-widget sonarr-calendar-widget--empty" },
+    });
+  });
+
   it("registers a widget with id 'sonarr-calendar' on import", async () => {
     await import("@/integrations/sonarr/calendarWidget");
     const { getWidget } = await import("@/widgets");
@@ -342,6 +352,16 @@ describe("sonarr-queue widget registration", () => {
   beforeEach(() => {
     clearRegistry();
     vi.resetModules();
+  });
+
+  it("opts into shared feedback without changing the tall footprint", async () => {
+    await import("@/integrations/sonarr/queueWidget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("sonarr-queue")).toMatchObject({
+      preferredSize: "tall", minSize: "tall", compactHeader: true, sharedUI: true,
+      supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+      sharedStateClassNames: { wrapper: "sonarr-queue-widget sonarr-queue-widget--empty" },
+    });
   });
 
   it("registers a widget with id 'sonarr-queue' on import", async () => {

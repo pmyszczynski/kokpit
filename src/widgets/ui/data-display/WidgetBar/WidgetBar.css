@@ -1,0 +1,15 @@
+@layer widget-ui {
+  .widget-bar { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .widget-bar__track { height: var(--widget-bar-height, 4px); background: var(--color-border); border-radius: 2px; overflow: hidden; }
+  .widget-bar__fill { width: var(--widget-bar-value); height: 100%; background: var(--widget-bar-tone); border-radius: inherit; transition: width 400ms ease; }
+  .widget-bar__label { color: var(--color-text-muted); font-size: 0.625rem; line-height: 1.5; text-align: right; }
+  .widget-bar--tone-neutral { --widget-bar-tone: var(--widget-stat-tone-neutral); }
+  .widget-bar--tone-positive { --widget-bar-tone: var(--widget-stat-tone-positive); }
+  .widget-bar--tone-info { --widget-bar-tone: var(--widget-stat-tone-info); }
+  .widget-bar--tone-warning { --widget-bar-tone: var(--widget-stat-tone-warning); }
+  .widget-bar--tone-alert { --widget-bar-tone: var(--widget-stat-tone-alert); }
+  .widget-bar--tone-positive-soft { --widget-bar-tone: var(--widget-stat-tone-positive-soft); }
+  .widget-bar--tone-info-soft { --widget-bar-tone: var(--widget-stat-tone-info-soft); }
+  .widget-bar--indeterminate .widget-bar__track { background: repeating-linear-gradient(90deg, var(--color-border) 0 6px, var(--widget-bar-tone) 6px 8px); }
+  @media (prefers-reduced-motion: reduce) { .widget-bar__fill { transition: none; } }
+}

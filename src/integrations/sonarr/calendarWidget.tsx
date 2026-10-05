@@ -1,5 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchCalendar, SonarrConfigSchema } from "./api";
 import type { SonarrConfig, SonarrEpisode } from "./api";
 
@@ -26,84 +27,42 @@ function formatEpCode(season: number, episode: number): string {
   return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
 }
 
-export function SonarrCalendarWidget({
-  data,
-  loading,
-  error,
-  refresh: _refresh,
-}: WidgetProps<SonarrEpisode[]>) {
+export function SonarrCalendarWidget({ data, loading, error }: WidgetProps<SonarrEpisode[]>) {
   if (!data) {
-    return (
-      <div className="sonarr-calendar-widget sonarr-calendar-widget--empty">
-        {loading && (
-          <span className="sonarr-calendar-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="sonarr-calendar-widget__hint sonarr-calendar-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="sonarr-calendar-widget sonarr-calendar-widget--empty">
+      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+        className={loading ? "sonarr-calendar-widget__hint" : undefined}
+        labelClassName="sonarr-calendar-widget__hint sonarr-calendar-widget__hint--error">{!loading ? error : undefined}</WidgetState>
+    </WidgetBody>;
   }
-
-  if (data.length === 0) {
-    return (
-      <div className="sonarr-calendar-widget sonarr-calendar-widget--empty">
-        <span className="sonarr-calendar-widget__hint">
-          No upcoming episodes
-        </span>
-        {error && (
-          <span className="sonarr-calendar-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="sonarr-calendar-widget" aria-label="Sonarr calendar">
-      <div className="sonarr-calendar-widget__list">
-        {data.map((episode) => (
-          <div key={episode.id} className="sonarr-calendar-widget__row">
-            <span className="sonarr-calendar-widget__airtime">
-              {formatAirDate(episode.airDateUtc)}
-            </span>
-            <div className="sonarr-calendar-widget__info">
-              <span
-                className="sonarr-calendar-widget__title"
-                title={episode.seriesTitle}
-              >
-                {episode.seriesTitle}
-              </span>
-              <span className="sonarr-calendar-widget__ep">
-                {formatEpCode(episode.seasonNumber, episode.episodeNumber)}
-                {" · "}
-                {episode.title}
-              </span>
-            </div>
-            <span
-              className={`sonarr-calendar-widget__badge${episode.hasFile ? " sonarr-calendar-widget__badge--downloaded" : " sonarr-calendar-widget__badge--upcoming"}`}
-            >
-              {episode.hasFile ? "downloaded" : "upcoming"}
-            </span>
-          </div>
-        ))}
-      </div>
-      {error && (
-        <span className="sonarr-calendar-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  return <WidgetBody className={`sonarr-calendar-widget${data.length === 0 ? " sonarr-calendar-widget--empty" : ""}`}
+    aria-label="Sonarr calendar" reserveNotice
+    notice={<WidgetStaleNotice error={error} className="sonarr-calendar-widget__stale-error" />}>
+    <WidgetList label="Sonarr calendar" listClassName="sonarr-calendar-widget__list" alignAccessories
+      empty={data.length === 0 ? <WidgetState state="empty" className="sonarr-calendar-widget__hint">No upcoming episodes</WidgetState> : undefined}>
+      {data.map(episode => <WidgetListItem key={episode.id} className="sonarr-calendar-widget__row"
+        title={episode.seriesTitle} titleClassName="sonarr-calendar-widget__title" contentClassName="sonarr-calendar-widget__info"
+        secondary={`${formatEpCode(episode.seasonNumber, episode.episodeNumber)} · ${episode.title}`} secondaryClassName="sonarr-calendar-widget__ep"
+        leading={<time className="sonarr-calendar-widget__airtime" dateTime={episode.airDateUtc} title={episode.airDateUtc}>{formatAirDate(episode.airDateUtc)}</time>}
+        trailing={<WidgetBadge tone={episode.hasFile ? "positive" : "info"}
+          className={`sonarr-calendar-widget__badge sonarr-calendar-widget__badge--${episode.hasFile ? "downloaded" : "upcoming"}`}>
+          {episode.hasFile ? "downloaded" : "upcoming"}
+        </WidgetBadge>} />)}
+    </WidgetList>
+  </WidgetBody>;
 }
 
 registerWidget<SonarrConfig, SonarrEpisode[]>({
   id: "sonarr-calendar",
   name: "Sonarr Calendar",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "sonarr-calendar-widget sonarr-calendar-widget--empty",
+    loading: "sonarr-calendar-widget__hint",
+    error: "sonarr-calendar-widget__hint sonarr-calendar-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {

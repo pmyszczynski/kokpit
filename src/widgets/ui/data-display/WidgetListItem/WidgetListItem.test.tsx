@@ -16,4 +16,12 @@ describe("WidgetListItem", () => {
   expect(screen.getByText("Formatted title").closest("span")).toHaveAttribute("title", "Complete formatted title");
   expect(screen.getByText("Requester").closest("span")).toHaveAttribute("title", "Full requesting person");
  });
+ it("preserves full column content and explicit field meanings", () => {
+  render(<ul><WidgetListItem title="Movie" columns={[
+   { content: "73%" }, { content: "Waiting for import with a warning", tone: "warning" }, { content: "2 days, 01:23:45" },
+  ]} /></ul>);
+  expect(screen.getByRole("listitem")).toHaveClass("widget-list-item--columns");
+  expect(screen.getByText("Waiting for import with a warning")).toHaveClass("widget-list-item__column--tone-warning");
+  expect(screen.getByText("2 days, 01:23:45")).toBeInTheDocument();
+ });
 });

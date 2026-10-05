@@ -1,4 +1,8 @@
 @layer widget-ui {
+  :root {
+    --widget-list-column-template: minmax(0, 1fr) 72px 72px 56px;
+    --widget-list-fallback-template: 72px minmax(0, 1fr) 96px;
+  }
   :where(.widget-ui, .widget-ui::before, .widget-ui::after,
     .widget-ui *, .widget-ui *::before, .widget-ui *::after) {
     box-sizing: border-box;
@@ -26,7 +30,9 @@
   }
 
   .widget-stat,
-  .widget-badge {
+  .widget-badge,
+  .widget-bar,
+  .widget-list-item {
     --widget-stat-tone-neutral: var(--color-text);
     --widget-stat-tone-alert: #f87171;
     --widget-stat-tone-warning: #fbbf24;
@@ -38,8 +44,12 @@
 
   [data-theme="light"] .widget-stat,
   [data-theme="light"] .widget-badge,
+  [data-theme="light"] .widget-bar,
+  [data-theme="light"] .widget-list-item,
   [data-theme="high-contrast"] .widget-stat,
-  [data-theme="high-contrast"] .widget-badge {
+  [data-theme="high-contrast"] .widget-badge,
+  [data-theme="high-contrast"] .widget-bar,
+  [data-theme="high-contrast"] .widget-list-item {
     --widget-stat-tone-alert: #b91c1c;
     --widget-stat-tone-warning: #92400e;
     --widget-stat-tone-positive: #166534;

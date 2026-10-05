@@ -341,6 +341,16 @@ describe("radarr-queue widget registration", () => {
     vi.resetModules();
   });
 
+  it("opts into shared feedback without changing the tall footprint", async () => {
+    await import("@/integrations/radarr/queueWidget");
+    const { getWidget } = await import("@/widgets");
+    expect(getWidget("radarr-queue")).toMatchObject({
+      preferredSize: "tall", minSize: "tall", compactHeader: true, sharedUI: true,
+      supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+      sharedStateClassNames: { wrapper: "radarr-queue-widget radarr-queue-widget--empty" },
+    });
+  });
+
   it("registers a widget with id 'radarr-queue' on import", async () => {
     await import("@/integrations/radarr/queueWidget");
     const { getWidget } = await import("@/widgets");
