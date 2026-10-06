@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { CollisionDetection } from "@dnd-kit/core";
-import { dashboardCollisionDetection } from "@/components/edit/dragCollision";
+import type { CollisionDetection, KeyboardCoordinateGetter } from "@dnd-kit/core";
+import { dashboardCollisionDetection, dashboardKeyboardCoordinates } from "@/components/edit/dragCollision";
 
 type CollisionArgs = Parameters<CollisionDetection>[0];
 type Rect = CollisionArgs["collisionRect"];
@@ -93,5 +93,68 @@ describe("dashboard drop targets", () => {
     expect(dashboardCollisionDetection(args(
       rect(0, 0, 340, 60), [tile, section, group], { x: 10, y: 10 }, "group",
     )).map((collision) => collision.id)).toEqual(["group"]);
+  });
+});
+
+describe("dashboard keyboard targets", () => {
+  function keyboardArgs(bounds: Rect, containers: Container[]): Parameters<KeyboardCoordinateGetter>[1] {
+    const input = args(bounds, containers, null);
+    return {
+      active: input.active.id, currentCoordinates: { x: bounds.left, y: bounds.top },
+      context: {
+        active: input.active, collisionRect: bounds, droppableRects: input.droppableRects,
+        droppableContainers: {
+          getEnabled: () => containers.filter((container) => !container.disabled),
+        } as Parameters<KeyboardCoordinateGetter>[1]["context"]["droppableContainers"],
+        activatorEvent: null, activeNode: null, collisions: null, draggableNodes: new Map(),
+        draggingNode: null, draggingNodeRect: null, over: null,
+        scrollableAncestors: [], scrollAdjustedTranslate: null,
+      },
+    };
+  }
+
+  it.each([
+    ["ArrowUp", 348, 204],
+    ["ArrowDown", 348, 544],
+    ["ArrowLeft", 0, 272],
+    ["ArrowRight", 696, 272],
+  ] as const)("%s selects the short tile's corner without a size offset", (code, left, top) => {
+    const active = droppable("active", "tile", rect(348, 272, 340, 264));
+    const short = droppable("short", "tile", rect(left, top, 340, 60));
+    const input = keyboardArgs(active.rect.current!, [active, short]);
+    const coordinates = dashboardKeyboardCoordinates(new KeyboardEvent("keydown", { code }), input);
+    expect(coordinates).toEqual({ x: left, y: top });
+    // Feed the actual keyboard position into collision detection too.
+    expect(dashboardCollisionDetection(args(
+      rect(left, top, 340, 264), [active, short], null,
+    ))[0]?.id).toBe("short");
+  });
+
+  it("does not skip a short neighbor in favor of a tall tile below it", () => {
+    const active = droppable("active", "tile", rect(348, 272, 340, 264));
+    const short = droppable("short", "tile", rect(696, 272, 340, 60));
+    const tall = droppable("tall", "tile", rect(696, 340, 340, 264));
+    expect(dashboardKeyboardCoordinates(
+      new KeyboardEvent("keydown", { code: "ArrowRight" }),
+      keyboardArgs(active.rect.current!, [active, tall, short]),
+    )).toEqual({ x: 696, y: 272 });
+  });
+
+  it("can move into an empty section while ignoring group drag handles", () => {
+    const active = droppable("active", "tile", rect(0, 0, 340, 264));
+    const group = droppable("group", "group", rect(348, 0, 340, 264));
+    const empty = droppable("empty", "container", rect(696, 0, 340, 128));
+    expect(dashboardKeyboardCoordinates(
+      new KeyboardEvent("keydown", { code: "ArrowRight" }),
+      keyboardArgs(active.rect.current!, [active, group, empty]),
+    )).toEqual({ x: 696, y: 0 });
+  });
+
+  it("does not move when there is no target in the requested direction", () => {
+    const active = droppable("active", "tile", rect(0, 0, 340, 264));
+    expect(dashboardKeyboardCoordinates(
+      new KeyboardEvent("keydown", { code: "ArrowLeft" }),
+      keyboardArgs(active.rect.current!, [active]),
+    )).toBeUndefined();
   });
 });

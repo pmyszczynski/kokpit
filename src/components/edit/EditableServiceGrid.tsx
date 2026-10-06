@@ -35,7 +35,6 @@ import {
   SortableContext,
   arrayMove,
   rectSortingStrategy,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -73,7 +72,7 @@ import {
 } from "@/config/groupCascade";
 import { duplicateBookmark, duplicateService } from "@/config/duplicate";
 import { useEditMode } from "./EditModeProvider";
-import { dashboardCollisionDetection } from "./dragCollision";
+import { dashboardCollisionDetection, dashboardKeyboardCoordinates } from "./dragCollision";
 import { projectLegacyServices } from "./serviceFormProjection";
 import { getWidget, getWidgetSizeHints } from "@/widgets";
 import { resolveTileWidget } from "@/widgets/tileWidget";
@@ -548,7 +547,7 @@ export default function EditableServiceGrid({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: dashboardKeyboardCoordinates,
     })
   );
 

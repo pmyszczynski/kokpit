@@ -67,6 +67,29 @@ for (const shortRows of [1, 2]) {
       });
     });
 
+    test("keyboard moving forward from a tall tile targets the adjacent short tile", async ({ page }) => {
+      await page.goto("/");
+      await page.getByRole("button", { name: "Edit dashboard" }).click();
+      const handle = page.getByRole("button", { name: "Reorder Seerr", exact: true });
+      await handle.focus();
+      await page.keyboard.press("Space");
+      await expect(page.locator(".service-tile--dragging")).toBeVisible();
+      await page.keyboard.press("ArrowRight");
+      await page.waitForTimeout(150);
+      await page.keyboard.press("Space");
+
+      const expected = [
+        "Top 1", "Top 2", "Top 3", "Top 4", "Top 5",
+        "Prowlarr", "Tautulli", "Seerr", "Small 1", "Small 2",
+        "Seerr Req", "Small 3", "Small 4",
+      ];
+      await expect(mediaGrid(page).locator(".service-tile__name")).toHaveText(expected, { timeout: 5000 });
+      await page.getByRole("button", { name: /Save & exit/ }).click();
+      await expect(page.locator(".edit-bar")).toBeHidden();
+      await page.reload();
+      await expect(mediaGrid(page).locator(".service-tile__name")).toHaveText(expected);
+    });
+
     for (const gesture of ["tall onto short", "short onto tall", "keyboard"] as const) {
       test(`${gesture} aligns the tall widgets and persists after save + reload`, async ({ page, request }) => {
         await page.goto("/");
