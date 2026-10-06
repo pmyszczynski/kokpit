@@ -93,8 +93,27 @@ describe("DockerWidget", () => {
       <DockerWidget data={SAMPLE_DATA} loading={false} error="refresh failed" refresh={noop} />
     );
     expect(screen.getByText("kokpit")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
+  it("labels all states, retains source order and preserves full metadata", () => {
+    const containers = ["running", "paused", "restarting", "exited", "future-state"].map((state, i) => ({ ...SAMPLE_DATA.containers[0], id: String(i), name: `Container ${i}`, state }));
+    render(<DockerWidget data={{ running: 1, total: 5, containers }} loading={false} error={null} refresh={noop} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    for (const c of containers) expect(screen.getByRole("img", { name: c.state })).toHaveAttribute("title", c.state);
+    expect(screen.getAllByRole("listitem")[4]).toHaveTextContent("Container 4");
+    expect(screen.getByText("Container 0")).toHaveAttribute("title", "Container 0");
+    expect(screen.getAllByText(SAMPLE_DATA.containers[0].image)[0]).toHaveAttribute("title", SAMPLE_DATA.containers[0].image);
+    expect(screen.getAllByText("Up 2 hours")[0]).toHaveAttribute("title", "Up 2 hours");
+  });
+
+  it("keeps an empty saved summary on refresh failure without an empty scroll target", () => {
+    render(<DockerWidget data={{ running: 0, total: 4, containers: [] }} loading={false} error="Socket unavailable" refresh={noop} />);
+    expect(screen.getByText("4 total")).toBeInTheDocument();
+    expect(screen.getByText("No running containers")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Socket unavailable");
+  });
+
 });
 
 describe("docker widget registration", () => {
