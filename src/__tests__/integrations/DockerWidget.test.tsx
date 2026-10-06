@@ -100,7 +100,9 @@ describe("DockerWidget", () => {
     render(<DockerWidget data={{ running: 1, total: 5, containers }} loading={false} error={null} refresh={noop} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
     for (const c of containers) expect(screen.getByRole("img", { name: c.state })).toHaveAttribute("title", c.state);
-    expect(screen.getAllByRole("listitem")[4]).toHaveTextContent("Container 4");
+    screen.getAllByRole("listitem").forEach((row, index) => {
+      expect(row.querySelector(".docker-widget__name")).toHaveTextContent(containers[index].name);
+    });
     expect(screen.getByText("Container 0")).toHaveAttribute("title", "Container 0");
     expect(screen.getAllByText(SAMPLE_DATA.containers[0].image)[0]).toHaveAttribute("title", SAMPLE_DATA.containers[0].image);
     expect(screen.getAllByText("Up 2 hours")[0]).toHaveAttribute("title", "Up 2 hours");
