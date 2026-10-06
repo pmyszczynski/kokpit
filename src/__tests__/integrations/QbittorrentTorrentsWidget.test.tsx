@@ -55,7 +55,7 @@ describe("QbittorrentTorrentsWidget", () => {
       <QbittorrentTorrentsWidget data={[]} loading={false} error="refresh failed" refresh={noop} />
     );
     expect(screen.getByText("No torrents")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders torrent names", () => {
@@ -107,7 +107,7 @@ describe("QbittorrentTorrentsWidget", () => {
       />
     );
     expect(screen.getByText("Ubuntu 24.04")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders nothing meaningful when data is null and neither loading nor error", () => {
@@ -117,4 +117,27 @@ describe("QbittorrentTorrentsWidget", () => {
     expect(container.querySelector(".qbt-torrents-widget--empty")).toBeInTheDocument();
     expect(screen.queryByText("Ubuntu 24.04")).not.toBeInTheDocument();
   });
+  it("names progress measurements and bounds fill while retaining rounded domain text", () => {
+    render(<QbittorrentTorrentsWidget data={[
+      { ...SAMPLE_TORRENTS[0], progress: -0.1 },
+      { ...SAMPLE_TORRENTS[1], progress: 1.205 },
+    ]} loading={false} error={null} refresh={noop} />);
+    const negative = screen.getByRole("progressbar", { name: "Download progress for Ubuntu 24.04" });
+    expect(negative).toHaveAttribute("aria-valuenow", "0");
+    expect(negative).toHaveAttribute("aria-valuetext", "-10%");
+    const over = screen.getByRole("progressbar", { name: "Download progress for Fedora 40" });
+    expect(over).toHaveAttribute("aria-valuenow", "100");
+    expect(over).toHaveAttribute("aria-valuetext", "121%");
+    expect(screen.getByText("121%")).toBeInTheDocument();
+  });
+
+  it("retains full torrent names, source order and every row in a named list", () => {
+    const data = Array.from({ length: 25 }, (_, i) => ({ ...SAMPLE_TORRENTS[0], hash: String(i), name: `Torrent ${i} with a very long distribution release name` }));
+    render(<QbittorrentTorrentsWidget data={data} loading={false} error={null} refresh={noop} />);
+    expect(screen.getByRole("list", { name: "qBittorrent torrents" })).toHaveAttribute("tabindex", "0");
+    expect(screen.getAllByRole("listitem")).toHaveLength(25);
+    expect(screen.getAllByRole("listitem")[24]).toHaveTextContent(data[24].name);
+    expect(screen.getByText(data[0].name)).toHaveAttribute("title", data[0].name);
+  });
+
 });

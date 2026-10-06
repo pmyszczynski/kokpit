@@ -4,6 +4,9 @@ import { fetchTorrents } from "./api";
 import { QbittorrentConfigSchema } from "./api";
 import type { QbittorrentConfig, Torrent } from "./api";
 import { formatSpeed } from "./formatters";
+import {
+  WidgetBody, WidgetList, WidgetListItem, WidgetBar, WidgetState, WidgetStaleNotice,
+} from "@/widgets/ui";
 
 export { formatSpeed } from "./formatters";
 
@@ -11,81 +14,70 @@ export function QbittorrentTorrentsWidget({
   data,
   loading,
   error,
-  refresh: _refresh,
 }: WidgetProps<Torrent[]>) {
   if (!data) {
     return (
-      <div className="qbt-torrents-widget qbt-torrents-widget--empty">
-        {loading && (
-          <span className="qbt-torrents-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="qbt-torrents-widget__hint qbt-torrents-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className="qbt-torrents-widget qbt-torrents-widget--empty">
-        <span className="qbt-torrents-widget__hint">No torrents</span>
-        {error && (
-          <span className="qbt-torrents-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
+      <WidgetBody centered className="qbt-torrents-widget qbt-torrents-widget--empty">
+        <WidgetState
+          state={loading ? "loading" : error ? "error" : "empty"}
+          className="qbt-torrents-widget__hint"
+          labelClassName="qbt-torrents-widget__hint qbt-torrents-widget__hint--error"
+        >
+          {loading ? "Loading…" : error}
+        </WidgetState>
+      </WidgetBody>
     );
   }
 
   return (
-    <div className="qbt-torrents-widget" aria-label="qBittorrent torrents">
-      <div className="qbt-torrents-widget__header">
-        <span>Name</span>
-        <span>Progress</span>
-        <span>↓ Speed</span>
-        <span>↑ Speed</span>
-      </div>
-      <div className="qbt-torrents-widget__list">
-        {data.map((torrent) => {
+    <WidgetBody
+      className={`qbt-torrents-widget${data.length === 0 ? " qbt-torrents-widget--empty" : ""}`}
+      aria-label="qBittorrent torrents"
+      reserveNotice
+      notice={<WidgetStaleNotice error={error} className="qbt-torrents-widget__stale-error" />}
+    >
+      <WidgetList
+        label="qBittorrent torrents"
+        listClassName="qbt-torrents-widget__list"
+        columnLabels={["Name", "Progress", "↓ Speed", "↑ Speed"]}
+        columnsClassName="qbt-torrents-widget__header"
+        empty={data.length === 0 ? <WidgetState state="empty" className="qbt-torrents-widget__hint">No torrents</WidgetState> : undefined}
+      >
+        {data.map(torrent => {
           const pct = Math.round(torrent.progress * 100);
           return (
-            <div key={torrent.hash} className="qbt-torrents-widget__row">
-              <span className="qbt-torrents-widget__name" title={torrent.name}>
-                {torrent.name}
-              </span>
-              <div className="qbt-torrents-widget__progress-cell">
-                <div className="qbt-torrents-widget__progress-bar">
-                  <div
-                    className="qbt-torrents-widget__progress-fill"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="qbt-torrents-widget__progress-text">{pct}%</span>
-              </div>
-              <span
-                className={`qbt-torrents-widget__speed${torrent.dlspeed > 0 ? " qbt-torrents-widget__speed--active" : ""}`}
-              >
-                {formatSpeed(torrent.dlspeed)}
-              </span>
-              <span
-                className={`qbt-torrents-widget__speed${torrent.upspeed > 0 ? " qbt-torrents-widget__speed--active" : ""}`}
-              >
-                {formatSpeed(torrent.upspeed)}
-              </span>
-            </div>
+            <WidgetListItem
+              key={torrent.hash}
+              className="qbt-torrents-widget__row"
+              title={torrent.name}
+              titleClassName="qbt-torrents-widget__name"
+              columns={[
+                { content: <WidgetBar
+                  label={`Download progress for ${torrent.name}`}
+                  value={pct}
+                  valueLabel={`${pct}%`}
+                  tone="positive"
+                  className="qbt-torrents-widget__progress-cell"
+                  trackClassName="qbt-torrents-widget__progress-bar"
+                  fillClassName="qbt-torrents-widget__progress-fill"
+                  labelClassName="qbt-torrents-widget__progress-text"
+                /> },
+                {
+                  content: formatSpeed(torrent.dlspeed),
+                  tone: torrent.dlspeed > 0 ? "positive" : "neutral",
+                  className: `qbt-torrents-widget__speed${torrent.dlspeed > 0 ? " qbt-torrents-widget__speed--active" : ""}`,
+                },
+                {
+                  content: formatSpeed(torrent.upspeed),
+                  tone: torrent.upspeed > 0 ? "info" : "neutral",
+                  className: `qbt-torrents-widget__speed${torrent.upspeed > 0 ? " qbt-torrents-widget__speed--active" : ""}`,
+                },
+              ]}
+            />
           );
         })}
-      </div>
-      {error && (
-        <span className="qbt-torrents-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
+      </WidgetList>
+    </WidgetBody>
   );
 }
 
@@ -93,6 +85,13 @@ registerWidget<QbittorrentConfig, Torrent[]>({
   id: "qbittorrent-torrents",
   name: "qBittorrent Torrents",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "qbt-torrents-widget qbt-torrents-widget--empty",
+    loading: "qbt-torrents-widget__hint",
+    error: "qbt-torrents-widget__hint qbt-torrents-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   minSize: "tall",
   serviceEditorPreset: {
