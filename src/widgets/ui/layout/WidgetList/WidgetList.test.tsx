@@ -28,4 +28,14 @@ describe("WidgetList", () => {
   rerender(<WidgetList label="Downloads" columnLabels={["Name", "Progress", "Status", "ETA"]} empty="Queue is empty" />);
   expect(screen.queryByText("Progress")).not.toBeInTheDocument();
  });
+ it("retains caller summary content outside the list, including zero values and empty data", () => {
+  const summary = { primary: 0, secondary: "4 total", className: "consumer-summary", secondaryClassName: "consumer-total" };
+  const { rerender } = render(<WidgetList label="Containers" summary={summary}><li>Container</li></WidgetList>);
+  expect(screen.getByRole("list")).not.toContainElement(screen.getByText("4 total"));
+  expect(screen.getByText("0")).toBeVisible();
+  rerender(<WidgetList label="Containers" summary={summary} empty="No running containers" />);
+  expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  expect(screen.getByText("4 total")).toBeVisible();
+ });
+
 });

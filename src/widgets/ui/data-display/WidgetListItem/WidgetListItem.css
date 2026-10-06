@@ -7,6 +7,7 @@
   .widget-list-item__secondary { color: var(--color-text-muted); font-size: 0.6875rem; line-height: 1.5; }
   .widget-list-item__title, .widget-list-item__secondary { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .widget-list-item__trailing { color: var(--color-text-muted); font-size: 0.6875rem; line-height: 1.5; white-space: nowrap; flex-shrink: 0; }
+  .widget-list-item__trailing--wrap { white-space: normal; overflow-wrap: anywhere; max-width: var(--widget-list-item-trailing-max-width, 96px); text-align: right; }
   .widget-list-item--columns { display: grid; grid-template-columns: var(--widget-list-column-template); gap: var(--widget-list-item-gap, 6px); }
   .widget-list-item__column { min-width: 0; color: var(--widget-list-cell-tone); font-size: 0.6875rem; line-height: 1.5; overflow-wrap: anywhere; }
   .widget-list-item__column--tone-neutral { --widget-list-cell-tone: var(--color-text-muted); }

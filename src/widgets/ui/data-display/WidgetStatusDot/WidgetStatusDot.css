@@ -1,0 +1,6 @@
+@layer widget-ui {
+  .widget-status-dot { display: inline-block; width: var(--widget-status-dot-size, 8px); height: var(--widget-status-dot-size, 8px); flex-shrink: 0; border-radius: 50%; background: var(--widget-status-dot-tone); }
+  .widget-status-dot--tone-neutral { --widget-status-dot-tone: var(--color-text-muted); }
+  .widget-status-dot--tone-positive { --widget-status-dot-tone: var(--widget-stat-tone-positive); }
+  .widget-status-dot--tone-warning { --widget-status-dot-tone: var(--widget-stat-tone-warning); }
+}
