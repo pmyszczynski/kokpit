@@ -35,9 +35,9 @@ export function WidgetStat({
     if (!tooltip.matches(":popover-open")) tooltip.showPopover();
     const anchor = event.currentTarget.getBoundingClientRect();
     const bounds = tooltip.getBoundingClientRect();
-    tooltip.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
-    tooltip.style.top = `${anchor.bottom + bounds.height + 6 <= window.innerHeight - 8
-      ? anchor.bottom + 6 : Math.max(8, anchor.top - bounds.height - 6)}px`;
+    tooltip.style.setProperty("--widget-stat-tooltip-left", `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`);
+    tooltip.style.setProperty("--widget-stat-tooltip-top", `${anchor.bottom + bounds.height + 6 <= window.innerHeight - 8
+      ? anchor.bottom + 6 : Math.max(8, anchor.top - bounds.height - 6)}px`);
   };
   const hideTooltip = () => {
     const tooltip = tooltipRef.current;

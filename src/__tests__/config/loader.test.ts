@@ -845,6 +845,15 @@ describe("unversioned settings detection", () => {
 
 
 describe("System Stats footprint compatibility", () => {
+  it.each(["normal", "wide", "tall", "large"])("keeps a v1 System Stats tile with legacy %s size tall", async size => {
+    const { migrateV1Config, migrateFixedGridConfig } = await freshLoader();
+    const migrated = migrateFixedGridConfig(migrateV1Config({ schema_version: 1, services: [
+      { name: "Legacy System", size, widget: { type: "system-stats", config: { fields: ["network", "load"] } } },
+    ] }) as unknown as Record<string, unknown>);
+    expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
+    expect(migrated.service_tiles[0].widget?.config).toEqual({ fields: ["network", "load"] });
+    expect(migrateFixedGridConfig(migrated as unknown as Record<string, unknown>)).toEqual(migrated);
+  });
   it("keeps historical defaults/unsupported geometry tall and new size defaults compact", async () => {
     const { migrateFixedGridConfig } = await freshLoader();
     const raw = { schema_version: 2, services: [{ id: "10000000-0000-4000-8000-000000000001", name: "System" }], service_tiles: [

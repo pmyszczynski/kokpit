@@ -633,6 +633,16 @@ export default function ServiceForm({
     );
   });
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
+  const testConnectionController = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    testConnectionController.current?.abort();
+    testConnectionController.current = null;
+  }, []);
+  function resetConnectionTest() {
+    testConnectionController.current?.abort();
+    testConnectionController.current = null;
+    setTestStatus({ state: "idle" });
+  }
   const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
   const [iconPreviewError, setIconPreviewError] = useState(false);
 
@@ -824,14 +834,14 @@ export default function ServiceForm({
       return next;
     });
     setIntegrationTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleIntegrationTypeChange(nextType: string) {
     setIntegrationTouched(true);
     setIntegrationType(nextType);
     setIntegrationConfig({});
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleWidgetConfigChange(key: string, value: unknown) {
@@ -839,7 +849,7 @@ export default function ServiceForm({
       return { ...prev, [key]: value };
     });
     setWidgetConfigTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleOrphanWidgetConfigChange(key: string, value: unknown) {
@@ -849,12 +859,12 @@ export default function ServiceForm({
       return { ...prev, config: cfg };
     });
     setWidgetConfigTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleTileTypeChange(newTile: string) {
     setWidgetConfigTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
     if (newTile === "") {
       if (tileType !== "") {
         setOrphanWidget(null);
@@ -905,9 +915,14 @@ export default function ServiceForm({
       savedCredentialsStale ||
       integrationConflict
     ) return;
+    testConnectionController.current?.abort();
+    const controller = new AbortController();
+    testConnectionController.current = controller;
+    const isCurrent = () => !controller.signal.aborted && testConnectionController.current === controller;
     setTestStatus({ state: "testing" });
     try {
       const res = await fetch("/api/widget/test", {
+        signal: controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -923,6 +938,7 @@ export default function ServiceForm({
         }),
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!isCurrent()) return;
       if (json.ok) {
         setTestStatus({ state: "success" });
       } else {
@@ -932,10 +948,12 @@ export default function ServiceForm({
         });
       }
     } catch (err) {
-      setTestStatus({
+      if (isCurrent()) setTestStatus({
         state: "error",
         message: err instanceof Error ? err.message : "Connection test failed",
       });
+    } finally {
+      if (testConnectionController.current === controller) testConnectionController.current = null;
     }
   }
 
@@ -1480,7 +1498,7 @@ export default function ServiceForm({
                   rowSpan: selected.rowSpan,
                 });
                 setFootprintTouched(true);
-                setTestStatus({ state: "idle" });
+                resetConnectionTest();
               }}
             >
               {supportedFootprints.map((candidate) => (

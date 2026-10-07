@@ -136,7 +136,9 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const historicalSystemFootprint = legacySystemDefault
       ? supportedFootprints?.find((candidate) => sameFootprint(candidate, legacyWidgetFootprint("tall")))
       : undefined;
-    const supportedFallback = supportedFootprints?.find((candidate) =>
+    // Legacy size hints predate the new short canvases; unmarked System Stats
+    // tiles without fixed geometry must retain their historical tall canvas.
+    const supportedFallback = (legacySystemDefault && !savedFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
     ) ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit

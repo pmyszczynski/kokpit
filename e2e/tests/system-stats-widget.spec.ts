@@ -129,6 +129,12 @@ test("System Stats supporting details work with keyboard focus, Escape and hover
       await value.hover(); await expect(tooltip).toBeVisible();
       await page.mouse.move(1000, 700); await expect(tooltip).toHaveCount(0);
     }
+    await configure(request, theme, ".widget-stat__tooltip { left:12px; top:180px; background-color:#ffffff; color:#000000; }");
+    await page.goto("/");
+    await tile(page).locator(".system-stats-widget__stat--memory .widget-stat__value").focus();
+    const tooltip = page.getByRole("tooltip");
+    await expect(tooltip).toHaveCSS("left", "12px"); await expect(tooltip).toHaveCSS("top", "180px");
+    await expect(tooltip).toHaveCSS("background-color", "rgb(255, 255, 255)"); await expect(tooltip).toHaveCSS("color", "rgb(0, 0, 0)");
   }
 });
 

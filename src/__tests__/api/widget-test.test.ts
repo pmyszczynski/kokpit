@@ -176,10 +176,12 @@ afterEach(async () => {
 
 describe("POST /api/widget/test", () => {
   it.each([
-    { footprint: { columnSpan: 3, rowSpan: 2 }, status: 200 },
-    { footprint: { columnSpan: 6, rowSpan: 2 }, status: 500 },
-    { footprint: { columnSpan: 3, rowSpan: 4 }, status: 500 },
-  ])("tests the actual requested System Stats footprint ($footprint) before reporting success", async ({ footprint, status }) => {
+    { footprint: { columnSpan: 3, rowSpan: 2 }, diskExists: false, status: 200 },
+    { footprint: { columnSpan: 6, rowSpan: 2 }, diskExists: false, status: 500 },
+    { footprint: { columnSpan: 3, rowSpan: 4 }, diskExists: false, status: 500 },
+    { footprint: { columnSpan: 6, rowSpan: 2 }, diskExists: true, status: 200 },
+    { footprint: { columnSpan: 3, rowSpan: 4 }, diskExists: true, status: 500 },
+  ])("tests the actual requested System Stats footprint ($footprint) before reporting success", async ({ footprint, diskExists, status }) => {
     const fs = process.getBuiltinModule("node:fs");
     const os = process.getBuiltinModule("node:os");
     const dir = fs.mkdtempSync(`${os.tmpdir()}/kokpit-system-test-`);
@@ -189,7 +191,7 @@ describe("POST /api/widget/test", () => {
       fs.writeFileSync(`${dir}/meminfo`, "MemTotal: 16000 kB\nMemAvailable: 8000 kB\n");
       fs.writeFileSync(`${dir}/net/dev`, "eth0: 1000 0 0 0 0 0 0 0 500 0 0 0 0 0 0 0\n");
       const { POST } = await import("../../app/api/widget/test/route");
-      const response = await POST(post({ type: "system-stats", footprint, config: { size_defaults: true, proc_path: dir, disk_path: `${dir}/missing-disk` } }));
+      const response = await POST(post({ type: "system-stats", footprint, config: { size_defaults: true, proc_path: dir, disk_path: diskExists ? dir : `${dir}/missing-disk` } }));
       expect(response.status).toBe(status);
       expect((await response.json()).ok).toBe(status === 200);
     } finally {

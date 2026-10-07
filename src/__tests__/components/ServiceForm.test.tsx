@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
@@ -2240,6 +2240,26 @@ describe("ServiceForm – footprint", () => {
 
 
 describe("System Stats size-default presets", () => {
+  it.each([true, false])("ignores a stale test result (%s) after resizing and starting a new test", async oldOk => {
+    let resolveOld!: (value: unknown) => void;
+    let resolveCurrent!: (value: unknown) => void;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveCurrent = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={noop} onClose={noop} />);
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "6x2" } });
+    fireEvent.click(screen.getByText("Test connection"));
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "3x4" } });
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+    fireEvent.click(screen.getByText("Test connection"));
+    await act(async () => resolveOld({ json: async () => ({ ok: oldOk, error: "Old footprint failure" }) }));
+    expect(screen.getByText("Testing…")).toBeInTheDocument();
+    expect(screen.queryByText("Connection OK")).not.toBeInTheDocument();
+    expect(screen.queryByText("Old footprint failure")).not.toBeInTheDocument();
+    await act(async () => resolveCurrent({ json: async () => ({ ok: true }) }));
+    expect(screen.getByText("Connection OK")).toBeInTheDocument();
+  });
   it.each(["6x2", "3x4"])("tests the selected %s footprint and clears the result after resizing", async size => {
     const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
     vi.stubGlobal("fetch", fetchMock);
