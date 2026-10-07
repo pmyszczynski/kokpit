@@ -14,7 +14,9 @@ interface UseWidgetResult<TData> {
 export function useWidget<TData = unknown>(
   tileId: string,
   refreshInterval: number = DEFAULT_REFRESH_INTERVAL,
-  widgetType?: string
+  widgetType?: string,
+  /** Changes to persisted render inputs that require an immediate new payload. */
+  fetchIdentity?: string
 ): UseWidgetResult<TData> {
   const [data, setData] = useState<TData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export function useWidget<TData = unknown>(
       clearInterval(interval);
       abortRef.current?.abort();
     };
-  }, [fetchData, refreshInterval]);
+  }, [fetchData, refreshInterval, fetchIdentity]);
 
   return { data, loading, error, refresh: fetchData };
 }

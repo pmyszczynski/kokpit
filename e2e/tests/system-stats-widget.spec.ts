@@ -138,6 +138,29 @@ test("System Stats supporting details work with keyboard focus, Escape and hover
   }
 });
 
+test("System Stats bounds long supporting details on short screens and allows keyboard and mouse scrolling", async ({ page, request }) => {
+  const path = "/mnt/" + Array.from({ length: 12 }, (_, i) => `${i}-${"storage".repeat(24)}`).join("/");
+  await page.setViewportSize({ width: 800, height: 240 });
+  await mock(page, { ...DATA, disk: { ...DATA.disk!, path } });
+  await configure(request); await page.goto("/");
+  const value = tile(page, 2).locator(".system-stats-widget__stat--disk .widget-stat__value");
+  await value.focus();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toContainText(path);
+  const bounds = await tooltip.boundingBox();
+  expect(bounds!.y).toBeGreaterThanOrEqual(8);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(232);
+  expect(await tooltip.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  await value.press("End");
+  await expect.poll(() => tooltip.evaluate(el => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop))).toBeLessThanOrEqual(1);
+  await value.press("Home");
+  await expect.poll(() => tooltip.evaluate(el => el.scrollTop)).toBe(0);
+  await tooltip.hover(); await page.mouse.wheel(0, 120);
+  await expect.poll(() => tooltip.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  await expect(tooltip).toBeVisible();
+  await value.press("Escape"); await expect(tooltip).toHaveCount(0);
+});
+
 test("System Stats keeps long paths and large formatted values readable and keyboard reachable", async ({ page, request }) => {
   const path = "/mnt/very-long-host-filesystem-name/containers-and-media-storage/production-volume";
   const data = { ...DATA, disk: { ...DATA.disk!, path, total: 1234567890 * 1024 ** 3, used: 987654321 * 1024 ** 3 },

@@ -13,6 +13,21 @@ function MockWidgetComponent({ data, loading, error }: WidgetProps) {
 }
 
 describe("WidgetRenderer", () => {
+  it("refetches immediately after resizing the same tile without waiting for polling", async () => {
+    registerWidget({ id: "size-dependent-widget", name: "Size dependent", configSchema: z.object({}),
+      fetchData: async () => ({}), component: MockWidgetComponent });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ ok: true, data: { label: "compact" } }) })
+      .mockResolvedValueOnce({ json: async () => ({ ok: true, data: { label: "detailed" } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = render(<WidgetRenderer type="size-dependent-widget" tileId="same-tile" refreshInterval={0} footprint={{ columnSpan: 3, rowSpan: 2 }} />);
+    await screen.findByText("widget-data: compact");
+    rerender(<WidgetRenderer type="size-dependent-widget" tileId="same-tile" refreshInterval={0} footprint={{ columnSpan: 3, rowSpan: 2 }} />);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    rerender(<WidgetRenderer type="size-dependent-widget" tileId="same-tile" refreshInterval={0} footprint={{ columnSpan: 3, rowSpan: 4 }} />);
+    await screen.findByText("widget-data: detailed");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   beforeEach(() => {
     clearRegistry();
   });

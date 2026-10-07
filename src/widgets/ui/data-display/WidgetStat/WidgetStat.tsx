@@ -59,7 +59,17 @@ export function WidgetStat({
         onFocus={valueTooltip ? showTooltip : undefined} onBlur={hideTooltip}
         onMouseEnter={valueTooltip ? showTooltip : undefined}
         onMouseLeave={event => { if (event.currentTarget !== document.activeElement) hideTooltip(); }}
-        onKeyDown={event => { if (event.key === "Escape") hideTooltip(); }}>
+        onKeyDown={event => {
+          if (event.key === "Escape") { hideTooltip(); return; }
+          const tooltip = tooltipRef.current;
+          if (!tooltip?.matches(":popover-open") || tooltip.scrollHeight <= tooltip.clientHeight) return;
+          const scrollDeltas: Record<string, number> = { ArrowDown: 40, ArrowUp: -40, PageDown: tooltip.clientHeight, PageUp: -tooltip.clientHeight,
+            Home: -tooltip.scrollTop, End: tooltip.scrollHeight };
+          const delta = scrollDeltas[event.key];
+          if (delta === undefined) return;
+          event.preventDefault();
+          tooltip.scrollBy({ top: delta });
+        }}>
         {value}
         {valueTooltip && <span ref={tooltipRef} id={tooltipId} role="tooltip" popover="manual" className="widget-ui widget-stat__tooltip">{valueTooltip}</span>}
       </dd>

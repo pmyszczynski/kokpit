@@ -845,6 +845,22 @@ describe("unversioned settings detection", () => {
 
 
 describe("System Stats footprint compatibility", () => {
+  it.each([3, 6])("preserves an explicit %sx2 canvas with historical field defaults", async columnSpan => {
+    const { migrateFixedGridConfig } = await freshLoader();
+    const result = migrateFixedGridConfig({
+      schema_version: 2,
+      services: [{ id: "10000000-0000-4000-8000-000000000001", name: "System" }],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000001",
+        service_id: "10000000-0000-4000-8000-000000000001",
+        footprint: { columnSpan, rowSpan: 2 },
+        widget: { type: "system-stats", config: { size_defaults: false } },
+      }],
+    });
+    expect(result.service_tiles[0].footprint).toEqual({ columnSpan, rowSpan: 2 });
+    expect(result.service_tiles[0].widget?.config).toEqual({ size_defaults: false });
+    expect(migrateFixedGridConfig(result as unknown as Record<string, unknown>)).toEqual(result);
+  });
   it.each([
     { columnSpan: 3 },
     { rowSpan: 2 },
