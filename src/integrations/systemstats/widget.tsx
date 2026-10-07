@@ -2,6 +2,7 @@ import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { SystemStatsConfigSchema, fetchSystemStats } from "./api";
 import type { SystemStatsConfig, SystemStatsData } from "./api";
+import { WidgetBody, WidgetStat, WidgetStatGrid, WidgetStatRow, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 
 // --- Local formatters (per-file duplication is the repo convention) ---
 
@@ -56,192 +57,97 @@ function pct(n: number): number {
   return Math.round(n);
 }
 
-// --- Presentational helpers ---
-
-/** A horizontal fill bar clamped to 0-100. */
-function Bar({ value }: { value: number }) {
-  const clamped = Math.min(100, Math.max(0, value));
-  return (
-    <div className="system-stats-widget__bar">
-      <div
-        className="system-stats-widget__bar-fill"
-        style={{ width: `${clamped}%` }}
-      />
-    </div>
-  );
-}
-
-/** A labeled stat line with an optional sub-value, percentage bar, and tooltip. */
-function StatRow({
-  label,
-  value,
-  sub,
-  barValue,
-  title,
-}: {
-  label: string;
-  value: React.ReactNode;
-  sub?: React.ReactNode;
-  barValue?: number;
-  title?: string;
-}) {
-  return (
-    <div className="system-stats-widget__row" title={title}>
-      <div className="system-stats-widget__row-header">
-        <span className="system-stats-widget__row-label">{label}</span>
-        <span className="system-stats-widget__row-value">
-          {value}
-          {sub != null && (
-            <span className="system-stats-widget__row-sub"> {sub}</span>
-          )}
-        </span>
-      </div>
-      {barValue !== undefined && <Bar value={barValue} />}
-    </div>
-  );
-}
-
-/** Renders host CPU/memory/disk/network/load/Docker stats, or a loading/empty/error state. */
-export function SystemStatsWidget({
-  data,
-  loading,
-  error,
-}: WidgetProps<SystemStatsData>) {
+/** Renders host measurements; fetching, optional fields and formatting remain domain-owned. */
+export function SystemStatsWidget({ data, loading, error, footprint }: WidgetProps<SystemStatsData>) {
   if (!data) {
-    return (
-      <div className="system-stats-widget system-stats-widget--empty">
-        {loading && (
-          <span className="system-stats-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="system-stats-widget__hint system-stats-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="system-stats-widget system-stats-widget--empty">
+      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+        className="system-stats-widget__hint" labelClassName="system-stats-widget__hint system-stats-widget__hint--error">
+        {loading ? "Loading…" : error}
+      </WidgetState>
+    </WidgetBody>;
   }
 
-  const hasAnyField =
-    data.cpu !== null ||
-    data.memory !== null ||
-    data.disk !== null ||
-    data.network !== null ||
-    data.load !== null ||
-    data.docker !== null ||
-    data.dockerError !== null;
-
-  if (!hasAnyField) {
-    return (
-      <div
-        className="system-stats-widget system-stats-widget--empty"
-        aria-label="System stats"
-      >
-        <span className="system-stats-widget__hint">No stats to show</span>
-        {error && (
-          <span className="system-stats-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+  const footprintName = `${footprint?.columnSpan ?? 3}x${footprint?.rowSpan ?? 4}`;
+  const summarySize = footprintName === "3x2" || footprintName === "6x2";
+  const hasExtraFields = data.network !== null || data.load !== null || data.docker !== null || data.dockerError !== null ||
+    (footprintName === "3x2" && data.disk !== null);
+  // A custom or legacy selection is always rendered completely, even on a short canvas.
+  if (summarySize && !hasExtraFields && (data.cpu || data.memory || data.disk)) {
+    const stats = [
+      ...(data.cpu ? [{ key: "cpu", label: "CPU", value: `${pct(data.cpu.usagePercent)}%`, tooltip: undefined }] : []),
+      ...(data.memory ? [{ key: "memory", label: "Memory", value: `${pct(data.memory.usagePercent)}%`, tooltip: `${fmtBytesPair(data.memory.used, data.memory.total)} (${pct(data.memory.usagePercent)}%); ${fmtBytes(data.memory.available)} available` }] : []),
+      ...(data.disk ? [{ key: "disk", label: "Disk", value: `${pct(data.disk.usagePercent)}%`, tooltip: `${data.disk.path}: ${fmtBytesPair(data.disk.used, data.disk.total)} (${pct(data.disk.usagePercent)}%); ${fmtBytes(data.disk.available)} available` }] : []),
+    ];
+    return <WidgetBody className="system-stats-widget" data-footprint={footprintName} aria-label="System stats" reserveNotice
+      notice={<WidgetStaleNotice error={error} className="system-stats-widget__stale-error" />}>
+      <WidgetStatGrid columns={footprintName === "6x2" ? 3 : 2} className="system-stats-widget__grid">
+        {stats.map(stat => <WidgetStat key={stat.key} label={stat.label} value={stat.value} tone="info" valueTooltip={stat.tooltip}
+          className={`system-stats-widget__stat system-stats-widget__stat--${stat.key}`}
+          labelClassName="system-stats-widget__row-label" valueClassName="system-stats-widget__row-value" />)}
+      </WidgetStatGrid>
+    </WidgetBody>;
   }
 
-  return (
-    <div className="system-stats-widget" aria-label="System stats">
-      {data.cpu && (
-        <StatRow
-          label="CPU"
-          value={`${pct(data.cpu.usagePercent)}%`}
-          barValue={data.cpu.usagePercent}
-        />
-      )}
-      {data.memory && (
-        <StatRow
-          label="Memory"
-          value={fmtBytesPair(data.memory.used, data.memory.total)}
-          sub={`(${pct(data.memory.usagePercent)}%)`}
-          barValue={data.memory.usagePercent}
-          title={`${fmtBytes(data.memory.available)} available`}
-        />
-      )}
-      {data.disk && (
-        <StatRow
-          label={`Disk (${data.disk.path})`}
-          value={fmtBytesPair(data.disk.used, data.disk.total)}
-          sub={`(${pct(data.disk.usagePercent)}%)`}
-          barValue={data.disk.usagePercent}
-          title={`${fmtBytes(data.disk.available)} available`}
-        />
-      )}
-      {data.network && (
-        <div className="system-stats-widget__row">
-          <div className="system-stats-widget__row-header">
-            <span className="system-stats-widget__row-label">Network</span>
-          </div>
-          <div className="system-stats-widget__net-rates">
-            <span className="system-stats-widget__net-rate">
-              ↓ {fmtRate(data.network.rxBytesPerSec)}
-            </span>
-            <span className="system-stats-widget__net-rate">
-              ↑ {fmtRate(data.network.txBytesPerSec)}
-            </span>
-          </div>
-        </div>
-      )}
-      {data.load && (
-        <div className="system-stats-widget__row">
-          <div className="system-stats-widget__row-header">
-            <span className="system-stats-widget__row-label">Load</span>
-          </div>
-          <div className="system-stats-widget__load-row">
-            <span className="system-stats-widget__load-cell">
-              {data.load.one.toFixed(2)}
-            </span>
-            <span className="system-stats-widget__load-cell">
-              {data.load.five.toFixed(2)}
-            </span>
-            <span className="system-stats-widget__load-cell">
-              {data.load.fifteen.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      )}
-      {(data.docker !== null || data.dockerError !== null) && (
-        <div className="system-stats-widget__row">
-          <div className="system-stats-widget__row-header">
-            <span className="system-stats-widget__row-label">Docker</span>
-            {data.docker && (
-              <span className="system-stats-widget__row-value">
-                {data.docker.running} / {data.docker.total} running
-              </span>
-            )}
-          </div>
-          {data.dockerError && (
-            <span
-              className="system-stats-widget__hint"
-              title={data.dockerError}
-            >
-              Docker unavailable
-            </span>
-          )}
-        </div>
-      )}
-      {error && (
-        <span className="system-stats-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  const hasAnyField = data.cpu !== null || data.memory !== null || data.disk !== null ||
+    data.network !== null || data.load !== null || data.docker !== null || data.dockerError !== null;
+  const rowHooks = {
+    className: "system-stats-widget__row", headerClassName: "system-stats-widget__row-header",
+    labelClassName: "system-stats-widget__row-label", valueClassName: "system-stats-widget__row-value",
+    subValueClassName: "system-stats-widget__row-sub",
+  };
+  const usageBar = (label: string, value: number, valueText: string) =>
+    <WidgetBar kind="usage" label={label} value={value} valueText={valueText} tone="info"
+      trackClassName="system-stats-widget__bar" fillClassName="system-stats-widget__bar-fill" />;
+
+  return <WidgetBody className={`system-stats-widget${hasAnyField ? "" : " system-stats-widget--empty"}`}
+    data-footprint={footprintName} aria-label="System stats" scrollLabel={hasAnyField ? "System stats measurements" : undefined}
+    contentCentered={!hasAnyField} reserveNotice
+    notice={<WidgetStaleNotice error={error} className="system-stats-widget__stale-error" />}>
+    {!hasAnyField && <WidgetState state="empty" className="system-stats-widget__hint">No stats to show</WidgetState>}
+    {data.cpu && <WidgetStatRow {...rowHooks} label="CPU" tone="info" value={`${pct(data.cpu.usagePercent)}%`}
+      bar={usageBar("CPU usage", data.cpu.usagePercent, `${pct(data.cpu.usagePercent)}%`)} />}
+    {data.memory && <WidgetStatRow {...rowHooks} label="Memory" tone="info" value={fmtBytesPair(data.memory.used, data.memory.total)}
+      subValue={`(${pct(data.memory.usagePercent)}%)`} title={`${fmtBytes(data.memory.available)} available`}
+      bar={usageBar("Memory usage", data.memory.usagePercent, `${fmtBytesPair(data.memory.used, data.memory.total)} (${pct(data.memory.usagePercent)}%)`)} />}
+    {data.disk && <WidgetStatRow {...rowHooks} label={`Disk (${data.disk.path})`} tone="info" value={fmtBytesPair(data.disk.used, data.disk.total)}
+      subValue={`(${pct(data.disk.usagePercent)}%)`} title={`${fmtBytes(data.disk.available)} available`}
+      bar={usageBar(`Disk (${data.disk.path}) usage`, data.disk.usagePercent, `${fmtBytesPair(data.disk.used, data.disk.total)} (${pct(data.disk.usagePercent)}%)`)} />}
+    {data.network && <WidgetStatRow {...rowHooks} label="Network" valuesClassName="system-stats-widget__net-rates"
+      values={[
+        { content: `↓ ${fmtRate(data.network.rxBytesPerSec)}`, tone: data.network.rxBytesPerSec > 0 ? "positive" : "neutral", className: "system-stats-widget__net-rate" },
+        { content: `↑ ${fmtRate(data.network.txBytesPerSec)}`, tone: data.network.txBytesPerSec > 0 ? "info" : "neutral", className: "system-stats-widget__net-rate" },
+      ]} />}
+    {data.load && <WidgetStatRow {...rowHooks} label="Load" tone="info" valuesClassName="system-stats-widget__load-row"
+      values={[
+        { content: data.load.one.toFixed(2), title: "1-minute load average", className: "system-stats-widget__load-cell" },
+        { content: data.load.five.toFixed(2), title: "5-minute load average", className: "system-stats-widget__load-cell" },
+        { content: data.load.fifteen.toFixed(2), title: "15-minute load average", className: "system-stats-widget__load-cell" },
+      ]} />}
+    {(data.docker !== null || data.dockerError !== null) && <WidgetStatRow {...rowHooks} label="Docker" tone="info"
+      value={data.docker ? `${data.docker.running} / ${data.docker.total} running` : undefined}
+      detail={data.dockerError ? <span className="system-stats-widget__hint" title={data.dockerError}>Docker unavailable</span> : undefined} />}
+  </WidgetBody>;
 }
 
 registerWidget<SystemStatsConfig, SystemStatsData>({
   id: "system-stats",
   name: "System Stats",
-  preferredSize: "tall",
-  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  preferredSize: "normal",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "system-stats-widget system-stats-widget--empty",
+    loading: "system-stats-widget__hint",
+    error: "system-stats-widget__hint system-stats-widget__hint--error",
+  },
+  supportedFootprints: [
+    { label: "Compact", columnSpan: 3, rowSpan: 2 },
+    { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+    { label: "Wide", columnSpan: 6, rowSpan: 2 },
+  ],
   minSize: "normal",
+  preservedConfigFields: [{ key: "size_defaults", type: "boolean" }],
   configSchema: SystemStatsConfigSchema,
   fetchData: fetchSystemStats,
   refreshInterval: 10_000,
@@ -282,7 +188,7 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
       key: "fields",
       label: "Fields",
       type: "multiselect",
-      description: "Which stats to display.",
+      description: "Choose fields to override the default selection.",
       options: [
         { value: "cpu", label: "CPU" },
         { value: "memory", label: "Memory" },
@@ -294,6 +200,7 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
     },
   ],
   serviceEditorPreset: {
+    defaultConfig: { size_defaults: true },
     defaultName: "System",
     defaultIconUrl: "https://cdn.simpleicons.org/linux/FCC624",
   },

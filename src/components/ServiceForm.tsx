@@ -555,7 +555,11 @@ export default function ServiceForm({
         candidate.columnSpan === service.footprint?.columnSpan &&
         candidate.rowSpan === service.footprint?.rowSpan
     );
-    const resolved = supported ? service.footprint : definition.supportedFootprints[0];
+    const legacySystemDefault = definition.id === "system-stats" && service.widget.config?.size_defaults !== true;
+    const fallback = legacySystemDefault
+      ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 3 && candidate.rowSpan === 4)
+      : definition.supportedFootprints[0];
+    const resolved = supported ? service.footprint : fallback;
     return resolved ? { columnSpan: resolved.columnSpan, rowSpan: resolved.rowSpan } : undefined;
   });
   const [nameError, setNameError] = useState<string | null>(null);
@@ -564,7 +568,7 @@ export default function ServiceForm({
   const initialTileType = initial.tileType || (presetEditor ? initialPreset ?? "" : "");
   const [tileType, setTileType] = useState(initialTileType);
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
-  const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
+  const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(presetEditor?.defaultConfig ? { ...presetEditor.defaultConfig } : initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
   // True once the user has actively edited the widget config (or switched
   // tile type) in this dialog session. Distinguishes "showing the saved
@@ -862,9 +866,9 @@ export default function ServiceForm({
     }
     setTileType(newTile);
     setOrphanWidget(null);
-    setWidgetConfig({});
     setRefreshInterval("");
     const def = getWidget(newTile);
+    setWidgetConfig({ ...def?.serviceEditorPreset?.defaultConfig });
     const requiredIntegration = widgetIntegrationRequirement(newTile);
     if (requiredIntegration && integrationType !== requiredIntegration) {
       setIntegrationType(requiredIntegration);

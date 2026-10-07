@@ -1,0 +1,16 @@
+@layer widget-ui {
+  .widget-stat-row { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; min-width: 0; padding: var(--widget-stat-row-padding, 1px 4px); border-bottom: 1px solid var(--color-border); }
+  .widget-stat-row__header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 8px; min-width: 0; }
+  .widget-stat-row__label { color: var(--color-text-muted); font-size: 0.6875rem; font-weight: 500; line-height: 1.5; letter-spacing: 0.04em; text-transform: uppercase; min-width: 0; overflow-wrap: anywhere; }
+  .widget-stat-row__value { color: var(--widget-stat-row-tone); font-size: 0.8rem; font-weight: 600; line-height: 1.5; min-width: 0; overflow-wrap: anywhere; text-align: right; }
+  .widget-stat-row__subvalue { color: var(--color-text-muted); font-size: 0.7rem; font-weight: 400; }
+  .widget-stat-row__values { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; min-width: 0; margin-left: auto; }
+  .widget-stat-row__detail { color: var(--color-text-muted); font-size: 0.7rem; line-height: 1.5; overflow-wrap: anywhere; }
+  .widget-stat-row__value--tone-neutral { --widget-stat-row-tone: var(--widget-stat-tone-neutral); }
+  .widget-stat-row__value--tone-positive { --widget-stat-row-tone: var(--widget-stat-tone-positive); }
+  .widget-stat-row__value--tone-info { --widget-stat-row-tone: var(--widget-stat-tone-info); }
+  .widget-stat-row__value--tone-warning { --widget-stat-row-tone: var(--widget-stat-tone-warning); }
+  .widget-stat-row__value--tone-alert { --widget-stat-row-tone: var(--widget-stat-tone-alert); }
+  .widget-stat-row__value--tone-positive-soft { --widget-stat-row-tone: var(--widget-stat-tone-positive-soft); }
+  .widget-stat-row__value--tone-info-soft { --widget-stat-row-tone: var(--widget-stat-tone-info-soft); }
+}

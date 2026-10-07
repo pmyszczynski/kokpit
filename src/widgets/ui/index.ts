@@ -20,3 +20,5 @@ export { WidgetBar } from "./data-display/WidgetBar";
 export type { WidgetBarProps } from "./data-display/WidgetBar";
 export { WidgetStatusDot } from "./data-display/WidgetStatusDot";
 export type { WidgetStatusDotProps, WidgetStatusDotTone } from "./data-display/WidgetStatusDot";
+export { WidgetStatRow } from "./data-display/WidgetStatRow";
+export type { WidgetStatRowProps, WidgetStatRowValue } from "./data-display/WidgetStatRow";

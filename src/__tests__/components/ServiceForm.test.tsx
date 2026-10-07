@@ -673,7 +673,7 @@ describe("ServiceForm – tile type", () => {
 
 describe("ServiceForm – optional widget config", () => {
   it.each(allPresetTiles)(
-    "$id: saves widget with type only when the config fields are left empty",
+    "$id: saves widget with its preset defaults when the config fields are left empty",
     ({ id }) => {
       const onSave = vi.fn();
       render(
@@ -686,7 +686,11 @@ describe("ServiceForm – optional widget config", () => {
       expect(onSave).toHaveBeenCalledTimes(1);
       const saved = onSave.mock.calls[0][0];
       expect(saved.widget.type).toBe(id);
-      expect(saved.widget.config).toBeUndefined();
+      if (id === "system-stats") {
+        expect(saved.widget.config).toEqual({ size_defaults: true });
+      } else {
+        expect(saved.widget.config).toBeUndefined();
+      }
     }
   );
 
@@ -2231,5 +2235,22 @@ describe("ServiceForm – footprint", () => {
       widget: undefined,
       footprint: undefined,
     }));
+  });
+});
+
+
+describe("System Stats size-default presets", () => {
+  it.each([true, false])("seeds size defaults only for a new tile (initial preset: %s)", initialPreset => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={null} initialPreset={initialPreset ? "system-stats" : undefined} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    if (!initialPreset) fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "system-stats" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ type: "system-stats", config: { size_defaults: true } }) }));
+  });
+  it("does not seed automatic defaults when editing a saved legacy field selection", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { fields: ["network", "load"] } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { fields: ["network", "load"] } }) }));
   });
 });

@@ -56,6 +56,8 @@ export interface WidgetPreservedConfigField {
 export interface ServiceEditorPreset {
   defaultName: string;
   defaultIconUrl: string;
+  /** Initial non-secret widget options for a newly selected tile; saved config is never reseeded. */
+  defaultConfig?: Record<string, unknown>;
 }
 
 export interface IntegrationDefinition<TConnection = Record<string, unknown>> {

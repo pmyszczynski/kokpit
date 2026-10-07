@@ -11,6 +11,8 @@ export interface WidgetStatProps {
   className?: string;
   valueClassName?: string;
   labelClassName?: string;
+  /** Full supporting measurement exposed by the value tooltip and accessible description. */
+  valueTooltip?: string;
 }
 
 /** A formatted value and its label, presented as a compact stat card. */
@@ -21,6 +23,7 @@ export function WidgetStat({
   className,
   valueClassName,
   labelClassName,
+  valueTooltip,
 }: WidgetStatProps) {
   return (
     <dl
@@ -32,7 +35,7 @@ export function WidgetStat({
       )}
     >
       <dt className={joinClassNames("widget-stat__label", labelClassName)}>{label}</dt>
-      <dd className={joinClassNames("widget-stat__value", valueClassName)}>{value}</dd>
+      <dd title={valueTooltip} className={joinClassNames("widget-stat__value", valueClassName)}>{value}</dd>
     </dl>
   );
 }

@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { WidgetStat } from "./WidgetStat";
 
 describe("WidgetStat", () => {
+  it("keeps supporting measurement details accessible through an optional value tooltip", () => {
+    render(<WidgetStat label="Memory" value="20%" valueTooltip="3.2 / 16 GiB used" />);
+    expect(screen.getByRole("definition")).toHaveAccessibleDescription("3.2 / 16 GiB used");
+  });
   it("keeps zero values and exposes the label/value definition pair", () => {
     render(<WidgetStat label="Queued items" value={0} />);
 

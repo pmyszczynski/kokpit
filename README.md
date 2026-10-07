@@ -1452,6 +1452,8 @@ Native TCP Docker host support is on the backlog.
 
 Shows live host metrics — CPU usage, RAM, disk usage, and network I/O — read directly from the machine Kokpit runs on via `/proc` (and `statfs` for disk), plus an optional Docker container running/total summary. Unlike the Netdata widget, it needs no external monitoring service.
 
+**Sizes:** New tiles created in the editor show CPU/Memory in Compact (3x2), add Disk in Wide (6x2), and show all six fields in Detailed (3x4). Compact cards show usage percentages; hover a memory/disk value for used/total and available capacity. Existing tiles retain their saved fields and historical four-field defaults. An explicit `fields` list overrides the size defaults, including an empty list.
+
 **Prerequisites:** By default, it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket as described in the Docker widget section above (note its security caveats). Example compose volumes/env:
 
 ```yaml
@@ -1498,8 +1500,9 @@ service_tiles:
 | `proc_path`          | No       | Path to procfs. Defaults to the `KOKPIT_PROC_PATH` env var, then `/proc`. Bind-mount the host's `/proc` and set this for host-wide metrics in Docker. |
 | `disk_path`          | No       | Filesystem mount to report disk usage for (default `/`).                                                                |
 | `interface`          | No       | Network interface to measure. Leave empty to sum all non-loopback interfaces.                                           |
-| `docker_socket_path` | No       | Docker socket for the container overview. Defaults to `KOKPIT_DOCKER_SOCKET`, then `/var/run/docker.sock`. Only used when `docker` is listed in `fields`. |
-| `fields`             | No       | Which stats to display: any of `cpu`, `memory`, `disk`, `network`, `load`, `docker` (default: `cpu, memory, disk, network`). |
+| `docker_socket_path` | No       | Docker socket for the container overview. Defaults to `KOKPIT_DOCKER_SOCKET`, then `/var/run/docker.sock`. Only used when Docker is selected explicitly or by the Detailed size default. |
+| `fields`             | No       | Explicit stats to display: any of `cpu`, `memory`, `disk`, `network`, `load`, `docker`. Overrides size defaults. Without `size_defaults`, the default remains `cpu, memory, disk, network`. |
+| `size_defaults`      | No       | Use 2/3/6 default fields according to the tile footprint when `fields` is absent. New editor tiles set this to `true`; omitted or `false` preserves historical defaults. |
 
 
 CPU and network rates come from two `/proc` samples taken a fraction of a second apart per refresh. If the Docker socket is unavailable, the container line is quietly omitted (as "Docker unavailable") without affecting the other stats.

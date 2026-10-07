@@ -113,7 +113,10 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     // These widgets historically inherited a 6x2 wide hint when no size was
     // saved. Preserve that upgrade path independently of new editor defaults.
     const legacyWideDefault = definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd", "tdarr-stats", "seerr-stats"].includes(definition.id);
-    const preferredSize = legacyWideDefault && !legacySize && !savedFootprint
+    const legacySystemDefault = definition?.id === "system-stats" &&
+      !(isRecord(entry.widget) && isRecord(entry.widget.config) && entry.widget.config.size_defaults === true);
+    const preferredSize = legacySystemDefault && !legacySize && !savedFootprint ? "tall"
+      : legacyWideDefault && !legacySize && !savedFootprint
       ? "wide"
       : definition?.preferredSize;
     const effectiveWidgetSize = definition
@@ -130,9 +133,12 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const historicalWideFootprint = legacyWideDefault
       ? supportedFootprints?.find((candidate) => sameFootprint(candidate, legacyWidgetFootprint("wide")))
       : undefined;
+    const historicalSystemFootprint = legacySystemDefault
+      ? supportedFootprints?.find((candidate) => sameFootprint(candidate, legacyWidgetFootprint("tall")))
+      : undefined;
     const supportedFallback = supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
-    ) ?? historicalWideFootprint ?? supportedFootprints?.[0];
+    ) ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit
     // secondary content such as descriptions rather than changing geometry.
     const fallback = entry.widget
@@ -149,7 +155,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const supported = supportedFootprints?.length
       ? supportedFootprints.some((candidate) => sameFootprint(candidate, normalized))
         ? normalized
-        : historicalWideFootprint ?? supportedFallback!
+        : historicalWideFootprint ?? historicalSystemFootprint ?? supportedFallback!
       : normalized;
     const footprint = entry.widget
       ? { columnSpan: supported.columnSpan, rowSpan: supported.rowSpan }

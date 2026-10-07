@@ -131,6 +131,12 @@ describe("resolveProcPath", () => {
 });
 
 describe("resolveFields", () => {
+  it.each([[3, 2, ["cpu", "memory"]], [6, 2, ["cpu", "memory", "disk"]], [3, 4, ["cpu", "memory", "disk", "network", "load", "docker"]]] as const)("uses size defaults for the opted-in %sx%s canvas", (columnSpan, rowSpan, fields) => {
+    expect(resolveFields({ size_defaults: true }, { columnSpan, rowSpan })).toEqual(fields);
+    expect(resolveFields({}, { columnSpan, rowSpan })).toEqual(DEFAULT_FIELDS);
+    expect(resolveFields({ size_defaults: true, fields: ["load"] }, { columnSpan, rowSpan })).toEqual(["load"]);
+    expect(resolveFields({ size_defaults: true, fields: [] }, { columnSpan, rowSpan })).toEqual([]);
+  });
   it("defaults to DEFAULT_FIELDS", () => {
     expect(resolveFields({})).toEqual(["cpu", "memory", "disk", "network"]);
   });
@@ -349,6 +355,11 @@ describe("delay", () => {
 // ---------------------------------------------------------------------------
 
 describe("fetchSystemStats", () => {
+  it("collects only the compact size defaults, leaving disk, network, load and Docker untouched", async () => {
+    const data = await fetchSystemStats({ size_defaults: true, proc_path: procDir, disk_path: "/a/nonexistent/mount", docker_socket_path: "/a/nonexistent/socket" }, undefined, { footprint: { columnSpan: 3, rowSpan: 2 } });
+    expect(data.cpu).not.toBeNull(); expect(data.memory).not.toBeNull();
+    expect(data.disk).toBeNull(); expect(data.network).toBeNull(); expect(data.load).toBeNull(); expect(data.docker).toBeNull(); expect(data.dockerError).toBeNull();
+  });
   it("reads every requested field from a proc tree + statfs", async () => {
     const data = await fetchSystemStats({
       fields: ["cpu", "memory", "disk", "network", "load"],

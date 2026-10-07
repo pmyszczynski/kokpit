@@ -8,6 +8,11 @@ export interface WidgetBodyProps extends HTMLAttributes<HTMLDivElement> {
   reserveNotice?: boolean;
   centered?: boolean;
   noticeClassName?: string;
+  /** Opt-in named keyboard-scrollable content; the notice remains outside it. */
+  scrollLabel?: string;
+  /** Center saved empty content while retaining the fixed notice slot. */
+  contentCentered?: boolean;
+  contentClassName?: string;
 }
 
 /** A shrinkable widget body with an optional, stable notice row. */
@@ -18,6 +23,9 @@ export function WidgetBody({
   centered = false,
   className,
   noticeClassName,
+  scrollLabel,
+  contentCentered = false,
+  contentClassName,
   ...props
 }: WidgetBodyProps) {
   const hasNoticeSlot =
@@ -33,7 +41,12 @@ export function WidgetBody({
         className
       )}
     >
-      {children}
+      {scrollLabel !== undefined || contentCentered ? <div
+        className={joinClassNames("widget-body__content", scrollLabel !== undefined ? "widget-body__content--scroll" : undefined, contentCentered ? "widget-body__content--centered" : undefined, contentClassName)}
+        role={scrollLabel !== undefined ? "region" : undefined}
+        aria-label={scrollLabel}
+        tabIndex={scrollLabel !== undefined ? 0 : undefined}
+      >{children}</div> : children}
       {hasNoticeSlot && (
         <div className={joinClassNames("widget-body__notice", noticeClassName)}>
           {notice}

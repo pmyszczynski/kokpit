@@ -30,6 +30,7 @@
   }
 
   .widget-stat,
+  .widget-stat-row,
   .widget-status-dot,
   .widget-list__summary,
   .widget-badge,
@@ -45,12 +46,14 @@
   }
 
   [data-theme="light"] .widget-stat,
+  [data-theme="light"] .widget-stat-row,
   [data-theme="light"] .widget-status-dot,
   [data-theme="light"] .widget-list__summary,
   [data-theme="light"] .widget-badge,
   [data-theme="light"] .widget-bar,
   [data-theme="light"] .widget-list-item,
   [data-theme="high-contrast"] .widget-stat,
+  [data-theme="high-contrast"] .widget-stat-row,
   [data-theme="high-contrast"] .widget-status-dot,
   [data-theme="high-contrast"] .widget-list__summary,
   [data-theme="high-contrast"] .widget-badge,
