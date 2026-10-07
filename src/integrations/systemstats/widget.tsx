@@ -147,7 +147,6 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
   minSize: "normal",
-  preservedConfigFields: [{ key: "size_defaults", type: "boolean" }],
   configSchema: SystemStatsConfigSchema,
   fetchData: fetchSystemStats,
   refreshInterval: 10_000,
@@ -187,10 +186,17 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
         "Docker socket for the container overview (used only when Docker is in Fields).",
     },
     {
+      key: "size_defaults",
+      label: "Choose default fields by tile size",
+      type: "boolean",
+      description: "With default fields, show 2/3/6 stats by tile size. Turn off to use the historical CPU, Memory, Disk and Network defaults. Custom Fields selections take priority.",
+    },
+    {
       key: "fields",
       label: "Fields",
       type: "multiselect",
-      description: "Choose fields to override the default selection.",
+      description: "Choose fields to override the defaults, or use default fields to restore them. Clearing every selected field saves an empty widget.",
+      resetLabel: "Use default fields",
       options: [
         { value: "cpu", label: "CPU" },
         { value: "memory", label: "Memory" },

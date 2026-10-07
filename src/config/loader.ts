@@ -115,7 +115,8 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const legacyWideDefault = definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd", "tdarr-stats", "seerr-stats"].includes(definition.id);
     const legacySystemDefault = definition?.id === "system-stats" &&
       !(isRecord(entry.widget) && isRecord(entry.widget.config) && entry.widget.config.size_defaults === true);
-    const preferredSize = legacySystemDefault && !legacySize && !savedFootprint ? "tall"
+    const legacySystemNeedsFootprint = legacySystemDefault && !isTileFootprint(savedFootprint);
+    const preferredSize = legacySystemNeedsFootprint && !legacySize ? "tall"
       : legacyWideDefault && !legacySize && !savedFootprint
       ? "wide"
       : definition?.preferredSize;
@@ -138,7 +139,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       : undefined;
     // Legacy size hints predate the new short canvases; unmarked System Stats
     // tiles without fixed geometry must retain their historical tall canvas.
-    const supportedFallback = (legacySystemDefault && !savedFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
+    const supportedFallback = (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
     ) ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit
@@ -150,7 +151,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
       return Math.max(1, numeric);
     };
-    const normalized = isRecord(savedFootprint) ? {
+    const normalized = isRecord(savedFootprint) && !legacySystemNeedsFootprint ? {
       columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan),
       rowSpan: normalizeSpan(savedFootprint.rowSpan, fallback.rowSpan),
     } : fallback;

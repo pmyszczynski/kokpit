@@ -400,6 +400,16 @@ function WidgetConfigFields({
                   </label>
                 ))}
               </div>
+              {field.resetLabel && (
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={config[field.key] === undefined}
+                  onClick={() => onChange(field.key, undefined)}
+                >
+                  {field.resetLabel}
+                </button>
+              )}
               {field.description && (
                 <p id={hintId} className="settings-form-hint">{field.description}</p>
               )}

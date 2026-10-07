@@ -845,6 +845,30 @@ describe("unversioned settings detection", () => {
 
 
 describe("System Stats footprint compatibility", () => {
+  it.each([
+    { columnSpan: 3 },
+    { rowSpan: 2 },
+    { columnSpan: 3, rowSpan: 0 },
+    { columnSpan: 3.5, rowSpan: 2 },
+    { columnSpan: "3", rowSpan: 2 },
+    {},
+  ])("keeps malformed legacy geometry %j tall without changing fields", async footprint => {
+    const { migrateFixedGridConfig } = await freshLoader();
+    const result = migrateFixedGridConfig({
+      schema_version: 2,
+      services: [{ id: "10000000-0000-4000-8000-000000000001", name: "System" }],
+      service_tiles: [{
+        id: "20000000-0000-4000-8000-000000000001",
+        service_id: "10000000-0000-4000-8000-000000000001",
+        footprint,
+        widget: { type: "system-stats", config: { fields: ["network", "load"] } },
+      }],
+    });
+    expect(result.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 4 });
+    expect(result.service_tiles[0].widget?.config).toEqual({ fields: ["network", "load"] });
+    expect(migrateFixedGridConfig(result as unknown as Record<string, unknown>)).toEqual(result);
+  });
+
   it.each(["normal", "wide", "tall", "large"])("keeps a v1 System Stats tile with legacy %s size tall", async size => {
     const { migrateV1Config, migrateFixedGridConfig } = await freshLoader();
     const migrated = migrateFixedGridConfig(migrateV1Config({ schema_version: 1, services: [

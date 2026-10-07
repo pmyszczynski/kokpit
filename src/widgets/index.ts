@@ -30,6 +30,8 @@ interface WidgetConfigFieldBase {
   required?: boolean;
   /** Options for multiselect fields. */
   options?: Array<{ value: string; label: string }>;
+  /** Optional multiselect action that removes the explicit selection override. */
+  resetLabel?: string;
 }
 
 export type WidgetConfigField =

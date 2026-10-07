@@ -2240,6 +2240,28 @@ describe("ServiceForm – footprint", () => {
 
 
 describe("System Stats size-default presets", () => {
+  it.each([
+    { fields: ["network", "load"], size_defaults: true },
+    { fields: [], size_defaults: true },
+    { fields: ["network"], size_defaults: false },
+    { fields: [] },
+  ])("restores default fields from %j without changing collection options", config => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { ...config, disk_path: "/host" } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByRole("button", { name: "Use default fields", hidden: true }));
+    expect(screen.getByRole("button", { name: "Use default fields", hidden: true })).toBeDisabled();
+    fireEvent.click(screen.getByText("Save"));
+    const { fields: _fields, ...defaults } = config;
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { ...defaults, disk_path: "/host" } }) }));
+    expect(onSave.mock.calls[0][0].widget.config).not.toHaveProperty("fields");
+  });
+  it.each([true, false])("lets the editor choose size defaults (%s) for a saved tile", enabled => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { size_defaults: !enabled } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByLabelText("Choose default fields by tile size"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { size_defaults: enabled } }) }));
+  });
   it.each([true, false])("ignores a stale test result (%s) after resizing and starting a new test", async oldOk => {
     let resolveOld!: (value: unknown) => void;
     let resolveCurrent!: (value: unknown) => void;
