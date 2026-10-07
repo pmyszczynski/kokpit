@@ -1,5 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
+import * as dockerApi from "../../integrations/docker/api";
+import { fetchWithHardTimeout } from "../../lib/fetchTimeout";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -78,6 +80,8 @@ afterAll(() => {
 
 afterEach(() => {
   delete process.env.KOKPIT_PROC_PATH;
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 // ---------------------------------------------------------------------------
@@ -355,6 +359,20 @@ describe("delay", () => {
 // ---------------------------------------------------------------------------
 
 describe("fetchSystemStats", () => {
+  it("returns a partial Docker error after a slow nested probe instead of a whole-widget timeout", async () => {
+    await import("../../integrations/systemstats/widget");
+    const { getWidget } = await import("../../widgets");
+    const widget = getWidget("system-stats")!;
+    vi.useFakeTimers();
+    vi.spyOn(dockerApi, "fetchDockerData").mockImplementation(() => new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Docker request timed out")), 6_000);
+    }));
+    const task = fetchWithHardTimeout(signal => fetchSystemStats({ fields: ["docker"] }, signal), "Widget timed out", widget.fetchTimeoutMs);
+    await vi.advanceTimersByTimeAsync(6_000);
+    const data = await task;
+    expect(data.docker).toBeNull();
+    expect(data.dockerError).toBe("Docker request timed out");
+  });
   it("collects only the compact size defaults, leaving disk, network, load and Docker untouched", async () => {
     const data = await fetchSystemStats({ size_defaults: true, proc_path: procDir, disk_path: "/a/nonexistent/mount", docker_socket_path: "/a/nonexistent/socket" }, undefined, { footprint: { columnSpan: 3, rowSpan: 2 } });
     expect(data.cpu).not.toBeNull(); expect(data.memory).not.toBeNull();

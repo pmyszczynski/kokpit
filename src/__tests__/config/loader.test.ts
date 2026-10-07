@@ -852,11 +852,13 @@ describe("System Stats footprint compatibility", () => {
       { id: "20000000-0000-4000-8000-000000000002", service_id: "10000000-0000-4000-8000-000000000001", footprint: { columnSpan: 6, rowSpan: 4 }, widget: { type: "system-stats", config: { fields: ["network", "load"] } } },
       { id: "20000000-0000-4000-8000-000000000003", service_id: "10000000-0000-4000-8000-000000000001", widget: { type: "system-stats", config: { size_defaults: true } } },
       { id: "20000000-0000-4000-8000-000000000004", service_id: "10000000-0000-4000-8000-000000000001", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { fields: ["network"] } } },
+      { id: "20000000-0000-4000-8000-000000000005", service_id: "10000000-0000-4000-8000-000000000001", widget: { type: "system-stats", config: { fields: [] } } },
     ] };
     const result = migrateFixedGridConfig(raw);
-    expect(result.service_tiles.map(t => t.footprint)).toEqual([{ columnSpan: 3, rowSpan: 4 }, { columnSpan: 3, rowSpan: 4 }, { columnSpan: 3, rowSpan: 2 }, { columnSpan: 3, rowSpan: 4 }]);
+    expect(result.service_tiles.map(t => t.footprint)).toEqual([{ columnSpan: 3, rowSpan: 4 }, { columnSpan: 3, rowSpan: 4 }, { columnSpan: 3, rowSpan: 2 }, { columnSpan: 3, rowSpan: 4 }, { columnSpan: 3, rowSpan: 4 }]);
     expect(result.service_tiles[1].widget?.config).toEqual({ fields: ["network", "load"] });
     expect(result.service_tiles[3].widget?.config).toEqual({ fields: ["network"] });
+    expect(result.service_tiles[4].widget?.config).toEqual({ fields: [] });
     expect(migrateFixedGridConfig(result as unknown as Record<string, unknown>)).toEqual(result);
   });
 });

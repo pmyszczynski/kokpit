@@ -62,7 +62,7 @@ describe("SystemStatsWidget", () => {
     expect(container.querySelectorAll(".widget-stat")).toHaveLength(columnSpan === 6 ? 3 : 2);
     expect(screen.getByText("20%")).toHaveAccessibleDescription("3.2 / 16 GiB (20%); 12.8 GiB available");
     expect(screen.getByText("12%")).toBeVisible();
-    if (columnSpan === 6) expect(screen.getByText("24%")).toHaveAttribute("title", "/: 120 / 500 GiB (24%); 380 GiB available");
+    if (columnSpan === 6) expect(screen.getByText("24%")).toHaveAccessibleDescription("/: 120 / 500 GiB (24%); 380 GiB available");
   });
   it("keeps every custom selected field on a compact canvas", () => {
     const { container } = render(<SystemStatsWidget data={FULL_DATA} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 2 }} />);

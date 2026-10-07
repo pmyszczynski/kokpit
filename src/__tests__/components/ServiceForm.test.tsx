@@ -2240,6 +2240,26 @@ describe("ServiceForm – footprint", () => {
 
 
 describe("System Stats size-default presets", () => {
+  it.each(["6x2", "3x4"])("tests the selected %s footprint and clears the result after resizing", async size => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={noop} onClose={noop} />);
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: size } });
+    fireEvent.click(screen.getByText("Test connection"));
+    await screen.findByText("Connection OK");
+    const [columnSpan, rowSpan] = size.split("x").map(Number);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ type: "system-stats", config: { size_defaults: true }, footprint: { columnSpan, rowSpan } });
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "3x2" } });
+    expect(screen.queryByText("Connection OK")).not.toBeInTheDocument();
+  });
+  it("saves an explicitly cleared field selection on a new automatic preset", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByLabelText("CPU"));
+    fireEvent.click(screen.getByLabelText("CPU"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { size_defaults: true, fields: [] } }) }));
+  });
   it.each([true, false])("seeds size defaults only for a new tile (initial preset: %s)", initialPreset => {
     const onSave = vi.fn();
     render(<ServiceForm service={null} initialPreset={initialPreset ? "system-stats" : undefined} existingGroups={[]} onSave={onSave} onClose={noop} />);
@@ -2247,10 +2267,10 @@ describe("System Stats size-default presets", () => {
     fireEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ type: "system-stats", config: { size_defaults: true } }) }));
   });
-  it("does not seed automatic defaults when editing a saved legacy field selection", () => {
+  it.each([{ fields: ["network", "load"] }, { fields: [] }, { fields: [], size_defaults: true }])("preserves saved field options (%j) without reseeding defaults", config => {
     const onSave = vi.fn();
-    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { fields: ["network", "load"] } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
     fireEvent.click(screen.getByText("Save"));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { fields: ["network", "load"] } }) }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config }) }));
   });
 });

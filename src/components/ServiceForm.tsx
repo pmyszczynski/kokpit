@@ -104,17 +104,19 @@ function initFromService(service: Service | null): {
 
 /**
  * Drops entries that don't count as "configured": empty strings, empty
- * arrays, null/undefined. A widget config that cleans down to {} means the
+ * arrays, null/undefined, except System Stats' explicit empty field selection.
+ * A widget config that cleans down to {} means the
  * user left the widget unconfigured and the tile renders as a plain link.
  */
 function cleanWidgetConfig(
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  widgetType?: string | null
 ): Record<string, unknown> {
   const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
     if (value === undefined || value === null) continue;
     if (typeof value === "string" && value.trim() === "") continue;
-    if (Array.isArray(value) && value.length === 0) continue;
+    if (Array.isArray(value) && value.length === 0 && !(widgetType === "system-stats" && key === "fields")) continue;
     cleaned[key] = value;
   }
   return cleaned;
@@ -706,7 +708,7 @@ export default function ServiceForm({
     ? integrationConfigIssues.length === 0
     : true;
   const activeCleanedConfig = cleanWidgetConfig(
-    activeRawConfig
+    activeRawConfig, activeWidgetType
   );
   // Direct/legacy callers still supply a merged widget config. Keep that
   // input surface compatible; all projected v2 rows carry integration config
@@ -910,6 +912,7 @@ export default function ServiceForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: testDefinition.id,
+          ...(testDefinition.id === "system-stats" ? { footprint: footprint ?? supportedFootprints?.[0] } : {}),
           config: selectedIntegrationDef && !legacyDirectConfig && opaqueConfigHidden
             ? service!.integration!.config
             : selectedIntegrationDef && !legacyDirectConfig
@@ -1092,7 +1095,7 @@ export default function ServiceForm({
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
-      const cfg = cleanWidgetConfig(widgetConfig);
+      const cfg = cleanWidgetConfig(widgetConfig, tileType);
       widget = {
         type: tileType,
         config: Object.keys(cfg).length > 0 ? cfg : undefined,
@@ -1477,6 +1480,7 @@ export default function ServiceForm({
                   rowSpan: selected.rowSpan,
                 });
                 setFootprintTouched(true);
+                setTestStatus({ state: "idle" });
               }}
             >
               {supportedFootprints.map((candidate) => (

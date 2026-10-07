@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import { WidgetBody } from "./WidgetBody";
 
 describe("WidgetBody", () => {
+  it("honors a standalone content styling hook without adding a scroll target", () => {
+    const { container } = render(<WidgetBody contentClassName="host-content" reserveNotice>CPU</WidgetBody>);
+    expect(container.querySelector(".widget-body__content.host-content")).toHaveTextContent("CPU");
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(container.querySelector("[tabindex]")).not.toBeInTheDocument();
+  });
   it("keeps an opt-in named keyboard scroll region separate from the fixed notice", () => {
     const { rerender } = render(<WidgetBody scrollLabel="Host measurements" contentClassName="host-scroll" reserveNotice>CPU</WidgetBody>);
     const region = screen.getByRole("region", { name: "Host measurements" });

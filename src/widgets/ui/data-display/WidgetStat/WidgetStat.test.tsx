@@ -6,6 +6,8 @@ describe("WidgetStat", () => {
   it("keeps supporting measurement details accessible through an optional value tooltip", () => {
     render(<WidgetStat label="Memory" value="20%" valueTooltip="3.2 / 16 GiB used" />);
     expect(screen.getByRole("definition")).toHaveAccessibleDescription("3.2 / 16 GiB used");
+    expect(screen.getByRole("definition")).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("3.2 / 16 GiB used");
   });
   it("keeps zero values and exposes the label/value definition pair", () => {
     render(<WidgetStat label="Queued items" value={0} />);
@@ -15,6 +17,7 @@ describe("WidgetStat", () => {
 
     expect(label.tagName).toBe("DT");
     expect(value.tagName).toBe("DD");
+    expect(value).not.toHaveAttribute("tabindex");
     expect(label.closest("dl")).toContainElement(value);
   });
 

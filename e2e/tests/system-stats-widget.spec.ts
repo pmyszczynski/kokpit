@@ -88,7 +88,7 @@ test("System Stats fits 2/3/6 fields across all three footprints with readable s
     await expectWidgetStatLayout(compact, { width: 340, height: 128, columns: 2, rows: 1 });
     await expectWidgetStatLayout(wide, { width: 688, height: 128, columns: 3, rows: 1 });
     await expectWidgetStatContrast(compact); await expectWidgetStatContrast(wide);
-    await expect(compact.getByText("20%", { exact: true })).toHaveAttribute("title", "3.2 / 16 GiB (20%); 12.8 GiB available");
+    await expect(compact.locator(".system-stats-widget__stat--memory .widget-stat__value")).toHaveAccessibleDescription("3.2 / 16 GiB (20%); 12.8 GiB available");
     await expect(widget.locator(".widget-stat-row")).toHaveCount(6); await expectFit(widget, true); await expectContrast(widget);
     await expect(widget.getByRole("meter")).toHaveCount(3);
     await expect(widget.getByRole("progressbar")).toHaveCount(0);
@@ -102,6 +102,33 @@ test("System Stats fits 2/3/6 fields across all three footprints with readable s
     const reference = page.locator('[data-widget-type="qbittorrent-stats"] .widget-stat').first();
     const cardStyle = (node: Element) => { const r = node.getBoundingClientRect(), style = getComputedStyle(node); return { width:r.width, height:r.height, padding:style.padding, gap:style.gap, valueSize:getComputedStyle(node.querySelector(".widget-stat__value")!).fontSize, labelSize:getComputedStyle(node.querySelector(".widget-stat__label")!).fontSize }; };
     expect(await compact.locator(".widget-stat").first().evaluate(cardStyle)).toEqual(await reference.evaluate(cardStyle));
+  }
+});
+
+test("System Stats supporting details work with keyboard focus, Escape and hover without moving cards", async ({ page, request }) => {
+  const path = "/mnt/long-host-filesystem-name/containers-and-media-storage/production-volume";
+  await page.setViewportSize({ width: 1108, height: 720 });
+  await mock(page, { ...DATA, disk: { ...DATA.disk!, path } });
+  for (const theme of THEMES) {
+    await configure(request, theme); await page.goto("/");
+    const values = [tile(page).locator(".system-stats-widget__stat--memory .widget-stat__value"), tile(page, 2).locator(".system-stats-widget__stat--disk .widget-stat__value")];
+    for (const value of values) {
+      const card = value.locator("..");
+      const before = await card.boundingBox();
+      await expect(value).toHaveAttribute("tabindex", "0");
+      await value.focus(); await expect(value).toBeFocused();
+      const tooltip = page.getByRole("tooltip");
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toContainText(value === values[0] ? "3.2 / 16 GiB" : path);
+      const bounds = await tooltip.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.y).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1108); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(720);
+      expect(await card.boundingBox()).toEqual(before);
+      await value.press("Escape"); await expect(tooltip).toHaveCount(0); await expect(value).toBeFocused();
+      await page.keyboard.press("Tab"); await expect(value).not.toBeFocused();
+      await value.hover(); await expect(tooltip).toBeVisible();
+      await page.mouse.move(1000, 700); await expect(tooltip).toHaveCount(0);
+    }
   }
 });
 

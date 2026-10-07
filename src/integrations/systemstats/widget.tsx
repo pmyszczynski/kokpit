@@ -151,6 +151,8 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
   configSchema: SystemStatsConfigSchema,
   fetchData: fetchSystemStats,
   refreshInterval: 10_000,
+  // Docker's ping/list requests can each take 3s, plus the 250ms host sample.
+  fetchTimeoutMs: 8_000,
   component: SystemStatsWidget,
   configFields: [
     {

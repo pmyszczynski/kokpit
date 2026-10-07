@@ -41,7 +41,7 @@ export function WidgetBody({
         className
       )}
     >
-      {scrollLabel !== undefined || contentCentered ? <div
+      {scrollLabel !== undefined || contentCentered || contentClassName !== undefined ? <div
         className={joinClassNames("widget-body__content", scrollLabel !== undefined ? "widget-body__content--scroll" : undefined, contentCentered ? "widget-body__content--centered" : undefined, contentClassName)}
         role={scrollLabel !== undefined ? "region" : undefined}
         aria-label={scrollLabel}
