@@ -25,11 +25,9 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  closestCenter,
   useDroppable,
   useSensor,
   useSensors,
-  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -37,7 +35,6 @@ import {
   SortableContext,
   arrayMove,
   rectSortingStrategy,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -75,6 +72,7 @@ import {
 } from "@/config/groupCascade";
 import { duplicateBookmark, duplicateService } from "@/config/duplicate";
 import { useEditMode } from "./EditModeProvider";
+import { dashboardCollisionDetection, dashboardKeyboardCoordinates } from "./dragCollision";
 import { projectLegacyServices } from "./serviceFormProjection";
 import { getWidget, getWidgetSizeHints } from "@/widgets";
 import { resolveTileWidget } from "@/widgets/tileWidget";
@@ -340,18 +338,6 @@ function computeTargetIndex(
   return overIdx === -1 ? withoutMoving.length : overIdx;
 }
 
-// Collision detection scoped by drag kind: a group only collides with group
-// handles; a tile only collides with tile sortables + section containers.
-const collisionDetection: CollisionDetection = (args) => {
-  const activeType = args.active.data.current?.type;
-  const filtered = args.droppableContainers.filter((c) =>
-    activeType === "group"
-      ? c.data.current?.type === "group"
-      : c.data.current?.type !== "group"
-  );
-  return closestCenter({ ...args, droppableContainers: filtered });
-};
-
 // Which edit dialog (if any) is mounted. `group` is the target section an
 // add-flow was launched from (null = ungrouped / no placement).
 type ActiveDialog =
@@ -561,7 +547,7 @@ export default function EditableServiceGrid({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: dashboardKeyboardCoordinates,
     })
   );
 
@@ -825,7 +811,7 @@ export default function EditableServiceGrid({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={collisionDetection}
+      collisionDetection={dashboardCollisionDetection}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
