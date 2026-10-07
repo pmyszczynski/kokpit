@@ -1,6 +1,8 @@
+"use client";
+
 import { joinClassNames } from "../../joinClassNames";
 import "./WidgetStat.css";
-import type { ReactNode } from "react";
+import { useId, useRef, type ReactNode, type SyntheticEvent } from "react";
 
 export type WidgetStatTone = "neutral" | "positive" | "info" | "positive-soft" | "info-soft" | "alert" | "warning";
 
@@ -11,6 +13,8 @@ export interface WidgetStatProps {
   className?: string;
   valueClassName?: string;
   labelClassName?: string;
+  /** Full supporting measurement exposed by the value tooltip and accessible description. */
+  valueTooltip?: string;
 }
 
 /** A formatted value and its label, presented as a compact stat card. */
@@ -21,7 +25,25 @@ export function WidgetStat({
   className,
   valueClassName,
   labelClassName,
+  valueTooltip,
 }: WidgetStatProps) {
+  const tooltipId = useId();
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const showTooltip = (event: SyntheticEvent<HTMLElement>) => {
+    const tooltip = tooltipRef.current;
+    if (!tooltip?.showPopover) return;
+    if (!tooltip.matches(":popover-open")) tooltip.showPopover();
+    const anchor = event.currentTarget.getBoundingClientRect();
+    const bounds = tooltip.getBoundingClientRect();
+    tooltip.style.setProperty("--widget-stat-tooltip-left", `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`);
+    tooltip.style.setProperty("--widget-stat-tooltip-top", `${anchor.bottom + bounds.height + 6 <= window.innerHeight - 8
+      ? anchor.bottom + 6 : Math.max(8, anchor.top - bounds.height - 6)}px`);
+  };
+  const hideTooltip = () => {
+    const tooltip = tooltipRef.current;
+    if (tooltip?.hidePopover && tooltip.matches(":popover-open")) tooltip.hidePopover();
+  };
+
   return (
     <dl
       className={joinClassNames(
@@ -32,7 +54,25 @@ export function WidgetStat({
       )}
     >
       <dt className={joinClassNames("widget-stat__label", labelClassName)}>{label}</dt>
-      <dd className={joinClassNames("widget-stat__value", valueClassName)}>{value}</dd>
+      <dd className={joinClassNames("widget-stat__value", valueClassName)}
+        tabIndex={valueTooltip ? 0 : undefined} aria-describedby={valueTooltip ? tooltipId : undefined}
+        onFocus={valueTooltip ? showTooltip : undefined} onBlur={hideTooltip}
+        onMouseEnter={valueTooltip ? showTooltip : undefined}
+        onMouseLeave={event => { if (event.currentTarget !== document.activeElement) hideTooltip(); }}
+        onKeyDown={event => {
+          if (event.key === "Escape") { hideTooltip(); return; }
+          const tooltip = tooltipRef.current;
+          if (!tooltip?.matches(":popover-open") || tooltip.scrollHeight <= tooltip.clientHeight) return;
+          const scrollDeltas: Record<string, number> = { ArrowDown: 40, ArrowUp: -40, PageDown: tooltip.clientHeight, PageUp: -tooltip.clientHeight,
+            Home: -tooltip.scrollTop, End: tooltip.scrollHeight };
+          const delta = scrollDeltas[event.key];
+          if (delta === undefined) return;
+          event.preventDefault();
+          tooltip.scrollBy({ top: delta });
+        }}>
+        {value}
+        {valueTooltip && <span ref={tooltipRef} id={tooltipId} role="tooltip" popover="manual" className="widget-ui widget-stat__tooltip">{valueTooltip}</span>}
+      </dd>
     </dl>
   );
 }

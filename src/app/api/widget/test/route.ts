@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth";
 import { getConfigSnapshot, legacyIntegrationType } from "@/config/server";
 import { getWidget } from "@/widgets";
+import { isTileFootprint } from "@/layout/grid";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
 import {
   resolveIntegrationConfigSecrets,
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { type, config } = (body ?? {}) as { type?: unknown; config?: unknown };
+  const { type, config, footprint } = (body ?? {}) as { type?: unknown; config?: unknown; footprint?: unknown };
   if (typeof type !== "string" || type === "") {
     return NextResponse.json({ ok: false, error: "Missing type" }, { status: 400 });
   }
@@ -61,6 +62,12 @@ export async function POST(request: Request) {
       { ok: false, error: `Unknown widget type: "${type}"` },
       { status: 404 }
     );
+  }
+
+  if (footprint !== undefined && (!isTileFootprint(footprint) ||
+    (widget.supportedFootprints?.length && !widget.supportedFootprints.some(candidate =>
+      candidate.columnSpan === footprint.columnSpan && candidate.rowSpan === footprint.rowSpan)))) {
+    return NextResponse.json({ ok: false, error: "Invalid widget footprint" }, { status: 400 });
   }
 
   let resolvedConfig: unknown;
@@ -100,7 +107,9 @@ export async function POST(request: Request) {
     // Only pass/fail matters here — discard the data so credentials-derived
     // payloads never round-trip through the form.
     await fetchWithHardTimeout(
-      (signal) => widget.fetchData(parsed.data, signal),
+      (signal) => footprint === undefined
+        ? widget.fetchData(parsed.data, signal)
+        : widget.fetchData(parsed.data, signal, { footprint }),
       "Connection test timed out",
       widget.fetchTimeoutMs
     );

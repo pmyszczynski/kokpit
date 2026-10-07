@@ -104,17 +104,19 @@ function initFromService(service: Service | null): {
 
 /**
  * Drops entries that don't count as "configured": empty strings, empty
- * arrays, null/undefined. A widget config that cleans down to {} means the
+ * arrays, null/undefined, except System Stats' explicit empty field selection.
+ * A widget config that cleans down to {} means the
  * user left the widget unconfigured and the tile renders as a plain link.
  */
 function cleanWidgetConfig(
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  widgetType?: string | null
 ): Record<string, unknown> {
   const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
     if (value === undefined || value === null) continue;
     if (typeof value === "string" && value.trim() === "") continue;
-    if (Array.isArray(value) && value.length === 0) continue;
+    if (Array.isArray(value) && value.length === 0 && !(widgetType === "system-stats" && key === "fields")) continue;
     cleaned[key] = value;
   }
   return cleaned;
@@ -398,6 +400,16 @@ function WidgetConfigFields({
                   </label>
                 ))}
               </div>
+              {field.resetLabel && (
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={config[field.key] === undefined}
+                  onClick={() => onChange(field.key, undefined)}
+                >
+                  {field.resetLabel}
+                </button>
+              )}
               {field.description && (
                 <p id={hintId} className="settings-form-hint">{field.description}</p>
               )}
@@ -555,7 +567,11 @@ export default function ServiceForm({
         candidate.columnSpan === service.footprint?.columnSpan &&
         candidate.rowSpan === service.footprint?.rowSpan
     );
-    const resolved = supported ? service.footprint : definition.supportedFootprints[0];
+    const legacySystemDefault = definition.id === "system-stats" && service.widget.config?.size_defaults !== true;
+    const fallback = legacySystemDefault
+      ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 3 && candidate.rowSpan === 4)
+      : definition.supportedFootprints[0];
+    const resolved = supported ? service.footprint : fallback;
     return resolved ? { columnSpan: resolved.columnSpan, rowSpan: resolved.rowSpan } : undefined;
   });
   const [nameError, setNameError] = useState<string | null>(null);
@@ -564,7 +580,7 @@ export default function ServiceForm({
   const initialTileType = initial.tileType || (presetEditor ? initialPreset ?? "" : "");
   const [tileType, setTileType] = useState(initialTileType);
   const [orphanWidget, setOrphanWidget] = useState<ServiceWidget | null>(initial.orphanWidget);
-  const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(initial.widgetConfig);
+  const [widgetConfig, setWidgetConfig] = useState<Record<string, unknown>>(presetEditor?.defaultConfig ? { ...presetEditor.defaultConfig } : initial.widgetConfig);
   const [refreshInterval, setRefreshInterval] = useState<string>(initial.refreshInterval);
   // True once the user has actively edited the widget config (or switched
   // tile type) in this dialog session. Distinguishes "showing the saved
@@ -627,6 +643,16 @@ export default function ServiceForm({
     );
   });
   const [testStatus, setTestStatus] = useState<TestStatus>({ state: "idle" });
+  const testConnectionController = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    testConnectionController.current?.abort();
+    testConnectionController.current = null;
+  }, []);
+  function resetConnectionTest() {
+    testConnectionController.current?.abort();
+    testConnectionController.current = null;
+    setTestStatus({ state: "idle" });
+  }
   const [iconDetectStatus, setIconDetectStatus] = useState<IconDetectStatus>({ state: "idle" });
   const [iconPreviewError, setIconPreviewError] = useState(false);
 
@@ -702,7 +728,7 @@ export default function ServiceForm({
     ? integrationConfigIssues.length === 0
     : true;
   const activeCleanedConfig = cleanWidgetConfig(
-    activeRawConfig
+    activeRawConfig, activeWidgetType
   );
   // Direct/legacy callers still supply a merged widget config. Keep that
   // input surface compatible; all projected v2 rows carry integration config
@@ -818,14 +844,14 @@ export default function ServiceForm({
       return next;
     });
     setIntegrationTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleIntegrationTypeChange(nextType: string) {
     setIntegrationTouched(true);
     setIntegrationType(nextType);
     setIntegrationConfig({});
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleWidgetConfigChange(key: string, value: unknown) {
@@ -833,7 +859,7 @@ export default function ServiceForm({
       return { ...prev, [key]: value };
     });
     setWidgetConfigTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleOrphanWidgetConfigChange(key: string, value: unknown) {
@@ -843,12 +869,12 @@ export default function ServiceForm({
       return { ...prev, config: cfg };
     });
     setWidgetConfigTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
   }
 
   function handleTileTypeChange(newTile: string) {
     setWidgetConfigTouched(true);
-    setTestStatus({ state: "idle" });
+    resetConnectionTest();
     if (newTile === "") {
       if (tileType !== "") {
         setOrphanWidget(null);
@@ -862,9 +888,9 @@ export default function ServiceForm({
     }
     setTileType(newTile);
     setOrphanWidget(null);
-    setWidgetConfig({});
     setRefreshInterval("");
     const def = getWidget(newTile);
+    setWidgetConfig({ ...def?.serviceEditorPreset?.defaultConfig });
     const requiredIntegration = widgetIntegrationRequirement(newTile);
     if (requiredIntegration && integrationType !== requiredIntegration) {
       setIntegrationType(requiredIntegration);
@@ -899,13 +925,19 @@ export default function ServiceForm({
       savedCredentialsStale ||
       integrationConflict
     ) return;
+    testConnectionController.current?.abort();
+    const controller = new AbortController();
+    testConnectionController.current = controller;
+    const isCurrent = () => !controller.signal.aborted && testConnectionController.current === controller;
     setTestStatus({ state: "testing" });
     try {
       const res = await fetch("/api/widget/test", {
+        signal: controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: testDefinition.id,
+          ...(testDefinition.id === "system-stats" ? { footprint: footprint ?? supportedFootprints?.[0] } : {}),
           config: selectedIntegrationDef && !legacyDirectConfig && opaqueConfigHidden
             ? service!.integration!.config
             : selectedIntegrationDef && !legacyDirectConfig
@@ -916,6 +948,7 @@ export default function ServiceForm({
         }),
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!isCurrent()) return;
       if (json.ok) {
         setTestStatus({ state: "success" });
       } else {
@@ -925,10 +958,12 @@ export default function ServiceForm({
         });
       }
     } catch (err) {
-      setTestStatus({
+      if (isCurrent()) setTestStatus({
         state: "error",
         message: err instanceof Error ? err.message : "Connection test failed",
       });
+    } finally {
+      if (testConnectionController.current === controller) testConnectionController.current = null;
     }
   }
 
@@ -1088,7 +1123,7 @@ export default function ServiceForm({
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
-      const cfg = cleanWidgetConfig(widgetConfig);
+      const cfg = cleanWidgetConfig(widgetConfig, tileType);
       widget = {
         type: tileType,
         config: Object.keys(cfg).length > 0 ? cfg : undefined,
@@ -1473,6 +1508,7 @@ export default function ServiceForm({
                   rowSpan: selected.rowSpan,
                 });
                 setFootprintTouched(true);
+                resetConnectionTest();
               }}
             >
               {supportedFootprints.map((candidate) => (

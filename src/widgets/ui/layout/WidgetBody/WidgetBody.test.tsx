@@ -3,6 +3,29 @@ import { describe, expect, it } from "vitest";
 import { WidgetBody } from "./WidgetBody";
 
 describe("WidgetBody", () => {
+  it("honors a standalone content styling hook without adding a scroll target", () => {
+    const { container } = render(<WidgetBody contentClassName="host-content" reserveNotice>CPU</WidgetBody>);
+    expect(container.querySelector(".widget-body__content.host-content")).toHaveTextContent("CPU");
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(container.querySelector("[tabindex]")).not.toBeInTheDocument();
+  });
+  it("keeps an opt-in named keyboard scroll region separate from the fixed notice", () => {
+    const { rerender } = render(<WidgetBody scrollLabel="Host measurements" contentClassName="host-scroll" reserveNotice>CPU</WidgetBody>);
+    const region = screen.getByRole("region", { name: "Host measurements" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveClass("widget-body__content--scroll", "host-scroll");
+    expect(region).toHaveTextContent("CPU");
+    expect(region.nextElementSibling).toHaveClass("widget-body__notice");
+    rerender(<WidgetBody scrollLabel="Host measurements" reserveNotice notice={<span>Refresh failed</span>}>CPU</WidgetBody>);
+    expect(region).not.toHaveTextContent("Refresh failed");
+    expect(region.nextElementSibling).toHaveTextContent("Refresh failed");
+  });
+  it("centers saved empty content without an empty keyboard target", () => {
+    const { container } = render(<WidgetBody contentCentered reserveNotice>No stats to show</WidgetBody>);
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(container.querySelector(".widget-body__content--centered")).toHaveTextContent("No stats to show");
+    expect(container.querySelector("[tabindex]")).not.toBeInTheDocument();
+  });
   it("keeps caller content, classes, and div accessibility attributes", () => {
     render(
       <WidgetBody centered className="immich-stats-widget" aria-label="Immich stats">

@@ -6,6 +6,10 @@
     min-height: 0;
   }
 
+  .widget-body__content { display: flex; flex: 1 1 0; flex-direction: column; gap: var(--widget-body-content-gap, 6px); min-height: 0; min-width: 0; }
+  .widget-body__content--scroll { overflow: auto; }
+  .widget-body__content--centered { align-items: center; justify-content: center; }
+
   .widget-body--centered {
     align-items: center;
     justify-content: center;

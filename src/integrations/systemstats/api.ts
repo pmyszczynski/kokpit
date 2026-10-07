@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TileFootprint } from "@/layout/grid";
 import { fetchDockerData } from "../docker/api";
 
 // The set of stat rows the widget can display. Declared once so the schema, the
@@ -20,6 +21,8 @@ export const SystemStatsConfigSchema = z.object({
   interface: z.string().min(1).optional(), // network iface filter; default: all non-loopback
   docker_socket_path: z.string().min(1).optional(), // used only when "docker" in fields
   fields: z.array(z.enum(FIELD_VALUES)).optional(),
+  // New editor presets opt into size-based defaults; absent preserves legacy four-field behavior.
+  size_defaults: z.boolean().optional(),
 });
 
 // z.input (not z.infer): every field is optional and defaults are resolved at
@@ -83,8 +86,11 @@ export function resolveDiskPath(config: SystemStatsConfig): string {
 }
 
 /** Resolves the deduped list of fields to display, defaulting to DEFAULT_FIELDS. */
-export function resolveFields(config: SystemStatsConfig): SystemStatsField[] {
-  const fields: readonly SystemStatsField[] = config.fields ?? DEFAULT_FIELDS;
+export function resolveFields(config: SystemStatsConfig, footprint?: TileFootprint): SystemStatsField[] {
+  const size = `${footprint?.columnSpan ?? 3}x${footprint?.rowSpan ?? 2}`;
+  const sizeFields: readonly SystemStatsField[] = size === "3x4" ? FIELD_VALUES
+    : size === "6x2" ? ["cpu", "memory", "disk"] : ["cpu", "memory"];
+  const fields: readonly SystemStatsField[] = config.fields ?? (config.size_defaults ? sizeFields : DEFAULT_FIELDS);
   return [...new Set(fields)];
 }
 
@@ -277,9 +283,10 @@ async function readDiskStats(diskPath: string): Promise<import("node:fs").StatsF
 /** Fetches every requested system stats field, sampling cpu/network twice per call. */
 export async function fetchSystemStats(
   config: SystemStatsConfig,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  context?: { footprint: TileFootprint }
 ): Promise<SystemStatsData> {
-  const fields = new Set(resolveFields(config));
+  const fields = new Set(resolveFields(config, context?.footprint));
   const procPath = resolveProcPath(config);
   const diskPath = resolveDiskPath(config);
 

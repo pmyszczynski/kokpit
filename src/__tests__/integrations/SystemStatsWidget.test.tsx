@@ -56,6 +56,48 @@ const DOCKER_ERROR_DATA: SystemStatsData = {
 };
 
 describe("SystemStatsWidget", () => {
+  it.each([3, 6])("shows %s-column summary cards with full supporting measurement tooltips", columnSpan => {
+    const data = { ...EMPTY_DATA, cpu: FULL_DATA.cpu, memory: FULL_DATA.memory, ...(columnSpan === 6 ? { disk: FULL_DATA.disk } : {}) };
+    const { container } = render(<SystemStatsWidget data={data} loading={false} error={null} refresh={noop} footprint={{ columnSpan, rowSpan: 2 }} />);
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(columnSpan === 6 ? 3 : 2);
+    expect(screen.getByText("20%")).toHaveAccessibleDescription("3.2 / 16 GiB (20%); 12.8 GiB available");
+    expect(screen.getByText("12%")).toBeVisible();
+    if (columnSpan === 6) expect(screen.getByText("24%")).toHaveAccessibleDescription("/: 120 / 500 GiB (24%); 380 GiB available");
+  });
+  it("keeps every custom selected field on a compact canvas", () => {
+    const { container } = render(<SystemStatsWidget data={FULL_DATA} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 2 }} />);
+    expect(container.querySelectorAll(".widget-stat-row")).toHaveLength(6);
+    expect(screen.getByText("8 / 12 running")).toBeVisible();
+    expect(screen.getByRole("region", { name: "System stats measurements" })).toHaveAttribute("tabindex", "0");
+  });
+  it("names usage meters, retains domain values beyond the fill limits and distinguishes transfer directions", () => {
+    const data = { ...FULL_DATA, cpu: { ...FULL_DATA.cpu!, usagePercent: 120 }, memory: { ...FULL_DATA.memory!, usagePercent: -5 } };
+    render(<SystemStatsWidget data={data} loading={false} error={null} refresh={noop} />);
+    expect(screen.getByRole("meter", { name: "CPU usage" })).toHaveAttribute("aria-valuenow", "100");
+    expect(screen.getByRole("meter", { name: "CPU usage" })).toHaveAttribute("aria-valuetext", "120%");
+    expect(screen.getByText("120%")).toBeVisible();
+    expect(screen.getByRole("meter", { name: "Memory usage" })).toHaveAttribute("aria-valuenow", "0");
+    expect(screen.getByRole("meter", { name: "Memory usage" })).toHaveAttribute("aria-valuetext", "3.2 / 16 GiB (-5%)");
+    expect(screen.getByText("↓ 1.2 MB/s")).toHaveClass("widget-stat-row__value--tone-positive");
+    expect(screen.getByText("↑ 240 KB/s")).toHaveClass("widget-stat-row__value--tone-info");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+  it("retains an empty saved result on refresh failure without an empty scroll region", () => {
+    render(<SystemStatsWidget data={EMPTY_DATA} loading={false} error="Host unavailable" refresh={noop} />);
+    expect(screen.getByText("No stats to show")).toBeVisible();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Host unavailable");
+  });
+  it("renders only supplied fields, preserves zero readings and isolates a Docker-only error", () => {
+    const { rerender, container } = render(<SystemStatsWidget data={{ ...EMPTY_DATA, network: { ...FULL_DATA.network!, rxBytesPerSec: 0, txBytesPerSec: 0 } }} loading={false} error={null} refresh={noop} />);
+    expect(container.querySelectorAll(".widget-stat-row")).toHaveLength(1);
+    for (const text of ["↓ 0 B/s", "↑ 0 B/s"]) expect(screen.getByText(text)).toHaveClass("widget-stat-row__value--tone-neutral");
+    rerender(<SystemStatsWidget data={{ ...EMPTY_DATA, dockerError: "Socket unavailable" }} loading={false} error={null} refresh={noop} />);
+    expect(screen.getByText("Docker unavailable")).toHaveAttribute("title", "Socket unavailable");
+    expect(container.querySelectorAll(".widget-stat-row")).toHaveLength(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("No stats to show")).not.toBeInTheDocument();
+  });
   it("shows loading hint when data is null and loading", () => {
     render(<SystemStatsWidget data={null} loading={true} error={null} refresh={noop} />);
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
@@ -125,7 +167,7 @@ describe("SystemStatsWidget", () => {
     );
     expect(screen.getByText("12%")).toBeInTheDocument();
     expect(screen.getByText("8 / 12 running")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 });
 
@@ -136,8 +178,16 @@ describe("system-stats widget registration", () => {
     expect(widget).toBeDefined();
     expect(widget!.name).toBe("System Stats");
     expect(widget!.refreshInterval).toBe(10_000);
-    expect(widget!.preferredSize).toBe("tall");
+    expect(widget!.preferredSize).toBe("normal");
     expect(widget!.minSize).toBe("normal");
+    expect(widget!.supportedFootprints).toEqual([
+      { label: "Compact", columnSpan: 3, rowSpan: 2 },
+      { label: "Detailed", columnSpan: 3, rowSpan: 4 },
+      { label: "Wide", columnSpan: 6, rowSpan: 2 },
+    ]);
+    expect(widget!.serviceEditorPreset?.defaultConfig).toEqual({ size_defaults: true });
+    expect(widget!.compactHeader).toBe(true);
+    expect(widget!.sharedUI).toBe(true);
     expect(widget!.serviceEditorPreset?.defaultName).toBe("System");
   });
 });

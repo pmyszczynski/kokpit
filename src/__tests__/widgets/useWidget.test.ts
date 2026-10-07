@@ -3,6 +3,20 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useWidget } from "@/widgets/useWidget";
 
 describe("useWidget", () => {
+  it("aborts and ignores an older response after its fetch identity changes", async () => {
+    let resolveOld!: (value: unknown) => void;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+      .mockResolvedValueOnce({ json: async () => ({ ok: true, data: "detailed" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, rerender } = renderHook(({ identity }) => useWidget("same-tile", 0, "system-stats", identity),
+      { initialProps: { identity: "3x2" } });
+    rerender({ identity: "3x4" });
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+    await waitFor(() => expect(result.current.data).toBe("detailed"));
+    await act(async () => resolveOld({ json: async () => ({ ok: true, data: "compact" }) }));
+    expect(result.current.data).toBe("detailed");
+  });
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();

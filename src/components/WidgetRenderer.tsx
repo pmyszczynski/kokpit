@@ -38,7 +38,8 @@ function KnownWidgetContent({
   const { data, loading, error, refresh } = useWidget(
     tileId,
     refreshInterval ?? widget.refreshInterval,
-    type
+    type,
+    `${footprint.columnSpan}x${footprint.rowSpan}`
   );
 
   // Only selected widgets opt into a legacy wrapper around shared initial feedback.

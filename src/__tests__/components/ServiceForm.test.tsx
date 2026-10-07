@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
@@ -673,7 +673,7 @@ describe("ServiceForm – tile type", () => {
 
 describe("ServiceForm – optional widget config", () => {
   it.each(allPresetTiles)(
-    "$id: saves widget with type only when the config fields are left empty",
+    "$id: saves widget with its preset defaults when the config fields are left empty",
     ({ id }) => {
       const onSave = vi.fn();
       render(
@@ -686,7 +686,11 @@ describe("ServiceForm – optional widget config", () => {
       expect(onSave).toHaveBeenCalledTimes(1);
       const saved = onSave.mock.calls[0][0];
       expect(saved.widget.type).toBe(id);
-      expect(saved.widget.config).toBeUndefined();
+      if (id === "system-stats") {
+        expect(saved.widget.config).toEqual({ size_defaults: true });
+      } else {
+        expect(saved.widget.config).toBeUndefined();
+      }
     }
   );
 
@@ -2231,5 +2235,84 @@ describe("ServiceForm – footprint", () => {
       widget: undefined,
       footprint: undefined,
     }));
+  });
+});
+
+
+describe("System Stats size-default presets", () => {
+  it.each([
+    { fields: ["network", "load"], size_defaults: true },
+    { fields: [], size_defaults: true },
+    { fields: ["network"], size_defaults: false },
+    { fields: [] },
+  ])("restores default fields from %j without changing collection options", config => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { ...config, disk_path: "/host" } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByRole("button", { name: "Use default fields", hidden: true }));
+    expect(screen.getByRole("button", { name: "Use default fields", hidden: true })).toBeDisabled();
+    fireEvent.click(screen.getByText("Save"));
+    const { fields: _fields, ...defaults } = config;
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { ...defaults, disk_path: "/host" } }) }));
+    expect(onSave.mock.calls[0][0].widget.config).not.toHaveProperty("fields");
+  });
+  it.each([true, false])("lets the editor choose size defaults (%s) for a saved tile", enabled => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config: { size_defaults: !enabled } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByLabelText("Choose default fields by tile size"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { size_defaults: enabled } }) }));
+  });
+  it.each([true, false])("ignores a stale test result (%s) after resizing and starting a new test", async oldOk => {
+    let resolveOld!: (value: unknown) => void;
+    let resolveCurrent!: (value: unknown) => void;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveCurrent = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={noop} onClose={noop} />);
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "6x2" } });
+    fireEvent.click(screen.getByText("Test connection"));
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "3x4" } });
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+    fireEvent.click(screen.getByText("Test connection"));
+    await act(async () => resolveOld({ json: async () => ({ ok: oldOk, error: "Old footprint failure" }) }));
+    expect(screen.getByText("Testing…")).toBeInTheDocument();
+    expect(screen.queryByText("Connection OK")).not.toBeInTheDocument();
+    expect(screen.queryByText("Old footprint failure")).not.toBeInTheDocument();
+    await act(async () => resolveCurrent({ json: async () => ({ ok: true }) }));
+    expect(screen.getByText("Connection OK")).toBeInTheDocument();
+  });
+  it.each(["6x2", "3x4"])("tests the selected %s footprint and clears the result after resizing", async size => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={noop} onClose={noop} />);
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: size } });
+    fireEvent.click(screen.getByText("Test connection"));
+    await screen.findByText("Connection OK");
+    const [columnSpan, rowSpan] = size.split("x").map(Number);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ type: "system-stats", config: { size_defaults: true }, footprint: { columnSpan, rowSpan } });
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "3x2" } });
+    expect(screen.queryByText("Connection OK")).not.toBeInTheDocument();
+  });
+  it("saves an explicitly cleared field selection on a new automatic preset", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByLabelText("CPU"));
+    fireEvent.click(screen.getByLabelText("CPU"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config: { size_defaults: true, fields: [] } }) }));
+  });
+  it.each([true, false])("seeds size defaults only for a new tile (initial preset: %s)", initialPreset => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={null} initialPreset={initialPreset ? "system-stats" : undefined} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    if (!initialPreset) fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "system-stats" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ type: "system-stats", config: { size_defaults: true } }) }));
+  });
+  it.each([{ fields: ["network", "load"] }, { fields: [] }, { fields: [], size_defaults: true }])("preserves saved field options (%j) without reseeding defaults", config => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config }) }));
   });
 });

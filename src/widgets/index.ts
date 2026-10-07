@@ -30,6 +30,8 @@ interface WidgetConfigFieldBase {
   required?: boolean;
   /** Options for multiselect fields. */
   options?: Array<{ value: string; label: string }>;
+  /** Optional multiselect action that removes the explicit selection override. */
+  resetLabel?: string;
 }
 
 export type WidgetConfigField =
@@ -56,6 +58,8 @@ export interface WidgetPreservedConfigField {
 export interface ServiceEditorPreset {
   defaultName: string;
   defaultIconUrl: string;
+  /** Initial non-secret widget options for a newly selected tile; saved config is never reseeded. */
+  defaultConfig?: Record<string, unknown>;
 }
 
 export interface IntegrationDefinition<TConnection = Record<string, unknown>> {

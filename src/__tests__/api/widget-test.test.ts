@@ -175,6 +175,35 @@ afterEach(async () => {
 });
 
 describe("POST /api/widget/test", () => {
+  it.each([
+    { footprint: { columnSpan: 3, rowSpan: 2 }, diskExists: false, status: 200 },
+    { footprint: { columnSpan: 6, rowSpan: 2 }, diskExists: false, status: 500 },
+    { footprint: { columnSpan: 3, rowSpan: 4 }, diskExists: false, status: 500 },
+    { footprint: { columnSpan: 6, rowSpan: 2 }, diskExists: true, status: 200 },
+    { footprint: { columnSpan: 3, rowSpan: 4 }, diskExists: true, status: 500 },
+  ])("tests the actual requested System Stats footprint ($footprint) before reporting success", async ({ footprint, diskExists, status }) => {
+    const fs = process.getBuiltinModule("node:fs");
+    const os = process.getBuiltinModule("node:os");
+    const dir = fs.mkdtempSync(`${os.tmpdir()}/kokpit-system-test-`);
+    try {
+      fs.mkdirSync(`${dir}/net`);
+      fs.writeFileSync(`${dir}/stat`, "cpu 100 0 100 800 0 0 0 0 0 0\ncpu0 100 0 100 800 0 0 0 0 0 0\n");
+      fs.writeFileSync(`${dir}/meminfo`, "MemTotal: 16000 kB\nMemAvailable: 8000 kB\n");
+      fs.writeFileSync(`${dir}/net/dev`, "eth0: 1000 0 0 0 0 0 0 0 500 0 0 0 0 0 0 0\n");
+      const { POST } = await import("../../app/api/widget/test/route");
+      const response = await POST(post({ type: "system-stats", footprint, config: { size_defaults: true, proc_path: dir, disk_path: diskExists ? dir : `${dir}/missing-disk` } }));
+      expect(response.status).toBe(status);
+      expect((await response.json()).ok).toBe(status === 200);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it.each([{ columnSpan: 3, rowSpan: 1 }, { columnSpan: "3", rowSpan: 2 }])("rejects an unsupported or malformed footprint (%j)", async footprint => {
+    const { POST } = await import("../../app/api/widget/test/route");
+    const response = await POST(post({ type: "system-stats", footprint, config: { fields: [] } }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("Invalid widget footprint");
+  });
   it("returns 401 without revealing dirty settings to an unauthenticated caller", async () => {
     const { getConfigSnapshot, markConfigDirty } = await import("@/config/loader");
     expect(getConfigSnapshot().state).toBe("ready");
