@@ -114,7 +114,8 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     // saved. Preserve that upgrade path independently of new editor defaults.
     const legacyPlexDefault = definition?.id === "plex" &&
       !(isRecord(entry.widget) && isRecord(entry.widget.config) && entry.widget.config.size_defaults === true);
-    const legacyPlexNeedsFootprint = legacyPlexDefault && !isTileFootprint(savedFootprint) &&
+    const legacyPlexNeedsFootprint = legacyPlexDefault && !isTileFootprint(savedFootprint);
+    const legacyPlexNeedsWideFallback = legacyPlexNeedsFootprint &&
       (!legacySize || legacySize === "normal" || legacySize === "wide");
     const legacyWideDefault = legacyPlexDefault || definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd", "tdarr-stats", "seerr-stats"].includes(definition.id);
     const legacySystemDefault = definition?.id === "system-stats" &&
@@ -143,7 +144,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       : undefined;
     // Legacy size hints predate the new short canvases; unmarked System Stats
     // tiles without fixed geometry must retain their historical tall canvas.
-    const supportedFallback = (legacyPlexNeedsFootprint ? historicalWideFootprint : undefined) ?? (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
+    const supportedFallback = (legacyPlexNeedsWideFallback ? historicalWideFootprint : undefined) ?? (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
     ) ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit

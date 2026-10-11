@@ -59,7 +59,7 @@ test.describe("visual regression", () => {
       data: { ...DEFAULT_MOCK_STATE, error: 503 },
     });
     await page.goto("/");
-    await expect(page.locator(".widget-error")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Widget fetch failed" })).toBeVisible();
 
     await expect(page.locator(".shell")).toHaveScreenshot("dashboard-widget-error.png", {
       mask: [page.locator(".status-dot")],

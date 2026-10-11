@@ -85,6 +85,10 @@ test("Tautulli keeps five stats fixed while sessions scroll by keyboard in every
       const summary = await widget.locator(".widget-stat-grid").boundingBox();
       await list.press("End");
       await expect.poll(() => list.evaluate(el => el.scrollTop + el.clientHeight >= el.scrollHeight - 1)).toBe(true);
+      await expect(widget.locator(".widget-list-item").last()).toBeInViewport();
+      // When a row is taller than the scroll viewport, End reveals its footer.
+      // ArrowUp must also make the last session's title reachable.
+      await list.press("ArrowUp");
       await expect(widget.getByText("Planet Earth III", { exact: true })).toBeInViewport();
       expect(await widget.locator(".widget-stat-grid").boundingBox()).toEqual(summary);
       await list.press("Home"); await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(0);

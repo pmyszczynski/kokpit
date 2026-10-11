@@ -138,6 +138,8 @@ it("preserves historical wide Plex and explicit expanded geometry", () => {
 it.each([
   { size: "normal", footprint: undefined, config: undefined, expected: { columnSpan: 6, rowSpan: 2 } },
   { size: undefined, footprint: { rowSpan: 2 }, config: undefined, expected: { columnSpan: 6, rowSpan: 2 } },
+  { size: "tall", footprint: { rowSpan: 2 }, config: undefined, expected: { columnSpan: 3, rowSpan: 4 } },
+  { size: "large", footprint: { columnSpan: 3 }, config: undefined, expected: { columnSpan: 6, rowSpan: 4 } },
   { size: undefined, footprint: undefined, config: { size_defaults: true }, expected: { columnSpan: 3, rowSpan: 2 } },
   { size: undefined, footprint: { columnSpan: 3, rowSpan: 2 }, config: undefined, expected: { columnSpan: 3, rowSpan: 2 } },
 ])("normalizes Plex geometry without changing its options (%j)", ({ size, footprint, config, expected }) => {

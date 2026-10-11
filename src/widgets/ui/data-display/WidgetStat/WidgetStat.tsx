@@ -6,7 +6,7 @@ import { useId, useRef, type ReactNode, type HTMLAttributes, type SyntheticEvent
 
 export type WidgetStatTone = "neutral" | "positive" | "info" | "positive-soft" | "info-soft" | "alert" | "warning";
 
-export interface WidgetStatProps extends Omit<HTMLAttributes<HTMLDListElement>, "children"> {
+export interface WidgetStatProps extends Omit<HTMLAttributes<HTMLDListElement>, "children" | "dangerouslySetInnerHTML"> {
   label: ReactNode;
   value: ReactNode;
   tone?: WidgetStatTone;

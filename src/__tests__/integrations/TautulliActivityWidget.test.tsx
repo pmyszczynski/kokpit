@@ -121,6 +121,10 @@ it("preserves summary and session values in the expanded shared composition", ()
   const { container } = render(<TautulliActivityWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 6, rowSpan: 4 }} />);
   expect(container.querySelectorAll(".widget-stat")).toHaveLength(5);
   expect(container.querySelector(".widget-stat-grid")).toHaveAttribute("data-columns", "5");
+  expect(screen.getByText("12.5 Mbps")).toBeInTheDocument();
+  expect(screen.getByText(SAMPLE_DATA.sessions[0].title)).toBeInTheDocument();
+  expect(screen.getByRole("progressbar", { name: "alice progress" })).toHaveAttribute("aria-valuenow", "43");
+  expect(screen.getByText("43%")).toBeInTheDocument();
   expect(container.querySelector(".widget-list-item__footer .widget-bar")).toBeInTheDocument();
   expect(screen.getByLabelText("Active Tautulli sessions")).toHaveAttribute("tabindex", "0");
 });

@@ -456,7 +456,7 @@ service_tiles:
 | `lan_streams`      | LAN         | Active sessions on the local network        |
 | `remote_streams`   | Remote      | Active sessions over the internet           |
 | `users`            | Users       | Number of distinct users currently watching |
-| `bandwidth`        | Bandwidth   | Total streaming bandwidth (shown in Mbps)   |
+| `bandwidth`        | Bandwidth   | Total streaming bandwidth (Mbps, Gbps or Tbps)   |
 | `library_movies`   | Movies      | Total movies across all movie libraries     |
 | `library_shows`    | Shows       | Total shows across all TV libraries         |
 | `library_episodes` | Episodes    | Total episodes across all TV libraries      |
@@ -538,8 +538,9 @@ service_tiles:
 
 Usernames are intentionally displayed. Email, IP, machine/device IDs, file paths, player/platform details, and artwork are discarded server-side.
 
-Tautulli supports **Default (3×4)** and **Expanded (6×4)**. Both retain all five
-summary measurements and every returned session. Expanded arranges the summary
+Tautulli supports **Default (3×4)** and **Expanded (6×4)**. With both `sections` selected, both sizes retain all five
+summary measurements and every returned session. Summary-only and sessions-only
+selections remain supported. Expanded arranges the summary
 in one row to leave more space for session details. The summary stays fixed
 while the session list scrolls by mouse or keyboard. Playing uses green,
 buffering amber, failures red, and paused/unknown states neutral shared tones.

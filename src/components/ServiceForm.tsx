@@ -806,6 +806,9 @@ export default function ServiceForm({
   const widgetConfigEmpty = Object.keys(cleanedIntegrationConfig).length === 0 &&
     Object.keys(activeCleanedConfig).every((key) =>
       selectedWidgetRequiresIntegration && selectedWidgetDef != null && widgetOptionKeys(selectedWidgetDef.id).has(key)
+    ) && !configIssues.some(issue =>
+      selectedWidgetDef != null && Object.hasOwn(activeCleanedConfig, issue.path.split(".")[0]) &&
+      widgetOptionKeys(selectedWidgetDef.id).has(issue.path.split(".")[0])
     );
   // An entirely empty config right after picking a widget type is the
   // expected starting point, not a mistake — listing every "Required" issue

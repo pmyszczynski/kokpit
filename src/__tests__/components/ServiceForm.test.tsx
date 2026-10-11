@@ -2320,6 +2320,13 @@ describe("System Stats size-default presets", () => {
 
 
 describe("Plex size-default presets", () => {
+  it("shows invalid tile options even when connection fields are empty", () => {
+    render(<ServiceForm service={null} initialPreset="sonarr-calendar" existingGroups={[]} onSave={noop} onClose={noop} />);
+    const days = screen.getByLabelText("Days ahead");
+    fireEvent.change(days, { target: { value: "0" } });
+    expect(days).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/days:/)).toBeInTheDocument();
+  });
   it("seeds automatic fields and compact geometry only for new tiles", () => {
     const onSave = vi.fn();
     render(<ServiceForm service={null} initialPreset="plex" existingGroups={[]} onSave={onSave} onClose={noop} />);
