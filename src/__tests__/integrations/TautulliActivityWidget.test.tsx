@@ -89,7 +89,7 @@ describe("TautulliActivityWidget", () => {
   it("shows loading when data is null", () => {
     render(<TautulliActivityWidget data={null} loading={true} error={null} refresh={noop} />);
 
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
   it("shows an initial error when data is null", () => {
@@ -114,4 +114,13 @@ describe("TautulliActivityWidget", () => {
     expect(screen.queryByLabelText("Tautulli summary")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Active Tautulli sessions")).not.toBeInTheDocument();
   });
+});
+
+
+it("preserves summary and session values in the expanded shared composition", () => {
+  const { container } = render(<TautulliActivityWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 6, rowSpan: 4 }} />);
+  expect(container.querySelectorAll(".widget-stat")).toHaveLength(5);
+  expect(container.querySelector(".widget-stat-grid")).toHaveAttribute("data-columns", "5");
+  expect(container.querySelector(".widget-list-item__footer .widget-bar")).toBeInTheDocument();
+  expect(screen.getByLabelText("Active Tautulli sessions")).toHaveAttribute("tabindex", "0");
 });

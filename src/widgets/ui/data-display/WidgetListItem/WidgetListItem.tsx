@@ -15,6 +15,8 @@ interface WidgetListItemBaseProps extends Omit<HTMLAttributes<HTMLLIElement>, "t
   /** Full text for rich secondary content that may be truncated. */
   secondaryTooltip?: string;
   secondary?: ReactNode;
+  /** Full-width supporting content, for example a session playback bar. */
+  footer?: ReactNode;
   contentClassName?: string;
   titleClassName?: string;
   secondaryClassName?: string;
@@ -25,9 +27,9 @@ export type WidgetListItemProps = WidgetListItemBaseProps & (
 );
 
 /** Collection row; integration content owns formatting and domain semantics. */
-export function WidgetListItem({ title, titleTooltip, secondary, secondaryTooltip, leading, trailing, wrapTrailing = false, columns, className, contentClassName, titleClassName, secondaryClassName, ...props }: WidgetListItemProps) {
+export function WidgetListItem({ title, titleTooltip, secondary, secondaryTooltip, footer, leading, trailing, wrapTrailing = false, columns, className, contentClassName, titleClassName, secondaryClassName, ...props }: WidgetListItemProps) {
   return (
-    <li {...props} className={joinClassNames("widget-ui", "widget-list-item", columns ? "widget-list-item--columns" : undefined, className)}>
+    <li {...props} className={joinClassNames("widget-ui", "widget-list-item", footer != null ? "widget-list-item--with-footer" : undefined, columns ? "widget-list-item--columns" : undefined, className)}>
       {leading != null && <div className="widget-list-item__leading">{leading}</div>}
       <div className={joinClassNames("widget-list-item__content", contentClassName)}>
         <span className={joinClassNames("widget-list-item__title", titleClassName)} title={titleTooltip ?? (typeof title === "string" ? title : undefined)}>{title}</span>
@@ -35,6 +37,7 @@ export function WidgetListItem({ title, titleTooltip, secondary, secondaryToolti
       </div>
       {trailing != null && <div className={joinClassNames("widget-list-item__trailing", wrapTrailing ? "widget-list-item__trailing--wrap" : undefined)}>{trailing}</div>}
       {columns?.map((column, index) => <div key={index} className={joinClassNames("widget-list-item__column", `widget-list-item__column--tone-${column.tone ?? "neutral"}`, column.className)}>{column.content}</div>)}
+      {footer != null && <div className="widget-list-item__footer">{footer}</div>}
     </li>
   );
 }

@@ -568,7 +568,10 @@ export default function ServiceForm({
         candidate.rowSpan === service.footprint?.rowSpan
     );
     const legacySystemDefault = definition.id === "system-stats" && service.widget.config?.size_defaults !== true;
-    const fallback = legacySystemDefault
+    const legacyPlexDefault = definition.id === "plex" && service.widget.config?.size_defaults !== true;
+    const fallback = legacyPlexDefault
+      ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 2)
+      : legacySystemDefault
       ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 3 && candidate.rowSpan === 4)
       : definition.supportedFootprints[0];
     const resolved = supported ? service.footprint : fallback;
@@ -799,8 +802,11 @@ export default function ServiceForm({
   const widgetConfigValid = selectedWidgetDef
     ? configIssues.length === 0 && !savedCredentialsStale
     : null;
-  const widgetConfigEmpty = Object.keys(activeCleanedConfig).length === 0 &&
-    Object.keys(cleanedIntegrationConfig).length === 0;
+  // Tile display defaults alone do not configure a credentialed connection.
+  const widgetConfigEmpty = Object.keys(cleanedIntegrationConfig).length === 0 &&
+    Object.keys(activeCleanedConfig).every((key) =>
+      selectedWidgetRequiresIntegration && selectedWidgetDef != null && widgetOptionKeys(selectedWidgetDef.id).has(key)
+    );
   // An entirely empty config right after picking a widget type is the
   // expected starting point, not a mistake — listing every "Required" issue
   // at that moment is a wall of red text for no benefit, so the friendly
@@ -937,7 +943,7 @@ export default function ServiceForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: testDefinition.id,
-          ...(testDefinition.id === "system-stats" ? { footprint: footprint ?? supportedFootprints?.[0] } : {}),
+          ...(["system-stats", "plex"].includes(testDefinition.id) ? { footprint: footprint ?? supportedFootprints?.[0] } : {}),
           config: selectedIntegrationDef && !legacyDirectConfig && opaqueConfigHidden
             ? service!.integration!.config
             : selectedIntegrationDef && !legacyDirectConfig

@@ -1,4 +1,6 @@
 import { registerWidget } from "@/widgets";
+import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetList, WidgetListItem, WidgetBadge, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
+import type { WidgetBadgeTone } from "@/widgets/ui";
 import type { WidgetConfigField, WidgetProps } from "@/widgets";
 import {
   fetchActivity,
@@ -31,89 +33,52 @@ export function formatBandwidth(kbps: number): string {
   return `${kbps.toFixed(0)} Kbps`;
 }
 
-export function TautulliActivityWidget({
-  data,
-  loading,
-  error,
-}: WidgetProps<TautulliActivityData>): React.ReactElement {
-  if (!data) {
-    return (
-      <div className="tautulli-activity-widget tautulli-activity-widget--empty">
-        {loading && <span className="tautulli-activity-widget__hint">Loading&hellip;</span>}
-        {error && (
-          <span className="tautulli-activity-widget__hint tautulli-activity-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+function playbackTone(state: string): WidgetBadgeTone {
+  switch (state.toLowerCase()) {
+    case "playing": return "positive";
+    case "buffering": return "warning";
+    case "error": case "failed": return "alert";
+    case "paused": case "stopped": case "unknown": return "neutral";
+    default: return "info";
   }
+}
 
-  return (
-    <div className="tautulli-activity-widget" aria-label="Tautulli activity">
-      {data.summary && (
-        <div className="tautulli-activity-widget__summary" aria-label="Tautulli summary">
-          {[
-            { label: "Active", value: String(data.summary.streamCount) },
-            { label: "Direct Play", value: String(data.summary.directPlayCount) },
-            { label: "Direct Stream", value: String(data.summary.directStreamCount) },
-            { label: "Transcoding", value: String(data.summary.transcodeCount) },
-            {
-              label: "Bandwidth",
-              value: formatBandwidth(data.summary.totalBandwidthKbps),
-              modifier: "tautulli-activity-widget__stat--bandwidth",
-            },
-          ].map(({ label, value, modifier }) => (
-            <div
-              className={`tautulli-activity-widget__stat${modifier ? ` ${modifier}` : ""}`}
-              key={label}
-            >
-              <span className="tautulli-activity-widget__value">{value}</span>
-              <span className="tautulli-activity-widget__label">{label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {data.sessions && (
-        <div className="tautulli-activity-widget__sessions" aria-label="Active Tautulli sessions">
-          {data.sessions.length === 0
-            ? <span className="tautulli-activity-widget__no-sessions">No active streams</span>
-            : data.sessions.map((session, index) => {
-                const progress = Math.round(
-                  Math.min(100, Math.max(0, session.progressPercent))
-                );
-                return (
-                  <div
-                    className="tautulli-activity-widget__session"
-                    key={`${session.username}:${session.title}:${index}`}
-                  >
-                    <div className="tautulli-activity-widget__session-heading">
-                      <span className="tautulli-activity-widget__username">{session.username}</span>
-                      <span>{formatLabel(session.state)}</span>
-                    </div>
-                    <div className="tautulli-activity-widget__session-media">
-                      <span className="tautulli-activity-widget__title">{session.title}</span>
-                      <span>{formatLabel(session.mediaType)} · {formatLabel(session.transcodeDecision)}</span>
-                    </div>
-                    <div
-                      className="tautulli-activity-widget__progress"
-                      role="progressbar"
-                      aria-label={`${session.username} progress`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={progress}
-                    >
-                      <span style={{ width: `${progress}%` }} />
-                    </div>
-                    <span className="tautulli-activity-widget__progress-label">{progress}%</span>
-                  </div>
-                );
-              })}
-        </div>
-      )}
-      {error && <span className="tautulli-activity-widget__stale-error" role="alert">{error}</span>}
-    </div>
-  );
+export function TautulliActivityWidget({ data, loading, error, footprint }: WidgetProps<TautulliActivityData>): React.ReactElement {
+  if (!data) return <WidgetBody centered className="tautulli-activity-widget tautulli-activity-widget--empty">
+    <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+      className={loading ? "tautulli-activity-widget__hint" : undefined} labelClassName="tautulli-activity-widget__hint tautulli-activity-widget__hint--error">{!loading ? error : undefined}</WidgetState>
+  </WidgetBody>;
+  const expanded = footprint?.columnSpan === 6;
+  const summary = data.summary && <WidgetStatGrid columns={expanded ? 5 : 3} className="tautulli-activity-widget__summary" aria-label="Tautulli summary">
+    {[
+      { label: "Active", value: String(data.summary.streamCount), count: data.summary.streamCount },
+      { label: "Direct Play", value: String(data.summary.directPlayCount), count: data.summary.directPlayCount },
+      { label: "Direct Stream", value: String(data.summary.directStreamCount), count: data.summary.directStreamCount },
+      { label: "Transcoding", value: String(data.summary.transcodeCount), count: data.summary.transcodeCount },
+      { label: "Bandwidth", value: formatBandwidth(data.summary.totalBandwidthKbps), count: null },
+    ].map(({ label, value, count }) => <WidgetStat key={label} label={label} value={value}
+      tone={count === null ? "info" : count > 0 ? "positive" : "neutral"}
+      className={`tautulli-activity-widget__stat${count === null ? " tautulli-activity-widget__stat--bandwidth" : ""}`}
+      valueClassName="tautulli-activity-widget__value" labelClassName="tautulli-activity-widget__label" />)}
+  </WidgetStatGrid>;
+  return <WidgetBody className="tautulli-activity-widget" aria-label="Tautulli activity" data-footprint={expanded ? "6x4" : "3x4"}
+    reserveNotice notice={<WidgetStaleNotice error={error} className="tautulli-activity-widget__stale-error" />}>
+    {data.sessions ? <WidgetList label="Active Tautulli sessions" listClassName="tautulli-activity-widget__sessions" header={summary}
+      empty={data.sessions.length === 0 ? <WidgetState state="empty" className="tautulli-activity-widget__no-sessions">No active streams</WidgetState> : undefined}>
+      {data.sessions.map((session, index) => {
+        const progress = Math.round(Math.min(100, Math.max(0, session.progressPercent)));
+        const metadata = `${formatLabel(session.mediaType)} · ${formatLabel(session.transcodeDecision)}`;
+        const tone = playbackTone(session.state);
+        return <WidgetListItem key={`${session.username}:${session.title}:${index}`} className="tautulli-activity-widget__session"
+          title={session.title} titleClassName="tautulli-activity-widget__title" contentClassName="tautulli-activity-widget__session-media"
+          secondary={<><span className="tautulli-activity-widget__username">{session.username}</span> · <span>{metadata}</span></>}
+          secondaryTooltip={`${session.username} · ${metadata}`}
+          trailing={<WidgetBadge tone={tone} className="tautulli-activity-widget__session-heading">{formatLabel(session.state)}</WidgetBadge>}
+          wrapTrailing footer={<WidgetBar label={`${session.username} progress`} value={progress} tone={tone} valueLabel={`${progress}%`}
+            trackClassName="tautulli-activity-widget__progress" labelClassName="tautulli-activity-widget__progress-label" />} />;
+      })}
+    </WidgetList> : summary ?? <WidgetState state="empty">No activity sections</WidgetState>}
+  </WidgetBody>;
 }
 
 registerWidget<TautulliConfig, TautulliActivityData>({
@@ -123,9 +88,12 @@ registerWidget<TautulliConfig, TautulliActivityData>({
   fetchData: fetchActivity,
   refreshInterval: 10_000,
   preferredSize: "tall",
-  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }, { label: "Expanded", columnSpan: 6, rowSpan: 4 }],
   minSize: "tall",
   component: TautulliActivityWidget,
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: { wrapper: "tautulli-activity-widget tautulli-activity-widget--empty", loading: "tautulli-activity-widget__hint", error: "tautulli-activity-widget__hint tautulli-activity-widget__hint--error" },
   serviceEditorPreset: {
     defaultName: "Tautulli",
     defaultIconUrl:

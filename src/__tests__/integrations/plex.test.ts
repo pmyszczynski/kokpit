@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clearRegistry } from "@/widgets";
 import { fetchPlexSessions, fetchPlexLibraries } from "@/integrations/plex/api";
+import type { PlexData } from "@/integrations/plex/api";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -298,6 +299,39 @@ describe("plex widget registration", () => {
     vi.resetModules(); // reset module cache for fresh dynamic imports
   });
 
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it.each([
+    { columnSpan: 3, rowSpan: 2, count: 2, calls: 1 },
+    { columnSpan: 6, rowSpan: 2, count: 3, calls: 1 },
+    { columnSpan: 3, rowSpan: 4, count: 6, calls: 1 },
+    { columnSpan: 6, rowSpan: 4, count: 10, calls: 2 },
+  ])("fetches only the sources needed for automatic $columnSpan×$rowSpan fields", async ({ columnSpan, rowSpan, count, calls }) => {
+    await import("@/integrations/plex/widget");
+    const { getWidget } = await import("@/widgets");
+    const widget = getWidget("plex")!;
+    const fetchMock = makeFetch({ MediaContainer: { size: 0, Directory: [] } });
+    vi.stubGlobal("fetch", fetchMock);
+    const config = widget.configSchema.parse({ url: "http://plex.local:32400", token: "token", size_defaults: true });
+    const data = await widget.fetchData(config, undefined, { footprint: { columnSpan, rowSpan } }) as PlexData;
+    expect(Object.keys(data).filter(key => key !== "sessions")).toHaveLength(count);
+    expect(data.sessions).toEqual(columnSpan === 3 && rowSpan === 4 ? [] : undefined);
+    expect(fetchMock).toHaveBeenCalledTimes(calls);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/library/sections"))).toBe(calls === 2);
+  });
+
+  it("uses explicit library fields even on a compact automatic tile without requesting sessions", async () => {
+    await import("@/integrations/plex/widget");
+    const { getWidget } = await import("@/widgets");
+    const widget = getWidget("plex")!;
+    const fetchMock = makeFetch({ MediaContainer: { Directory: [] } });
+    vi.stubGlobal("fetch", fetchMock);
+    const config = widget.configSchema.parse({ url: "http://plex.local:32400", token: "token", size_defaults: true, fields: ["library_movies"] });
+    expect(await widget.fetchData(config, undefined, { footprint: { columnSpan: 3, rowSpan: 2 } })).toEqual({ library_movies: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain("/library/sections");
+  });
+
   it("registers a widget with id 'plex' on import", async () => {
     await import("@/integrations/plex/widget");
     const { getWidget: gw } = await import("@/widgets");
@@ -377,5 +411,48 @@ describe("plex widget registration", () => {
     expect(keys).toContain("url");
     expect(keys).toContain("token");
     expect(keys).toContain("fields");
+  });
+});
+
+
+describe("Plex playback projection", () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  const config = { url: "http://plex.local", token: "token", fields: ["streams"] as const };
+  it("projects episode/movie playback fields from the same request without forwarding private metadata", async () => {
+    const fetchMock = makeFetch({ MediaContainer: { size: 2, Metadata: [
+      { type: "episode", title: "Delta-V", grandparentTitle: "The Expanse", parentIndex: 3, index: 5, duration: 100000, viewOffset: 43000,
+        User: { title: "Alice", email: "private@example.test" }, Player: { state: "playing", address: "192.0.2.1", machineIdentifier: "private-id" },
+        Session: { id: "private-session" }, TranscodeSession: { videoDecision: "transcode", key: "/private/path" }, Media: [{ Part: [{ file: "/private/movie.mkv" }] }] },
+      { type: "movie", title: "Dune: Part Two", duration: "100000", viewOffset: "66000", User: { title: "Bob" }, Player: { state: "paused" } },
+    ] } });
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await fetchPlexSessions({ ...config, fields: [...config.fields] }, undefined, true)).toEqual({ streams: 2, sessions: [
+      { username: "Alice", title: "The Expanse · S03E05 · Delta-V", state: "playing", mediaType: "episode", transcodeDecision: "transcode", progressPercent: 43 },
+      { username: "Bob", title: "Dune: Part Two", state: "paused", mediaType: "movie", transcodeDecision: "direct_play", progressPercent: 66 },
+    ] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("handles absent metadata, unknown progress, audio titles and direct-stream decisions", async () => {
+    vi.stubGlobal("fetch", makeFetch({ MediaContainer: { size: 3, Metadata: [
+      {}, { type: "track", title: "Song", parentTitle: "Album", grandparentTitle: "Artist", duration: 0, viewOffset: 10, Media: [{ videoDecision: "copy" }] },
+      { duration: 100, viewOffset: 130, TranscodeSession: { videoDecision: "copy" } },
+    ] } }));
+    const result = await fetchPlexSessions({ ...config, fields: [...config.fields] }, undefined, true);
+    expect(result.sessions).toEqual([
+      { username: "Unknown user", title: "Untitled", state: "unknown", mediaType: "unknown", transcodeDecision: "direct_play", progressPercent: null },
+      { username: "Unknown user", title: "Artist · Album · Song", state: "unknown", mediaType: "track", transcodeDecision: "direct_stream", progressPercent: null },
+      { username: "Unknown user", title: "Untitled", state: "unknown", mediaType: "unknown", transcodeDecision: "direct_stream", progressPercent: 100 },
+    ]);
+  });
+  it.each([{ duration: 100, viewOffset: -1, expected: 0 }, { duration: 100, viewOffset: "invalid", expected: null }, { duration: -1, viewOffset: 10, expected: null }])("bounds progress or leaves it unknown (%j)", async ({ duration, viewOffset, expected }) => {
+    vi.stubGlobal("fetch", makeFetch({ MediaContainer: { size: 1, Metadata: [{ duration, viewOffset }] } }));
+    expect((await fetchPlexSessions({ ...config, fields: [...config.fields] }, undefined, true)).sessions![0].progressPercent).toBe(expected);
+  });
+  it("fetches playback even for a library-only Detailed selection, preserving exactly the chosen stats", async () => {
+    await import("@/integrations/plex/widget"); const { getWidget } = await import("@/widgets"); const widget = getWidget("plex")!;
+    const fetchMock = makeFetch({ MediaContainer: { size: 0, Directory: [] } }); vi.stubGlobal("fetch", fetchMock);
+    const parsed = widget.configSchema.parse({ url: "http://plex", token: "token", fields: ["library_movies"] });
+    expect(await widget.fetchData(parsed, undefined, { footprint: { columnSpan: 3, rowSpan: 4 } })).toEqual({ library_movies: 0, sessions: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

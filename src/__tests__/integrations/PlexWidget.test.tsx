@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { PlexWidget } from "@/integrations/plex/widget";
+import { PlexWidget, resolvePlexFields } from "@/integrations/plex/widget";
 import { getWidget } from "@/widgets";
 
 const noop = () => {};
@@ -76,10 +76,11 @@ describe("PlexWidget component", () => {
       .toHaveAttribute("data-footprint", "3x4");
   });
 
-  it("declares default, narrow, and expanded canvases", () => {
+  it("declares compact, wide, detailed, and expanded canvases", () => {
     expect(getWidget("plex")?.supportedFootprints).toEqual([
-      { label: "Default", columnSpan: 6, rowSpan: 2 },
-      { label: "Narrow", columnSpan: 3, rowSpan: 4 },
+      { label: "Compact", columnSpan: 3, rowSpan: 2 },
+      { label: "Wide", columnSpan: 6, rowSpan: 2 },
+      { label: "Detailed", columnSpan: 3, rowSpan: 4 },
       { label: "Expanded", columnSpan: 6, rowSpan: 4 },
     ]);
   });
@@ -88,7 +89,7 @@ describe("PlexWidget component", () => {
     render(
       <PlexWidget data={null} loading={true} error={null} refresh={noop} />
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -113,7 +114,7 @@ describe("PlexWidget component", () => {
       />
     );
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   it("renders zero values correctly", () => {
@@ -136,5 +137,38 @@ describe("PlexWidget component", () => {
     // Should render the empty container but no stat values
     expect(container.querySelector(".plex-widget--empty")).toBeInTheDocument();
     expect(screen.queryByText("Streaming")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("Plex automatic field defaults", () => {
+  it.each([[3, 2, 2], [6, 2, 3], [3, 4, 6], [6, 4, 10]])("uses %s×%s for %s meaningful defaults", (columnSpan, rowSpan, count) => {
+    expect(resolvePlexFields({ size_defaults: true }, { columnSpan, rowSpan })).toHaveLength(count);
+    expect(resolvePlexFields({}, { columnSpan, rowSpan })).toEqual(["streams", "transcodes"]);
+    expect(resolvePlexFields({ size_defaults: true, fields: ["library_music"] }, { columnSpan, rowSpan })).toEqual(["library_music"]);
+  });
+});
+
+
+describe("Plex Detailed playback list", () => {
+  const session = { username: "Alice", title: "The Expanse", state: "playing", mediaType: "episode", transcodeDecision: "transcode", progressPercent: 43.2 };
+  it("uses the shared list/item/badge/bar beneath a fixed three-column summary", () => {
+    const { container } = render(<PlexWidget data={{ streams: 1, transcodes: 1, sessions: [session] }} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />);
+    expect(container.querySelector(".widget-list__header .widget-stat-grid")).toHaveAttribute("data-columns", "3");
+    expect(screen.getByRole("list", { name: "Active Plex sessions" })).toHaveAttribute("tabindex", "0");
+    expect(screen.getByText("Playing")).toHaveClass("widget-badge--tone-positive");
+    expect(screen.getByRole("progressbar", { name: "Alice progress" })).toHaveAttribute("aria-valuenow", "43");
+    expect(container.querySelector(".widget-list-item__footer .widget-bar")).toBeInTheDocument();
+  });
+  it("keeps unknown progress indeterminate and titles/metadata complete", () => {
+    render(<PlexWidget data={{ streams: 1, sessions: [{ ...session, state: "paused", progressPercent: null }] }} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />);
+    expect(screen.getByText("The Expanse")).toHaveAttribute("title", "The Expanse");
+    expect(screen.getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
+    expect(screen.getByText("Unknown progress")).toBeInTheDocument();
+    expect(screen.getByText("Paused")).toHaveClass("widget-badge--tone-neutral");
+  });
+  it("retains summary and empty feedback without creating an empty scroll target", () => {
+    render(<PlexWidget data={{ streams: 0, sessions: [] }} loading={false} error={null} refresh={noop} footprint={{ columnSpan: 3, rowSpan: 4 }} />);
+    expect(screen.getByText("Streaming")).toBeInTheDocument(); expect(screen.getByText("No active streams")).toBeInTheDocument(); expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });

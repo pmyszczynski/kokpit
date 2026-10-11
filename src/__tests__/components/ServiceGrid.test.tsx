@@ -267,7 +267,7 @@ describe("ServiceGrid", () => {
     });
 
     it("uses the widget's preferredSize hint when no explicit size is set", async () => {
-      // plex declares preferredSize: "wide" in its widget definition.
+      // Plex defaults to compact; the loader materializes historical saved geometry.
       getConfig.mockReturnValue(
         makeConfig({
           services: [
@@ -279,7 +279,7 @@ describe("ServiceGrid", () => {
       await act(async () => {
         ({ container } = render(<ServiceGrid />));
       });
-      expect(container.querySelector(".service-tile--wide")).not.toBeNull();
+      expect(container.querySelector(".service-tile--normal")).not.toBeNull();
     });
 
     it("explicit size wins over the widget hint", async () => {

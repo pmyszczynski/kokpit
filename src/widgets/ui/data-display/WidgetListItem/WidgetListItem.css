@@ -1,5 +1,7 @@
 @layer widget-ui {
   .widget-list-item { display: flex; align-items: center; gap: var(--widget-list-item-gap, 8px); padding: var(--widget-list-item-padding, 7px 4px); border-bottom: 1px solid var(--color-border); min-width: 0; }
+  .widget-list-item--with-footer:not(.widget-list-item--columns) { flex-wrap: wrap; }
+  .widget-list-item__footer { flex: 0 0 100%; grid-column: 1 / -1; min-width: 0; }
   .widget-list-item:last-child { border-bottom: 0; }
   .widget-list-item__leading { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; flex-shrink: 0; color: var(--color-text-muted); font-size: 0.6875rem; line-height: 1.5; white-space: nowrap; }
   .widget-list-item__content { display: flex; flex: 1 1 0; flex-direction: column; gap: 2px; min-width: 0; }

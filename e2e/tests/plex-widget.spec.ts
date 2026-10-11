@@ -104,7 +104,7 @@ test("widget shows error state when Plex returns an error", async ({ page, reque
   const tile = page
     .locator(".service-tile")
     .filter({ has: page.locator('.service-tile__name:text-is("Plex")') });
-  await expect(tile.locator(".widget-error")).toBeVisible();
+  await expect(tile.getByRole("alert")).toBeVisible();
 });
 
 // ── Test 4 ───────────────────────────────────────────────────────────────────
@@ -192,4 +192,25 @@ test("Test connection is disabled when authentication is disabled", async ({ pag
   await expect(
     page.getByText("Connection testing is unavailable while authentication is disabled.")
   ).toBeVisible();
+});
+
+test("Plex Detailed renders actual session metadata from the existing Plex request", async ({ page, request }) => {
+  await request.post(`${MOCK}/__control`, { data: {
+    sessions: { size: 1, Metadata: [{ type: "episode", title: "Delta-V", grandparentTitle: "The Expanse", parentIndex: 3, index: 5,
+      duration: 100000, viewOffset: 43000, User: { title: "Alice", email: "private@example.test" },
+      Player: { state: "playing", address: "192.0.2.10", machineIdentifier: "private-machine" },
+      Session: { location: "lan", bandwidth: 4000 }, TranscodeSession: { videoDecision: "transcode" },
+      Media: [{ Part: [{ file: "/private/episode.mkv" }] }],
+    }] }, sectionCounts: { "1": 150 }, error: null,
+  } });
+  expect((await request.patch("/api/settings", { data: { ...FIXTURES, service_tiles: [{ ...FIXTURES.service_tiles[0], size: undefined, footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "plex", config: { size_defaults: true } } }] } })).ok()).toBe(true);
+  await page.goto("/"); const widget = plexWidget(page);
+  await expect(widget.locator(".widget-stat")).toHaveCount(6);
+  await expect(widget.getByText("The Expanse · S03E05 · Delta-V", { exact: true })).toBeVisible();
+  await expect(widget.getByText("Alice", { exact: true })).toBeVisible();
+  await expect(widget.getByText("Playing", { exact: true })).toHaveClass(/tone-positive/);
+  await expect(widget.getByRole("progressbar", { name: "Alice progress" })).toHaveAttribute("aria-valuenow", "43");
+  const payload = await (await request.get(`/api/widget?tile_id=${FIXTURES.service_tiles[0].id}`)).json();
+  expect(payload.data.sessions).toEqual([{ username: "Alice", title: "The Expanse · S03E05 · Delta-V", state: "playing", mediaType: "episode", transcodeDecision: "transcode", progressPercent: 43 }]);
+  expect(JSON.stringify(payload)).not.toMatch(/private@|private-machine|192\.0\.2\.10|private\/episode/);
 });

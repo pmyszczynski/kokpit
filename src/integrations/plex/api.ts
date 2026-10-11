@@ -10,7 +10,18 @@ export type PlexField =
   | "library_episodes"
   | "library_music";
 
-export type PlexData = Partial<Record<PlexField, number>>;
+export interface PlexPlaybackSession {
+  username: string;
+  title: string;
+  state: string;
+  mediaType: string;
+  transcodeDecision: string;
+  progressPercent: number | null;
+}
+
+export type PlexData = Partial<Record<PlexField, number>> & {
+  sessions?: PlexPlaybackSession[];
+};
 
 export interface PlexConfig {
   url: string;
@@ -19,7 +30,17 @@ export interface PlexConfig {
 }
 
 interface PlexSessionMetadata {
-  TranscodeSession?: object;
+  type?: string;
+  title?: string;
+  parentTitle?: string;
+  grandparentTitle?: string;
+  parentIndex?: number;
+  index?: number;
+  duration?: number | string;
+  viewOffset?: number | string;
+  Player?: { state?: string };
+  Media?: Array<{ videoDecision?: string; audioDecision?: string; Part?: Array<{ decision?: string }> }>;
+  TranscodeSession?: { videoDecision?: string; audioDecision?: string };
   Session?: { location?: string; bandwidth?: number };
   User?: { title?: string };
 }
@@ -56,9 +77,48 @@ function plexBase(url: string): string {
   return url.endsWith("/") ? url : `${url}/`;
 }
 
+function textOr(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function finiteNumber(value: unknown): number | null {
+  if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/** Project only display fields; never forward Plex player/device or media paths. */
+function playbackSession(entry: PlexSessionMetadata): PlexPlaybackSession {
+  const mediaType = textOr(entry.type, "unknown");
+  let title = textOr(entry.title, "Untitled");
+  if (mediaType === "episode") {
+    const season = finiteNumber(entry.parentIndex), episode = finiteNumber(entry.index);
+    const numbering = season !== null && episode !== null
+      ? `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`
+      : undefined;
+    title = [textOr(entry.grandparentTitle, ""), numbering, title].filter(Boolean).join(" · ");
+  } else if (mediaType === "track") {
+    title = [textOr(entry.grandparentTitle, ""), textOr(entry.parentTitle, ""), title].filter(Boolean).join(" · ");
+  }
+  const decisions = [entry.TranscodeSession?.videoDecision, entry.TranscodeSession?.audioDecision,
+    ...(entry.Media ?? []).flatMap(media => [media.videoDecision, media.audioDecision, ...(media.Part ?? []).map(part => part.decision)])];
+  const transcodeDecision = decisions.includes("transcode") ? "transcode"
+    : decisions.includes("copy") ? "direct_stream"
+    : decisions.includes("directplay") ? "direct_play"
+    : entry.TranscodeSession ? "transcode" : "direct_play";
+  const duration = finiteNumber(entry.duration), offset = finiteNumber(entry.viewOffset);
+  return {
+    username: textOr(entry.User?.title, "Unknown user"), title,
+    state: textOr(entry.Player?.state, "unknown"), mediaType, transcodeDecision,
+    progressPercent: duration !== null && duration > 0 && offset !== null
+      ? Math.min(100, Math.max(0, offset / duration * 100)) : null,
+  };
+}
+
 export async function fetchPlexSessions(
   config: PlexConfig,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeSessions = false
 ): Promise<PlexData> {
   const url = new URL("status/sessions", plexBase(config.url));
   url.searchParams.set("X-Plex-Token", config.token);
@@ -104,6 +164,8 @@ export async function fetchPlexSessions(
       0
     );
   }
+
+  if (includeSessions) result.sessions = metadata.map(playbackSession);
 
   return result;
 }

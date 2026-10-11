@@ -60,6 +60,7 @@ function makeConfig(
     service_id: services[index].id,
     ...(service.group ? { group: service.group } : {}),
     ...(service.size ? { size: service.size } : {}),
+    ...(service.footprint ? { footprint: service.footprint } : {}),
     ...(service.widget ? { widget: service.widget } : {}),
   }));
   return {
