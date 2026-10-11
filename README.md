@@ -442,7 +442,8 @@ service_tiles:
 | -------- | -------- | ----------------------------------------------------------- |
 | `url`    | Yes      | Base URL of your Plex Media Server                          |
 | `token`  | Yes      | `X-Plex-Token` for authentication                           |
-| `fields` | No       | List of stats to display (default: `[streams, transcodes]`) |
+| `fields` | No       | Explicit non-empty list of stats; overrides size defaults |
+| `size_defaults` | No | Use 2/3/6/10 default stats by footprint; enabled for new editor tiles |
 
 
 **Available display fields:**
@@ -455,20 +456,34 @@ service_tiles:
 | `lan_streams`      | LAN         | Active sessions on the local network        |
 | `remote_streams`   | Remote      | Active sessions over the internet           |
 | `users`            | Users       | Number of distinct users currently watching |
-| `bandwidth`        | Bandwidth   | Total streaming bandwidth (shown in Mbps)   |
+| `bandwidth`        | Bandwidth   | Total streaming bandwidth (Mbps, Gbps or Tbps)   |
 | `library_movies`   | Movies      | Total movies across all movie libraries     |
 | `library_shows`    | Shows       | Total shows across all TV libraries         |
 | `library_episodes` | Episodes    | Total episodes across all TV libraries      |
 | `library_music`    | Music       | Total albums across all music libraries     |
 
 
-The widget only contacts `/status/sessions` or `/library/sections` depending on which fields you configure, so it never makes unnecessary requests.
+The widget contacts `/status/sessions` for session measurements and the Detailed playing list, and `/library/sections` for selected library measurements.
 
-Plex supports three desktop footprints: **Default (6×2)**, **Narrow (3×4)**,
-and **Expanded (6×4)**. Narrow uses half the default width while retaining room
-for the tile header and an optional description. Expanded provides more visible
-rows for dashboards that show many fields; additional fields scroll within the
-widget without growing or overflowing the tile.
+Plex supports **Compact (3×2)**, **Wide (6×2)**, **Detailed (3×4)** and
+**Expanded (6×4)**. New editor tiles start compact with `size_defaults: true`:
+Compact shows Streaming / Transcoding; Wide adds Bandwidth; Detailed shows all
+six session measurements above a playing list using the same shared rows,
+playback badges and progress bars as Tautulli; Expanded adds Movies / Shows /
+Episodes / Music.
+Explicit `fields` always take priority, and selections too large for a smaller
+canvas remain reachable in a named keyboard-scroll region. Existing tiles keep
+their saved footprint and fields. Without `size_defaults: true`, omitted fields
+retain the historical Streaming / Transcoding selection; older tiles without
+fixed geometry retain their wide canvas. Bandwidth promotes to Gbps/Tbps for
+large values.
+
+Detailed uses the same `/status/sessions` response for its stats and session
+list. Each row shows the media title, user, media/transcode mode, playback state
+and progress; missing duration/offset is shown as unknown progress. All selected
+stats remain visible: custom selections with more than six measurements scroll
+with the sessions. Playback data is projected server-side; emails, device/IP
+identifiers and media file paths are not returned to the browser.
 
 ---
 
@@ -522,6 +537,15 @@ service_tiles:
 **Sessions:** Each active session displays the username, media title and type, playback state, transcode mode, and progress.
 
 Usernames are intentionally displayed. Email, IP, machine/device IDs, file paths, player/platform details, and artwork are discarded server-side.
+
+Tautulli supports **Default (3×4)** and **Expanded (6×4)**. With both `sections` selected, both sizes retain all five
+summary measurements and every returned session. Summary-only and sessions-only
+selections remain supported. Expanded arranges the summary
+in one row to leave more space for session details. The summary stays fixed
+while the session list scrolls by mouse or keyboard. Playing uses green,
+buffering amber, failures red, and paused/unknown states neutral shared tones.
+The existing `sections` selection and 10-second polling are preserved.
+
 
 ---
 

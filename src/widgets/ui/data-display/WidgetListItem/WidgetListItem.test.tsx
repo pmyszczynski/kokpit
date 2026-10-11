@@ -25,3 +25,10 @@ describe("WidgetListItem", () => {
   expect(screen.getByText("2 days, 01:23:45")).toBeInTheDocument();
  });
 });
+
+
+it("keeps a full-width footer alongside the existing row slots", () => {
+  render(<ul><WidgetListItem title="Playback" leading="Episode" trailing="Playing" secondary="Alice" footer="43%" /></ul>);
+  expect(screen.getByRole("listitem")).toHaveTextContent("EpisodePlaybackAlicePlaying43%");
+  expect(screen.getByText("43%")).toHaveClass("widget-list-item__footer");
+});

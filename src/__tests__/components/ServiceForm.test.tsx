@@ -108,7 +108,7 @@ describe("ServiceForm – rendering", () => {
     });
     expect(input.widget).toEqual({
       type: "plex",
-      config: undefined,
+      config: { size_defaults: true },
       refresh_interval_ms: undefined,
     });
 
@@ -117,7 +117,7 @@ describe("ServiceForm – rendering", () => {
       type: "plex",
       config: { url: "http://plex.local:32400", token: "token" },
     });
-    expect(persisted.service_tiles[0].widget?.config).toBeUndefined();
+    expect(persisted.service_tiles[0].widget?.config).toEqual({ size_defaults: true });
   });
 
   it("adds an integration to an existing plain v2 tile without adding a widget", () => {
@@ -686,7 +686,7 @@ describe("ServiceForm – optional widget config", () => {
       expect(onSave).toHaveBeenCalledTimes(1);
       const saved = onSave.mock.calls[0][0];
       expect(saved.widget.type).toBe(id);
-      if (id === "system-stats") {
+      if (["system-stats", "plex"].includes(id)) {
         expect(saved.widget.config).toEqual({ size_defaults: true });
       } else {
         expect(saved.widget.config).toBeUndefined();
@@ -727,7 +727,7 @@ describe("ServiceForm – optional widget config", () => {
     fireEvent.click(screen.getByText("Save"));
     const saved = onSave.mock.calls[0][0];
     expect(saved.widget.type).toBe("plex");
-    expect(saved.widget.config).toBeUndefined();
+    expect(saved.widget.config).toEqual({ size_defaults: true });
   });
 
   it("shows the not-configured status until required fields are filled", () => {
@@ -981,7 +981,7 @@ describe("ServiceForm – boolean widget config fields", () => {
     expect(
       container.querySelectorAll(".widget-multiselect__option input[type='checkbox']")
     ).toHaveLength(10);
-    expect(container.querySelector(".widget-checkbox")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Choose default fields by tile size")).toBeChecked();
   });
 });
 
@@ -1681,6 +1681,7 @@ describe("ServiceForm – test connection", () => {
     expect(body).toEqual({
       type: "plex",
       config: { url: "http://plex.local:32400", token: "secret" },
+      footprint: { columnSpan: 3, rowSpan: 2 },
     });
   });
 
@@ -2314,5 +2315,39 @@ describe("System Stats size-default presets", () => {
     render(<ServiceForm service={{ name: "Host", footprint: { columnSpan: 3, rowSpan: 4 }, widget: { type: "system-stats", config } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
     fireEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ widget: expect.objectContaining({ config }) }));
+  });
+});
+
+
+describe("Plex size-default presets", () => {
+  it("shows invalid tile options even when connection fields are empty", () => {
+    render(<ServiceForm service={null} initialPreset="sonarr-calendar" existingGroups={[]} onSave={noop} onClose={noop} />);
+    const days = screen.getByLabelText("Days ahead");
+    fireEvent.change(days, { target: { value: "0" } });
+    expect(days).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/days:/)).toBeInTheDocument();
+  });
+  it("seeds automatic fields and compact geometry only for new tiles", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={null} initialPreset="plex" existingGroups={[]} onSave={onSave} onClose={noop} />);
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x2");
+    expect(screen.getByLabelText("Choose default fields by tile size")).toBeChecked();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave.mock.calls[0][0]).toMatchObject({ widget: { type: "plex", config: { size_defaults: true } } });
+  });
+  it("retains historical wide defaults without adding the automatic option", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Plex", widget: { type: "plex", config: { url: "http://plex", token: "secret" } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    expect(screen.getByLabelText("Footprint")).toHaveValue("6x2");
+    expect(screen.getByLabelText("Choose default fields by tile size")).not.toBeChecked();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave.mock.calls[0][0].widget.config).not.toHaveProperty("size_defaults");
+  });
+  it("restores default fields while preserving saved credentials and automatic mode", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Plex", footprint: { columnSpan: 6, rowSpan: 4 }, widget: { type: "plex", config: { url: "http://plex", token: "secret", size_defaults: true, fields: ["library_movies"] } } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    fireEvent.click(screen.getByRole("button", { name: "Use default fields", hidden: true }));
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave.mock.calls[0][0].widget.config).toEqual({ url: "http://plex", token: "secret", size_defaults: true });
   });
 });

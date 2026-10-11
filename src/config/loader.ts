@@ -112,7 +112,12 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const definition = widgetDefinitionForTile(entry);
     // These widgets historically inherited a 6x2 wide hint when no size was
     // saved. Preserve that upgrade path independently of new editor defaults.
-    const legacyWideDefault = definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd", "tdarr-stats", "seerr-stats"].includes(definition.id);
+    const legacyPlexDefault = definition?.id === "plex" &&
+      !(isRecord(entry.widget) && isRecord(entry.widget.config) && entry.widget.config.size_defaults === true);
+    const legacyPlexNeedsFootprint = legacyPlexDefault && !isTileFootprint(savedFootprint);
+    const legacyPlexNeedsWideFallback = legacyPlexNeedsFootprint &&
+      (!legacySize || legacySize === "normal" || legacySize === "wide");
+    const legacyWideDefault = legacyPlexDefault || definition && ["qbittorrent-stats", "radarr-stats", "sabnzbd", "tdarr-stats", "seerr-stats"].includes(definition.id);
     const legacySystemDefault = definition?.id === "system-stats" &&
       !(isRecord(entry.widget) && isRecord(entry.widget.config) && entry.widget.config.size_defaults === true);
     const legacySystemNeedsFootprint = legacySystemDefault && !isTileFootprint(savedFootprint);
@@ -139,7 +144,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       : undefined;
     // Legacy size hints predate the new short canvases; unmarked System Stats
     // tiles without fixed geometry must retain their historical tall canvas.
-    const supportedFallback = (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
+    const supportedFallback = (legacyPlexNeedsWideFallback ? historicalWideFootprint : undefined) ?? (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
     ) ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit
@@ -151,7 +156,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
       return Math.max(1, numeric);
     };
-    const normalized = isRecord(savedFootprint) && !legacySystemNeedsFootprint ? {
+    const normalized = isRecord(savedFootprint) && !legacySystemNeedsFootprint && !legacyPlexNeedsFootprint ? {
       columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan),
       rowSpan: normalizeSpan(savedFootprint.rowSpan, fallback.rowSpan),
     } : fallback;

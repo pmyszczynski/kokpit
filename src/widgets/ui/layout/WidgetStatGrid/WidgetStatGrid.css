@@ -23,6 +23,10 @@
     --widget-stat-grid-columns: 4;
   }
 
+  .widget-stat-grid[data-columns="5"] {
+    --widget-stat-grid-columns: 5;
+  }
+
   .widget-stat-grid[data-columns="6"] {
     --widget-stat-grid-columns: 6;
   }

@@ -267,11 +267,10 @@ describe("ServiceGrid", () => {
     });
 
     it("uses the widget's preferredSize hint when no explicit size is set", async () => {
-      // plex declares preferredSize: "wide" in its widget definition.
       getConfig.mockReturnValue(
         makeConfig({
           services: [
-            makeService({ name: "Plex", widget: { type: "plex" } }),
+            makeService({ name: "Unraid", widget: { type: "unraid-stats" } }),
           ],
         })
       );
@@ -279,14 +278,14 @@ describe("ServiceGrid", () => {
       await act(async () => {
         ({ container } = render(<ServiceGrid />));
       });
-      expect(container.querySelector(".service-tile--wide")).not.toBeNull();
+      expect(container.querySelector(".service-tile--large")).not.toBeNull();
     });
 
     it("explicit size wins over the widget hint", async () => {
       getConfig.mockReturnValue(
         makeConfig({
           services: [
-            makeService({ name: "Plex", size: "normal", widget: { type: "plex" } }),
+            makeService({ name: "Unraid", size: "normal", widget: { type: "unraid-stats" } }),
           ],
         })
       );
@@ -295,7 +294,14 @@ describe("ServiceGrid", () => {
         ({ container } = render(<ServiceGrid />));
       });
       expect(container.querySelector(".service-tile--normal")).not.toBeNull();
-      expect(container.querySelector(".service-tile--wide")).toBeNull();
+      expect(container.querySelector(".service-tile--large")).toBeNull();
+    });
+
+    it("uses the compact default for a new Plex tile", async () => {
+      getConfig.mockReturnValue(makeConfig({ services: [makeService({ name: "Plex", widget: { type: "plex", config: { size_defaults: true } } })] }));
+      let container!: HTMLElement;
+      await act(async () => { ({ container } = render(<ServiceGrid />)); });
+      expect(container.querySelector(".service-tile--normal")).not.toBeNull();
     });
   });
 

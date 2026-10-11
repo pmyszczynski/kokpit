@@ -1,8 +1,15 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, expectTypeOf } from "vitest";
 import { WidgetStat } from "./WidgetStat";
+import type { WidgetStatProps } from "./WidgetStat";
 
 describe("WidgetStat", () => {
+  it("owns its definition-list content while accepting ordinary attributes", () => {
+    expectTypeOf<"children">().not.toExtend<keyof WidgetStatProps>();
+    expectTypeOf<"dangerouslySetInnerHTML">().not.toExtend<keyof WidgetStatProps>();
+    render(<WidgetStat label="Streaming" value={2} aria-label="Active streams" data-field="streams" />);
+    expect(screen.getByLabelText("Active streams")).toHaveAttribute("data-field", "streams");
+  });
   it("keeps supporting measurement details accessible through an optional value tooltip", () => {
     render(<WidgetStat label="Memory" value="20%" valueTooltip="3.2 / 16 GiB used" />);
     expect(screen.getByRole("definition")).toHaveAccessibleDescription("3.2 / 16 GiB used");

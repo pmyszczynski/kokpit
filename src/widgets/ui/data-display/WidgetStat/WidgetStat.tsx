@@ -2,11 +2,11 @@
 
 import { joinClassNames } from "../../joinClassNames";
 import "./WidgetStat.css";
-import { useId, useRef, type ReactNode, type SyntheticEvent } from "react";
+import { useId, useRef, type ReactNode, type HTMLAttributes, type SyntheticEvent } from "react";
 
 export type WidgetStatTone = "neutral" | "positive" | "info" | "positive-soft" | "info-soft" | "alert" | "warning";
 
-export interface WidgetStatProps {
+export interface WidgetStatProps extends Omit<HTMLAttributes<HTMLDListElement>, "children" | "dangerouslySetInnerHTML"> {
   label: ReactNode;
   value: ReactNode;
   tone?: WidgetStatTone;
@@ -26,6 +26,7 @@ export function WidgetStat({
   valueClassName,
   labelClassName,
   valueTooltip,
+  ...props
 }: WidgetStatProps) {
   const tooltipId = useId();
   const tooltipRef = useRef<HTMLSpanElement>(null);
@@ -46,6 +47,7 @@ export function WidgetStat({
 
   return (
     <dl
+      {...props}
       className={joinClassNames(
         "widget-ui",
         "widget-stat",

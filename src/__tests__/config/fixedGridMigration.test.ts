@@ -127,3 +127,24 @@ describe("fixed-grid config migration", () => {
     expect(migrated.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 1 });
   });
 });
+
+
+it("preserves historical wide Plex and explicit expanded geometry", () => {
+  const tile = { id: "20000000-0000-4000-8000-000000000001", service_id: "10000000-0000-4000-8000-000000000001", widget: { type: "plex", config: { fields: ["library_movies"] } } };
+  const base = { schema_version: 2, services: [{ id: tile.service_id, name: "Plex", integration: { type: "plex", config: { url: "http://plex", token: "token" } } }], service_tiles: [tile] };
+  expect(migrateFixedGridConfig(base).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+  expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint: { columnSpan: 6, rowSpan: 4 } }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 4 });
+});
+it.each([
+  { size: "normal", footprint: undefined, config: undefined, expected: { columnSpan: 6, rowSpan: 2 } },
+  { size: undefined, footprint: { rowSpan: 2 }, config: undefined, expected: { columnSpan: 6, rowSpan: 2 } },
+  { size: "tall", footprint: { rowSpan: 2 }, config: undefined, expected: { columnSpan: 3, rowSpan: 4 } },
+  { size: "large", footprint: { columnSpan: 3 }, config: undefined, expected: { columnSpan: 6, rowSpan: 4 } },
+  { size: undefined, footprint: undefined, config: { size_defaults: true }, expected: { columnSpan: 3, rowSpan: 2 } },
+  { size: undefined, footprint: { columnSpan: 3, rowSpan: 2 }, config: undefined, expected: { columnSpan: 3, rowSpan: 2 } },
+])("normalizes Plex geometry without changing its options (%j)", ({ size, footprint, config, expected }) => {
+  const tile = { id: "20000000-0000-4000-8000-000000000001", service_id: "10000000-0000-4000-8000-000000000001", size, footprint, widget: { type: "plex", config } };
+  const migrated = migrateFixedGridConfig({ schema_version: 2, services: [{ id: tile.service_id, name: "Plex", integration: { type: "plex", config: { url: "http://plex", token: "token" } } }], service_tiles: [tile] });
+  expect(migrated.service_tiles[0].footprint).toEqual(expected);
+  expect(migrated.service_tiles[0].widget?.config).toEqual(config);
+});
