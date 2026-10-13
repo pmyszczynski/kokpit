@@ -72,6 +72,7 @@ describe("WidgetStat", () => {
     const { container } = render(<WidgetStat label="Used (50%)" value="8.0 GiB" supportingValue="/ 16.0 GiB"
       supportingValueClassName="capacity-total" valueTooltip="8.0 GiB / 16.0 GiB (50%)" />);
     expect(screen.getByText("/ 16.0 GiB")).toHaveClass("widget-stat__supporting-value", "capacity-total");
+    expect(screen.getByText("8.0 GiB")).toHaveClass("widget-stat__value");
     expect(container.querySelector("dd")).toHaveAccessibleDescription("8.0 GiB / 16.0 GiB (50%)");
     expect(screen.getByText("Used (50%)").tagName).toBe("DT");
   });

@@ -203,3 +203,26 @@ test("Unraid dark and light previews show the three sizes, errors and missing pa
     }), contentType: "image/png" });
   }
 });
+
+test("Unraid preset saves its untouched Compact default through the real editor", async ({ page, request }) => {
+  expect((await request.patch("/api/settings", { data: { services: [], service_tiles: [], groups: [{ name: "Infra" }], bookmarks: [], appearance: { theme: "dark" } } })).ok()).toBe(true);
+  await page.route("**/api/widget*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(RESPONSE) }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await page.getByRole("button", { name: "Add tile to Infra" }).click();
+  await page.getByRole("button", { name: "Unraid Stats", exact: true }).click();
+  await expect(page.getByLabel("Footprint", { exact: true })).toHaveValue("3x2");
+  await page.getByLabel("URL *", { exact: true }).fill("http://unraid.local");
+  await page.getByLabel("API Key *", { exact: true }).fill("dummy");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const saved = page.waitForResponse(response => response.url().endsWith("/api/settings") && response.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click();
+  expect((await saved).ok()).toBe(true);
+  await expect(page.locator(".edit-bar")).toBeHidden();
+  const persisted = await (await request.get("/api/settings")).json();
+  expect(persisted.service_tiles).toHaveLength(1);
+  expect(persisted.service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+  await page.reload();
+  await expect(tile(page).locator(".widget-stat")).toHaveCount(2);
+  await assertFits(page, FOOTPRINTS[0]);
+});

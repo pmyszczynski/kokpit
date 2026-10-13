@@ -559,7 +559,10 @@ export default function ServiceForm({
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group || initialGroup || "");
   const [footprint, setFootprint] = useState(() => {
-    if (!service?.widget) return undefined;
+    if (!service?.widget) {
+      const presetFootprint = presetEditor ? presetDef?.supportedFootprints?.[0] : undefined;
+      return presetFootprint ? { columnSpan: presetFootprint.columnSpan, rowSpan: presetFootprint.rowSpan } : undefined;
+    }
     const definition = getWidget(service.widget.type);
     if (!definition?.supportedFootprints?.length) return service.footprint;
     const supported = service.footprint && definition.supportedFootprints.some(
