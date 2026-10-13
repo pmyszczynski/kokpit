@@ -176,13 +176,21 @@ test("Unraid retains saved measurements and geometry through 30-second refresh r
 });
 
 test("ordinary custom CSS overrides Unraid shared cards and supporting values", async ({ page, request }) => {
-  await configure(request, { custom_css: ".unraid-stats-widget__stat { background: #010203; border-radius: 12px; } .unraid-stats-widget__value { color: #040506; } .unraid-stats-widget__sub { color: #070809; } .unraid-stats-widget__grid { gap: 10px; }" });
-  await mockWidget(page); await page.goto("/");
-  await expect(tile(page).locator(".widget-stat").first()).toHaveCSS("background-color", "rgb(1, 2, 3)");
-  await expect(tile(page).locator(".widget-stat").first()).toHaveCSS("border-radius", "12px");
-  await expect(tile(page).locator(".widget-stat__value").first()).toHaveCSS("color", "rgb(4, 5, 6)");
-  await expect(tile(page).locator(".unraid-stats-widget__sub")).toHaveCSS("color", "rgb(7, 8, 9)");
-  await assertFits(page, FOOTPRINTS[0]);
+  await mockWidget(page);
+  for (const footprint of [FOOTPRINTS[0], FOOTPRINTS[2], FOOTPRINTS[3]]) {
+    await configure(request, { footprint, custom_css: ".unraid-stats-widget__stat { background: #010203; border-radius: 12px; } .unraid-stats-widget__value { color: #040506; } .unraid-stats-widget__sub { color: #070809; } .unraid-stats-widget__stat--wide { border-color: #102030; } .unraid-stats-widget__grid { gap: 10px; }" });
+    await page.goto("/");
+    await expect(tile(page).locator(".widget-stat").first()).toHaveCSS("background-color", "rgb(1, 2, 3)");
+    await expect(tile(page).locator(".widget-stat").first()).toHaveCSS("border-radius", "12px");
+    await expect(tile(page).locator(".widget-stat__value").first()).toHaveCSS("color", "rgb(4, 5, 6)");
+    await expect(tile(page).locator(".unraid-stats-widget__sub")).toHaveCSS("color", "rgb(7, 8, 9)");
+    if (footprint.rowSpan === 4) {
+      const parity = tile(page).locator('[data-field="parity"]');
+      await expect(parity).toHaveClass(/unraid-stats-widget__stat--wide/);
+      await expect(parity).toHaveCSS("border-top-color", "rgb(16, 32, 48)");
+    }
+    await assertFits(page, footprint);
+  }
 });
 
 test("Unraid dark and light previews show the three sizes, errors and missing parity", async ({ page, request }, testInfo) => {

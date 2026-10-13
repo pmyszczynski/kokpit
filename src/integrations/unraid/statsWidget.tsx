@@ -95,7 +95,7 @@ export function UnraidStatsWidget({
             data-field={key} valueTooltip={"tooltip" in stat ? stat.tooltip : undefined}
             supportingValue={"supporting" in stat ? stat.supporting : undefined}
             supportingValueClassName={key === "used" ? "unraid-stats-widget__sub" : undefined}
-            className={`unraid-stats-widget__stat unraid-stats-widget__stat--${key}`}
+            className={`unraid-stats-widget__stat unraid-stats-widget__stat--${key}${key === "parity" ? " unraid-stats-widget__stat--wide" : ""}`}
             valueClassName={`unraid-stats-widget__value${stat.tone === "alert" ? " unraid-stats-widget__value--error" : ""}`}
             labelClassName="unraid-stats-widget__label" />;
         })}
