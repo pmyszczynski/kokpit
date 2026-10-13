@@ -1100,6 +1100,16 @@ Displays array state, used/total storage, disk count, disk errors, and parity ch
 
 #### `unraid-stats`
 
+New editor tiles start at **Compact (3×2)**. Shared cards use the same 2/3/6 progression as the other stat widgets:
+
+| Footprint | Stats |
+| --- | --- |
+| Compact (3×2) | Array, Used / total storage |
+| Wide (6×2) | Array, Used / total storage, Errors |
+| Detailed (3×4) | Array / Used, Disks / Errors, Parity / Parity Errors |
+
+Existing large **6×4** tiles retain their saved canvas and show all six measurements. Legacy configurations without valid geometry retain 6×4. Storage stays in binary B/KiB/MiB/GiB/TiB units with its used percentage and total; parity retains its reported date. Missing parity measurements show “—”, separately from zero errors. The Array card shows the array state. Compact/Wide add a short “Needs attention” indicator for reported problems, with the disk/parity counts available on hover or keyboard focus; Detailed keeps those counts in the dedicated error cards. Active arrays are green, storage/inventory blue, positive errors red, and stopped/unknown or missing states neutral. A running parity check is amber. Successful data stays visible with a separate refresh warning; polling remains 30 seconds.
+
 ```yaml
 services:
   - id: 10000000-0000-4000-8000-000000000033
@@ -1134,7 +1144,8 @@ service_tiles:
 | Used   | Used / total array storage, with percentage                   |
 | Disks  | Number of data disks in the array                              |
 | Errors | Disks reporting an error status                                |
-| Parity | Parity check status and error count, if configured (shown only when parity data is available) |
+| Parity | Reported parity status and date; “—” when unavailable |
+| Parity Errors | Reported parity error count; “—” when unavailable |
 
 
 ---

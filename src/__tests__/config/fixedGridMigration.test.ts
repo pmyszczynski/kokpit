@@ -3,6 +3,18 @@ import { describe, expect, it } from "vitest";
 import { migrateFixedGridConfig } from "@/config/loader";
 
 describe("fixed-grid config migration", () => {
+  it.each([undefined, "normal", "wide", "tall", "large"])("preserves historical Unraid geometry with legacy size %s", size => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    const tile = { id: "20000000-0000-4000-8000-000000000001", service_id: id, size, widget: { type: "unraid-stats" } };
+    const base = { schema_version: 2, services: [{ id, name: "Unraid", integration: { type: "unraid", config: { url: "http://unraid.local", api_key: "secret" } } }], service_tiles: [tile] };
+    expect(migrateFixedGridConfig(base).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 4 });
+    for (const footprint of [{ columnSpan: 3 }, { columnSpan: 9, rowSpan: 9 }]) {
+      expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 4 });
+    }
+    for (const footprint of [{ columnSpan: 3, rowSpan: 2 }, { columnSpan: 6, rowSpan: 2 }, { columnSpan: 3, rowSpan: 4 }, { columnSpan: 6, rowSpan: 4 }]) {
+      expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint }] }).service_tiles[0].footprint).toEqual(footprint);
+    }
+  });
   it("removes dynamic geometry and preserves service tile data", () => {
     const serviceId = "10000000-0000-4000-8000-000000000001";
     const tileId = "20000000-0000-4000-8000-000000000002";

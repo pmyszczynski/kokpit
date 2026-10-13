@@ -569,7 +569,9 @@ export default function ServiceForm({
     );
     const legacySystemDefault = definition.id === "system-stats" && service.widget.config?.size_defaults !== true;
     const legacyPlexDefault = definition.id === "plex" && service.widget.config?.size_defaults !== true;
-    const fallback = legacyPlexDefault
+    const fallback = definition.id === "unraid-stats"
+      ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 4)
+      : legacyPlexDefault
       ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 2)
       : legacySystemDefault
       ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 3 && candidate.rowSpan === 4)

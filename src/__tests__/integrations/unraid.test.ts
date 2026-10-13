@@ -241,6 +241,15 @@ describe("unraid-stats widget registration", () => {
     expect(getWidget("unraid-stats")?.name).toBe("Unraid Stats");
   });
 
+  it("offers a compact new tile and retains the historical large footprint", async () => {
+    await import("@/integrations/unraid/statsWidget");
+    const { getWidget } = await import("@/widgets");
+    const widget = getWidget("unraid-stats")!;
+    expect(widget).toMatchObject({ preferredSize: "large", compactHeader: true, sharedUI: true });
+    expect(widget.supportedFootprints?.[0]).toMatchObject({ columnSpan: 3, rowSpan: 2 });
+    expect(widget.supportedFootprints).toContainEqual({ label: "Legacy", columnSpan: 6, rowSpan: 4 });
+  });
+
   it("refreshInterval is 30000", async () => {
     await import("@/integrations/unraid/statsWidget");
     const { getWidget } = await import("@/widgets");

@@ -2158,6 +2158,23 @@ describe("ServiceForm – footprint", () => {
     }));
   });
 
+  it("starts a new Unraid preset compact and saves its selected footprint", () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={null} initialPreset="unraid-stats" existingGroups={[]} onSave={onSave} onClose={noop} />);
+    expect(screen.getByLabelText("Footprint")).toHaveValue("3x2");
+    fireEvent.change(screen.getByLabelText("URL *"), { target: { value: "http://unraid.local" } });
+    fireEvent.change(screen.getByLabelText("API Key *"), { target: { value: "secret" } });
+    fireEvent.change(screen.getByLabelText("Footprint"), { target: { value: "3x4" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ footprint: { columnSpan: 3, rowSpan: 4 } }));
+  });
+
+  it("preserves the historical Unraid canvas when editing a tile without geometry", () => {
+    render(<ServiceForm service={{ name: "Unraid", widget: { type: "unraid-stats", config: { url: "http://unraid.local", api_key: "secret" } } }}
+      existingGroups={[]} onSave={noop} onClose={noop} />);
+    expect(screen.getByLabelText("Footprint")).toHaveValue("6x4");
+  });
+
   it("does not revive a legacy position or size through the editor", () => {
     const onSave = vi.fn();
     render(
