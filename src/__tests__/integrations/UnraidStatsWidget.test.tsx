@@ -19,13 +19,48 @@ const SAMPLE_STATS: UnraidStats = {
 };
 
 describe("UnraidStatsWidget", () => {
+  it.each([
+    [{ columnSpan: 3, rowSpan: 2 }, ["array", "used"]],
+    [{ columnSpan: 6, rowSpan: 2 }, ["array", "used", "errors"]],
+    [{ columnSpan: 3, rowSpan: 4 }, ["array", "used", "disks", "errors", "parity", "parityErrors"]],
+    [{ columnSpan: 6, rowSpan: 4 }, ["array", "used", "disks", "errors", "parity", "parityErrors"]],
+  ] as const)("selects the measurements for %o", (footprint, fields) => {
+    const { container } = render(<UnraidStatsWidget data={SAMPLE_STATS} footprint={footprint} loading={false} error={null} refresh={noop} />);
+    expect(Array.from(container.querySelectorAll(".widget-stat")).map(card => card.getAttribute("data-field"))).toEqual(fields);
+    expect(screen.getByText("/ 16.0 GiB")).toHaveClass("widget-stat__supporting-value");
+  });
+
+  it("keeps compact array health problems visible even without separate error cards", () => {
+    const { container } = render(<UnraidStatsWidget data={{ ...SAMPLE_STATS, diskErrors: 2, parityErrors: 3 }}
+      footprint={{ columnSpan: 3, rowSpan: 2 }} loading={false} error={null} refresh={noop} />);
+    expect(container.querySelector('[data-field="array"]')).toHaveClass("widget-stat--tone-alert");
+    expect(screen.getByText("Needs attention")).toHaveClass("widget-stat__label");
+    expect(container.querySelector('[data-field="array"] .widget-stat__value')).toHaveAccessibleDescription("Array: Started; disk errors: 2; parity errors: 3");
+  });
+
+  it("keeps missing parity measurements neutral and distinct from zero errors", () => {
+    const { container } = render(<UnraidStatsWidget data={{ ...SAMPLE_STATS, parityStatus: null, parityErrors: null, parityDate: null }}
+      loading={false} error={null} refresh={noop} />);
+    for (const key of ["parity", "parityErrors"]) {
+      expect(container.querySelector(`[data-field="${key}"]`)).toHaveClass("widget-stat--tone-neutral");
+      expect(container.querySelector(`[data-field="${key}"] .widget-stat__value`)).toHaveTextContent("—");
+    }
+  });
+
+  it.each([["STARTED", "positive"], ["STOPPED", "neutral"], ["STOPPED_INVALID", "alert"], ["UNKNOWN_STATE", "neutral"]])(
+    "maps array state %s without inventing health meanings", (arrayState, tone) => {
+      const { container } = render(<UnraidStatsWidget data={{ ...SAMPLE_STATS, arrayState }} loading={false} error={null} refresh={noop} />);
+      expect(container.querySelector('[data-field="array"]')).toHaveClass(`widget-stat--tone-${tone}`);
+      expect(container.querySelector('[data-field="used"]')).toHaveClass("widget-stat--tone-info");
+      expect(container.querySelector('[data-field="errors"]')).toHaveClass("widget-stat--tone-neutral");
+    });
   it("renders array state, capacity, disk count, and errors", () => {
     render(
       <UnraidStatsWidget data={SAMPLE_STATS} loading={false} error={null} refresh={noop} />
     );
     expect(screen.getAllByText("Started").length).toBe(2); // array state + parity status
     expect(screen.getByText("8.0 GiB")).toBeInTheDocument();
-    expect(screen.getByText(/16\.0 GiB/)).toBeInTheDocument();
+    expect(screen.getByText("/ 16.0 GiB")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("Disks")).toBeInTheDocument();
   });
@@ -89,12 +124,12 @@ describe("UnraidStatsWidget", () => {
       <UnraidStatsWidget data={SAMPLE_STATS} loading={false} error={null} refresh={noop} />
     );
     expect(screen.getAllByText("Started").length).toBe(2); // array state + parity status
-    expect(screen.getByText(/Parity/)).toBeInTheDocument();
-    expect(screen.getByText(/2026-06-01/)).toBeInTheDocument();
+    expect(screen.getByText("Parity")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-01")).toBeInTheDocument();
   });
 
-  it("does not render the parity block when parityStatus is null", () => {
-    render(
+  it("shows missing parity as unavailable rather than a healthy result", () => {
+    const { container } = render(
       <UnraidStatsWidget
         data={{ ...SAMPLE_STATS, parityStatus: null }}
         loading={false}
@@ -102,7 +137,9 @@ describe("UnraidStatsWidget", () => {
         refresh={noop}
       />
     );
-    expect(screen.queryByText(/Parity/)).not.toBeInTheDocument();
+    const parity = container.querySelector('[data-field="parity"]')!;
+    expect(parity).toHaveClass("widget-stat--tone-neutral");
+    expect(parity.querySelector(".widget-stat__value")).toHaveTextContent("—");
   });
 
   it("formats parityStatus === '' as 'OK'", () => {
@@ -117,8 +154,8 @@ describe("UnraidStatsWidget", () => {
     expect(screen.getAllByText("OK").length).toBeGreaterThan(0);
   });
 
-  it("shows parity error count as '(N err)' when parityErrors > 0", () => {
-    render(
+  it("shows positive parity errors in their own alert card", () => {
+    const { container } = render(
       <UnraidStatsWidget
         data={{ ...SAMPLE_STATS, parityErrors: 3 }}
         loading={false}
@@ -126,7 +163,10 @@ describe("UnraidStatsWidget", () => {
         refresh={noop}
       />
     );
-    expect(screen.getByText(/\(3 err\)/)).toBeInTheDocument();
+    expect(container.querySelector('[data-field="parityErrors"]')).toHaveClass("widget-stat--tone-alert");
+    expect(container.querySelector('[data-field="parityErrors"] .widget-stat__value')).toHaveTextContent("3");
+    expect(container.querySelector('[data-field="array"]')).toHaveClass("widget-stat--tone-positive");
+    expect(container.querySelector('[data-field="array"] .widget-stat__supporting-value')).toBeNull();
   });
 
   it("does not show parity error count when parityErrors is 0", () => {
@@ -143,7 +183,7 @@ describe("UnraidStatsWidget", () => {
 
   it("shows loading hint when data is null and loading", () => {
     render(<UnraidStatsWidget data={null} loading={true} error={null} refresh={noop} />);
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -169,7 +209,8 @@ describe("UnraidStatsWidget", () => {
     );
     expect(screen.getByText("Disks")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("refresh failed");
+    expect(alert).toHaveTextContent("Refresh failed · saved data");
+    expect(alert).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("renders --empty container when data is null and neither loading nor error", () => {

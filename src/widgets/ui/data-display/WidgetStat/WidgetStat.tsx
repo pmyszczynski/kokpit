@@ -15,6 +15,9 @@ export interface WidgetStatProps extends Omit<HTMLAttributes<HTMLDListElement>, 
   labelClassName?: string;
   /** Full supporting measurement exposed by the value tooltip and accessible description. */
   valueTooltip?: string;
+  /** Optional supporting measurement, such as total capacity or a status date. */
+  supportingValue?: ReactNode;
+  supportingValueClassName?: string;
 }
 
 /** A formatted value and its label, presented as a compact stat card. */
@@ -26,6 +29,8 @@ export function WidgetStat({
   valueClassName,
   labelClassName,
   valueTooltip,
+  supportingValue,
+  supportingValueClassName,
   ...props
 }: WidgetStatProps) {
   const tooltipId = useId();
@@ -73,6 +78,7 @@ export function WidgetStat({
           tooltip.scrollBy({ top: delta });
         }}>
         {value}
+        {supportingValue !== undefined && <> <span className={joinClassNames("widget-stat__supporting-value", supportingValueClassName)}>{supportingValue}</span></>}
         {valueTooltip && <span ref={tooltipRef} id={tooltipId} role="tooltip" popover="manual" className="widget-ui widget-stat__tooltip">{valueTooltip}</span>}
       </dd>
     </dl>

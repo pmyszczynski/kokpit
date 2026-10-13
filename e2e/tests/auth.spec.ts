@@ -301,7 +301,11 @@ test.describe.serial("authentication flow", () => {
       await page.screenshot({ path: testInfo.outputPath("sessions-settings.png"), fullPage: true });
       await page.getByRole("button", { name: "Sign out all other devices", exact: true }).click();
       await page.locator("#session-manager-password").fill(ADMIN.password);
+      // The button is also disabled while submitting; wait for revocation to
+      // complete before checking that the other browser has lost access.
+      const revoked = page.waitForResponse(response => response.url().endsWith("/api/auth/sessions") && response.request().method() === "POST");
       await page.getByRole("button", { name: "Confirm", exact: true }).click();
+      expect((await revoked).status()).toBe(200);
       await expect(page.getByRole("button", { name: "Sign out all other devices", exact: true })).toBeDisabled();
       expect((await other.request.get("http://localhost:3001/api/auth/me")).status()).toBe(401);
       expect((await other.request.post("http://localhost:3001/api/auth/session/refresh", { headers })).status()).toBe(401);

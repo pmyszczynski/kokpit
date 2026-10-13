@@ -559,7 +559,10 @@ export default function ServiceForm({
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group || initialGroup || "");
   const [footprint, setFootprint] = useState(() => {
-    if (!service?.widget) return undefined;
+    if (!service?.widget) {
+      const presetFootprint = presetEditor ? presetDef?.supportedFootprints?.[0] : undefined;
+      return presetFootprint ? { columnSpan: presetFootprint.columnSpan, rowSpan: presetFootprint.rowSpan } : undefined;
+    }
     const definition = getWidget(service.widget.type);
     if (!definition?.supportedFootprints?.length) return service.footprint;
     const supported = service.footprint && definition.supportedFootprints.some(
@@ -569,7 +572,9 @@ export default function ServiceForm({
     );
     const legacySystemDefault = definition.id === "system-stats" && service.widget.config?.size_defaults !== true;
     const legacyPlexDefault = definition.id === "plex" && service.widget.config?.size_defaults !== true;
-    const fallback = legacyPlexDefault
+    const fallback = definition.id === "unraid-stats"
+      ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 4)
+      : legacyPlexDefault
       ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 2)
       : legacySystemDefault
       ? definition.supportedFootprints.find(candidate => candidate.columnSpan === 3 && candidate.rowSpan === 4)

@@ -1701,9 +1701,8 @@ button {
   margin: 0;
 }
 
-/* ── Shared legacy stat widget base (Unraid, Actual Budget, …) ────────────────── */
+/* ── Legacy Actual Budget stat widget base ────────────────── */
 
-.unraid-stats-widget,
 .actualbudget-summary-widget {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1713,7 +1712,6 @@ button {
   min-height: 0;
 }
 
-.unraid-stats-widget__stat,
 .actualbudget-summary-widget__stat {
   display: flex;
   flex-direction: column;
@@ -1727,7 +1725,6 @@ button {
   min-width: 0;
 }
 
-.unraid-stats-widget__value,
 .actualbudget-summary-widget__value {
   font-size: 1rem;
   font-weight: 700;
@@ -1739,7 +1736,6 @@ button {
   max-width: 100%;
 }
 
-.unraid-stats-widget__label,
 .actualbudget-summary-widget__label {
   font-size: 0.65rem;
   font-weight: 500;
@@ -1749,15 +1745,6 @@ button {
   white-space: nowrap;
 }
 
-.unraid-stats-widget__stale-error {
-  grid-column: 1 / -1;
-  font-size: 0.7rem;
-  color: #f87171;
-  text-align: center;
-  padding: 2px 0;
-}
-
-.unraid-stats-widget--empty,
 .actualbudget-summary-widget--empty {
   display: flex;
   align-items: center;
@@ -1765,33 +1752,9 @@ button {
   min-height: 2rem;
 }
 
-.unraid-stats-widget__hint,
 .actualbudget-summary-widget__hint {
   font-size: 0.8rem;
   color: var(--color-text-muted);
-}
-
-.unraid-stats-widget__hint--error {
-  color: #f87171;
-}
-
-/* ── Tdarr stats widget ───────────────────────────────────────────────────── */
-/* (no overrides — all rules covered by shared base above) */
-
-/* ── Unraid stats widget ─────────────────────────────────────────────────── */
-
-.unraid-stats-widget__stat--wide {
-  grid-column: 1 / -1;
-}
-
-.unraid-stats-widget__sub {
-  font-size: 0.7em;
-  font-weight: 400;
-  color: var(--color-text-muted);
-}
-
-.unraid-stats-widget__value--error {
-  color: #f87171;
 }
 
 /* ── Netdata widgets ─────────────────────────────────────────────────────── */

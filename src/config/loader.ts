@@ -121,6 +121,11 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
     const legacySystemDefault = definition?.id === "system-stats" &&
       !(isRecord(entry.widget) && isRecord(entry.widget.config) && entry.widget.config.size_defaults === true);
     const legacySystemNeedsFootprint = legacySystemDefault && !isTileFootprint(savedFootprint);
+    // Unraid previously supported only 6x4, regardless of any legacy size hint.
+    const historicalUnraidFootprint = definition?.id === "unraid-stats"
+      ? definition.supportedFootprints?.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 4)
+      : undefined;
+    const legacyUnraidNeedsFootprint = historicalUnraidFootprint && !isTileFootprint(savedFootprint);
     const preferredSize = legacySystemNeedsFootprint && !legacySize ? "tall"
       : legacyWideDefault && !legacySize && !savedFootprint
       ? "wide"
@@ -144,7 +149,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       : undefined;
     // Legacy size hints predate the new short canvases; unmarked System Stats
     // tiles without fixed geometry must retain their historical tall canvas.
-    const supportedFallback = (legacyPlexNeedsWideFallback ? historicalWideFootprint : undefined) ?? (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
+    const supportedFallback = (legacyUnraidNeedsFootprint ? historicalUnraidFootprint : undefined) ?? (legacyPlexNeedsWideFallback ? historicalWideFootprint : undefined) ?? (legacySystemNeedsFootprint ? historicalSystemFootprint : undefined) ?? supportedFootprints?.find((candidate) =>
       sameFootprint(candidate, hintedWidgetFootprint)
     ) ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFootprints?.[0];
     // Generic service cards are always 3×1. Compact canvases deliberately omit
@@ -156,14 +161,14 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
       return Math.max(1, numeric);
     };
-    const normalized = isRecord(savedFootprint) && !legacySystemNeedsFootprint && !legacyPlexNeedsFootprint ? {
+    const normalized = isRecord(savedFootprint) && !legacyUnraidNeedsFootprint && !legacySystemNeedsFootprint && !legacyPlexNeedsFootprint ? {
       columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan),
       rowSpan: normalizeSpan(savedFootprint.rowSpan, fallback.rowSpan),
     } : fallback;
     const supported = supportedFootprints?.length
       ? supportedFootprints.some((candidate) => sameFootprint(candidate, normalized))
         ? normalized
-        : historicalWideFootprint ?? historicalSystemFootprint ?? supportedFallback!
+        : historicalUnraidFootprint ?? historicalWideFootprint ?? historicalSystemFootprint ?? supportedFallback!
       : normalized;
     const footprint = entry.widget
       ? { columnSpan: supported.columnSpan, rowSpan: supported.rowSpan }
