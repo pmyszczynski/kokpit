@@ -110,6 +110,11 @@ registerWidget<UnraidConfig, UnraidStats>({
   preferredSize: "large",
   compactHeader: true,
   sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "unraid-stats-widget unraid-stats-widget--empty",
+    loading: "unraid-stats-widget__hint",
+    error: "unraid-stats-widget__hint unraid-stats-widget__hint--error",
+  },
   supportedFootprints: [
     { label: "Compact", columnSpan: 3, rowSpan: 2 },
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },

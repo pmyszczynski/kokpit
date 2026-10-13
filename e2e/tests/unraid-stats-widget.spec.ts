@@ -131,7 +131,7 @@ test("Unraid long states and supporting details remain reachable by keyboard", a
 });
 
 test("Unraid uses shared loading/error/empty feedback", async ({ page, request }) => {
-  await configure(request);
+  await configure(request, { custom_css: ".unraid-stats-widget__hint { color: #123456; } .unraid-stats-widget__hint--error { color: #654321; }" });
   let release!: () => void;
   const initial = new Promise<void>(resolve => { release = resolve; });
   let response: unknown = RESPONSE;
@@ -140,9 +140,15 @@ test("Unraid uses shared loading/error/empty feedback", async ({ page, request }
   });
   await page.goto("/");
   await expect(tile(page).getByRole("status", { name: "Loading widget" })).toHaveClass(/widget-state--loading/);
+  await expect(tile(page).locator(".unraid-stats-widget--empty")).toBeVisible();
+  await expect(tile(page).getByRole("status", { name: "Loading widget" })).toHaveClass(/unraid-stats-widget__hint/);
+  await expect(tile(page).getByRole("status", { name: "Loading widget" })).toHaveCSS("color", "rgb(18, 52, 86)");
   release(); await expect(tile(page).locator(".widget-stat")).toHaveCount(2);
   response = { ok: false, error: "Unraid unavailable" }; await page.reload();
   await expect(tile(page).getByRole("alert")).toHaveText("Unraid unavailable");
+  await expect(tile(page).locator(".unraid-stats-widget--empty")).toBeVisible();
+  await expect(tile(page).locator(".unraid-stats-widget__hint--error")).toHaveText("Unraid unavailable");
+  await expect(tile(page).locator(".unraid-stats-widget__hint--error")).toHaveCSS("color", "rgb(101, 67, 33)");
   response = { ok: true, data: null }; await page.reload();
   await expect(tile(page).locator(".unraid-stats-widget--empty")).toBeEmpty();
 });
