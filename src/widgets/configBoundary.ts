@@ -28,7 +28,7 @@ const LEGACY_OPTION_KEYS: Record<string, ReadonlySet<string>> = {
     "days_ahead", "timezone", "limit", "currency", "locale", "privacy_mode",
   ]),
   "actualbudget-summary": new Set([
-    "timezone", "privacy_mode", "currency", "locale", "sections",
+    "timezone", "privacy_mode", "currency", "locale", "sections", "size_defaults",
   ]),
   "tautulli-activity": new Set(["sections"]),
 };

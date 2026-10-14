@@ -1,5 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetState, WidgetStaleNotice, WidgetBadge } from "@/widgets/ui";
 import {
   fetchSchedules,
   ActualSchedulesConfigSchema,
@@ -75,111 +76,54 @@ function dueSoonFooterLabel(windowDays: number): string {
 }
 
 export function ActualBudgetSchedulesWidget({
-  data,
-  loading,
-  error,
+  data, loading, error,
 }: WidgetProps<ActualSchedulesData>) {
   if (!data) {
-    return (
-      <div className="actualbudget-schedules-widget actualbudget-schedules-widget--empty">
-        {loading && (
-          <span className="actualbudget-schedules-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="actualbudget-schedules-widget__hint actualbudget-schedules-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="actualbudget-schedules-widget actualbudget-schedules-widget--empty">
+      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+        className="actualbudget-schedules-widget__hint" labelClassName="actualbudget-schedules-widget__hint--error">
+        {loading ? "Loading…" : error ?? undefined}
+      </WidgetState>
+    </WidgetBody>;
   }
 
-  const privateClass = data.privacyMode ? " actualbudget-widget--private" : "";
-
-  if (data.schedules.length === 0) {
-    return (
-      <div
-        className={`actualbudget-schedules-widget actualbudget-schedules-widget--empty${privateClass}`}
-      >
-        <span className="actualbudget-schedules-widget__hint">
-          No upcoming schedules
-        </span>
-        {error && (
-          <span className="actualbudget-schedules-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`actualbudget-schedules-widget${privateClass}`}
-      aria-label="Actual Budget schedules"
-    >
-      <div className="actualbudget-schedules-widget__list">
-        {data.schedules.map((schedule) => {
-          const overdue = schedule.daysUntil < 0;
-          return (
-            <div key={schedule.id} className="actualbudget-schedules-widget__row">
-              <span
-                className="actualbudget-schedules-widget__name"
-                title={schedule.payeeName}
-              >
-                {schedule.payeeName}
-              </span>
-              <span className="actualbudget-schedules-widget__amount">
-                {schedule.amountMin !== null && schedule.amountMax !== null ? (
-                  <>
-                    <Amount
-                      cents={schedule.amountMin}
-                      currency={data.currency}
-                      locale={data.locale}
-                    />
-                    {"–"}
-                    <Amount
-                      cents={schedule.amountMax}
-                      currency={data.currency}
-                      locale={data.locale}
-                    />
-                  </>
-                ) : (
-                  <Amount
-                    cents={schedule.amount}
-                    currency={data.currency}
-                    locale={data.locale}
-                  />
-                )}
-              </span>
-              <span
-                className={`actualbudget-schedules-widget__due${overdue ? " actualbudget-schedules-widget__due--overdue" : ""}`}
-              >
-                {dueLabel(schedule.daysUntil)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="actualbudget-schedules-widget__footer">
-        <span className="actualbudget-schedules-widget__footer-label">
-          {dueSoonFooterLabel(data.dueSoonWindowDays)}
-        </span>
-        <span className="actualbudget-schedules-widget__footer-value">{data.dueSoonCount}</span>
-      </div>
-      {error && (
-        <span className="actualbudget-schedules-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  return <WidgetBody className={`actualbudget-schedules-widget${data.schedules.length === 0 ? " actualbudget-schedules-widget--empty" : ""}${data.privacyMode ? " actualbudget-widget--private" : ""}`}
+    aria-label="Actual Budget schedules" reserveNotice
+    notice={<WidgetStaleNotice error={error} className="actualbudget-schedules-widget__stale-error" />}>
+    <WidgetList label="Budget schedules" listClassName="actualbudget-schedules-widget__list"
+      empty={data.schedules.length === 0 ? <WidgetState state="empty" className="actualbudget-schedules-widget__hint">No upcoming schedules</WidgetState> : undefined}
+      footerSummary={data.schedules.length === 0 ? undefined : {
+        primary: dueSoonFooterLabel(data.dueSoonWindowDays), secondary: data.dueSoonCount,
+        secondaryTone: data.dueSoonCount > 0 ? "warning" : "neutral", className: "actualbudget-schedules-widget__footer",
+        primaryClassName: "actualbudget-schedules-widget__footer-label", secondaryClassName: "actualbudget-schedules-widget__footer-value",
+      }}>
+      {data.schedules.map(schedule => <WidgetListItem key={schedule.id} className="actualbudget-schedules-widget__row"
+        title={schedule.payeeName} titleClassName="actualbudget-schedules-widget__name"
+        secondary={<span className="actualbudget-schedules-widget__amount">
+          {schedule.amountMin !== null && schedule.amountMax !== null ? <>
+            <Amount cents={schedule.amountMin} currency={data.currency} locale={data.locale} />
+            {"–"}
+            <Amount cents={schedule.amountMax} currency={data.currency} locale={data.locale} />
+          </> : <Amount cents={schedule.amount} currency={data.currency} locale={data.locale} />}
+        </span>} wrapSecondary
+        trailing={schedule.daysUntil < 0
+          ? <WidgetBadge tone="alert" className="actualbudget-schedules-widget__due actualbudget-schedules-widget__due--overdue">{dueLabel(schedule.daysUntil)}</WidgetBadge>
+          : <span className="actualbudget-schedules-widget__due">{dueLabel(schedule.daysUntil)}</span>} />)}
+    </WidgetList>
+  </WidgetBody>;
 }
 
 registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
   id: "actualbudget-schedules",
   name: "Actual Budget Schedules",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "actualbudget-schedules-widget actualbudget-schedules-widget--empty",
+    loading: "actualbudget-schedules-widget__hint",
+    error: "actualbudget-schedules-widget__hint actualbudget-schedules-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Actual Budget",

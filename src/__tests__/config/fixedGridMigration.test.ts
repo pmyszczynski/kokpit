@@ -160,3 +160,28 @@ it.each([
   expect(migrated.service_tiles[0].footprint).toEqual(expected);
   expect(migrated.service_tiles[0].widget?.config).toEqual(config);
 });
+
+
+it.each([undefined, "normal", "wide", "tall", "large"])("keeps legacy Actual Summary at 3x2 with size hint %s", size => {
+  const id = "10000000-0000-4000-8000-000000000001";
+  const tile = { id: "20000000-0000-4000-8000-000000000001", service_id: id, size, widget: { type: "actualbudget-summary" } };
+  const base = { schema_version: 2, services: [{ id, name: "Budget", integration: { type: "actualbudget", config: { url: "http://actual.local", api_key: "secret", budget_sync_id: "budget" } } }], service_tiles: [tile] };
+  expect(migrateFixedGridConfig(base).service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+  for (const footprint of [{ rowSpan: 4 }, { columnSpan: 9, rowSpan: 9 }]) {
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint }] }).service_tiles[0].footprint).toEqual({ columnSpan: 3, rowSpan: 2 });
+  }
+  for (const footprint of [{ columnSpan: 3, rowSpan: 2 }, { columnSpan: 6, rowSpan: 2 }, { columnSpan: 3, rowSpan: 4 }]) {
+    expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint }] }).service_tiles[0].footprint).toEqual(footprint);
+  }
+});
+
+it.each([
+  ["wide", { columnSpan: 6, rowSpan: 2 }],
+  ["tall", { columnSpan: 3, rowSpan: 4 }],
+])("honors size-based Summary geometry for an explicitly opted-in %s tile", (size, footprint) => {
+  const id = "10000000-0000-4000-8000-000000000001";
+  const tile = { id: "20000000-0000-4000-8000-000000000001", service_id: id, size, widget: { type: "actualbudget-summary", config: { size_defaults: true } } };
+  const migrated = migrateFixedGridConfig({ schema_version: 2, services: [{ id, name: "Budget", integration: { type: "actualbudget", config: { url: "http://actual.local", api_key: "secret", budget_sync_id: "budget" } } }], service_tiles: [tile] });
+  expect(migrated.service_tiles[0].footprint).toEqual(footprint);
+  expect(migrated.service_tiles[0].widget?.config).toEqual({ size_defaults: true });
+});

@@ -1701,62 +1701,6 @@ button {
   margin: 0;
 }
 
-/* ── Legacy Actual Budget stat widget base ────────────────── */
-
-.actualbudget-summary-widget {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  flex: 1 1 0;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.actualbudget-summary-widget__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 6px 4px;
-  min-width: 0;
-}
-
-.actualbudget-summary-widget__value {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text);
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.actualbudget-summary-widget__label {
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.actualbudget-summary-widget--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-}
-
-.actualbudget-summary-widget__hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
 /* ── Netdata widgets ─────────────────────────────────────────────────────── */
 
 .netdata-widget {
@@ -1828,33 +1772,15 @@ button {
 
 /* ── Actual Budget widgets ────────────────────────────────────────────── */
 
-/* Summary widget's grid/__stat/__value/__label/--empty/__hint join the
-   shared stat-grid rule set above (qBittorrent/SABnzbd/Prowlarr/Unraid/
-   Tdarr). Only the two rules that block uses hardcoded hex are redeclared
-   here with theme variables instead. */
-
-.actualbudget-summary-widget__stale-error {
-  grid-column: 1 / -1;
-  font-size: 0.7rem;
-  color: var(--color-error);
-  text-align: center;
-  padding: 2px 0;
-}
-
-.actualbudget-summary-widget__hint--error {
-  color: var(--color-error);
-}
-
 /* Privacy mode: figures blur at the widget root and clear on hover/focus of
    the whole tile. Presentational only — never pair with aria-hidden, the
    underlying text must stay in the accessibility tree.
 
-   The reveal has to key off `.service-tile`, not the widget root: the widget
-   itself has no focusable descendants, and the actually-focusable element is
-   the outer tile anchor (`.service-tile` > `.service-tile__widget` > this
+   The reveal has to key off `.service-tile`, not the widget root: keyboard focus may be on the outer tile anchor as well as a shared
+   scroll region. The outer focusable element is
+   the tile anchor (`.service-tile` > `.service-tile__widget` > this
    widget root — see ServiceTile.tsx). `.actualbudget-widget--private
-   :focus-within` alone therefore never matches for keyboard users, and the
-   blur never lifts on Tab. The widget-root rules are kept alongside as a
+   :focus-within` alone misses focus on the outer anchor. Widget-root rules remain as a
    fallback in case this widget is ever rendered outside a `.service-tile`. */
 .actualbudget-widget--private .actualbudget-amount {
   filter: blur(0.35rem);
@@ -1869,252 +1795,12 @@ button {
 }
 
 .actualbudget-amount--negative {
-  color: var(--color-error);
+  color: var(--widget-stat-tone-alert, var(--color-error));
 }
 
-/* Shared list-widget layout: categories / accounts / schedules all follow
-   the Radarr-queue pattern (header-less row list + footer + stale-error). */
-.actualbudget-categories-widget,
-.actualbudget-accounts-widget,
-.actualbudget-schedules-widget {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.actualbudget-categories-widget__list,
-.actualbudget-accounts-widget__list,
-.actualbudget-schedules-widget__list {
-  flex: 1 1 0;
-  overflow-y: auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.actualbudget-categories-widget--empty,
-.actualbudget-accounts-widget--empty,
-.actualbudget-schedules-widget--empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-  gap: 4px;
-}
-
-.actualbudget-categories-widget__hint,
-.actualbudget-accounts-widget__hint,
-.actualbudget-schedules-widget__hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.actualbudget-categories-widget__hint--error,
-.actualbudget-accounts-widget__hint--error,
-.actualbudget-schedules-widget__hint--error {
-  color: var(--color-error);
-}
-
-.actualbudget-categories-widget__stale-error,
-.actualbudget-accounts-widget__stale-error,
-.actualbudget-schedules-widget__stale-error {
-  font-size: 0.7rem;
-  color: var(--color-error);
-  text-align: center;
-  padding: 4px 0;
-  flex-shrink: 0;
-}
-
-.actualbudget-categories-widget__row,
-.actualbudget-accounts-widget__row,
-.actualbudget-schedules-widget__row {
-  display: grid;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 4px;
-  border-bottom: 1px solid var(--color-border);
-  min-width: 0;
-}
-
-.actualbudget-categories-widget__row:last-child,
-.actualbudget-accounts-widget__row:last-child,
-.actualbudget-schedules-widget__row:last-child {
-  border-bottom: none;
-}
-
-.actualbudget-categories-widget__name,
-.actualbudget-accounts-widget__name,
-.actualbudget-schedules-widget__name {
-  font-size: 0.8rem;
-  color: var(--color-text);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-/* ── Categories widget ────────────────────────────────────────────────── */
-
-.actualbudget-categories-widget__row {
-  grid-template-columns: minmax(0, 1fr) auto minmax(60px, 96px);
-}
-
-.actualbudget-categories-widget__amounts {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  text-align: right;
-}
-
-.actualbudget-categories-widget__progress-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.actualbudget-categories-widget__progress-bar {
-  height: 4px;
-  background: var(--color-border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.actualbudget-categories-widget__progress-fill {
-  height: 100%;
-  background: var(--color-accent);
-  border-radius: 2px;
-  transition: width 400ms ease;
-}
-
-.actualbudget-categories-widget__progress-text {
-  font-size: 0.65rem;
-  color: var(--color-text-muted);
-  text-align: right;
-  line-height: 1;
-}
-
-.actualbudget-categories-widget__row--warn .actualbudget-categories-widget__progress-fill {
-  background: var(--color-warning);
-}
-
-.actualbudget-categories-widget__row--warn .actualbudget-categories-widget__name {
-  color: var(--color-warning);
-}
-
-.actualbudget-categories-widget__row--over .actualbudget-categories-widget__progress-fill {
-  background: var(--color-error);
-}
-
-.actualbudget-categories-widget__row--over .actualbudget-categories-widget__name {
-  color: var(--color-error);
-}
-
-/* ── Accounts widget ──────────────────────────────────────────────────── */
-
-/* Third track for the off-budget badge: it used to live inside __name and
-   got clipped by that span's overflow:hidden/ellipsis whenever the account
-   name was long enough to truncate. It is now a grid sibling of __name, so
-   both __badge and __balance get an explicit grid-column — otherwise a row
-   with no badge (the common case) would auto-place __balance into the
-   middle track instead of the last one, misaligning it against rows that do
-   have a badge. */
-.actualbudget-accounts-widget__row {
-  grid-template-columns: minmax(0, 1fr) auto auto;
-}
-
-.actualbudget-accounts-widget__badge {
-  grid-column: 2;
-  padding: 1px 6px;
-  font-size: 0.6rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-}
-
-.actualbudget-accounts-widget__balance {
-  grid-column: 3;
-  font-size: 0.8rem;
-  color: var(--color-text);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.actualbudget-accounts-widget__footer,
-.actualbudget-schedules-widget__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 6px 4px 2px;
-  margin-top: 2px;
-  border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.actualbudget-accounts-widget__footer-label,
-.actualbudget-schedules-widget__footer-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.actualbudget-accounts-widget__footer-value {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.actualbudget-schedules-widget__footer-value {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-/* ── Schedules widget ─────────────────────────────────────────────────── */
-
-.actualbudget-schedules-widget__row {
-  grid-template-columns: minmax(0, 1fr) auto 56px;
-}
-
-.actualbudget-schedules-widget__amount {
-  font-size: 0.8rem;
-  color: var(--color-text);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.actualbudget-schedules-widget__due {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.actualbudget-schedules-widget__due--overdue {
-  color: var(--color-error);
-  font-weight: 600;
-}
-
-/* Users who ask for less motion still get the privacy blur/reveal and the
-   category progress-bar fill, just as an instant state change rather than an
-   animated transition. Scoped to these two Actual Budget rules only — not a
-   global reduced-motion reset for the rest of the stylesheet. */
+/* The integration owns privacy reveal; shared WidgetBar owns reduced-motion fills. */
 @media (prefers-reduced-motion: reduce) {
   .actualbudget-widget--private .actualbudget-amount {
-    transition: none;
-  }
-
-  .actualbudget-categories-widget__progress-fill {
     transition: none;
   }
 }

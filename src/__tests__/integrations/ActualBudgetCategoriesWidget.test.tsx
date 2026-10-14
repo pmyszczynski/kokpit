@@ -523,7 +523,7 @@ describe("ActualBudgetCategoriesWidget", () => {
     );
     expect(screen.getByText("Entertainment")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("refresh failed");
+    expect(alert).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("adds the private class when privacy mode is on", () => {

@@ -842,6 +842,7 @@ describe("serviceFormProjection", () => {
         limit: 6,
       }],
       ["actualbudget-summary", {
+        size_defaults: true,
         timezone: "Europe/Warsaw",
         sections: ["budget"],
       }],
