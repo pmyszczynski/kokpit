@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { joinClassNames } from "../../joinClassNames";
 import "./WidgetList.css";
 
-export type WidgetListSummaryTone = "neutral" | "positive" | "info";
+export type WidgetListSummaryTone = "neutral" | "positive" | "info" | "warning" | "alert";
 export interface WidgetListSummary {
   primary: ReactNode;
   secondary?: ReactNode;
@@ -19,6 +19,8 @@ export interface WidgetListProps extends HTMLAttributes<HTMLDivElement> {
   /** Two caller-owned measurements displayed outside the scrolling list. */
   summary?: WidgetListSummary;
   footer?: ReactNode;
+  /** A fixed pair of caller-owned footer measurements, styled like the summary. */
+  footerSummary?: WidgetListSummary;
   empty?: ReactNode;
   children?: ReactNode;
   listClassName?: string;
@@ -30,7 +32,7 @@ export interface WidgetListProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /** A list with one labeled keyboard-scrollable region and fixed surrounding slots. */
-export function WidgetList({ label, header, summary, footer, empty, children, className, listClassName, columnLabels, columnsClassName, alignAccessories = false, ...props }: WidgetListProps) {
+export function WidgetList({ label, header, summary, footer, footerSummary, empty, children, className, listClassName, columnLabels, columnsClassName, alignAccessories = false, ...props }: WidgetListProps) {
   return (
     <div {...props} className={joinClassNames("widget-ui", "widget-list", className)}>
       {header != null && <div className="widget-list__header">{header}</div>}
@@ -43,6 +45,10 @@ export function WidgetList({ label, header, summary, footer, empty, children, cl
         <ul aria-label={label} tabIndex={0} className={joinClassNames("widget-list__scroll", alignAccessories ? "widget-list__scroll--aligned" : undefined, listClassName)}>{children}</ul>
       )}
       {footer != null && <div className="widget-list__footer">{footer}</div>}
+      {footerSummary && <div className={joinClassNames("widget-list__summary", "widget-list__summary--footer", footerSummary.className)}>
+        <span className={joinClassNames("widget-list__summary-primary", `widget-list__summary-tone-${footerSummary.primaryTone ?? "neutral"}`, footerSummary.primaryClassName)}>{footerSummary.primary}</span>
+        {footerSummary.secondary != null && <span className={joinClassNames("widget-list__summary-secondary", `widget-list__summary-tone-${footerSummary.secondaryTone ?? "neutral"}`, footerSummary.secondaryClassName)}>{footerSummary.secondary}</span>}
+      </div>}
     </div>
   );
 }

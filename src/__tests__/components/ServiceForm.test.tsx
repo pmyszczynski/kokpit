@@ -686,7 +686,7 @@ describe("ServiceForm – optional widget config", () => {
       expect(onSave).toHaveBeenCalledTimes(1);
       const saved = onSave.mock.calls[0][0];
       expect(saved.widget.type).toBe(id);
-      if (["system-stats", "plex"].includes(id)) {
+      if (["system-stats", "plex", "actualbudget-summary"].includes(id)) {
         expect(saved.widget.config).toEqual({ size_defaults: true });
       } else {
         expect(saved.widget.config).toBeUndefined();
@@ -2377,4 +2377,15 @@ describe("Plex size-default presets", () => {
     fireEvent.click(screen.getByText("Save"));
     expect(onSave.mock.calls[0][0].widget.config).toEqual({ url: "http://plex", token: "secret", size_defaults: true });
   });
+});
+
+
+it("keeps existing Actual Summary Compact without silently enabling size defaults", () => {
+  const onSave = vi.fn();
+  render(<ServiceForm service={{ name: "Budget", widget: { type: "actualbudget-summary" } }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+  expect(screen.getByLabelText("Footprint")).toHaveValue("3x2");
+  expect(screen.getByLabelText("Choose stats by tile size")).not.toBeChecked();
+  fireEvent.click(screen.getByText("Save"));
+  expect(onSave).toHaveBeenCalledTimes(1);
+  expect(onSave.mock.calls[0][0].widget.config?.size_defaults).not.toBe(true);
 });

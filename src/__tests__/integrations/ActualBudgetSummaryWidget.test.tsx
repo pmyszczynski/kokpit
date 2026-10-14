@@ -9,6 +9,7 @@ type SummaryData = ActualSummary & {
   currency: string;
   locale?: string;
   privacyMode: boolean;
+  sizeDefaults?: boolean;
 };
 
 const SAMPLE_DATA: SummaryData = {
@@ -194,7 +195,7 @@ describe("ActualBudgetSummaryWidget", () => {
     );
     expect(screen.getByText("$412.00")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("refresh failed");
+    expect(alert).toHaveAccessibleName("Refresh failed; saved data is shown. refresh failed");
   });
 
   it("adds the private class when privacy mode is on", () => {
@@ -219,5 +220,34 @@ describe("ActualBudgetSummaryWidget", () => {
       />
     );
     expect(container.querySelector(".actualbudget-widget--private")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("Summary footprint selection", () => {
+  it.each([
+    [{ columnSpan: 3, rowSpan: 2 }, ["toAssign", "remaining"]],
+    [{ columnSpan: 6, rowSpan: 2 }, ["toAssign", "remaining", "spent"]],
+    [{ columnSpan: 3, rowSpan: 4 }, ["toAssign", "budgeted", "spent", "remaining", "overspent", "netWorth"]],
+  ])("selects the intended new-preset figures for %j", (footprint, fields) => {
+    const { container, rerender } = render(<ActualBudgetSummaryWidget data={{ ...SAMPLE_DATA, sizeDefaults: true }}
+      loading={false} error={null} refresh={noop} footprint={footprint as { columnSpan: 3 | 6; rowSpan: 2 | 4 }} />);
+    expect(Array.from(container.querySelectorAll(".widget-stat"), node => node.getAttribute("data-field"))).toEqual(fields);
+    // Existing configurations retain every figure on the exact same canvas.
+    rerender(<ActualBudgetSummaryWidget data={SAMPLE_DATA} loading={false} error={null} refresh={noop}
+      footprint={footprint as { columnSpan: 3 | 6; rowSpan: 2 | 4 }} />);
+    expect(container.querySelectorAll(".widget-stat")).toHaveLength(6);
+  });
+
+  it("retains negative signs, alert tones and unknown net worth", () => {
+    const { container } = render(<ActualBudgetSummaryWidget data={{ ...SAMPLE_DATA,
+      month: { ...SAMPLE_DATA.month, toBudget: -41200, totalBalance: -26600 }, netWorth: null }}
+      loading={false} error={null} refresh={noop} />);
+    for (const field of ["toAssign", "remaining", "overspent"]) {
+      expect(container.querySelector(`[data-field="${field}"]`)).toHaveClass("widget-stat--tone-alert");
+    }
+    expect(screen.getByText("-$412.00")).toHaveClass("actualbudget-amount--negative");
+    expect(container.querySelector('[data-field="netWorth"]')).toHaveClass("widget-stat--tone-neutral");
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

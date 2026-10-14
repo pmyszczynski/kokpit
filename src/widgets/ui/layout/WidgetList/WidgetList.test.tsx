@@ -38,4 +38,15 @@ describe("WidgetList", () => {
   expect(screen.getByText("4 total")).toBeVisible();
  });
 
+ it("keeps footer measurements outside scrolling data and supports zero plus empty content", () => {
+  const footerSummary = { primary: "Due soon", secondary: 0, className: "consumer-footer", secondaryClassName: "consumer-count", secondaryTone: "warning" as const };
+  const { rerender } = render(<WidgetList label="Bills" footerSummary={footerSummary}><li>Bill</li></WidgetList>);
+  expect(screen.getByRole("list")).not.toContainElement(screen.getByText("Due soon"));
+  expect(screen.getByText("0")).toHaveClass("consumer-count", "widget-list__summary-tone-warning");
+  expect(screen.getByText("Due soon").parentElement).toHaveClass("widget-list__summary--footer", "consumer-footer");
+  rerender(<WidgetList label="Bills" empty="No bills" footerSummary={footerSummary} />);
+  expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  expect(screen.getByText("0")).toBeVisible();
+ });
+
 });

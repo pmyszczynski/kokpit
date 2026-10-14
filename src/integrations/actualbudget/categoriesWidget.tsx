@@ -1,5 +1,6 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetState, WidgetStaleNotice, WidgetBar } from "@/widgets/ui";
 import {
   fetchBudgetMonth,
   currentMonth,
@@ -98,101 +99,59 @@ function visibleCategories(data: ActualCategoriesData): ActualCategory[] {
 }
 
 export function ActualBudgetCategoriesWidget({
-  data,
-  loading,
-  error,
+  data, loading, error,
 }: WidgetProps<ActualCategoriesData>) {
   if (!data) {
-    return (
-      <div className="actualbudget-categories-widget actualbudget-categories-widget--empty">
-        {loading && (
-          <span className="actualbudget-categories-widget__hint">Loading&hellip;</span>
-        )}
-        {error && (
-          <span className="actualbudget-categories-widget__hint actualbudget-categories-widget__hint--error">
-            {error}
-          </span>
-        )}
-      </div>
-    );
+    return <WidgetBody centered className="actualbudget-categories-widget actualbudget-categories-widget--empty">
+      <WidgetState state={loading ? "loading" : error ? "error" : "empty"}
+        className="actualbudget-categories-widget__hint" labelClassName="actualbudget-categories-widget__hint--error">
+        {loading ? "Loading…" : error ?? undefined}
+      </WidgetState>
+    </WidgetBody>;
   }
 
   const categories = visibleCategories(data);
-  const privateClass = data.privacyMode ? " actualbudget-widget--private" : "";
-
-  if (categories.length === 0) {
-    return (
-      <div
-        className={`actualbudget-categories-widget actualbudget-categories-widget--empty${privateClass}`}
-      >
-        <span className="actualbudget-categories-widget__hint">
-          No categories to show
-        </span>
-        {error && (
-          <span className="actualbudget-categories-widget__stale-error" role="alert">
-            {error}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`actualbudget-categories-widget${privateClass}`}
-      aria-label="Actual Budget categories"
-    >
-      <div className="actualbudget-categories-widget__list">
-        {categories.map((category) => {
-          const pct = percentSpent(category);
-          const modifier = category.balance < 0 ? "over" : pct >= 85 ? "warn" : "ok";
-          return (
-            <div
-              key={category.id}
-              className={`actualbudget-categories-widget__row actualbudget-categories-widget__row--${modifier}`}
-            >
-              <span className="actualbudget-categories-widget__name" title={category.name}>
-                {category.name}
-              </span>
-              <span className="actualbudget-categories-widget__amounts">
-                <Amount
-                  cents={Math.abs(category.spent)}
-                  currency={data.currency}
-                  locale={data.locale}
-                />
-                {" / "}
-                <Amount
-                  cents={availableFor(category)}
-                  currency={data.currency}
-                  locale={data.locale}
-                />
-              </span>
-              <div className="actualbudget-categories-widget__progress-cell">
-                <div className="actualbudget-categories-widget__progress-bar">
-                  <div
-                    className="actualbudget-categories-widget__progress-fill"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="actualbudget-categories-widget__progress-text">{pct}%</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {error && (
-        <span className="actualbudget-categories-widget__stale-error" role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
+  return <WidgetBody className={`actualbudget-categories-widget${categories.length === 0 ? " actualbudget-categories-widget--empty" : ""}${data.privacyMode ? " actualbudget-widget--private" : ""}`}
+    aria-label="Actual Budget categories" reserveNotice
+    notice={<WidgetStaleNotice error={error} className="actualbudget-categories-widget__stale-error" />}>
+    <WidgetList label="Budget categories" listClassName="actualbudget-categories-widget__list"
+      empty={categories.length === 0 ? <WidgetState state="empty" className="actualbudget-categories-widget__hint">No categories to show</WidgetState> : undefined}>
+      {categories.map(category => {
+        const pct = percentSpent(category);
+        const modifier = category.balance < 0 ? "over" : pct >= 85 ? "warn" : "ok";
+        const tone = modifier === "over" ? "alert" : modifier === "warn" ? "warning" : "positive";
+        const status = modifier === "over" ? " · Overspent" : modifier === "warn" ? " · Almost spent" : "";
+        return <WidgetListItem key={category.id}
+          className={`actualbudget-categories-widget__row actualbudget-categories-widget__row--${modifier}`}
+          title={category.name} titleClassName="actualbudget-categories-widget__name"
+          secondary={<>
+            {category.groupName && <>{category.groupName} · </>}
+            <span className="actualbudget-categories-widget__amounts">
+              <Amount cents={Math.abs(category.spent)} currency={data.currency} locale={data.locale} />
+              {" / "}
+              <Amount cents={availableFor(category)} currency={data.currency} locale={data.locale} />
+            </span>
+          </>} wrapSecondary
+          footer={<WidgetBar kind="usage" label={`Budget spent for ${category.name}`} value={pct} tone={tone}
+            valueLabel={`${pct}%${status}`} className="actualbudget-categories-widget__progress-cell"
+            trackClassName="actualbudget-categories-widget__progress-bar"
+            fillClassName="actualbudget-categories-widget__progress-fill" labelClassName="actualbudget-categories-widget__progress-text" />} />;
+      })}
+    </WidgetList>
+  </WidgetBody>;
 }
 
 registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
   id: "actualbudget-categories",
   name: "Actual Budget Categories",
   preferredSize: "tall",
+  compactHeader: true,
+  sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "actualbudget-categories-widget actualbudget-categories-widget--empty",
+    loading: "actualbudget-categories-widget__hint",
+    error: "actualbudget-categories-widget__hint actualbudget-categories-widget__hint--error",
+  },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
   serviceEditorPreset: {
     defaultName: "Actual Budget",

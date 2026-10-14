@@ -1258,7 +1258,7 @@ Pointing both at the sidecar gives you a tile that opens raw JSON instead of you
 
 #### `actualbudget-summary`
 
-Displays six key statistics: To Assign, Budgeted, Spent, Remaining, count of overspent categories, and Net Worth.
+New editor tiles use size-based statistics: Compact 3×2 shows To Assign and Remaining; Wide 6×2 adds Spent; Detailed 3×4 shows all six figures (To Assign, Budgeted, Spent, Remaining, Overspent and Net Worth). Existing configurations keep all six figures and their saved geometry. Enable **Choose stats by tile size** (`size_defaults: true`) to adopt the new defaults; leaving it off retains all six at every size. Amounts preserve currency/locale and negative signs, with the same privacy reveal on hover or keyboard focus.
 
 ```yaml
 services:
@@ -1402,6 +1402,7 @@ service_tiles:
 
 | Widget | Field | Type | Description |
 |---|---|---|---|
+| `actualbudget-summary` | `size_defaults` | bool | Show 2/3/6 figures by tile size (new editor presets: `true`; existing/YAML configurations: `false`). |
 | `actualbudget-categories` | `limit` | int | Top N categories by spend, 1–50 (default: 8). |
 | `actualbudget-categories` | `hide_income` | bool | Exclude income categories (default: `true`). |
 | `actualbudget-categories` | `hide_empty` | bool | Exclude categories with no budget or spending (default: `true`). |
@@ -1415,7 +1416,7 @@ service_tiles:
 | Widget | Shows |
 |---|---|
 | `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of all account balances). |
-| `actualbudget-categories` | Category name, Spent / Budgeted amounts with progress bar, colour status — mutually exclusive: green under 85% spent, yellow 85–100% spent, red when the category is overspent (balance below zero, which takes priority over the percentage). Sorted by % spent descending. |
+| `actualbudget-categories` | Category name/group, Spent / Available amounts with usage bar, colour status — mutually exclusive: green under 85% spent, yellow 85–100% spent, red when the category is overspent (balance below zero, which takes priority over the percentage). Sorted by % spent descending. |
 | `actualbudget-accounts` | Account name, off-budget marker, current balance. Footer shows Net worth total. |
 | `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within `min(7, days_ahead)` days or overdue (e.g. "Due within 3 days or overdue" when `days_ahead: 3`). |
 

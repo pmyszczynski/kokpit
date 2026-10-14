@@ -1516,7 +1516,7 @@ describe("actualbudget widget registration", () => {
       await import("@/integrations/actualbudget/summaryWidget");
       const { getWidget } = await import("@/widgets");
       expect(getWidget("actualbudget-summary")?.serviceEditorPreset).toEqual(
-        EXPECTED_PRESET
+        { ...EXPECTED_PRESET, defaultConfig: { size_defaults: true } }
       );
     });
 
