@@ -48,6 +48,11 @@ export function getDb(): Database.Database {
       expires_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS login_rate_limits_expiry_idx ON login_rate_limits(expires_at);
+    CREATE TABLE IF NOT EXISTS login_request_times (
+      id INTEGER PRIMARY KEY,
+      requested_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS login_request_times_time_idx ON login_request_times(requested_at);
   `);
 
   return db;

@@ -285,12 +285,14 @@ blocked. Redirect responses count as reachable, but Kokpit does not follow them.
 
 ## Login sessions
 
-Login is throttled before password verification: an account can have at most ten
-failed or pending attempts in a fifteen-minute window. Successful password checks
-release their own account attempt; earlier failures remain until the window ends.
-A shared budget also permits at most 100 attempts per minute across all accounts,
-including successful checks and requests for unknown usernames. Limits persist in
-SQLite across restarts and do not trust forwarded IP headers. A blocked request
+Password login and TOTP verification each allow at most ten failed or pending
+attempts per account in a fifteen-minute window. A successful login releases its
+own attempt; issuing a TOTP challenge releases only the password-step attempt.
+Earlier failures remain until the window ends, and fresh challenges do not reset
+the account's TOTP allowance. A shared rolling budget also permits at most 100
+password/TOTP checks in any sixty seconds across all accounts, including successful
+checks and requests for unknown usernames. Limits persist in SQLite across
+restarts and do not trust forwarded IP headers. A blocked request
 returns HTTP 429 with `Retry-After` in seconds.
 
 Kokpit keeps you signed in by default. Each browser has a revocable session stored

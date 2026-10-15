@@ -18,17 +18,27 @@ type Decision =
  * rotation and stored counters without trusting caller-supplied proxy headers.
  */
 export function reserveLoginAttempt(username: string): Decision {
+  return reserveAttempt(`account:${createHash("sha256").update(username.toLowerCase()).digest("hex")}`);
+}
+
+/** Fresh challenge tokens share the same account's TOTP failure allowance. */
+export function reserveTotpAttempt(userId: string): Decision {
+  return reserveAttempt(`totp:${createHash("sha256").update(userId).digest("hex")}`);
+}
+
+function reserveAttempt(key: string): Decision {
   const db = getDb();
-  const key = `account:${createHash("sha256").update(username.toLowerCase()).digest("hex")}`;
   return db.transaction((): Decision => {
     const now = Date.now();
     db.prepare("DELETE FROM login_rate_limits WHERE expires_at <= ?").run(now);
+    db.prepare("DELETE FROM login_request_times WHERE requested_at <= ?").run(now - GLOBAL_WINDOW_MS);
     const read = db.prepare("SELECT attempts, expires_at FROM login_rate_limits WHERE key = ?");
     const account = read.get(key) as Counter | undefined;
-    const global = read.get("global") as Counter | undefined;
+    const shared = db.prepare("SELECT COUNT(*) AS count, MIN(requested_at) AS oldest FROM login_request_times")
+      .get() as { count: number; oldest: number | null };
     const blockedUntil = Math.max(
       account && account.attempts >= ACCOUNT_LIMIT ? account.expires_at : 0,
-      global && global.attempts >= GLOBAL_LIMIT ? global.expires_at : 0
+      shared.count >= GLOBAL_LIMIT ? shared.oldest! + GLOBAL_WINDOW_MS : 0
     );
     if (blockedUntil > now) {
       return { allowed: false, retryAfterSeconds: Math.ceil((blockedUntil - now) / 1000) };
@@ -39,7 +49,7 @@ export function reserveLoginAttempt(username: string): Decision {
       ON CONFLICT(key) DO UPDATE SET attempts = attempts + 1
     `);
     increment.run(key, expiresAt);
-    increment.run("global", global?.expires_at ?? now + GLOBAL_WINDOW_MS);
+    db.prepare("INSERT INTO login_request_times (requested_at) VALUES (?)").run(now);
     return { allowed: true, attempt: { key, expiresAt } };
   }).immediate();
 }

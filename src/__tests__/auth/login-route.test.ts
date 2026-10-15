@@ -319,6 +319,26 @@ describe("POST /api/auth/login", () => {
     }
   });
 
+  it("enforces the shared budget when usernames and forwarding headers rotate together", async () => {
+    const verifyPassword = vi.fn().mockResolvedValue(false);
+    vi.doMock("@/auth", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/auth")>()), verifyPassword,
+    }));
+    try {
+      const { POST } = await import("../../app/api/auth/login/route");
+      const responses = await Promise.all(Array.from({ length: 105 }, (_, i) => POST(trustedRequest("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "X-Forwarded-For": `192.0.2.${i}`, "X-Real-IP": `192.0.2.${i}` },
+        body: JSON.stringify({ username: `unknown-rotating-${i}`, password: "guess" }),
+      }))));
+      expect(verifyPassword).toHaveBeenCalledTimes(100);
+      expect(responses.filter(response => response.status === 401)).toHaveLength(100);
+      expect(responses.filter(response => response.status === 429)).toHaveLength(5);
+    } finally {
+      vi.doUnmock("@/auth");
+    }
+  });
+
   it("returns 400 on empty username", async () => {
     const { POST } = await import("../../app/api/auth/login/route");
     const res = await POST(
