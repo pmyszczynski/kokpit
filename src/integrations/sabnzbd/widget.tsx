@@ -47,7 +47,11 @@ export function SabnzbdWidget({
   if (!data) {
     return (
       <WidgetBody centered className="sabnzbd-widget sabnzbd-widget--empty">
-        <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>
+        <WidgetState
+          state={loading ? "loading" : error ? "error" : "empty"}
+          className={loading ? "sabnzbd-widget__hint" : undefined}
+          labelClassName={error ? "sabnzbd-widget__hint sabnzbd-widget__hint--error" : undefined}
+        >
           {!loading ? error : undefined}
         </WidgetState>
       </WidgetBody>
@@ -64,6 +68,7 @@ export function SabnzbdWidget({
       className="sabnzbd-widget"
       data-footprint={footprintName}
       aria-label="SABnzbd stats"
+      scrollLabel="SABnzbd measurements"
       reserveNotice
       notice={<WidgetStaleNotice error={error} className="sabnzbd-widget__stale-error" />}
     >
@@ -127,6 +132,11 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
   preferredSize: "normal",
   compactHeader: true,
   sharedUI: true,
+  sharedStateClassNames: {
+    wrapper: "sabnzbd-widget sabnzbd-widget--empty",
+    loading: "sabnzbd-widget__hint",
+    error: "sabnzbd-widget__hint sabnzbd-widget__hint--error",
+  },
   supportedFootprints: [
     { label: "Compact", columnSpan: 3, rowSpan: 2 },
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },

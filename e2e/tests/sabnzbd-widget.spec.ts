@@ -112,7 +112,10 @@ test("SABnzbd keeps an empty queue neutral and absent details visible", async ({
 });
 
 test("SABnzbd initial states use shared feedback and null data stays blank", async ({ page, request }) => {
-  await configure(request);
+  await configure(request, { custom_css: `
+    .sabnzbd-widget--empty .sabnzbd-widget__hint { color: #123456; }
+    .sabnzbd-widget--empty .sabnzbd-widget__hint--error { color: #654321; }
+  ` });
   let releaseInitial!: () => void;
   const initial = new Promise<void>((resolve) => { releaseInitial = resolve; });
   let response: unknown = RESPONSE;
@@ -123,15 +126,51 @@ test("SABnzbd initial states use shared feedback and null data stays blank", asy
   });
   await page.goto("/");
   await expect(tile(page).getByRole("status", { name: "Loading widget" })).toHaveClass(/widget-state--loading/);
+  await expect(tile(page).getByRole("status", { name: "Loading widget" })).toHaveCSS("color", "rgb(18, 52, 86)");
   releaseInitial();
   await expect(tile(page).locator(".widget-stat")).toHaveCount(2);
   response = { ok: false, error: "SABnzbd unavailable" };
   await page.reload();
   await expect(tile(page).getByRole("alert")).toHaveClass(/widget-state--error/);
   await expect(tile(page).getByRole("alert")).toHaveText("SABnzbd unavailable");
+  await expect(tile(page).locator(".widget-state__label")).toHaveClass(/sabnzbd-widget__hint--error/);
+  await expect(tile(page).locator(".widget-state__label")).toHaveCSS("color", "rgb(101, 67, 33)");
   response = { ok: true, data: null };
   await page.reload();
   await expect(tile(page).locator(".sabnzbd-widget--empty")).toBeEmpty();
+});
+
+test("SABnzbd long status stays reachable by keyboard with the notice fixed", async ({ page, request }) => {
+  const status = `${"Waiting for post-processing and checking downloaded files. ".repeat(12)}Final status detail`;
+  await mockWidget(page, { ok: true, data: { ...STATS, status } });
+  for (const theme of THEMES) {
+    await configure(request, { theme, footprint: { columnSpan: 3, rowSpan: 4 } });
+    await page.goto("/");
+    const region = tile(page).getByRole("region", { name: "SABnzbd measurements" });
+    await expect(tile(page).locator(".widget-stat")).toHaveCount(6);
+    await expect(tile(page).locator(".widget-stat__value").last()).toHaveText(status);
+    const notice = await tile(page).locator(".widget-body__notice").boundingBox();
+    await expect.poll(() => region.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await expect(region).toHaveAttribute("tabindex", "0");
+    await region.focus();
+    await region.press("End");
+    await expect.poll(() => region.evaluate((element) =>
+      Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop) < 2
+    )).toBe(true);
+    await expect.poll(() => region.evaluate((element) => {
+      const last = element.querySelector(".widget-stat:last-child .widget-stat__label")!;
+      const bounds = element.getBoundingClientRect();
+      const label = last.getBoundingClientRect();
+      return label.top >= bounds.top && label.bottom <= bounds.bottom + 1;
+    })).toBe(true);
+    expect(await tile(page).locator(".widget-body__notice").boundingBox()).toEqual(notice);
+    await region.press("Home");
+    await expect.poll(() => region.evaluate((element) => element.scrollTop)).toBe(0);
+    await expect.poll(() => region.evaluate((element) =>
+      element.querySelector(".widget-stat")!.getBoundingClientRect().top >= element.getBoundingClientRect().top - 1
+    )).toBe(true);
+    expect(await region.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
 });
 
 test("SABnzbd refresh failure/recovery retains metrics and positions", async ({ page, request }) => {

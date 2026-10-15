@@ -76,6 +76,7 @@ describe("SabnzbdWidget component", () => {
       <SabnzbdWidget data={null} loading={true} error={null} refresh={noop} />
     );
     expect(screen.getByRole("status", { name: "Loading widget" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("sabnzbd-widget__hint");
   });
 
   it("shows error message when data is null and error is set", () => {
@@ -88,6 +89,7 @@ describe("SabnzbdWidget component", () => {
       />
     );
     expect(screen.getByText("SABnzbd responded with 401")).toBeInTheDocument();
+    expect(screen.getByText("SABnzbd responded with 401")).toHaveClass("sabnzbd-widget__hint", "sabnzbd-widget__hint--error");
   });
 
   it("shows stale error alongside data when data is non-null and error is set", () => {
