@@ -8,6 +8,7 @@ import {
 import { createSessionCookie } from "../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
 import { SessionInvalidatedError } from "@/auth/errors";
+import { reserveLoginAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
 
 // Use a pre-computed dummy hash so bcrypt always runs its full work factor,
 // preventing username enumeration via response-time timing attacks.
@@ -17,14 +18,17 @@ export async function POST(req: Request) {
   if (!isTrustedMutation(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  let body: { username?: unknown; password?: unknown };
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { username, password } = body;
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { username, password } = body as { username?: unknown; password?: unknown };
   if (typeof username !== "string" || typeof password !== "string") {
     return NextResponse.json(
       { error: "username and password must be strings" },
@@ -35,6 +39,14 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "username and password are required" },
       { status: 400 }
+    );
+  }
+
+  const reservation = reserveLoginAttempt(username);
+  if (!reservation.allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(reservation.retryAfterSeconds) } }
     );
   }
 
@@ -60,6 +72,7 @@ export async function POST(req: Request) {
   try {
     if (currentUser.totpSecret) {
       const challengeToken = await signTotpChallenge(currentUser.id, currentUser.sessionVersion);
+      releaseSuccessfulLoginAttempt(reservation.attempt);
       return NextResponse.json({ requiresTotp: true, challengeToken });
     }
     await createSessionCookie(currentUser.id, req, currentUser.sessionVersion);
@@ -71,5 +84,6 @@ export async function POST(req: Request) {
     }
     throw error;
   }
+  releaseSuccessfulLoginAttempt(reservation.attempt);
   return NextResponse.json({ id: currentUser.id, username: currentUser.username });
 }

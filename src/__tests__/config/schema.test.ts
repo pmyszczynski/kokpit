@@ -7,6 +7,19 @@ const minimalValid = {
   service_tiles: [],
 };
 
+describe("KokpitConfigSchema – authentication defaults", () => {
+  it.each([undefined, {}, { session_idle_timeout_hours: 24 }, { session_ttl_hours: 24 }])(
+    "requires authentication when enabled is omitted from %j",
+    (auth) => {
+      expect(KokpitConfigSchema.parse({ ...minimalValid, auth }).auth.enabled).toBe(true);
+    }
+  );
+
+  it("allows an explicit authentication opt-out", () => {
+    expect(KokpitConfigSchema.parse({ ...minimalValid, auth: { enabled: false } }).auth.enabled).toBe(false);
+  });
+});
+
 describe("KokpitConfigSchema – services and tiles", () => {
   const serviceId = "00000000-0000-4000-8000-000000000001";
 

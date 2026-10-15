@@ -17,6 +17,7 @@ import { getConfigSnapshot } from "@/config/server";
 import { getAuthUser } from "@/auth/session";
 import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth/apiAuth";
 import type { KokpitConfig } from "@/config";
+import { KokpitConfigSchema } from "@/config/schema";
 import type { User } from "@/auth";
 
 function configWithAuth(enabled: boolean): KokpitConfig {
@@ -68,6 +69,15 @@ describe("isRequestAuthenticated", () => {
     vi.mocked(getAuthUser).mockResolvedValue(null);
     await expect(isRequestAuthenticated()).resolves.toBe(false);
     expect(getAuthUser).toHaveBeenCalledWith(undefined);
+  });
+
+  it("protects the API when YAML configures only the session timeout", async () => {
+    const config = KokpitConfigSchema.parse({
+      schema_version: 2, auth: { session_idle_timeout_hours: 24 },
+    });
+    stubCookie(undefined);
+    vi.mocked(getAuthUser).mockResolvedValue(null);
+    await expect(isRequestAuthenticated(config)).resolves.toBe(false);
   });
 
   it("returns true when the session cookie resolves to a user", async () => {

@@ -334,4 +334,18 @@ test.describe.serial("authentication flow", () => {
       expect((await page.request.post("/api/auth/login", { headers, data: ADMIN })).status()).toBe(200);
     } finally { await other.close(); }
   });
+
+  test("login throttles repeated guesses even when forwarding headers change", async ({ request }) => {
+    for (let i = 0; i < 11; i++) {
+      const response = await request.post("/api/auth/login", {
+        headers: { "X-Kokpit-Request": "1", "X-Forwarded-For": `192.0.2.${i}` },
+        data: { username: "unknown-throttling-test", password: "guess" },
+      });
+      expect(response.status()).toBe(i < 10 ? 401 : 429);
+      if (i === 10) {
+        expect(Number(response.headers()["retry-after"])).toBeGreaterThan(0);
+        expect(await response.json()).toEqual({ error: "Too many attempts. Try again later." });
+      }
+    }
+  });
 });
