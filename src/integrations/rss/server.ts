@@ -1,4 +1,6 @@
 import { JSDOM } from "jsdom";
+import { SaxesParser } from "saxes";
+import { decodeHTMLStrict } from "entities";
 import { ssrfSafeFetch } from "@/lib/ssrfGuard";
 import { WidgetFetchError } from "@/widgets/publicFetchError";
 import { articleUrl, RssConfigSchema, type RssConfig, type RssData } from "./api";
@@ -65,16 +67,27 @@ function link(parent: Element, base: string): string | null {
   }
   return null;
 }
-function hasDtd(xml: string): boolean {
+function namedEntities(xml: string): string {
+  return xml.replace(/&([A-Za-z][A-Za-z0-9]*);/g, (reference, name: string) => {
+    if (["amp", "lt", "gt", "quot", "apos"].includes(name)) return reference;
+    const decoded = decodeHTMLStrict(reference);
+    return decoded === reference ? reference : Array.from(decoded, char => `&#${char.codePointAt(0)!};`).join("");
+  });
+}
+/** Preserve literal sections; supported HTML names become inert XML character references. */
+function prepareXml(xml: string): string {
+  const parts: string[] = []; let cursor = 0;
   for (let index = xml.indexOf("<"); index !== -1; index = xml.indexOf("<", index + 1)) {
     const terminator = xml.startsWith("<!--", index) ? "-->" : xml.startsWith("<![CDATA[", index) ? "]]>" : xml.startsWith("<?", index) ? "?>" : null;
     if (terminator) {
       const end = xml.indexOf(terminator, index + (terminator === "-->" ? 4 : terminator === "]]>" ? 9 : 2));
-      if (end === -1) return false; // The XML parser rejects the unclosed section.
-      index = end + terminator.length - 1;
-    } else if (/^<!\s*(DOCTYPE|ENTITY)\b/i.test(xml.slice(index))) return true;
+      if (end === -1) throw invalid("xml");
+      parts.push(namedEntities(xml.slice(cursor, index)), xml.slice(index, end + terminator.length));
+      cursor = end + terminator.length; index = cursor - 1;
+    } else if (/^<!\s*(DOCTYPE|ENTITY)\b/i.test(xml.slice(index))) throw invalid("xml");
   }
-  return false;
+  parts.push(namedEntities(xml.slice(cursor)));
+  return parts.join("");
 }
 function rdfResource(value: string | null, base: string): string | null {
   if (!value?.trim()) return null;
@@ -99,23 +112,23 @@ function rdfItems(root: Element, channel: Element, rootBase: string, channelBase
   }
   return ordered;
 }
-function checkDepth(root: Element): void {
-  const walker = root.ownerDocument.createTreeWalker(root, 1);
-  for (let element: Element | null = root; element; element = walker.nextNode() as Element | null) {
-    let depth = 0;
-    for (let parent: Element | null = element; parent; parent = parent.parentElement) {
-      if (++depth > 40) throw invalid("xml");
-    }
-  }
+/** Stop excessive nesting while streaming tokens, before any document/window allocation. */
+function validateXml(xml: string): void {
+  let depth = 0;
+  const parser = new SaxesParser({ xmlns: true });
+  parser.on("opentag", () => { if (++depth > 40) throw invalid("xml"); });
+  parser.on("closetag", () => { depth--; });
+  parser.on("doctype", () => { throw invalid("xml"); });
+  try { parser.write(xml).close(); } catch { throw invalid("xml"); }
 }
 
 export function parseFeed(xml: string, feedUrl: string, maxItems: number): RssData {
-  if (hasDtd(xml)) throw invalid("xml");
+  const prepared = prepareXml(xml);
+  validateXml(prepared);
   let dom: JSDOM;
-  try { dom = new JSDOM(xml, { contentType: "text/xml" }); } catch { throw invalid("xml"); }
+  try { dom = new JSDOM(prepared, { contentType: "text/xml" }); } catch { throw invalid("xml"); }
   try {
     const root = dom.window.document.documentElement;
-    checkDepth(root);
     const isAtom = root.localName === "feed" && (root.namespaceURI === ATOM || root.namespaceURI === null);
     const isRdf = root.localName === "RDF" && root.namespaceURI === RDF;
     const isRss = root.localName === "rss" && root.namespaceURI === null;
