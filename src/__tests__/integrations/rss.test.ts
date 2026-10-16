@@ -25,13 +25,26 @@ describe("RSS and Atom parsing", () => {
     const xml = '<rss><channel><!-- <!DOCTYPE harmless> --><title>Feed</title><item><title>News</title><description><![CDATA[<!DOCTYPE html><p>A normal article.</p>]]></description></item></channel></rss>';
     expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("A normal article.");
   });
+  it("still rejects a real DTD after inert text instead of rewriting its input", () => {
+    const xml = '<!-- <!DOCTYPE harmless> --><!DOCTYPE rss [<!ENTITY external SYSTEM "file:///etc/passwd">]><rss><channel><title>Feed</title></channel></rss>';
+    expect(() => parseFeed(xml, config.feed_url, 10)).toThrow(expect.objectContaining({ diagnostic: { integration: "rss", stage: "xml", retryable: false } }));
+  });
   it("handles Atom namespaces, alternate links, inherited xml:base, XHTML and updated dates", () => {
     const xml = `<feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://news.example.org/"><title>Updates</title><entry xml:base="posts/"><title type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Release <b>one</b></div></title><link rel="self" href="api.xml"/><link rel="alternate" href="one"/><updated>2026-10-16T12:00:00+02:00</updated><summary type="xhtml"><div><p>A <b>small</b> update.</p></div></summary></entry></feed>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0]).toEqual({ title: "Release one", url: "https://news.example.org/posts/one", publishedAt: "2026-10-16T10:00:00.000Z", summary: "A small update." });
   });
+  it("applies a relative Atom feed base exactly once", () => {
+    const xml = '<feed xml:base="../articles/"><title>Feed</title><entry><title>Article</title><link href="one"/></entry></feed>';
+    expect(parseFeed(xml, "https://example.org/feeds/current.xml", 10).articles[0].url).toBe("https://example.org/articles/one");
+  });
   it("supports RSS 1.0 RDF and dc:date", () => {
     const xml = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>RDF</title></channel><item><title>News</title><link>https://example.com/item</link><dc:date>2026-10-16T10:00:00Z</dc:date></item></rdf:RDF>`;
     expect(parseFeed(xml, config.feed_url, 1).articles[0]).toMatchObject({ title: "News", publishedAt: "2026-10-16T10:00:00.000Z" });
+  });
+  it("uses RSS 1.0 channel sequence order before limiting, resolving sibling item bases independently", () => {
+    const xml = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xml:base="https://example.org/"><channel xml:base="channel/"><title>RDF</title><items><rdf:Seq xml:base="../articles/"><rdf:li rdf:resource="second"/><rdf:li rdf:resource="first"/></rdf:Seq></items></channel><item rdf:about="articles/first"><title>First</title><link>articles/first</link></item><item xml:base="articles/" rdf:about="second"><title>Second</title><link>second</link></item></rdf:RDF>`;
+    expect(parseFeed(xml, config.feed_url, 1).articles).toEqual([{ title: "Second", url: "https://example.org/articles/second", publishedAt: null, summary: "" }]);
+    expect(parseFeed(xml, config.feed_url, 10).articles.map(item => item.title)).toEqual(["Second", "First"]);
   });
   it("retains feed order and enforces the article limit without changing dates", () => {
     expect(parseFeed(RSS, config.feed_url, 1).articles.map(a => a.title)).toEqual(["Storage & backups"]);

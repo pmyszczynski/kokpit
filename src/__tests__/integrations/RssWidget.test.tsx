@@ -19,6 +19,18 @@ describe("RssWidget", () => {
     expect(screen.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Feed offline");
     expect(screen.getByRole("link", { name: "Release one" })).toBeInTheDocument();
   });
+  it("retains a focused article's DOM identity when refresh prepends entries", () => {
+    const { rerender } = render(<RssWidget {...props} />);
+    const link = screen.getByRole("link", { name: "Release one" }); link.focus();
+    rerender(<RssWidget {...props} data={{ ...data, articles: [{ ...data.articles[0], title: "New article", url: "https://example.com/new" }, ...data.articles] }} />);
+    expect(screen.getByRole("link", { name: "Release one" })).toBe(link);
+    expect(link).toHaveFocus(); expect(link).toHaveAttribute("href", "https://example.com/one");
+  });
+  it("exposes the full feed name through its tooltip when the fixed summary truncates", () => {
+    const title = "A long feed name ".repeat(12).trim();
+    render(<RssWidget {...props} data={{ ...data, title }} />);
+    expect(screen.getByTitle(title)).toHaveTextContent(title.trim());
+  });
   it("renders untrusted data as text and declines unsafe links", () => {
     const { container } = render(<RssWidget {...props} data={{ title: "Feed", articles: [{ title: "<img src=x onerror=evil()>", url: "javascript:evil()", publishedAt: "broken", summary: "<script>evil()</script>" }] }} footprint={{ columnSpan: 6, rowSpan: 4 }} />);
     expect(container.querySelector("img, script, a")).toBeNull(); expect(screen.getByText("Date unavailable", { exact: false })).toBeInTheDocument();

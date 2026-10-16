@@ -37,19 +37,58 @@ function link(value: unknown, base: string): string | null {
   return null;
 }
 
+function hasDtd(xml: string): boolean {
+  for (let index = xml.indexOf("<"); index !== -1; index = xml.indexOf("<", index + 1)) {
+    const terminator = xml.startsWith("<!--", index) ? "-->" : xml.startsWith("<![CDATA[", index) ? "]]>" : null;
+    if (terminator) {
+      const end = xml.indexOf(terminator, index + (terminator === "-->" ? 4 : 9));
+      if (end === -1) return false; // XML validation rejects the unclosed section.
+      index = end + terminator.length - 1;
+    } else if (/^<!\s*(DOCTYPE|ENTITY)\b/i.test(xml.slice(index))) return true;
+  }
+  return false;
+}
+
+function rdfResource(value: unknown, base: string): string | null {
+  const resource = text(value).trim();
+  if (!resource) return null;
+  try { return new URL(resource, base).href; } catch { return null; }
+}
+
+function rdfItems(rdf: Node, channel: Node, rootBase: string, channelBase: string): unknown[] {
+  const items = array(rdf.item);
+  const container = node(channel.items); const sequence = node(container.Seq);
+  if (!Object.keys(sequence).length) return items;
+  const sequenceBase = baseUrl(sequence["@base"], baseUrl(container["@base"], channelBase));
+  const indexed = new Map<string, unknown>();
+  for (const value of items) {
+    const item = node(value); const resource = rdfResource(item["@about"], baseUrl(item["@base"], rootBase));
+    if (resource && !indexed.has(resource)) indexed.set(resource, value);
+  }
+  const ordered: unknown[] = []; const seen = new Set<string>();
+  for (const value of array(sequence.li)) {
+    const entry = node(value); const resource = rdfResource(entry["@resource"], baseUrl(entry["@base"], sequenceBase));
+    if (resource && indexed.has(resource) && !seen.has(resource)) {
+      ordered.push(indexed.get(resource)); seen.add(resource);
+    }
+  }
+  return ordered;
+}
+
 export function parseFeed(xml: string, feedUrl: string, maxItems: number): RssData {
   // DTDs are unnecessary for RSS/Atom: reject declarations before validation or expansion.
-  const declarations = xml.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g, "");
-  if (/<!\s*(DOCTYPE|ENTITY)\b/i.test(declarations) || XMLValidator.validate(xml) !== true) throw invalid("xml");
+  if (hasDtd(xml) || XMLValidator.validate(xml) !== true) throw invalid("xml");
   let root: Node;
   try { root = node(parser.parse(xml)); } catch { throw invalid("xml"); }
   const rss = node(root.rss); const atom = node(root.feed); const rdf = node(root.RDF);
   const channel = Object.keys(rss).length ? node(rss.channel) : Object.keys(atom).length ? atom : node(rdf.channel);
   if (!Object.keys(channel).length) throw invalid("feed");
-  const base = baseUrl(channel["@base"], baseUrl(rss["@base"] ?? atom["@base"] ?? rdf["@base"], feedUrl));
-  const items = Object.keys(atom).length ? atom.entry : channel.item ?? rdf.item;
+  const rootBase = baseUrl(rss["@base"] ?? atom["@base"] ?? rdf["@base"], feedUrl);
+  const base = Object.keys(atom).length ? rootBase : baseUrl(channel["@base"], rootBase);
+  const isRdf = Object.keys(rdf).length > 0;
+  const items = Object.keys(atom).length ? atom.entry : isRdf ? rdfItems(rdf, channel, rootBase, base) : channel.item;
   return { title: plain(channel.title, 200) || "Feed", articles: array(items).slice(0, maxItems).map(value => {
-    const item = node(value); const itemBase = baseUrl(item["@base"], base);
+    const item = node(value); const itemBase = baseUrl(item["@base"], isRdf ? rootBase : base);
     const date = text(item.pubDate ?? item.published ?? item.updated ?? item.date);
     const timestamp = date ? Date.parse(date) : NaN;
     return { title: plain(item.title, 500) || "Untitled article", url: link(item.link, itemBase),

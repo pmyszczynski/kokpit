@@ -65,6 +65,18 @@ test("RSS Detailed adds complete summaries while every size retains all configur
   await expect(tile(page).nth(2).locator("time").first()).toHaveText("Oct 16, 2026");
 });
 
+test("RSS long feed names retain a single-line summary and usable Compact scrolling", async ({ page, request }) => {
+  const title = "A very long feed name with important context ".repeat(5).slice(0, 200);
+  await configure(request); await mock(page, { ...DATA, title }); await page.goto("/");
+  await expect(tile(page).getByTitle(title)).toBeVisible();
+  const summary = tile(page).locator(".rss-widget__feed-title");
+  expect(await summary.evaluate(element => element.clientHeight <= 20 && element.scrollWidth > element.clientWidth)).toBe(true);
+  const list = tile(page).getByRole("list", { name: "Feed articles" });
+  expect((await list.boundingBox())!.height).toBeGreaterThan(70);
+  await list.focus(); await list.press("End");
+  await expect.poll(() => list.evaluate(element => Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop) < 1)).toBe(true);
+});
+
 test("RSS article links and service header navigate independently without nested anchors", async ({ page, request, context }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await configure(request); await mock(page);
@@ -89,6 +101,17 @@ test("RSS stale refresh keeps articles, scroll position and geometry, then recov
   expect(await list.boundingBox()).toEqual(bounds); expect(await list.evaluate(element => element.scrollTop)).toBe(scroll);
   fails = false; await page.clock.fastForward(600_000); await expect(tile(page).getByRole("alert")).toHaveCount(0);
   expect(await list.boundingBox()).toEqual(bounds);
+});
+
+test("RSS refresh preserves the focused article when new entries are prepended", async ({ page, request }) => {
+  let data = DATA;
+  await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
+  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request); await page.goto("/");
+  const article = tile(page).getByRole("link", { name: HEADLINES[0], exact: true }); await article.focus();
+  data = { ...DATA, articles: [{ ...DATA.articles[0], title: "A new headline", url: "https://example.com/new" }, ...DATA.articles] };
+  await page.clock.fastForward(600_000);
+  await expect(tile(page).getByRole("listitem")).toHaveCount(9);
+  await expect(article).toBeFocused(); await expect(article).toHaveAttribute("href", DATA.articles[0].url!);
 });
 
 test("RSS uses shared loading/error/empty feedback and explicit missing fields", async ({ page, request }) => {

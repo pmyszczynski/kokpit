@@ -1,4 +1,5 @@
 @layer widget-ui {
+  .rss-widget__feed-title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .rss-widget__link { color: inherit; text-decoration: none; }
   .rss-widget__link:hover { text-decoration: underline; }
   .rss-widget__link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }

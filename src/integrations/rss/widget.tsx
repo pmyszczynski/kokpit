@@ -10,12 +10,16 @@ function publicationDate(value: string | null) {
 export function RssWidget({ data, loading, error, footprint }: WidgetProps<RssData>) {
   if (!data) return <WidgetBody centered className="rss-widget"><WidgetState state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error ?? "Feed unavailable" : undefined}</WidgetState></WidgetBody>;
   const detailed = (footprint?.rowSpan ?? 3) >= 4;
+  const occurrences = new Map<string, number>();
   return <WidgetBody className="rss-widget" reserveNotice notice={<WidgetStaleNotice error={error} />}>
-    <WidgetList label="Feed articles" summary={{ primary: data.title, secondary: `${data.articles.length} ${data.articles.length === 1 ? "article" : "articles"}` }}
+    <WidgetList label="Feed articles" summary={{ primary: <span title={data.title}>{data.title}</span>, primaryClassName: "rss-widget__feed-title", secondary: `${data.articles.length} ${data.articles.length === 1 ? "article" : "articles"}` }}
       empty={data.articles.length === 0 ? <WidgetState state="empty">No articles in this feed</WidgetState> : undefined}>
-      {data.articles.map((article, index) => {
+      {data.articles.map(article => {
         const url = article.url ? articleUrl(article.url) : null;
-        return <WidgetListItem key={index} className="rss-widget__article" titleTooltip={article.title}
+        const identity = url ?? JSON.stringify([article.title, article.publishedAt]);
+        const occurrence = occurrences.get(identity) ?? 0;
+        occurrences.set(identity, occurrence + 1);
+        return <WidgetListItem key={JSON.stringify([identity, occurrence])} className="rss-widget__article" titleTooltip={article.title}
           title={url ? <a className="rss-widget__link" href={url} target="_blank" rel="noopener noreferrer">{article.title}</a> : article.title}
           secondary={<>{article.publishedAt ? <time dateTime={article.publishedAt} title={article.publishedAt}>{publicationDate(article.publishedAt)}</time> : "Date unavailable"}{detailed && article.summary ? ` · ${article.summary}` : ""}</>}
           secondaryTooltip={`${publicationDate(article.publishedAt)}${detailed && article.summary ? ` · ${article.summary}` : ""}`} wrapSecondary={detailed} />;
