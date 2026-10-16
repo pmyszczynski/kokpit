@@ -42,7 +42,7 @@ describe("RSS and Atom parsing", () => {
     const xml = `<feed><title>Feed</title><entry><title>Article</title><content type="${type}">&lt;p&gt;Available &lt;b&gt;content&lt;/b&gt; with 2 &amp;lt; 3&lt;/p&gt;</content></entry></feed>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Available content with 2 < 3");
   });
-  it.each(["application/xhtml+xml", "application/xml"])("extracts inline XML content fallback with MIME type %s", type => {
+  it.each(["application/xhtml+xml", "application/xml", "example/xml"])("extracts inline XML content fallback with MIME type %s", type => {
     const xml = `<feed><title>Feed</title><entry><title>Article</title><content type="${type}"><div xmlns="http://www.w3.org/1999/xhtml"><p>One</p><p>Two</p></div></content></entry></feed>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("One Two");
   });

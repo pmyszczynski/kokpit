@@ -20,7 +20,7 @@ type TextMode = "text" | "html" | "escaped-html";
 function atomTextMode(value: unknown): TextMode {
   const type = text(node(value)["@type"]).split(";", 1)[0].trim().toLowerCase();
   if (type === "html" || type === "text/html") return "escaped-html";
-  if (type === "xhtml" || type.endsWith("+xml") || type === "application/xml" || type === "text/xml") return "html";
+  if (type === "xhtml" || type.endsWith("+xml") || type.endsWith("/xml")) return "html";
   return "text";
 }
 function truncate(value: string, limit: number): string {
