@@ -1,0 +1,14 @@
+@layer widget-ui {
+  /* Composition only: attribution shares the reserved refresh-notice row. */
+  .weather-widget__notice {
+    align-items: baseline;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .weather-widget__notice a {
+    color: var(--color-text-muted);
+    text-underline-offset: 2px;
+  }
+}

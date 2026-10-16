@@ -28,5 +28,6 @@ import "./actualbudget/summaryWidget";
 import "./actualbudget/categoriesWidget";
 import "./actualbudget/accountsWidget";
 import "./actualbudget/schedulesWidget";
+import "./weather/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

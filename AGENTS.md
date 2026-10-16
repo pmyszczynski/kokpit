@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Phase 2 P0s are all complete (Tdarr and the System stats widget were the last two). Next up: `P1` Useful API widgets — weather, RSS, calendar, search bar.
+**Current task:** Phase 2 P0s are complete. Open-Meteo Weather is implemented; see PR #133 for validation, review and publication evidence. All existing non-Netdata widgets use the shared library; Netdata remains deferred at the owner's request. The next unselected `P1` widget features are RSS, calendar and search; OpenWeatherMap is a separate future weather provider. Check the roadmap and current PR handoff before selecting new work.
 
 ---
 

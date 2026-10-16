@@ -366,7 +366,35 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 ## Widgets
 
-Widgets display live data from your self-hosted services directly on a service tile. Each widget polls its service on a configurable interval and renders the data you choose.
+Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
+
+### Weather (Open-Meteo)
+
+Current conditions and a five-day forecast, with no API key. Add a **Weather** tile from the dashboard editor, enter latitude/longitude, and use the tile name for your location. Enable **Use imperial units** for Fahrenheit/mph; the default is Celsius/km/h. Location, units and footprint belong to each tile; no reusable service integration or launch URL is required.
+
+Compact **3×2** shows Temperature / Conditions. Wide **6×2** adds Feels like. Detailed **6×4** adds Humidity / Wind / dated precipitation and a named, keyboard-scrollable five-day forecast with low/high temperatures, conditions and precipitation probability. The summary and attribution stay fixed while the forecast scrolls. Times/dates come from the location's timezone; the attribution link's tooltip gives the observation time and timezone. Missing values display “—”, unknown condition codes display “Unknown”, and a missing forecast retains current conditions. Forecast temperature/probability values with missing or unexpected units stay unavailable. With an optional service URL, the header launches that service and attribution remains a separate link.
+
+```yaml
+services:
+  - id: 10000000-0000-4000-8000-000000000001
+    name: London weather
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    footprint: { columnSpan: 6, rowSpan: 4 }
+    widget:
+      type: weather
+      config:
+        latitude: 51.5074
+        longitude: -0.1278
+        imperial: false
+```
+
+Latitude is required (−90…90), as is longitude (−180…180); `imperial` is optional. The server makes one HTTPS request to the fixed Open-Meteo endpoint per fetch and refreshes every ten minutes by default. Each open tile polls independently; any configured shorter refresh override increases requests. A refresh failure preserves saved data with an accessible notice. No geolocation permission or city-search request is used. Setting coordinates opts that tile into the external weather service.
+
+Weather data: [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://open-meteo.com/en/licence). Its [free API terms](https://open-meteo.com/en/terms) apply, including non-commercial use and request limits. OpenWeatherMap is a separate future provider, not implemented by this widget.
+
+### Configuring service-backed widgets
 
 **Two ways to configure a widget:**
 
