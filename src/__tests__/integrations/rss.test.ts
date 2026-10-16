@@ -21,6 +21,47 @@ describe("RSS and Atom parsing", () => {
       { title: "Next", url: null, publishedAt: null, summary: "" },
     ] });
   });
+  it.each([
+    '<rss><channel><title>2 &lt; 3 and 4 &gt; 1</title><item><title>2 &lt; 3 and 4 &gt; 1</title><description><![CDATA[<p>2 &lt; 3 and 4 &gt; 1</p>]]></description></item></channel></rss>',
+    '<rss><channel><title>2 &lt; 3 and 4 &gt; 1</title><item><title>2 &lt; 3 and 4 &gt; 1</title><description>&lt;p&gt;2 &amp;lt; 3 and 4 &amp;gt; 1&lt;/p&gt;</description></item></channel></rss>',
+    '<feed><title>2 &lt; 3 and 4 &gt; 1</title><entry><title>2 &lt; 3 and 4 &gt; 1</title><summary>2 &lt; 3 and 4 &gt; 1</summary></entry></feed>',
+  ])("preserves escaped comparison text in titles and summaries", xml => {
+    const data = parseFeed(xml, config.feed_url, 10);
+    expect(data.title).toBe("2 < 3 and 4 > 1");
+    expect(data.articles[0]).toMatchObject({ title: "2 < 3 and 4 > 1", summary: "2 < 3 and 4 > 1" });
+  });
+  it("keeps escaped tag names literal in plain Atom text and separates HTML blocks", () => {
+    const xml = '<feed><title>Feed</title><entry><title>Use &lt;code&gt; tags</title><summary type="text">Write &lt;b&gt; as text.</summary></entry><entry><title>HTML</title><summary type="html">&lt;p&gt;One&lt;/p&gt;&lt;p&gt;Two&lt;/p&gt;</summary></entry></feed>';
+    expect(parseFeed(xml, config.feed_url, 10).articles.map(a => [a.title, a.summary])).toEqual([["Use <code> tags", "Write <b> as text."], ["HTML", "One Two"]]);
+  });
+  it("preserves CDATA markup and entity spellings literally in Atom text constructs", () => {
+    const xml = '<feed><title>Feed</title><entry><title type="text"><![CDATA[Use <code> &amp; examples]]></title><summary><![CDATA[Write <b> &amp; as text.]]></summary></entry></feed>';
+    expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ title: "Use <code> &amp; examples", summary: "Write <b> &amp; as text." });
+  });
+  it.each(["", "not a date"])("uses valid fallback dates and non-empty fallback summaries after %j", published => {
+    const xml = `<feed><title>Feed</title><entry><title>Article</title><published>${published}</published><updated>2026-10-16T10:00:00Z</updated><summary/><content type="html">&lt;p&gt;Available content&lt;/p&gt;</content></entry></feed>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ publishedAt: "2026-10-16T10:00:00.000Z", summary: "Available content" });
+  });
+  it("tries later summaries after markup-only content and later dates after invalid ones", () => {
+    const xml = '<rss><channel><title>Feed</title><item><pubDate>bad</pubDate><date>2026-10-16T10:00:00Z</date><description><![CDATA[<script>ignore()</script><p> </p>]]></description><summary> </summary><encoded><![CDATA[<p>Available</p>]]></encoded></item></channel></rss>';
+    expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ publishedAt: "2026-10-16T10:00:00.000Z", summary: "Available" });
+  });
+  it.each([
+    ['', 'https://example.com/post', 'https://example.com/post'],
+    [' isPermaLink="true"', 'https://example.com/post', 'https://example.com/post'],
+    [' isPermaLink="true"', '/post', null],
+    ['', 'opaque-article-id', null],
+    [' isPermaLink="false"', 'https://example.com/post', null],
+    [' isPermaLink="true"', 'javascript:evil()', null],
+    ['', 'https://user:secret@example.com/post', null],
+    ['', '', null],
+  ])("uses only safe permalink GUIDs when a link is absent: %s %s", (attribute, guid, url) => {
+    expect(parseFeed(`<rss><channel><title>Feed</title><item><guid${attribute}>${guid}</guid></item></channel></rss>`, config.feed_url, 10).articles[0].url).toBe(url);
+  });
+  it("prefers an explicit safe link over a GUID and falls back after an unsafe link", () => {
+    const xml = '<rss><channel><title>Feed</title><item><link>/preferred</link><guid>https://example.com/fallback</guid></item><item><link>javascript:evil()</link><guid>https://example.com/fallback</guid></item></channel></rss>';
+    expect(parseFeed(xml, config.feed_url, 10).articles.map(a => a.url)).toEqual(["https://example.com/preferred", "https://example.com/fallback"]);
+  });
   it("treats HTML doctypes in CDATA and declarations in comments as inert text", () => {
     const xml = '<rss><channel><!-- <!DOCTYPE harmless> --><title>Feed</title><item><title>News</title><description><![CDATA[<!DOCTYPE html><p>A normal article.</p>]]></description></item></channel></rss>';
     expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("A normal article.");
@@ -63,6 +104,10 @@ describe("RSS and Atom parsing", () => {
     const xml = `<rss><channel><title>Feed</title><item><guid>${"a".repeat(2049)}</guid><title>Article</title></item></channel></rss>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ title: "Article" });
     expect(parseFeed(xml, config.feed_url, 10).articles[0].id).toBeUndefined();
+  });
+  it("keeps an Atom identity when an empty extension GUID precedes it", () => {
+    const xml = '<feed xmlns:extra="https://example.com/extensions"><title>Feed</title><entry><extra:guid/><id>urn:article:one</id><title>Article</title></entry></feed>';
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].id).toBe("urn:article:one");
   });
   it("retains feed order and enforces the article limit without changing dates", () => {
     expect(parseFeed(RSS, config.feed_url, 1).articles.map(a => a.title)).toEqual(["Storage & backups"]);

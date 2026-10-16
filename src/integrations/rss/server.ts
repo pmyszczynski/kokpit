@@ -1,5 +1,6 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
-import { decodeHTML } from "entities";
+import { decodeXML } from "entities";
+import { JSDOM } from "jsdom";
 import { ssrfSafeFetch } from "@/lib/ssrfGuard";
 import { WidgetFetchError } from "@/widgets/publicFetchError";
 import { articleUrl, RssConfigSchema, type RssConfig, type RssData } from "./api";
@@ -14,10 +15,28 @@ const node = (value: unknown): Node => value !== null && typeof value === "objec
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : value == null ? [] : [value];
 const text = (value: unknown): string => typeof value === "string" ? value : typeof node(value)["#text"] === "string" ? node(value)["#text"] as string : "";
 
-// Feed markup is reduced to plain text and is never rendered as HTML.
-function plain(value: unknown, limit: number): string {
-  return decodeHTML(text(value).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")).replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
-    .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+// Inert HTML parsing preserves literal comparison signs and never runs scripts or loads resources.
+type TextMode = "text" | "html" | "escaped-html";
+function atomTextMode(value: unknown): TextMode {
+  const type = node(value)["@type"];
+  return type === "html" ? "escaped-html" : type === "xhtml" ? "html" : "text";
+}
+function plain(value: unknown, limit: number, mode: TextMode = "html"): string {
+  const source = text(value);
+  if (!source.trim()) return "";
+  const markup = source.split(/(<!\[CDATA\[[\s\S]*?\]\]>)/g).map(part =>
+    part.startsWith("<![CDATA[") ? part.slice(9, -3) : mode === "html" ? part : decodeXML(part)).join("");
+  if (mode === "text") return markup.replace(/\s+/g, " ").trim().slice(0, limit);
+  // Bound HTML parsing separately from the feed's overall response budget.
+  const fragment = JSDOM.fragment(markup.slice(0, 65_536));
+  const blocks = new Set(["p", "div", "li", "section", "article", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "td", "pre"]);
+  for (const element of fragment.querySelectorAll("*")) {
+    const tag = element.localName.split(":").at(-1)!;
+    if (["script", "style", "template"].includes(tag)) element.remove();
+    else if (tag === "br") element.replaceWith(fragment.ownerDocument.createTextNode(" "));
+    else if (blocks.has(tag)) element.append(" ");
+  }
+  return (fragment.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 function invalid(stage: string): WidgetFetchError {
   return new WidgetFetchError("widget_invalid_response", { integration: "rss", stage, retryable: false });
@@ -81,20 +100,26 @@ export function parseFeed(xml: string, feedUrl: string, maxItems: number): RssDa
   let root: Node;
   try { root = node(parser.parse(xml)); } catch { throw invalid("xml"); }
   const rss = node(root.rss); const atom = node(root.feed); const rdf = node(root.RDF);
-  const channel = Object.keys(rss).length ? node(rss.channel) : Object.keys(atom).length ? atom : node(rdf.channel);
+  const isAtom = Object.keys(atom).length > 0;
+  const channel = Object.keys(rss).length ? node(rss.channel) : isAtom ? atom : node(rdf.channel);
   if (!Object.keys(channel).length) throw invalid("feed");
   const rootBase = baseUrl(rss["@base"] ?? atom["@base"] ?? rdf["@base"], feedUrl);
-  const base = Object.keys(atom).length ? rootBase : baseUrl(channel["@base"], rootBase);
+  const base = isAtom ? rootBase : baseUrl(channel["@base"], rootBase);
   const isRdf = Object.keys(rdf).length > 0;
-  const items = Object.keys(atom).length ? atom.entry : isRdf ? rdfItems(rdf, channel, rootBase, base) : channel.item;
-  return { title: plain(channel.title, 200) || "Feed", articles: array(items).slice(0, maxItems).map(value => {
+  const items = isAtom ? atom.entry : isRdf ? rdfItems(rdf, channel, rootBase, base) : channel.item;
+  return { title: plain(channel.title, 200, isAtom ? atomTextMode(channel.title) : "html") || "Feed", articles: array(items).slice(0, maxItems).map(value => {
     const item = node(value); const itemBase = baseUrl(item["@base"], isRdf ? rootBase : base);
-    const id = isRdf ? rdfResource(item["@about"], itemBase) : text(item.guid ?? item.id).trim();
-    const date = text(item.pubDate ?? item.published ?? item.updated ?? item.date);
-    const timestamp = date ? Date.parse(date) : NaN;
-    return { ...(id && id.length <= 2048 ? { id } : {}), title: plain(item.title, 500) || "Untitled article", url: link(item.link, itemBase),
-      publishedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
-      summary: plain(item.description ?? item.summary ?? item.encoded ?? item.content, 500) };
+    const id = isRdf ? rdfResource(item["@about"], itemBase) : [item.guid, item.id].map(value => text(value).trim()).find(value => value.length > 0 && value.length <= 2048);
+    const timestamp = [item.pubDate, item.published, item.updated, item.date].map(value => Date.parse(text(value))).find(Number.isFinite);
+    let summary = "";
+    for (const value of [item.description, item.summary, item.encoded, item.content]) {
+      summary = plain(value, 500, isAtom ? atomTextMode(value) : "escaped-html");
+      if (summary) break;
+    }
+    const guid = text(item.guid).trim(); const permalinkFlag = node(item.guid)["@isPermaLink"];
+    const permalink = Object.keys(rss).length && guid && (permalinkFlag === undefined || permalinkFlag === "true") ? articleUrl(guid) : null;
+    return { ...(id && id.length <= 2048 ? { id } : {}), title: plain(item.title, 500, isAtom ? atomTextMode(item.title) : "html") || "Untitled article", url: link(item.link, itemBase) ?? permalink,
+      publishedAt: timestamp === undefined ? null : new Date(timestamp).toISOString(), summary };
   }) };
 }
 
