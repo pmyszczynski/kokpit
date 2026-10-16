@@ -92,7 +92,7 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 - [ ] `P1` **Useful API widgets**
   - [x] Weather: Open-Meteo (no API key), current conditions / five-day forecast, per-tile coordinates and metric/imperial units, shared UI
   - [ ] Additional weather provider: OpenWeatherMap (API key)
-  - RSS feed reader widget
+  - [x] RSS / Atom feed reader: per-tile feed URL and article limit, shared scrolling headlines/dates/links, Detailed summaries
   - Calendar widget (CalDAV, Google Calendar via API key)
   - Search bar widget (configurable search engine)
 

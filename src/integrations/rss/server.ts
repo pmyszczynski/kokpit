@@ -1,0 +1,101 @@
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { decodeHTML } from "entities";
+import { ssrfSafeFetch } from "@/lib/ssrfGuard";
+import { WidgetFetchError } from "@/widgets/publicFetchError";
+import { articleUrl, RssConfigSchema, type RssConfig, type RssData } from "./api";
+
+const MAX_BYTES = 2 * 1024 * 1024;
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@", removeNSPrefix: true,
+  parseTagValue: false, parseAttributeValue: false, htmlEntities: true, maxNestedTags: 40,
+  stopNodes: ["*.title", "*.description", "*.summary", "*.content", "*.encoded"],
+  isArray: tag => ["item", "entry", "link"].includes(tag) });
+type Node = Record<string, unknown>;
+const node = (value: unknown): Node => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Node : {};
+const array = (value: unknown): unknown[] => Array.isArray(value) ? value : value == null ? [] : [value];
+const text = (value: unknown): string => typeof value === "string" ? value : typeof node(value)["#text"] === "string" ? node(value)["#text"] as string : "";
+
+// Feed markup is reduced to plain text and is never rendered as HTML.
+function plain(value: unknown, limit: number): string {
+  return decodeHTML(text(value).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")).replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+    .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+}
+function invalid(stage: string): WidgetFetchError {
+  return new WidgetFetchError("widget_invalid_response", { integration: "rss", stage, retryable: false });
+}
+function baseUrl(value: unknown, parent: string): string {
+  return articleUrl(text(value), parent) ?? parent;
+}
+function link(value: unknown, base: string): string | null {
+  for (const candidate of array(value)) {
+    const item = node(candidate);
+    if (item["@rel"] && item["@rel"] !== "alternate") continue;
+    const raw = text(item["@href"]) || text(candidate);
+    if (!raw.trim()) continue;
+    const url = articleUrl(raw, baseUrl(item["@base"], base));
+    if (url) return url;
+  }
+  return null;
+}
+
+export function parseFeed(xml: string, feedUrl: string, maxItems: number): RssData {
+  // DTDs are unnecessary for RSS/Atom: reject declarations before validation or expansion.
+  const declarations = xml.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g, "");
+  if (/<!\s*(DOCTYPE|ENTITY)\b/i.test(declarations) || XMLValidator.validate(xml) !== true) throw invalid("xml");
+  let root: Node;
+  try { root = node(parser.parse(xml)); } catch { throw invalid("xml"); }
+  const rss = node(root.rss); const atom = node(root.feed); const rdf = node(root.RDF);
+  const channel = Object.keys(rss).length ? node(rss.channel) : Object.keys(atom).length ? atom : node(rdf.channel);
+  if (!Object.keys(channel).length) throw invalid("feed");
+  const base = baseUrl(channel["@base"], baseUrl(rss["@base"] ?? atom["@base"] ?? rdf["@base"], feedUrl));
+  const items = Object.keys(atom).length ? atom.entry : channel.item ?? rdf.item;
+  return { title: plain(channel.title, 200) || "Feed", articles: array(items).slice(0, maxItems).map(value => {
+    const item = node(value); const itemBase = baseUrl(item["@base"], base);
+    const date = text(item.pubDate ?? item.published ?? item.updated ?? item.date);
+    const timestamp = date ? Date.parse(date) : NaN;
+    return { title: plain(item.title, 500) || "Untitled article", url: link(item.link, itemBase),
+      publishedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
+      summary: plain(item.description ?? item.summary ?? item.encoded ?? item.content, 500) };
+  }) };
+}
+
+async function boundedText(response: Response): Promise<string> {
+  if (Number(response.headers.get("content-length")) > MAX_BYTES) {
+    await response.body?.cancel().catch(() => {}); throw invalid("size");
+  }
+  if (!response.body) throw invalid("xml");
+  const reader = response.body.getReader(); const decoder = new TextDecoder("utf-8", { fatal: true });
+  let size = 0; let xml = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BYTES) throw invalid("size");
+      xml += decoder.decode(value, { stream: true });
+    }
+    return xml + decoder.decode();
+  } catch (error) {
+    await reader.cancel().catch(() => {}); throw error;
+  } finally { reader.releaseLock(); }
+}
+
+export async function fetchFeed(input: RssConfig, signal?: AbortSignal): Promise<RssData> {
+  const config = RssConfigSchema.parse(input);
+  let response: Response;
+  try {
+    response = await ssrfSafeFetch(config.feed_url, { signal, allowPrivateNetworks: false,
+      headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9" } });
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    throw new WidgetFetchError("widget_upstream_unreachable", { integration: "rss", stage: "fetch", retryable: true });
+  }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new WidgetFetchError("widget_upstream_error", { integration: "rss", stage: "http", upstreamStatus: response.status, retryable: response.status === 429 || response.status >= 500 });
+  }
+  try { return parseFeed(await boundedText(response), response.url || config.feed_url, config.max_items); }
+  catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError") || error instanceof WidgetFetchError) throw error;
+    throw invalid("body");
+  }
+}

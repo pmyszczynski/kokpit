@@ -368,6 +368,29 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
 
+### RSS / Atom
+
+Add an **RSS / Atom** tile from the editor and enter a public **Feed URL**. **Article limit** accepts 1–50 (default 10). Each tile keeps its own URL and limit; no service integration or API key is required. RSS 2.0, RSS 1.0/RDF and Atom feeds are supported.
+
+Compact **3×3** and Wide **6×3** show headlines and publication dates; Detailed **6×4** adds plain-text summaries. Every size retains the configured articles in feed order and uses a named, keyboard-scrollable list. Home/End reach the first/last article while the feed name and count stay fixed. Truncated headlines retain their full accessible link text and title tooltip. Publication dates use UTC and include the year; missing dates display “Date unavailable”. Articles without safe HTTP(S) links remain text. Article links open in a new tab; an optional service launch URL links only the tile header.
+
+```yaml
+services:
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Reading
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    footprint: { columnSpan: 6, rowSpan: 4 }
+    widget:
+      type: rss
+      config:
+        feed_url: https://example.com/feed.xml
+        max_items: 10
+```
+
+Feeds are fetched server-side every ten minutes by default, including when the browser cannot access them due to CORS. Every redirect destination is DNS-validated and pinned; private networks, metadata endpoints and embedded URL credentials are unsupported. Responses are limited to 2 MiB of UTF-8 XML; DTD/entity declarations are rejected. Markup becomes text, with bounded headline/summary lengths; feed HTML never executes in the dashboard. A valid empty feed shows “No articles in this feed”; refresh errors preserve saved articles and scroll position with the shared notice. Each open tile polls independently; no request is made until a feed is configured.
+
 ### Weather (Open-Meteo)
 
 Current conditions and a five-day forecast, with no API key. Add a **Weather** tile from the dashboard editor, enter latitude/longitude, and use the tile name for your location. Enable **Use imperial units** for Fahrenheit/mph; the default is Celsius/km/h. Location, units and footprint belong to each tile; no reusable service integration or launch URL is required.
