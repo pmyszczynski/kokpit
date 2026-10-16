@@ -15,6 +15,19 @@ function respond(body = RSS, options: ResponseInit = {}) {
   const response = new Response(body, options); vi.mocked(ssrfSafeFetch).mockResolvedValue(response); return response;
 }
 describe("RSS and Atom parsing", () => {
+  it.each([true, false])("selects standard RSS fields independently of podcast extension order: %s", extensionFirst => {
+    const titles = (standard: string) => extensionFirst ? `<itunes:title>Extension title</itunes:title><title>${standard}</title>` : `<title>${standard}</title><itunes:title>Extension title</itunes:title>`;
+    const xml = `<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:body="http://purl.org/rss/1.0/modules/content/"><channel>${titles("Podcast")}<item>${titles("Episode")}<itunes:link>https://wrong.example.com/</itunes:link><link>https://example.com/episode</link><itunes:description>Wrong summary</itunes:description><body:encoded><![CDATA[<p>Real summary</p>]]></body:encoded></item></channel></rss>`;
+    expect(parseFeed(xml, config.feed_url, 10)).toEqual({ title: "Podcast", articles: [{ title: "Episode", url: "https://example.com/episode", publishedAt: null, summary: "Real summary" }] });
+  });
+  it("selects prefixed Atom fields by namespace URI and ignores same-name extensions", () => {
+    const xml = '<a:feed xmlns:a="http://www.w3.org/2005/Atom" xmlns:extra="https://example.com/ext"><extra:title>Wrong feed</extra:title><a:title>Atom feed</a:title><a:entry><extra:title>Wrong article</extra:title><a:title>Article</a:title><extra:id>Wrong ID</extra:id><a:id>urn:article:one</a:id><extra:content>Wrong body</extra:content><a:content type="text/html">&lt;p&gt;Real body&lt;/p&gt;</a:content><extra:link href="https://wrong.example.com/"/><a:link href="/article"/></a:entry></a:feed>';
+    expect(parseFeed(xml, config.feed_url, 10)).toEqual({ title: "Atom feed", articles: [{ id: "urn:article:one", title: "Article", url: "https://example.com/article", publishedAt: null, summary: "Real body" }] });
+  });
+  it("recognizes arbitrary RDF, RSS, DC and content prefix aliases by namespace", () => {
+    const xml = '<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:s="http://purl.org/rss/1.0/" xmlns:c="http://purl.org/dc/elements/1.1/" xmlns:body="http://purl.org/rss/1.0/modules/content/"><s:channel><s:title>RDF feed</s:title><s:items><r:Seq><r:li r:resource="/two"/><r:li r:resource="/one"/></r:Seq></s:items></s:channel><s:item r:about="/one"><s:title>One</s:title></s:item><s:item r:about="/two"><s:title>Two</s:title><s:link>/two</s:link><c:date>2026-10-16T10:00:00Z</c:date><body:encoded><![CDATA[<p>Body two</p>]]></body:encoded></s:item></r:RDF>';
+    expect(parseFeed(xml, config.feed_url, 1)).toEqual({ title: "RDF feed", articles: [{ id: "https://example.com/two", title: "Two", url: "https://example.com/two", publishedAt: "2026-10-16T10:00:00.000Z", summary: "Body two" }] });
+  });
   it("normalizes RSS, CDATA, entities, markup, dates and relative links", () => {
     expect(parseFeed(RSS, config.feed_url, 10)).toEqual({ title: "Homelab & News", articles: [
       { title: "Storage & backups", url: "https://example.com/posts/storage", publishedAt: "2026-10-16T10:30:00.000Z", summary: "Keep three copies." },
