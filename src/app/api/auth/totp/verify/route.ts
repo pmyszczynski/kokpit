@@ -8,6 +8,7 @@ import {
 import { createSessionCookie } from "../../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
 import { SessionInvalidatedError } from "@/auth/errors";
+import { reserveTotpAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
 
 const MAX_TOTP_ATTEMPTS = 5;
 // TOTP challenge tokens expire in 5 minutes; prune local state at the same cadence.
@@ -67,6 +68,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
   }
 
+  const reservation = reserveTotpAttempt(user.id);
+  if (!reservation.allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(reservation.retryAfterSeconds) } }
+    );
+  }
+
   if (!verifyTotpCode(code, user.totpSecret)) {
     const expiresAt = Date.now() + CHALLENGE_TTL_MS;
     const entry = failedAttempts.get(key);
@@ -97,5 +106,6 @@ export async function POST(req: Request) {
     }
     throw error;
   }
+  releaseSuccessfulLoginAttempt(reservation.attempt);
   return NextResponse.json({ id: user.id, username: user.username });
 }

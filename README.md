@@ -274,12 +274,26 @@ auth:
 
 Or set the environment variable `KOKPIT_AUTH_DISABLED=true`.
 
+Authentication defaults to enabled, including when an `auth` section configures
+only the session timeout. Disabling it requires an explicit `enabled: false` or
+the environment override above.
+
 Service status checks use saved service URLs, including LAN and Tailscale
 addresses. Browser requests identify a saved service rather than supplying a
 destination URL. Link-local addresses and known cloud metadata endpoints are
 blocked. Redirect responses count as reachable, but Kokpit does not follow them.
 
 ## Login sessions
+
+Password login and TOTP verification each allow at most ten failed or pending
+attempts per account in a fifteen-minute window. A successful login releases its
+own attempt; issuing a TOTP challenge releases only the password-step attempt.
+Earlier failures remain until the window ends, and fresh challenges do not reset
+the account's TOTP allowance. A shared rolling budget also permits at most 100
+password/TOTP checks in any sixty seconds across all accounts, including successful
+checks and requests for unknown usernames. Limits persist in SQLite across
+restarts and do not trust forwarded IP headers. A blocked request
+returns HTTP 429 with `Retry-After` in seconds.
 
 Kokpit keeps you signed in by default. Each browser has a revocable session stored
 in `data/users.db`; only a hash of its random cookie token is stored. Preserve the

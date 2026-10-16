@@ -272,6 +272,73 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(400);
   });
 
+  it.each([null, [], "credentials"])("returns 400 for a non-object body: %j", async (body) => {
+    const { POST } = await import("../../app/api/auth/login/route");
+    const res = await POST(trustedRequest("http://localhost/api/auth/login", {
+      method: "POST", body: JSON.stringify(body),
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it("reserves concurrent attempts before bcrypt and ignores spoofed forwarding headers", async () => {
+    let release!: (valid: boolean) => void;
+    const pending = new Promise<boolean>(resolve => { release = resolve; });
+    const verifyPassword = vi.fn(() => pending);
+    vi.doMock("@/auth", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/auth")>()), verifyPassword,
+    }));
+    try {
+      const { POST } = await import("../../app/api/auth/login/route");
+      const requests = Array.from({ length: 20 }, (_, i) => POST(trustedRequest("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "X-Forwarded-For": `192.0.2.${i}`, "X-Real-IP": `192.0.2.${i}` },
+        body: JSON.stringify({ username: "unknown-concurrent", password: "guess" }),
+      })));
+      await vi.waitFor(() => expect(verifyPassword).toHaveBeenCalledTimes(10));
+      release(false);
+      const responses = await Promise.all(requests);
+      expect(responses.filter(response => response.status === 401)).toHaveLength(10);
+      const blocked = responses.filter(response => response.status === 429);
+      expect(blocked).toHaveLength(10);
+      expect(Number(blocked[0].headers.get("Retry-After"))).toBeGreaterThan(0);
+    } finally {
+      release(false);
+      vi.doUnmock("@/auth");
+    }
+  });
+
+  it("successful logins do not consume the account failure allowance", async () => {
+    const { createUser, hashPassword } = await import("@/auth");
+    await createUser("repeat-login", await hashPassword("correctpassword"));
+    const { POST } = await import("../../app/api/auth/login/route");
+    for (let i = 0; i < 12; i++) {
+      const response = await POST(trustedRequest("http://localhost/api/auth/login", {
+        method: "POST", body: JSON.stringify({ username: "repeat-login", password: "correctpassword" }),
+      }));
+      expect(response.status).toBe(200);
+    }
+  });
+
+  it("enforces the shared budget when usernames and forwarding headers rotate together", async () => {
+    const verifyPassword = vi.fn().mockResolvedValue(false);
+    vi.doMock("@/auth", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/auth")>()), verifyPassword,
+    }));
+    try {
+      const { POST } = await import("../../app/api/auth/login/route");
+      const responses = await Promise.all(Array.from({ length: 105 }, (_, i) => POST(trustedRequest("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "X-Forwarded-For": `192.0.2.${i}`, "X-Real-IP": `192.0.2.${i}` },
+        body: JSON.stringify({ username: `unknown-rotating-${i}`, password: "guess" }),
+      }))));
+      expect(verifyPassword).toHaveBeenCalledTimes(100);
+      expect(responses.filter(response => response.status === 401)).toHaveLength(100);
+      expect(responses.filter(response => response.status === 429)).toHaveLength(5);
+    } finally {
+      vi.doUnmock("@/auth");
+    }
+  });
+
   it("returns 400 on empty username", async () => {
     const { POST } = await import("../../app/api/auth/login/route");
     const res = await POST(
