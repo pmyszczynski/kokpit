@@ -6,7 +6,7 @@ const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const HEADLINES = ["A quieter homelab: small changes that make a difference", "Kokpit: a new view for your daily reading", "The backup you tested is the backup you can trust", "What’s new in the self-hosted community this week", "Building a dashboard that feels like home", "Your weekend project: monitor the things that matter", "Seven useful services for a small home server", "A very long headline with every important word available through the article’s accessible link and full-title tooltip"];
 const DATA: RssData = { title: "Homelab Journal", articles: HEADLINES.map((title, i) => ({ title, url: `https://example.com/articles/${i + 1}`, publishedAt: `2026-10-${16 - i}T10:00:00.000Z`, summary: ["Lower power use, less noise, and a few practical upgrades for the server under your desk.", "Headlines and article links, right alongside the rest of your services.", "A simple restore drill can turn a hopeful backup strategy into a reliable one."][i % 3] })) };
 function fixtures(footprints = [FOOTPRINTS[0]]) {
-  return { services: footprints.map((_, i) => ({ id: `10000000-0000-4000-8000-00000000000${i}`, name: `Reading · ${["Compact", "Wide", "Detailed"][i]}`, description: "RSS / Atom", icon: "mdi-rss", launch_url: "https://example.com/" })),
+  return { services: footprints.map((_, i) => ({ id: `10000000-0000-4000-8000-00000000000${i}`, name: `Reading · ${["Compact", "Wide", "Detailed"][i]}`, description: "RSS / Atom", icon: "/icons/rss.svg", launch_url: "https://example.com/" })),
     service_tiles: footprints.map((footprint, i) => ({ id: `20000000-0000-4000-8000-00000000000${i}`, service_id: `10000000-0000-4000-8000-00000000000${i}`, footprint, widget: { type: "rss", config: { feed_url: "https://example.com/feed.xml", max_items: 8 } } })) };
 }
 async function configure(request: APIRequestContext, footprints = [FOOTPRINTS[0]], theme: typeof THEMES[number] = "dark", custom_css?: string) {
@@ -16,7 +16,6 @@ const tile = (page: Page) => page.locator('.service-tile').filter({ has: page.lo
 async function mock(page: Page, data: RssData | null = DATA) {
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
   await page.route("**/api/ping", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, status: 200 }) }));
-  await page.route("**/rss.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#f59e0b" d="M6.18 15.64a2.18 2.18 0 0 0-2.18 2.18A2.18 2.18 0 0 0 6.18 20a2.18 2.18 0 0 0 2.18-2.18 2.18 2.18 0 0 0-2.18-2.18M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.41 12.59 4.44 4 4.44m0 5.66v2.83A7.07 7.07 0 0 1 11.07 20h2.83c0-5.47-4.43-9.9-9.9-9.9Z"/></svg>' }));
 }
 test.use({ locale: "en-US", timezoneId: "Pacific/Kiritimati" });
 
@@ -148,6 +147,7 @@ test("RSS preset persists feed URL and article limit without a service integrati
   const persisted = await (await request.get("/api/settings")).json();
   expect(persisted.service_tiles[0]).toMatchObject({ footprint: FOOTPRINTS[0], widget: { type: "rss", config: { feed_url: "https://example.com/feed.xml", max_items: 8 } } });
   expect(persisted.services[0].integration).toBeUndefined(); await page.reload(); await expect(tile(page).getByRole("listitem")).toHaveCount(8);
+  expect(persisted.services[0].icon).toBe("/icons/rss.svg");
 });
 
 test("RSS server fetch blocks a private destination with bounded public diagnostics", async ({ request }) => {

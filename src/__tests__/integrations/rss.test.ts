@@ -38,6 +38,28 @@ describe("RSS and Atom parsing", () => {
     const xml = '<feed><title>Feed</title><entry><title type="text"><![CDATA[Use <code> &amp; examples]]></title><summary><![CDATA[Write <b> &amp; as text.]]></summary></entry></feed>';
     expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ title: "Use <code> &amp; examples", summary: "Write <b> &amp; as text." });
   });
+  it.each(["text/html", "TEXT/HTML", "text/html; charset=utf-8"])("extracts Atom content fallback with HTML MIME type %s", type => {
+    const xml = `<feed><title>Feed</title><entry><title>Article</title><content type="${type}">&lt;p&gt;Available &lt;b&gt;content&lt;/b&gt; with 2 &amp;lt; 3&lt;/p&gt;</content></entry></feed>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Available content with 2 < 3");
+  });
+  it.each(["application/xhtml+xml", "application/xml"])("extracts inline XML content fallback with MIME type %s", type => {
+    const xml = `<feed><title>Feed</title><entry><title>Article</title><content type="${type}"><div xmlns="http://www.w3.org/1999/xhtml"><p>One</p><p>Two</p></div></content></entry></feed>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("One Two");
+  });
+  it("keeps Atom text/plain MIME content literal", () => {
+    const xml = '<feed><title>Feed</title><entry><title>Article</title><content type="text/plain"><![CDATA[Write <code> &amp; as text.]]></content></entry></feed>';
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Write <code> &amp; as text.");
+  });
+  it.each(["text", "html"])("caps Atom %s source formatting before normalization and tries the next summary", type => {
+    const xml = `<feed><title>Feed</title><entry><title>Article</title><summary type="${type}">${" ".repeat(65_536)}outside the formatting budget</summary><content type="text">Available fallback</content></entry></feed>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Available fallback");
+  });
+  it("keeps bounded titles and summaries from splitting Unicode surrogate pairs", () => {
+    const xml = `<feed><title>${"A".repeat(199)}😀</title><entry><title>${"B".repeat(499)}😀</title><summary>${"C".repeat(499)}😀</summary></entry></feed>`;
+    const data = parseFeed(xml, config.feed_url, 10);
+    expect(data.title).toBe("A".repeat(199));
+    expect(data.articles[0]).toMatchObject({ title: "B".repeat(499), summary: "C".repeat(499) });
+  });
   it.each(["", "not a date"])("uses valid fallback dates and non-empty fallback summaries after %j", published => {
     const xml = `<feed><title>Feed</title><entry><title>Article</title><published>${published}</published><updated>2026-10-16T10:00:00Z</updated><summary/><content type="html">&lt;p&gt;Available content&lt;/p&gt;</content></entry></feed>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ publishedAt: "2026-10-16T10:00:00.000Z", summary: "Available content" });

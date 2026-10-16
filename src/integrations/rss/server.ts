@@ -18,17 +18,24 @@ const text = (value: unknown): string => typeof value === "string" ? value : typ
 // Inert HTML parsing preserves literal comparison signs and never runs scripts or loads resources.
 type TextMode = "text" | "html" | "escaped-html";
 function atomTextMode(value: unknown): TextMode {
-  const type = node(value)["@type"];
-  return type === "html" ? "escaped-html" : type === "xhtml" ? "html" : "text";
+  const type = text(node(value)["@type"]).split(";", 1)[0].trim().toLowerCase();
+  if (type === "html" || type === "text/html") return "escaped-html";
+  if (type === "xhtml" || type.endsWith("+xml") || type === "application/xml" || type === "text/xml") return "html";
+  return "text";
+}
+function truncate(value: string, limit: number): string {
+  const bounded = value.slice(0, limit);
+  return /[\uD800-\uDBFF]$/.test(bounded) ? bounded.slice(0, -1) : bounded;
 }
 function plain(value: unknown, limit: number, mode: TextMode = "html"): string {
   const source = text(value);
   if (!source.trim()) return "";
   const markup = source.split(/(<!\[CDATA\[[\s\S]*?\]\]>)/g).map(part =>
     part.startsWith("<![CDATA[") ? part.slice(9, -3) : mode === "html" ? part : decodeXML(part)).join("");
-  if (mode === "text") return markup.replace(/\s+/g, " ").trim().slice(0, limit);
-  // Bound HTML parsing separately from the feed's overall response budget.
-  const fragment = JSDOM.fragment(markup.slice(0, 65_536));
+  // Bound text/HTML formatting separately from the feed's overall byte budget.
+  const bounded = truncate(markup, 65_536);
+  if (mode === "text") return truncate(bounded.replace(/\s+/g, " ").trim(), limit);
+  const fragment = JSDOM.fragment(bounded);
   const blocks = new Set(["p", "div", "li", "section", "article", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "td", "pre"]);
   for (const element of fragment.querySelectorAll("*")) {
     const tag = element.localName.split(":").at(-1)!;
@@ -36,7 +43,7 @@ function plain(value: unknown, limit: number, mode: TextMode = "html"): string {
     else if (tag === "br") element.replaceWith(fragment.ownerDocument.createTextNode(" "));
     else if (blocks.has(tag)) element.append(" ");
   }
-  return (fragment.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
+  return truncate((fragment.textContent ?? "").replace(/\s+/g, " ").trim(), limit);
 }
 function invalid(stage: string): WidgetFetchError {
   return new WidgetFetchError("widget_invalid_response", { integration: "rss", stage, retryable: false });

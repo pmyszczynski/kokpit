@@ -35,5 +35,5 @@ registerWidget<RssConfig, RssData>({ id: "rss", name: "RSS / Atom", integrationT
   fetchData: fetchRss, component: RssWidget, refreshInterval: 600_000, compactHeader: true, sharedUI: true, hasLinks: true,
   preferredSize: "normal", supportedFootprints: [{ label: "Compact", columnSpan: 3, rowSpan: 3 }, { label: "Wide", columnSpan: 6, rowSpan: 3 }, { label: "Detailed", columnSpan: 6, rowSpan: 4 }],
   configFields: FIELDS, optionFields: FIELDS,
-  serviceEditorPreset: { defaultName: "News feed", defaultIconUrl: "mdi-rss" },
+  serviceEditorPreset: { defaultName: "News feed", defaultIconUrl: "/icons/rss.svg" },
 });
