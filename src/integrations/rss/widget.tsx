@@ -16,7 +16,7 @@ export function RssWidget({ data, loading, error, footprint }: WidgetProps<RssDa
       empty={data.articles.length === 0 ? <WidgetState state="empty">No articles in this feed</WidgetState> : undefined}>
       {data.articles.map(article => {
         const url = article.url ? articleUrl(article.url) : null;
-        const identity = url ?? JSON.stringify([article.title, article.publishedAt]);
+        const identity = article.id ? JSON.stringify(["id", article.id]) : JSON.stringify(["fallback", url, article.title, article.publishedAt]);
         const occurrence = occurrences.get(identity) ?? 0;
         occurrences.set(identity, occurrence + 1);
         return <WidgetListItem key={JSON.stringify([identity, occurrence])} className="rss-widget__article" titleTooltip={article.title}

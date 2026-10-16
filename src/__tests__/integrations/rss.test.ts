@@ -29,6 +29,12 @@ describe("RSS and Atom parsing", () => {
     const xml = '<!-- <!DOCTYPE harmless> --><!DOCTYPE rss [<!ENTITY external SYSTEM "file:///etc/passwd">]><rss><channel><title>Feed</title></channel></rss>';
     expect(() => parseFeed(xml, config.feed_url, 10)).toThrow(expect.objectContaining({ diagnostic: { integration: "rss", stage: "xml", retryable: false } }));
   });
+  it("skips DTD-like processing-instruction text but still rejects a following real DTD", () => {
+    const pi = '<?feed-note <!DOCTYPE harmless> ?>';
+    const feed = '<rss><channel><title>Feed</title></channel></rss>';
+    expect(parseFeed(pi + feed, config.feed_url, 10)).toEqual({ title: "Feed", articles: [] });
+    expect(() => parseFeed(pi + '<!DOCTYPE rss [<!ENTITY external SYSTEM "file:///etc/passwd">]>' + feed, config.feed_url, 10)).toThrow(expect.objectContaining({ code: "widget_invalid_response" }));
+  });
   it("handles Atom namespaces, alternate links, inherited xml:base, XHTML and updated dates", () => {
     const xml = `<feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://news.example.org/"><title>Updates</title><entry xml:base="posts/"><title type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Release <b>one</b></div></title><link rel="self" href="api.xml"/><link rel="alternate" href="one"/><updated>2026-10-16T12:00:00+02:00</updated><summary type="xhtml"><div><p>A <b>small</b> update.</p></div></summary></entry></feed>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0]).toEqual({ title: "Release one", url: "https://news.example.org/posts/one", publishedAt: "2026-10-16T10:00:00.000Z", summary: "A small update." });
@@ -43,8 +49,20 @@ describe("RSS and Atom parsing", () => {
   });
   it("uses RSS 1.0 channel sequence order before limiting, resolving sibling item bases independently", () => {
     const xml = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xml:base="https://example.org/"><channel xml:base="channel/"><title>RDF</title><items><rdf:Seq xml:base="../articles/"><rdf:li rdf:resource="second"/><rdf:li rdf:resource="first"/></rdf:Seq></items></channel><item rdf:about="articles/first"><title>First</title><link>articles/first</link></item><item xml:base="articles/" rdf:about="second"><title>Second</title><link>second</link></item></rdf:RDF>`;
-    expect(parseFeed(xml, config.feed_url, 1).articles).toEqual([{ title: "Second", url: "https://example.org/articles/second", publishedAt: null, summary: "" }]);
+    expect(parseFeed(xml, config.feed_url, 1).articles).toEqual([{ id: "https://example.org/articles/second", title: "Second", url: "https://example.org/articles/second", publishedAt: null, summary: "" }]);
     expect(parseFeed(xml, config.feed_url, 10).articles.map(item => item.title)).toEqual(["Second", "First"]);
+  });
+  it.each([
+    ['<rss><channel><title>Feed</title><item><guid isPermaLink="false">article-123</guid><title>Article</title></item></channel></rss>', "article-123"],
+    ['<feed><title>Feed</title><entry><id>urn:uuid:article-123</id><title>Article</title></entry></feed>', "urn:uuid:article-123"],
+    ['<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><channel><title>Feed</title></channel><item rdf:about="/articles/123"><title>Article</title></item></rdf:RDF>', "https://example.com/articles/123"],
+  ])("preserves native RSS/Atom/RDF article identity", (xml, id) => {
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].id).toBe(id);
+  });
+  it("falls back for oversized native IDs rather than truncating them into collisions", () => {
+    const xml = `<rss><channel><title>Feed</title><item><guid>${"a".repeat(2049)}</guid><title>Article</title></item></channel></rss>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ title: "Article" });
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].id).toBeUndefined();
   });
   it("retains feed order and enforces the article limit without changing dates", () => {
     expect(parseFeed(RSS, config.feed_url, 1).articles.map(a => a.title)).toEqual(["Storage & backups"]);

@@ -39,9 +39,9 @@ function link(value: unknown, base: string): string | null {
 
 function hasDtd(xml: string): boolean {
   for (let index = xml.indexOf("<"); index !== -1; index = xml.indexOf("<", index + 1)) {
-    const terminator = xml.startsWith("<!--", index) ? "-->" : xml.startsWith("<![CDATA[", index) ? "]]>" : null;
+    const terminator = xml.startsWith("<!--", index) ? "-->" : xml.startsWith("<![CDATA[", index) ? "]]>" : xml.startsWith("<?", index) ? "?>" : null;
     if (terminator) {
-      const end = xml.indexOf(terminator, index + (terminator === "-->" ? 4 : 9));
+      const end = xml.indexOf(terminator, index + (terminator === "-->" ? 4 : terminator === "]]>" ? 9 : 2));
       if (end === -1) return false; // XML validation rejects the unclosed section.
       index = end + terminator.length - 1;
     } else if (/^<!\s*(DOCTYPE|ENTITY)\b/i.test(xml.slice(index))) return true;
@@ -89,9 +89,10 @@ export function parseFeed(xml: string, feedUrl: string, maxItems: number): RssDa
   const items = Object.keys(atom).length ? atom.entry : isRdf ? rdfItems(rdf, channel, rootBase, base) : channel.item;
   return { title: plain(channel.title, 200) || "Feed", articles: array(items).slice(0, maxItems).map(value => {
     const item = node(value); const itemBase = baseUrl(item["@base"], isRdf ? rootBase : base);
+    const id = isRdf ? rdfResource(item["@about"], itemBase) : text(item.guid ?? item.id).trim();
     const date = text(item.pubDate ?? item.published ?? item.updated ?? item.date);
     const timestamp = date ? Date.parse(date) : NaN;
-    return { title: plain(item.title, 500) || "Untitled article", url: link(item.link, itemBase),
+    return { ...(id && id.length <= 2048 ? { id } : {}), title: plain(item.title, 500) || "Untitled article", url: link(item.link, itemBase),
       publishedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
       summary: plain(item.description ?? item.summary ?? item.encoded ?? item.content, 500) };
   }) };

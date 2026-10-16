@@ -12,7 +12,7 @@ export const RssConfigSchema = z.object({
   max_items: z.number().int().min(1).max(50).default(10),
 });
 export type RssConfig = z.input<typeof RssConfigSchema>;
-export interface FeedArticle { title: string; url: string | null; publishedAt: string | null; summary: string }
+export interface FeedArticle { id?: string; title: string; url: string | null; publishedAt: string | null; summary: string }
 export interface RssData { title: string; articles: FeedArticle[] }
 
 export async function fetchRss(config: RssConfig, signal?: AbortSignal): Promise<RssData> {

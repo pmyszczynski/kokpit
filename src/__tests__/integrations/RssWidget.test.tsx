@@ -26,6 +26,14 @@ describe("RssWidget", () => {
     expect(screen.getByRole("link", { name: "Release one" })).toBe(link);
     expect(link).toHaveFocus(); expect(link).toHaveAttribute("href", "https://example.com/one");
   });
+  it.each([true, false])("keeps focus on the same article when a new article shares its URL, native ID: %s", nativeId => {
+    const original = { ...data.articles[0], ...(nativeId ? { id: "original-id" } : {}) };
+    const { rerender } = render(<RssWidget {...props} data={{ ...data, articles: [original] }} />);
+    const link = screen.getByRole("link", { name: original.title }); link.focus();
+    const added = { ...original, title: "Another story at the same URL", ...(nativeId ? { id: "new-id" } : {}) };
+    rerender(<RssWidget {...props} data={{ ...data, articles: [added, original] }} />);
+    expect(screen.getByRole("link", { name: original.title })).toBe(link); expect(link).toHaveFocus();
+  });
   it("exposes the full feed name through its tooltip when the fixed summary truncates", () => {
     const title = "A long feed name ".repeat(12).trim();
     render(<RssWidget {...props} data={{ ...data, title }} />);

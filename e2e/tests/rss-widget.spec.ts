@@ -114,6 +114,17 @@ test("RSS refresh preserves the focused article when new entries are prepended",
   await expect(article).toBeFocused(); await expect(article).toHaveAttribute("href", DATA.articles[0].url!);
 });
 
+for (const nativeId of [true, false]) test(`RSS same-URL prepends preserve focused headline, native ID: ${nativeId}`, async ({ page, request }) => {
+  const original = { ...DATA.articles[0], ...(nativeId ? { id: "article-original" } : {}) };
+  let data: RssData = { ...DATA, articles: [original] };
+  await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
+  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request); await page.goto("/");
+  const article = tile(page).getByRole("link", { name: original.title, exact: true }); await article.focus();
+  data = { ...DATA, articles: [{ ...original, title: "A different article sharing the URL", ...(nativeId ? { id: "article-new" } : {}) }, original] };
+  await page.clock.fastForward(600_000); await expect(tile(page).getByRole("listitem")).toHaveCount(2);
+  await expect(article).toBeFocused(); await expect(article).toHaveText(original.title);
+});
+
 test("RSS uses shared loading/error/empty feedback and explicit missing fields", async ({ page, request }) => {
   await configure(request); let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
   let response: unknown = { ok: false, error: "Feed unavailable" };
