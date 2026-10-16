@@ -302,6 +302,8 @@ function resolveWidgetFootprint(
 
 export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
   const definition = widget ? getWidget(widget.type) : undefined;
+  const linkHeaderOnly = definition?.hasLinks === true;
+  const Header = url && linkHeaderOnly ? "a" : "div";
   const resolvedFootprint = widget
     ? resolveWidgetFootprint(definition?.supportedFootprints, footprint, size)
     : GENERIC_SERVICE_FOOTPRINT;
@@ -371,8 +373,12 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
        * the matching inset. The edit-mode kebab needs no flag: it is always
        * present when `drag` is, which `.service-tile--editable` already says.
        */}
-      <div
+      <Header
         className="service-tile__header"
+        href={url && linkHeaderOnly ? url : undefined}
+        target={url && linkHeaderOnly ? "_blank" : undefined}
+        rel={url && linkHeaderOnly ? "noopener noreferrer" : undefined}
+        aria-label={url && linkHeaderOnly ? name : undefined}
           data-corner-slot={invalidIssues ? "badge" : serviceId && url ? "dot" : undefined}
       >
         <ServiceIcon icon={icon} url={url} name={name} />
@@ -386,7 +392,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         ) : (
           <span className="service-tile__name" title={name}>{name}</span>
         )}
-      </div>
+      </Header>
       {description && resolvedFootprint.rowSpan > 1 && !compactHeader && (
         <span className="service-tile__description" title={description}>{description}</span>
       )}
@@ -429,7 +435,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
     </>
   );
 
-  if (url) {
+  if (url && !linkHeaderOnly) {
     return (
       <a
         ref={drag?.nodeRef}
@@ -452,7 +458,8 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
   }
 
   return (
-    <div ref={drag?.nodeRef} style={{ ...drag?.style, "--tile-columns": resolvedFootprint.columnSpan,
+    <div ref={drag?.nodeRef} onClick={drag && linkHeaderOnly ? (event) => event.preventDefault() : undefined}
+      style={{ ...drag?.style, "--tile-columns": resolvedFootprint.columnSpan,
       "--tile-rows": resolvedFootprint.rowSpan, "--tile-width": `${dimensions.width}px`,
       "--tile-height": `${dimensions.height}px`, "--mobile-tile-columns": mobileFootprint.columnSpan,
       "--mobile-tile-rows": mobileFootprint.rowSpan, "--mobile-tile-width": `${mobileDimensions.width}px`,

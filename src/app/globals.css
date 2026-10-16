@@ -459,6 +459,11 @@ button {
   flex-shrink: 0;
 }
 
+.service-tile__header[href] {
+  color: inherit;
+  text-decoration: none;
+}
+
 .service-tile__header {
   display: flex;
   align-items: center;

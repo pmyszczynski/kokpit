@@ -14,6 +14,10 @@ const code = z.number().int().nonnegative().nullish().catch(null);
 const ResponseSchema = z.object({
   timezone: z.string().min(1),
   current_units: z.object({ temperature_2m: z.enum(["°C", "°F"]), wind_speed_10m: z.enum(["km/h", "mp/h"]) }),
+  daily_units: z.object({
+    temperature_2m_max: z.string().optional(), temperature_2m_min: z.string().optional(),
+    precipitation_probability_max: z.string().optional(),
+  }).nullish().catch(null),
   current: z.object({
     time: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
     temperature_2m: measurement, apparent_temperature: measurement,
@@ -80,8 +84,10 @@ export async function fetchWeather(input: WeatherConfig, signal?: AbortSignal): 
     code: raw.current.weather_code ?? null, isDay: raw.current.is_day == null ? null : raw.current.is_day === 1,
     observedAt: raw.current.time, timezone: raw.timezone, imperial: config.imperial,
     forecast: (raw.daily?.time ?? []).slice(0, 5).map((date, i) => ({
-      date, code: raw.daily?.weather_code?.[i] ?? null, high: raw.daily?.temperature_2m_max?.[i] ?? null,
-      low: raw.daily?.temperature_2m_min?.[i] ?? null, precipitation: raw.daily?.precipitation_probability_max?.[i] ?? null,
+      date, code: raw.daily?.weather_code?.[i] ?? null,
+      high: raw.daily_units?.temperature_2m_max === (config.imperial ? "°F" : "°C") ? raw.daily?.temperature_2m_max?.[i] ?? null : null,
+      low: raw.daily_units?.temperature_2m_min === (config.imperial ? "°F" : "°C") ? raw.daily?.temperature_2m_min?.[i] ?? null : null,
+      precipitation: raw.daily_units?.precipitation_probability_max === "%" ? raw.daily?.precipitation_probability_max?.[i] ?? null : null,
     })),
   };
 }

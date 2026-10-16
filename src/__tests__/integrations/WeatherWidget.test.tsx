@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { WeatherWidget } from "@/integrations/weather/widget";
 import type { WeatherData } from "@/integrations/weather/api";
@@ -40,6 +40,18 @@ describe("WeatherWidget", () => {
   it("keeps missing forecast ranges neutral instead of implying a measurement", () => {
     render(<WeatherWidget {...props} data={{ ...data, forecast: [{ ...data.forecast[0], low: null, high: null }] }} footprint={{ columnSpan: 6, rowSpan: 4 }} />);
     expect(screen.getByText("— / —")).toHaveClass("widget-badge--tone-neutral");
+  });
+  it("keeps saved precipitation explicitly dated across location midnight", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-16T22:59:00Z"));
+      const { rerender } = render(<WeatherWidget {...props} footprint={{ columnSpan: 6, rowSpan: 4 }} />);
+      expect(screen.getByText("Precip · Fri, Oct 16")).toBeInTheDocument();
+      vi.setSystemTime(new Date("2026-10-16T23:10:00Z"));
+      rerender(<WeatherWidget {...props} error="Overnight refresh failed" footprint={{ columnSpan: 6, rowSpan: 4 }} />);
+      expect(screen.getByText("Precip · Fri, Oct 16")).toBeInTheDocument();
+      expect(screen.queryByText(/today/i)).not.toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
   });
   it.each([[true, null, "status"], [false, "Provider unavailable", "alert"]] as const)("renders initial feedback", (loading, error, role) => {
     render(<WeatherWidget {...props} data={null} loading={loading} error={error} />); expect(screen.getByRole(role)).toBeInTheDocument();

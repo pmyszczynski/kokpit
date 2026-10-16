@@ -20,7 +20,7 @@ const tile = (page: Page) => page.locator('.service-tile').filter({ has: page.lo
 async function mock(page: Page, data: WeatherData = DATA) {
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
 }
-test.use({ locale: "en-US" });
+test.use({ locale: "en-US", timezoneId: "Pacific/Kiritimati" });
 
 test("Weather has 2/3/6 shared stats, complete text and contrast at every size/theme", async ({ page, request }) => {
   await mock(page);
@@ -75,18 +75,36 @@ test("Weather initial loading, error and null states use shared feedback", async
 test("Weather stale refresh retains all data and geometry, then recovers after ten minutes", async ({ page, request }) => {
   let fails = false;
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(fails ? { ok: false, error: "Provider unavailable" } : { ok: true, data: DATA }) }));
-  await page.clock.install();
+  // London crosses local midnight on the first failed refresh; browser TZ differs.
+  await page.clock.install({ time: new Date("2026-10-16T22:59:00Z") });
   for (const footprint of FOOTPRINTS) {
     fails = false; await configure(request, { footprints: [footprint] }); await page.goto("/");
     await expect(tile(page).locator(".widget-stat").first()).toHaveText(/18°C/);
     const bounds = await tile(page).locator(".widget-stat-grid").boundingBox();
     fails = true; await page.clock.fastForward(600_000);
     await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Provider unavailable");
+    if (footprint.rowSpan === 4) await expect(tile(page).getByText("Precip · Fri, Oct 16")).toBeVisible();
     expect(await tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
     await expect(tile(page).locator(".widget-stat").first()).toHaveText(/18°C/);
     fails = false; await page.clock.fastForward(600_000); await expect(tile(page).getByRole("alert")).toHaveCount(0);
     expect(await tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
   }
+});
+
+test("Weather long condition names remain reachable at Compact size", async ({ page, request }) => {
+  await configure(request); await mock(page, { ...DATA, code: 86 }); await page.goto("/");
+  const region = tile(page).getByRole("region", { name: "Weather measurements" });
+  await expect(tile(page).getByText("Heavy snow showers")).toBeVisible();
+  await region.focus(); await region.press("Home");
+  await expect.poll(() => region.evaluate(element => element.scrollTop)).toBe(0);
+  expect(await region.evaluate(element => element.querySelector(".widget-stat")!.getBoundingClientRect().top >= element.getBoundingClientRect().top - 1)).toBe(true);
+  await region.press("End");
+  await expect.poll(() => region.evaluate(element => Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop) < 2)).toBe(true);
+  await expect.poll(() => region.evaluate(element => {
+    const label = element.querySelector(".widget-stat:last-child .widget-stat__label")!.getBoundingClientRect();
+    const bounds = element.getBoundingClientRect(); return label.top >= bounds.top && label.bottom <= bounds.bottom + 1;
+  })).toBe(true);
+  expect(await region.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
 
 test("ordinary custom CSS overrides Weather shared cards, forecast rows and notice", async ({ page, request }) => {
@@ -116,6 +134,29 @@ test("Weather preset saves fractional coordinates and units as tile options with
   expect(persisted.service_tiles[0]).toMatchObject({ footprint: FOOTPRINTS[0], widget: { type: "weather", config: { latitude: 51.5074, longitude: -0.1278, imperial: true } } });
   expect(persisted.services[0].integration).toBeUndefined();
   await page.reload(); await expect(tile(page).locator(".widget-stat__value").first()).toHaveText("18°F");
+});
+
+test("Weather attribution remains a valid independent link when the service has a launch URL", async ({ page, request, context }) => {
+  const data = fixtures();
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  expect((await request.patch("/api/settings", { data: { ...data, services: data.services.map(service => ({ ...service, launch_url: "https://example.com/weather-site" })), groups: [], bookmarks: [], appearance: { theme: "dark" } } })).ok()).toBe(true);
+  await page.route("**/api/status*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, status: 200 }) }));
+  await page.route("**/favicon.ico", route => route.fulfill({ status: 404, body: "" }));
+  await context.route("https://open-meteo.com/", route => route.fulfill({ contentType: "text/html", body: "Weather attribution destination" }));
+  await mock(page); await page.goto("/");
+  await expect(tile(page).locator(".widget-stat")).toHaveCount(2);
+  expect(await tile(page).evaluate(element => element.tagName)).toBe("DIV");
+  await expect(tile(page).getByRole("link", { name: "London · Compact", exact: true })).toHaveAttribute("href", "https://example.com/weather-site");
+  const attribution = tile(page).getByRole("link", { name: "Weather by Open-Meteo" });
+  expect(await attribution.evaluate(element => element.parentElement!.closest("a") === null)).toBe(true);
+  const opened = page.waitForEvent("popup"); await attribution.click(); const popup = await opened;
+  await expect(popup).toHaveURL("https://open-meteo.com/"); await popup.close();
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await expect(tile(page).locator(".service-tile__widget-preview")).toBeVisible();
+  expect(await tile(page).getByRole("link", { name: "London · Compact", exact: true }).evaluate(element => !element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })))).toBe(true);
+  expect(errors.filter(message => /hydrat|nested|descendant.*<a>/i.test(message))).toEqual([]);
 });
 
 test("Weather dark/light previews show Compact, Wide and Detailed", async ({ page, request }, testInfo) => {

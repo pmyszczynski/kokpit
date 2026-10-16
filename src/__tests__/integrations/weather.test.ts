@@ -9,6 +9,7 @@ import { splitWidgetConfig } from "@/widgets/configBoundary";
 const config = { latitude: 51.5074, longitude: -0.1278, imperial: false };
 const response = {
   timezone: "Europe/London", current_units: { temperature_2m: "°C", wind_speed_10m: "km/h" },
+  daily_units: { temperature_2m_max: "°C", temperature_2m_min: "°C", precipitation_probability_max: "%" },
   current: { time: "2026-10-16T12:15", temperature_2m: 16.2, apparent_temperature: 15.5,
     relative_humidity_2m: 84, wind_speed_10m: 12.2, weather_code: 2, is_day: 1 },
   daily: { time: ["2026-10-16", "2026-10-17"], weather_code: [61, 3], temperature_2m_min: [9.9, 8.1],
@@ -33,9 +34,10 @@ describe("Weather API", () => {
     expect(data.forecast[1]).toEqual({ date: "2026-10-17", code: 3, high: 13.5, low: 8.1, precipitation: 6 });
   });
   it("requests Fahrenheit and mph without converting measurements twice", async () => {
-    const fetch = mock({ ...response, current_units: { temperature_2m: "°F", wind_speed_10m: "mp/h" }, current: { ...response.current, temperature_2m: 61.2 } });
+    const fetch = mock({ ...response, current_units: { temperature_2m: "°F", wind_speed_10m: "mp/h" }, current: { ...response.current, temperature_2m: 61.2 },
+      daily_units: { ...response.daily_units, temperature_2m_max: "°F", temperature_2m_min: "°F" } });
     expect(await fetchWeather({ ...config, imperial: true })).toMatchObject({ temperature: 61.2, imperial: true });
-    expect(new URL(fetch.mock.calls[0][0]).searchParams.get("wind_speed_unit")).toBe("mph");
+    expect(Object.fromEntries(new URL(fetch.mock.calls[0][0]).searchParams)).toMatchObject({ temperature_unit: "fahrenheit", wind_speed_unit: "mph" });
   });
   it.each([null, "", false, "broken"])("preserves missing/invalid current values as null: %j", async (value) => {
     mock({ ...response, current: { ...response.current, temperature_2m: value, apparent_temperature: value, relative_humidity_2m: value, wind_speed_10m: value, weather_code: value } });
@@ -46,7 +48,8 @@ describe("Weather API", () => {
     expect(await fetchWeather(config)).toMatchObject({ temperature: -10, humidity: 0, wind: 0, code: 0, isDay: false });
   });
   it.each([undefined, null, { time: ["bad-date"] }])("keeps current conditions when forecast is unavailable: %j", async daily => {
-    mock({ ...response, daily }); expect((await fetchWeather(config)).forecast).toEqual([]);
+    mock({ ...response, daily }); const data = await fetchWeather(config);
+    expect(data.forecast).toEqual([]); expect(data.temperature).toBe(16.2);
   });
   it("uses null for missing daily array elements, preserving date alignment", async () => {
     mock({ ...response, daily: { time: response.daily.time, temperature_2m_max: [16] } });
@@ -58,6 +61,11 @@ describe("Weather API", () => {
   it("rejects unexpected units instead of mislabeling temperatures", async () => {
     mock({ ...response, current_units: { temperature_2m: "°F", wind_speed_10m: "km/h" } });
     await expect(fetchWeather(config)).rejects.toMatchObject({ code: "widget_invalid_response", diagnostic: { stage: "units" } });
+  });
+  it.each([undefined, null, { temperature_2m_max: "°F", temperature_2m_min: "°F", precipitation_probability_max: "mm" }])("preserves current data but suppresses unverifiable daily measurements: %j", async daily_units => {
+    mock({ ...response, daily_units }); const data = await fetchWeather(config);
+    expect(data.temperature).toBe(16.2);
+    expect(data.forecast[0]).toEqual({ date: "2026-10-16", code: 61, high: null, low: null, precipitation: null });
   });
   it("rejects upstream HTTP failures and propagates cancellation", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429 }));

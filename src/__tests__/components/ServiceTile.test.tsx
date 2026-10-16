@@ -124,6 +124,22 @@ describe("ServiceTile", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it.each([false, true])("keeps body links outside the launch anchor and handles edit mode: %s", async editing => {
+    registerWidget({ id: "linked-body", name: "Linked body", configSchema: z.object({}),
+      fetchData: async () => ({}), component: () => null, hasLinks: true,
+      supportedFootprints: [{ columnSpan: 3, rowSpan: 2 }] });
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(<ServiceTile name="Weather" url="https://example.com/weather" widget={{ type: "linked-body" }} preview drag={editing ? {} : undefined} />));
+    });
+    expect(container.querySelector(".service-tile")?.tagName).toBe("DIV");
+    const link = screen.getByRole("link", { name: "Weather" });
+    expect(link).toHaveClass("service-tile__header");
+    expect(link).toHaveAttribute("href", "https://example.com/weather");
+    expect(container.querySelector(".service-tile__widget")?.closest("a")).toBeNull();
+    expect(fireEvent.click(link)).toBe(!editing);
+  });
+
   it("renders the description when provided", async () => {
     await act(async () => {
       registerWidget({

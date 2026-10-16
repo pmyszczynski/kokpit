@@ -20,6 +20,7 @@ export function WeatherWidget({ data, loading, error, footprint }: WidgetProps<W
   </WidgetBody>;
   const detailed = (footprint?.rowSpan ?? 2) >= 4;
   const wide = (footprint?.columnSpan ?? 3) >= 6;
+  const firstDay = data.forecast[0];
   const measurements: { label: string; value: string; tone: WidgetStatTone }[] = [
     { label: "Temperature", value: temperature(data.temperature, data.imperial), tone: data.temperature == null ? "neutral" : "info" },
     { label: "Conditions", value: weatherCondition(data.code, data.isDay), tone: weatherTone(data.code) },
@@ -28,7 +29,9 @@ export function WeatherWidget({ data, loading, error, footprint }: WidgetProps<W
   if (detailed) measurements.push(
       { label: "Humidity", value: data.humidity == null ? "—" : `${Math.round(data.humidity)}%`, tone: data.humidity == null ? "neutral" : "info" },
       { label: "Wind", value: data.wind == null ? "—" : `${Math.round(data.wind)} ${data.imperial ? "mph" : "km/h"}`, tone: data.wind == null ? "neutral" : "info" },
-      { label: "Precip today", value: data.forecast[0]?.precipitation == null ? "—" : `${Math.round(data.forecast[0].precipitation)}%`, tone: data.forecast[0]?.precipitation == null || data.forecast[0].precipitation === 0 ? "neutral" : "warning" },
+      { label: firstDay ? `Precip · ${forecastDate(firstDay.date)}` : "Precipitation",
+        value: firstDay?.precipitation == null ? "—" : `${Math.round(firstDay.precipitation)}%`,
+        tone: firstDay?.precipitation == null || firstDay.precipitation === 0 ? "neutral" : "warning" },
   );
   const grid = <WidgetStatGrid columns={wide ? 3 : 2} className="weather-widget__grid">
     {measurements.map(stat => <WidgetStat key={stat.label} {...stat} className="weather-widget__stat" />)}
@@ -59,7 +62,7 @@ const FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [
 registerWidget<WeatherConfig, WeatherData>({
   id: "weather", name: "Weather", integrationType: null, configSchema: WeatherConfigSchema,
   component: WeatherWidget,
-  fetchData: fetchWeather, refreshInterval: 600_000, preferredSize: "normal", compactHeader: true, sharedUI: true,
+  fetchData: fetchWeather, refreshInterval: 600_000, preferredSize: "normal", compactHeader: true, sharedUI: true, hasLinks: true,
   supportedFootprints: [
     { label: "Compact", columnSpan: 3, rowSpan: 2 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
