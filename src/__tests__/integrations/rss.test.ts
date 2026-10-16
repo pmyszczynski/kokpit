@@ -97,6 +97,18 @@ describe("RSS and Atom parsing", () => {
     const xml = '<feed><title>Feed</title><entry><title>Article</title><content type="text/plain"><![CDATA[Write <code> &amp; as text.]]></content></entry></feed>';
     expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Write <code> &amp; as text.");
   });
+  it.each(["image/png", "application/pdf", "audio/mpeg"])("omits inline binary Atom content with type %s", type => {
+    const xml = `<feed><title>Feed</title><entry><title>Article</title><content type="${type}">iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB</content></entry></feed>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0]).toMatchObject({ title: "Article", summary: "" });
+  });
+  it.each(["text/plain", "text/markdown"])("retains readable Atom %s content", type => {
+    const xml = `<feed><title>Feed</title><entry><title>Article</title><content type="${type}">Readable *content*</content></entry></feed>`;
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Readable *content*");
+  });
+  it("keeps XML image content distinct from base64 image bodies", () => {
+    const xml = '<feed><title>Feed</title><entry><title>Article</title><content type="image/svg+xml"><svg xmlns="http://www.w3.org/2000/svg"><text>Image caption</text></svg></content></entry></feed>';
+    expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Image caption");
+  });
   it.each(["text", "html"])("caps Atom %s source formatting before normalization and tries the next summary", type => {
     const xml = `<feed><title>Feed</title><entry><title>Article</title><summary type="${type}">${" ".repeat(65_536)}outside the formatting budget</summary><content type="text">Available fallback</content></entry></feed>`;
     expect(parseFeed(xml, config.feed_url, 10).articles[0].summary).toBe("Available fallback");
@@ -193,6 +205,13 @@ describe("RSS and Atom parsing", () => {
   });
 });
 describe("RSS fetching and registration", () => {
+  it("negotiates RSS 1.0 endpoints that require the RDF media type", async () => {
+    vi.mocked(ssrfSafeFetch).mockImplementation(async (_url, options) => {
+      const acceptsRdf = options.headers?.Accept.includes("application/rdf+xml");
+      return new Response(acceptsRdf ? '<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><channel><title>RDF endpoint</title></channel><item><title>Article</title></item></r:RDF>' : "Not acceptable", { status: acceptsRdf ? 200 : 406, headers: { "content-type": "application/rdf+xml" } });
+    });
+    expect(await fetchFeed(config)).toMatchObject({ title: "RDF endpoint", articles: [{ title: "Article" }] });
+  });
   it("uses validated destinations, forwards cancellation and defaults to ten articles", async () => {
     respond(); const signal = new AbortController().signal;
     const result = await fetchRss(config, signal);

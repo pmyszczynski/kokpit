@@ -372,7 +372,7 @@ Widgets display live data from your self-hosted services and opt-in external API
 
 Add an **RSS / Atom** tile from the editor and enter a public **Feed URL**. **Article limit** accepts 1–50 (default 10). Each tile keeps its own URL and limit; no service integration or API key is required. RSS 2.0, RSS 1.0/RDF and Atom feeds are supported.
 
-Compact **3×3** and Wide **6×3** show headlines and publication dates; Detailed **6×4** adds plain-text summaries. Every size retains the configured articles in feed order and uses a named, keyboard-scrollable list. Home/End reach the first/last article while the feed name and count stay fixed. Truncated headlines retain their full accessible link text and title tooltip. Publication dates use UTC and include the year; missing dates display “Date unavailable”. Articles without safe HTTP(S) links remain text. Article links open in a new tab; an optional service launch URL links only the tile header.
+Compact **3×3** and Wide **6×3** show headlines and publication dates; Detailed **6×4** adds plain-text summaries; binary Atom bodies are omitted. Every size retains the configured articles in feed order and uses a named, keyboard-scrollable list. Home/End reach the first/last article while the feed name and count stay fixed. Truncated headlines retain their full accessible link text and title tooltip. Publication dates use UTC and include the year; missing dates display “Date unavailable”. Articles without safe HTTP(S) links remain text. Article links open in a new tab; an optional service launch URL links only the tile header.
 
 ```yaml
 services:

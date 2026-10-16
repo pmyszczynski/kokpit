@@ -22,12 +22,12 @@ function invalid(stage: string): WidgetFetchError {
   return new WidgetFetchError("widget_invalid_response", { integration: "rss", stage, retryable: false });
 }
 
-type TextMode = "text" | "html" | "escaped-html";
+type TextMode = "text" | "html" | "escaped-html" | "unsupported";
 function atomTextMode(value: Element | undefined): TextMode {
   const type = (value?.getAttribute("type") ?? "").split(";", 1)[0].trim().toLowerCase();
   if (type === "html" || type === "text/html") return "escaped-html";
   if (type === "xhtml" || type.endsWith("+xml") || type.endsWith("/xml")) return "html";
-  return "text";
+  return !type || type === "text" || type.startsWith("text/") ? "text" : "unsupported";
 }
 function truncate(value: string, limit: number): string {
   const bounded = value.slice(0, limit);
@@ -36,7 +36,7 @@ function truncate(value: string, limit: number): string {
 
 /** XML text is already decoded; serialized XHTML preserves markup and literal escaped tags. */
 function plain(value: Element | undefined, limit: number, mode: TextMode = "html"): string {
-  if (!value) return "";
+  if (!value || mode === "unsupported") return "";
   const serializer = new value.ownerDocument.defaultView!.XMLSerializer();
   const source = mode === "html" ? Array.from(value.childNodes, node => node.nodeType === 4 ? node.nodeValue ?? "" : serializer.serializeToString(node)).join("") : text(value);
   const bounded = truncate(source, 65_536);
@@ -183,7 +183,7 @@ export async function fetchFeed(input: RssConfig, signal?: AbortSignal): Promise
   let response: Response;
   try {
     response = await ssrfSafeFetch(config.feed_url, { signal, allowPrivateNetworks: false,
-      headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9" } });
+      headers: { Accept: "application/rss+xml, application/atom+xml, application/rdf+xml, application/xml, text/xml;q=0.9" } });
   } catch (error) {
     if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     throw new WidgetFetchError("widget_upstream_unreachable", { integration: "rss", stage: "fetch", retryable: true });
