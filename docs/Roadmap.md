@@ -90,7 +90,8 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Data via local `/proc` + `statfs`, with an optional Docker socket for the container overview
 
 - [ ] `P1` **Useful API widgets**
-  - Weather: Open-Meteo (no API key) + OpenWeatherMap (API key)
+  - [x] Weather: Open-Meteo (no API key), current conditions / five-day forecast, per-tile coordinates and metric/imperial units, shared UI
+  - [ ] Additional weather provider: OpenWeatherMap (API key)
   - RSS feed reader widget
   - Calendar widget (CalDAV, Google Calendar via API key)
   - Search bar widget (configurable search engine)
