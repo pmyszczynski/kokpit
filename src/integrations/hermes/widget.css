@@ -1,0 +1,9 @@
+@layer widget-ui {
+  /* The wider, shorter canvas keeps one scroll region with two activity columns. */
+  .hermes-widget--wide .widget-list__scroll {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    column-gap: 16px;
+  }
+}

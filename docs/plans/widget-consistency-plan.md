@@ -2,11 +2,11 @@
 
 **Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
-**Current state:** twenty-three widgets use shared UI (twenty-one migrations plus Weather and RSS / Atom): SABnzbd, Actual Budget Summary, Categories, Accounts and Schedules, Unraid Stats, Plex, Tautulli Activity, System Stats, Immich, qBittorrent Stats, qBittorrent Torrents, Prowlarr Stats, Radarr Stats, Tdarr Stats, Seerr Stats, Seerr Requests, Sonarr Calendar, Sonarr Queue, Radarr Queue, Docker, Weather and RSS / Atom. Twelve library entries are done, including `WidgetBar`, `WidgetStatusDot` and the new `WidgetStatRow`. System Stats, StatRow and the selected shared extensions were accepted on 2026-10-07. Docker and StatusDot were accepted on 2026-10-06. Seerr [PR #121](https://github.com/pmyszczynski/kokpit/pull/121) merged as `76fcc86` and shipped in [v0.18.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.18.0): final CI and both AI reviews completed, all threads resolved, release validation and Docker tag verification passed. SABnzbd is completed under the owner's 2026-10-15 delegation of selection and the entire implementation/verification/publication workflow; no new explicit screenshot acceptance is claimed. The owner selected Sonarr Calendar, Sonarr Queue and Radarr Queue together on 2026-10-05; the owner accepted the three widgets and WidgetBar on 2026-10-05. [PR #122](https://github.com/pmyszczynski/kokpit/pull/122) merged as `9c99912` and shipped in [v0.19.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.19.0). Final CI and both AI reviews completed, all 16 review threads are resolved, and release validation plus Docker tag verification passed. The accepted readable Status/ETA design was retained with explanation. [Completed delivery handoff](https://github.com/pmyszczynski/kokpit/pull/122#issuecomment-6005279018).
+**Current state:** twenty-four widgets use shared UI (twenty-one migrations plus Weather, RSS / Atom and Hermes Overview): SABnzbd, Actual Budget Summary, Categories, Accounts and Schedules, Unraid Stats, Plex, Tautulli Activity, System Stats, Immich, qBittorrent Stats, qBittorrent Torrents, Prowlarr Stats, Radarr Stats, Tdarr Stats, Seerr Stats, Seerr Requests, Sonarr Calendar, Sonarr Queue, Radarr Queue, Docker, Weather, RSS / Atom and Hermes Overview. Twelve library entries are done, including `WidgetBar`, `WidgetStatusDot` and the new `WidgetStatRow`. System Stats, StatRow and the selected shared extensions were accepted on 2026-10-07. Docker and StatusDot were accepted on 2026-10-06. Seerr [PR #121](https://github.com/pmyszczynski/kokpit/pull/121) merged as `76fcc86` and shipped in [v0.18.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.18.0): final CI and both AI reviews completed, all threads resolved, release validation and Docker tag verification passed. SABnzbd is completed under the owner's 2026-10-15 delegation of selection and the entire implementation/verification/publication workflow; no new explicit screenshot acceptance is claimed. The owner selected Sonarr Calendar, Sonarr Queue and Radarr Queue together on 2026-10-05; the owner accepted the three widgets and WidgetBar on 2026-10-05. [PR #122](https://github.com/pmyszczynski/kokpit/pull/122) merged as `9c99912` and shipped in [v0.19.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.19.0). Final CI and both AI reviews completed, all 16 review threads are resolved, and release validation plus Docker tag verification passed. The accepted readable Status/ETA design was retained with explanation. [Completed delivery handoff](https://github.com/pmyszczynski/kokpit/pull/122#issuecomment-6005279018).
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Current work:** RSS / Atom, selected on 2026-10-16 with the full Weather workflow. Work is on `feature/rss-widget` from `9737831`, targeting v0.27.0. All existing non-Netdata migrations are complete. Netdata remains deferred. Screenshots, the full local gate before each commit, independent CI and completed AI reviews precede the authorized administrator merge and release/Docker verification. [RSS slice](#rss--atom-widget--2026-10-16).
+**Current work:** Hermes Overview, owner-selected 2026-10-20 with Default 3x4 and Wide 6x3 plus tests, PR, completed AI reviews, override merge and release. Branch `feature/hermes-widget` starts from v0.27.1 (`71ef878`). Calendar is a separate open PR (#137). All existing non-Netdata migrations are complete; Netdata remains deferred. [Hermes slice](#hermes-overview--2026-10-20).
 
 **Completed Weather delivery:** [PR #133](https://github.com/pmyszczynski/kokpit/pull/133) merged as `9737831`; [v0.26.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.26.0) passed release validation and all four Docker tag checks. [Final delivery handoff](https://github.com/pmyszczynski/kokpit/pull/133#issuecomment-6206310001).
 
@@ -630,3 +630,40 @@ Codex's next completed review identified standard/extension field collisions in 
 The next completed reviews prompted streaming depth validation before DOM construction, named-HTML-entity compatibility outside literal sections and precise coverage documentation. Saxes now rejects excessive nesting and malformed/unknown entity data before a JSDOM XML document is created; tests verify that the document constructor is not called for rejected input and is called for valid input. Supported HTML names become numeric XML references without enabling DTDs or changing CDATA/comments/PIs. The existing podcast permutations now reverse title, link and summary pairs together. The consumer list explicitly includes Weather and RSS / Atom. The former per-element ancestor traversal is removed, also addressing CodeRabbit's CPU nit. Full validation and completed final-head reviews still precede merge/release.
 
 Codex's next review prompted skipping non-text/non-XML Atom binary content instead of exposing base64, while retaining readable text and XML media. The server also advertises `application/rdf+xml` for RSS 1.0 content negotiation. Regressions cover binary omission, text/XML retention and an RDF-only endpoint that otherwise returns 406. Full validation and completed reviews remain required before publication.
+
+
+## Hermes Overview — 2026-10-20
+
+The owner selected a Hermes integration and corrected the default footprint to
+3x4, retaining Wide 6x3. The authorized scope includes implementation, visual and
+automated verification, a PR, completed AI review/fixes, override merge and release.
+No separate screenshot approval is required by this task's authorization.
+
+The widget composes Body, List, ListItem, Badge, State and StaleNotice without new
+shared components. Local CSS only arranges Wide activity in two columns within
+the same scroll region. Both footprints retain readiness,
+active API runs, next scheduled job, recent-session metadata and the fixed
+scheduled/failed-job footer. The activity list is the single keyboard scroll
+region; the summary and reserved refresh notice remain fixed. The local monogram
+icon is an integration preset asset, not an official Hermes logo.
+
+The server contract was checked against NousResearch/hermes-agent main on
+2026-10-20: `gateway/platforms/api_server.py` health/jobs/session handlers,
+`gateway/readiness.py` and `cron/jobs.py`. Requests preserve base/profile paths,
+use bearer auth with destination-scoped saved credentials, validate and pin
+LAN/VPN destinations, reject redirects and cap each JSON response at 1 MiB.
+Only normalized metadata is returned. Session Unix seconds and cron RFC3339
+values become UTC timestamps; previews, prompts, raw errors and credentials are
+excluded. The active count explicitly covers API runs. Missing optional endpoints
+are unsupported; temporary/malformed optional responses are unavailable, not zero.
+Authentication failures fail the fetch; cancellation propagates. Older listeners
+fall back to liveness when detailed health is unsupported.
+
+Validation: 30 focused unit checks and seven focused browser checks pass. Browser
+coverage includes both footprints in all four themes, real End/Home scrolling,
+stable stale data and recovery, empty/unsupported sections, ordinary custom CSS,
+editor persistence and a real local HTTP upstream with bearer authentication and
+metadata projection. The full required local gate and independent PR/AI-review
+results are recorded in the PR before merge.
+Dark/light previews: [Default and Wide, dark](../assets/widget-ui/hermes/hermes-dark.png)
+and [Default and Wide, light](../assets/widget-ui/hermes/hermes-light.png).

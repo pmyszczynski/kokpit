@@ -1,0 +1,41 @@
+import { registerIntegration, registerWidget, type WidgetConfigField, type WidgetProps } from "@/widgets";
+import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
+import { fetchHermes, HermesConfigSchema, type HermesConfig, type HermesData, type HermesSectionState } from "./api";
+import "./widget.css";
+
+function timestamp(value: string | null) {
+  if (!value || !Number.isFinite(Date.parse(value))) return "Time unavailable";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(value)) + " UTC";
+}
+const sectionMessage = (name: string, state: HermesSectionState) => `${name} ${state === "unsupported" ? "not supported by this Hermes version" : "unavailable"}`;
+const HEALTH = { ready: "Ready", degraded: "Degraded", online: "Online", unknown: "Health unknown" } as const;
+
+export function HermesWidget({ data, loading, error, footprint }: WidgetProps<HermesData>) {
+  if (!data) return <WidgetBody centered className="hermes-widget"><WidgetState state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error ?? "Hermes unavailable" : undefined}</WidgetState></WidgetBody>;
+  const next = data.nextJob;
+  return <WidgetBody className={`hermes-widget${footprint?.columnSpan === 6 ? " hermes-widget--wide" : ""}`} aria-label="Hermes overview" reserveNotice notice={<WidgetStaleNotice error={error} />}>
+    <WidgetList label="Hermes activity"
+      summary={{ primary: <WidgetBadge tone={data.health === "ready" ? "positive" : data.health === "degraded" ? "warning" : "neutral"}>{HEALTH[data.health]}</WidgetBadge>, secondary: data.activeApiRuns === null ? "API runs: —" : `${data.activeApiRuns} API ${data.activeApiRuns === 1 ? "run" : "runs"}`, secondaryTone: data.activeApiRuns ? "positive" : "neutral" }}
+      footerSummary={{ primary: data.scheduledJobs === null ? "Jobs: —" : `${data.scheduledJobs} scheduled`, secondary: data.failedJobs === null ? "Failures: —" : `${data.failedJobs} failed ${data.failedJobs === 1 ? "job" : "jobs"}`, secondaryTone: data.failedJobs ? "alert" : "neutral" }}>
+      {data.jobsState !== "available" ? <WidgetListItem title={sectionMessage("Scheduled jobs", data.jobsState)} />
+        : next ? <WidgetListItem title={next.name} secondary={`Next job · ${timestamp(next.nextRun)}${next.lastStatus ? ` · Last: ${next.lastStatus}` : ""}`} />
+          : <WidgetListItem title={data.scheduledJobs ? "Next job time unavailable" : "No scheduled jobs"} />}
+      {data.sessionsState !== "available" ? <WidgetListItem title={sectionMessage("Recent sessions", data.sessionsState)} />
+        : data.sessions.length === 0 ? <WidgetListItem title="No recent sessions" />
+          : data.sessions.map(session => <WidgetListItem key={session.id} title={session.title} secondary={`${session.source} · ${timestamp(session.lastActive)}`} />)}
+    </WidgetList>
+  </WidgetBody>;
+}
+
+const FIELDS: WidgetConfigField[] = [
+  { key: "url", label: "API server URL", type: "url", required: true, placeholder: "http://hermes:8642", description: "Hermes API listener, including a reverse-proxy or /p/profile prefix if needed. Set the service launch URL separately to open the Hermes dashboard." },
+  { key: "api_key", label: "API server key", type: "password", required: true, description: "The API_SERVER_KEY configured in Hermes." },
+];
+registerIntegration<HermesConfig>({ id: "hermes", connectionSchema: HermesConfigSchema, connectionFields: FIELDS, credentialScopeFields: ["url"] });
+registerWidget<HermesConfig, HermesData>({
+  id: "hermes-overview", name: "Hermes Overview", integrationType: "hermes", configSchema: HermesConfigSchema,
+  fetchData: fetchHermes, component: HermesWidget, refreshInterval: 30_000, preferredSize: "tall", minSize: "tall",
+  compactHeader: true, sharedUI: true, hasLinks: true, configFields: FIELDS, optionFields: [], credentialScopeFields: ["url"],
+  supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }, { label: "Wide", columnSpan: 6, rowSpan: 3 }],
+  serviceEditorPreset: { defaultName: "Hermes", defaultIconUrl: "/icons/hermes.svg" },
+});
