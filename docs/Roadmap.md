@@ -11,6 +11,68 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 ---
 
+## Selected improvement work — 2026-10-20
+
+The owner selected 18 items from the project review. `IMP-NN` retains the
+original review number. IMP-02, IMP-03 and IMP-18 were already implemented in
+PR #132 / v0.27.1; the other 15 items remain planned. The
+[implementation index](plans/2026-10-20-improvement-plan.md) contains the complete
+selection, suggested delivery order, compatibility decisions, and validation gate.
+IMP-15 and IMP-16 are tracked in the existing Phase 3 status/onboarding entries
+below to avoid duplicate completion state. Unselected items 9 and 12
+are reassessed separately and are not part of this work.
+
+- [ ] `P0` **IMP-01 — Correct the dummy bcrypt hash used for unknown usernames**
+  - Run a valid cost-matched comparison for unknown users; add deterministic regression coverage for the current timing shortcut.
+  - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-01)
+- [x] `P0` **IMP-02 — Default omitted authentication flags to enabled**
+  - Implemented in PR #132 / v0.27.1: missing, empty and session-policy-only auth mappings remain protected; explicit disablement is preserved.
+  - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-02)
+- [x] `P0` **IMP-03 — Bound and throttle login attempts**
+  - Implemented in PR #132 / v0.27.1: durable SQLite account/TOTP limits and a rolling shared request budget reserve before password/code work, without trusting forwarding headers.
+  - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-03)
+- [ ] `P0` **IMP-04 — Constrain redirects on credential-bearing integration requests**
+  - Prevent API keys, custom authentication headers, and credential bodies/query strings from reaching a different origin; audit integrations beyond the shared helper.
+  - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-04)
+- [ ] `P0` **IMP-05 — Remove the shared Compose secret placeholder**
+  - Use the existing generated, persisted secret by default; preserve valid explicit overrides and document placeholder rejection/replacement.
+  - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-05)
+- [ ] `P1` **IMP-06 — Give TOTP challenges durable, atomic lifecycle state**
+  - Add unique challenge identities and persist attempt/consumption state across restarts and cooperating processes; retain session-version checks.
+  - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-06)
+- [ ] `P1` **IMP-07 — Prevent silent truncation of new bcrypt passwords**
+  - Enforce the 72-byte UTF-8 boundary when setting passwords; preserve legacy login compatibility and explain password replacement requirements.
+  - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-07)
+- [ ] `P1` **IMP-08 — Validate and bound JSON request bodies**
+  - Reject oversized streamed bodies and invalid object shapes; authorize protected endpoints before expensive parsing while retaining write-time snapshot checks.
+  - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-08)
+- [ ] `P1` **IMP-10 — Preserve nested YAML comments on UI writes**
+  - Update retained AST nodes using record identity rather than replacing complete sections; cover reorder, edits, and deliberate deletion.
+  - [Configuration-sync plan](plans/2026-10-20-config-sync-plan.md#imp-10)
+- [ ] `P1` **IMP-11 — Synchronize stable configuration changes into open browsers**
+  - Refresh layout and appearance after external YAML edits or another browser's save; protect dirty drafts and handle authentication changes safely.
+  - [Configuration-sync plan](plans/2026-10-20-config-sync-plan.md#imp-11)
+- [ ] `P1` **IMP-13 — Adapt browser polling to visibility, connectivity, and failures**
+  - Pause hidden/offline polling, refresh on return, and back off with bounded jitter after failures; preserve stale data and document idle-session effects.
+  - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-13)
+- [ ] `P1` **IMP-14 — Share and cache equivalent widget requests**
+  - Bound cache/in-flight state, isolate credentials and render inputs, invalidate on config changes, and keep one consumer's abort from canceling others.
+  - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-14)
+- [ ] `P1` **IMP-17 — Protect unsaved changes during navigation**
+  - Coordinate settings, dashboard, and open-form drafts; use supported navigation hooks and browser unload protection with explicit restoration limits.
+  - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-17)
+- [x] `P1` **IMP-18 — Package and verify emergency password recovery in Docker**
+  - Implemented in PR #132 / v0.27.1: standalone tracing includes the reset utility and bcrypt runtime; the production standalone smoke verifies utility/dependency loading.
+  - [Operations plan](plans/2026-10-20-operations-validation-plan.md#imp-18)
+- [ ] `P1` **IMP-19 — Add readiness diagnostics and reliable runtime version metadata**
+  - Keep liveness backward-compatible; expose separate safe readiness and report the deployed version under direct standalone startup.
+  - [Operations plan](plans/2026-10-20-operations-validation-plan.md#imp-19)
+- [ ] `P1` **IMP-20 — Type-check production and test code in CI and releases**
+  - Use the complete `npm run type-check` gate wherever validation currently invokes only `tsc --noEmit`.
+  - [Operations plan](plans/2026-10-20-operations-validation-plan.md#imp-20)
+
+---
+
 ## Phase 1 — Foundation
 
 > Goal: A working, deployable skeleton with auth, YAML config, and a basic UI. Nothing else is built on top until this is solid.
@@ -139,11 +201,12 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - [x] Brightness + opacity overlay (configurable in UI and YAML)
 
 - [ ] `P1` **Status indicator upgrades** *(part of UX redesign Phase C)*
+  - [ ] **IMP-15 — Distinguish service reachability, HTTP failures, and probe errors**; show HTTP status and response time without treating login-required services as offline. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-15)
   - Hover tooltip with response time + HTTP status; optional `statusStyle: dot | badge`
   - Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
 
 - [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
-  - Welcome card with "Add your first service" when the dashboard is empty (today: blank page)
+  - [ ] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)
   - Ghost "+" tile in empty groups while editing; first-edit coach marks
 
 - [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
