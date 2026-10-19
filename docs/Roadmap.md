@@ -186,8 +186,17 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
   - Configurable in `auth:` section of YAML
 
 - [ ] `P1` **Extended integrations (Tier 2)**
-  - Home automation: Home Assistant
-  - Files / cloud: Nextcloud
+  - [ ] **Home Assistant** — configurable entity-state widgets for temperature, energy use, presence, lights and switches via the local REST API
+  - [ ] **Jellyfin** — active streams, now playing, playback progress, transcoding status and library counts
+  - [ ] **TrueNAS** — pool health, used/free capacity, system uptime and active alerts; support the current WebSocket API with an explicit version compatibility policy
+  - [ ] **Nextcloud** — free space, file/share counts, active users and CPU/memory usage via the server information API
+  - [ ] **Paperless-ngx** — document and inbox counts, processing tasks and failed imports via the REST API
+  - [ ] **Frigate** — camera health overview, service uptime and recent detection events via the authenticated API
+  - [ ] **Scrutiny** — healthy, failing and unknown S.M.A.R.T. drive counts across storage hosts
+  - [ ] **Healthchecks** — scheduled-job status, failed/overdue checks and last check-in via a read-only API key; support self-hosted instances
+  - [ ] **Speedtest Tracker** — latest download/upload speeds, latency, historical averages and recent performance trends
+  - [ ] **FreshRSS** — unread article and subscription counts from the user's reader account, complementing the existing RSS / Atom headline widget
+  - [ ] **Mealie** — recipe, category and tag counts with a shortcut to meal planning
   - Security: Vaultwarden, CrowdSec
   - Analytics:
     - [x] Tautulli — configurable current activity widget (summary, active sessions, or both)
