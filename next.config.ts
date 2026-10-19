@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingIncludes: {
     "/api/*": runtimePackageFiles("form-data"),
+    // Operational CLI entry points are not imported by app routes. Keep the
+    // emergency reset command available in standalone and Docker deployments.
+    "/api/auth/login": ["./scripts/reset-password.js", "./node_modules/bcryptjs/**/*"],
   },
   // Runtime state is mounted under /data in production. Never copy a
   // developer's local config, database, or session secret into the image.

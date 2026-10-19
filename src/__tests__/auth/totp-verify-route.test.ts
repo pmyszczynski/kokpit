@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateSync } from "otplib";
+import { SignJWT } from "jose";
 
 process.env.KOKPIT_DB_PATH = ":memory:";
 process.env.KOKPIT_SESSION_SECRET = "test-secret-32-chars-minimum-length-xx";
@@ -25,6 +26,15 @@ function trustedRequest(input: RequestInfo | URL, init?: RequestInit): globalThi
   const headers = new Headers(init?.headers);
   headers.set("x-kokpit-request", "1");
   return new globalThis.Request(input, { ...init, headers });
+}
+
+function freshChallenge(userId: string, sessionVersion: number, id: number): Promise<string> {
+  return new SignJWT({ userId, sessionVersion, type: "totp_challenge" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("5m")
+    .setIssuedAt()
+    .setJti(String(id))
+    .sign(new TextEncoder().encode(process.env.KOKPIT_SESSION_SECRET!));
 }
 
 describe("POST /api/auth/totp/verify", () => {
@@ -169,5 +179,55 @@ describe("POST /api/auth/totp/verify", () => {
     // Subsequent attempt with the same token is rejected immediately
     const resAfter = await makeRequest();
     expect(resAfter.status).toBe(401);
+  });
+
+  it("limits TOTP guesses across fresh password login challenges for the same account", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("fresh-challenges", await auth.hashPassword("known-password"));
+    auth.setTotpSecret(user.id, auth.generateTotpSecret());
+    const verifyTotpCode = vi.fn().mockReturnValue(false);
+    let challengeId = 0;
+    vi.doMock("@/auth", () => ({
+      ...auth,
+      verifyTotpCode,
+      // Make freshly signed challenges unique even within the same second.
+      signTotpChallenge: (id: string, version: number) => freshChallenge(id, version, challengeId++),
+    }));
+    try {
+      const { POST } = await import("../../app/api/auth/totp/verify/route");
+      const { POST: login } = await import("../../app/api/auth/login/route");
+      for (let i = 0; i < 11; i++) {
+        const passwordStep = await login(trustedRequest("http://localhost", {
+          method: "POST", body: JSON.stringify({ username: user.username, password: "known-password" }),
+        }));
+        expect(passwordStep.status).toBe(200);
+        const { challengeToken } = await passwordStep.json();
+        const response = await POST(trustedRequest("http://localhost", {
+          method: "POST", body: JSON.stringify({ challengeToken, code: "000000" }),
+        }));
+        expect(response.status).toBe(i < 10 ? 401 : 429);
+        if (i === 10) expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+      }
+      expect(verifyTotpCode).toHaveBeenCalledTimes(10);
+      expect(mockCookieSet).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("@/auth");
+    }
+  });
+
+  it("releases successful TOTP checks so normal MFA logins remain available", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("successful-mfa", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const version = auth.getUserById(user.id)!.sessionVersion;
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    for (let i = 0; i < 12; i++) {
+      const challengeToken = await freshChallenge(user.id, version, i);
+      const response = await POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+      }));
+      expect(response.status).toBe(200);
+    }
   });
 });

@@ -38,6 +38,9 @@ cp -R public "$RUNTIME_DIR/"
 
 cd "$RUNTIME_DIR"
 unset NODE_PATH
+# Check the recovery command from the isolated production artifact, where the
+# source checkout cannot hide a missing script, bcrypt, or native SQLite module.
+KOKPIT_DB_PATH="$RUNTIME_DIR/recovery-smoke.db" node -e 'const db = require("./scripts/reset-password.js").openDb(); db.close();'
 node server.js &
 SERVER_PID=$!
 wait "$SERVER_PID"

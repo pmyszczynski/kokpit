@@ -91,6 +91,13 @@ removes the production secure-cookie flag for local HTTP testing.
 There are no roles yet. A signed-in user can edit configuration; when
 authentication is disabled, visitors can do the same.
 
+Authentication defaults to enabled even for partial `auth` configuration. Password
+login and TOTP verification reserve account and shared rolling request budgets in
+SQLite before checking credentials. The transaction prevents concurrent attempts
+or process restarts from bypassing
+the limits. Throttled requests return HTTP 429 with `Retry-After`. See the README
+Login sessions section for the limits and expiry behavior.
+
 ## Widgets and integrations
 
 `src/integrations/index.ts` registers integration modules, and

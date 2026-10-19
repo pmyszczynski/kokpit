@@ -42,6 +42,17 @@ export function getDb(): Database.Database {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
+    CREATE TABLE IF NOT EXISTS login_rate_limits (
+      key TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS login_rate_limits_expiry_idx ON login_rate_limits(expires_at);
+    CREATE TABLE IF NOT EXISTS login_request_times (
+      id INTEGER PRIMARY KEY,
+      requested_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS login_request_times_time_idx ON login_request_times(requested_at);
   `);
 
   return db;
