@@ -5,7 +5,7 @@
   .widget-search-form__input { appearance: none; min-width: 0; width: 100%; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-text); font: inherit; font-size: 0.875rem; line-height: 1.25; padding: 7px 10px; }
   .widget-search-form__input::placeholder { color: var(--color-text-muted); opacity: 1; }
   .widget-search-form__input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-  .widget-search-form__button { flex-shrink: 0; padding: 7px 14px; border: 1px solid transparent; border-radius: var(--radius); background: var(--color-accent-hover); color: white; font: inherit; font-size: 0.875rem; line-height: 1.25; cursor: pointer; }
-  .widget-search-form__button:hover { background: color-mix(in srgb, var(--color-accent-hover) 90%, black); }
+  .widget-search-form__button { flex-shrink: 0; padding: 7px 14px; border: 1px solid transparent; border-radius: var(--radius); background: var(--widget-search-form-button-background); color: white; font: inherit; font-size: 0.875rem; line-height: 1.25; cursor: pointer; }
+  .widget-search-form__button:hover { background: var(--widget-search-form-button-hover-background); }
   .widget-search-form__button:focus-visible { outline: 2px solid white; outline-offset: -4px; }
 }

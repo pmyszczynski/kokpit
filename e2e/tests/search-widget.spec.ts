@@ -59,7 +59,7 @@ test("Search fits its 6x2 tile with visible controls, keyboard focus and contras
     });
     expect(geometry).toEqual({ width: 688, height: 128, alignedInput: true, completeCaption: true, fit: true });
     const ratios = await widget.locator(".widget-search-form__input, .widget-search-form__button, .search-widget__destination").evaluateAll(elements => {
-      function luminance(color: string) { return color.match(/\d+(?:\.\d+)?/g)!.slice(0, 3).map(Number).map(v => { const c = v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0); }
+      function luminance(color: string) { const values = color.match(/\d+(?:\.\d+)?/g)!.slice(0, 3).map(Number); return values.map(v => { const c = color.startsWith("color(srgb ") ? v : v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0); }
       return elements.map(element => { let parent: Element | null = element; let background = "rgba(0, 0, 0, 0)"; while (parent && background === "rgba(0, 0, 0, 0)") { background = getComputedStyle(parent).backgroundColor; parent = parent.parentElement; } const values = [luminance(getComputedStyle(element).color), luminance(background)].sort((a, b) => b - a); return (values[0] + .05) / (values[1] + .05); });
     });
     expect(Math.min(...ratios)).toBeGreaterThanOrEqual(4.5);

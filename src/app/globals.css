@@ -219,7 +219,7 @@ textarea[aria-invalid="true"] {
 input:disabled:not(:where(.widget-ui input)),
 select:disabled,
 textarea:disabled,
-button:disabled {
+button:disabled:not(:where(.widget-ui button)) {
   opacity: 0.6;
   cursor: not-allowed;
 }

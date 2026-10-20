@@ -5,13 +5,11 @@ import "./widget.css";
 
 export function SearchWidget({ data, loading, error }: WidgetProps<SearchData>) {
   if (!data || !searchUrl(data.action)) return <WidgetBody centered className="search-widget"><WidgetState state={loading ? "loading" : "error"}>{!loading ? error ?? "Search unavailable" : undefined}</WidgetState></WidgetBody>;
-  return <WidgetBody className="search-widget" reserveNotice noticeClassName="search-widget__notice" notice={<>
+  return <WidgetBody className="search-widget" contentCentered reserveNotice noticeClassName="search-widget__notice" notice={<>
     <p className="search-widget__destination" title={`${data.engineName} · ${data.action}`}>{data.engineName} · {data.newTab ? "Opens in a new tab" : "Opens in this tab"}</p>
     <WidgetStaleNotice error={error} />
   </>}>
-    <div className="search-widget__content">
-      <WidgetSearchForm action={data.action} queryParameter={data.queryParameter} parameters={data.parameters} label={`Search with ${data.engineName}`} newTab={data.newTab} />
-    </div>
+    <WidgetSearchForm action={data.action} queryParameter={data.queryParameter} parameters={data.parameters} label={`Search with ${data.engineName}`} newTab={data.newTab} />
   </WidgetBody>;
 }
 const FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [

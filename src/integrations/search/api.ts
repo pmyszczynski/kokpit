@@ -1,10 +1,8 @@
 import { z } from "zod";
+import { parseHttpUrl } from "../shared/httpUrl";
 
 export function searchUrl(value: string): URL | null {
-  try {
-    const url = new URL(value);
-    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password && !value.includes("#") ? url : null;
-  } catch { return null; }
+  return parseHttpUrl(value, { allowFragment: false });
 }
 
 export const SearchConfigSchema = z.object({

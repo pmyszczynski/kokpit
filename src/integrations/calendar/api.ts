@@ -1,14 +1,11 @@
 import { z } from "zod";
+import { parseHttpUrl } from "../shared/httpUrl";
 
 export function eventUrl(value: string): string | null {
-  try {
-    const url = new URL(value);
-    return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.href : null;
-  } catch { return null; }
+  return parseHttpUrl(value)?.href ?? null;
 }
 export function calendarUrl(value: string): string | null {
-  const url = eventUrl(value);
-  return url && !url.includes("#") ? url : null;
+  return parseHttpUrl(value, { allowFragment: false })?.href ?? null;
 }
 const ConnectionFields = z.object({
   calendar: z.string().trim().min(1).max(2048),

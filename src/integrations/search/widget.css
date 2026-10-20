@@ -1,6 +1,5 @@
 @layer widget-ui {
   .search-widget { min-width: 0; }
-  .search-widget__content { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; gap: 6px; min-height: 0; min-width: 0; }
   .search-widget__notice { display: flex; align-items: baseline; gap: 8px; justify-content: space-between; }
   .search-widget__destination { flex: 1; min-width: 0; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 }

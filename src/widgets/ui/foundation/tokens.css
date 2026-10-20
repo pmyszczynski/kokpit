@@ -16,6 +16,12 @@
     --widget-notice-padding-block: 2px;
   }
 
+  .widget-search-form {
+    /* Preserve the accent rest/hover roles while meeting white-text contrast. */
+    --widget-search-form-button-background: color-mix(in srgb, var(--color-accent) 95%, black);
+    --widget-search-form-button-hover-background: var(--color-accent-hover);
+  }
+
   .widget-stat-grid {
     --widget-stat-grid-gap: 6px;
   }

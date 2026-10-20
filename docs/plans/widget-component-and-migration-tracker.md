@@ -24,7 +24,7 @@ See the [agreed directory structure and component boundaries](widget-consistency
 
 - Component `todo`: not started under the shared-library contract (existing duplicated CSS or a local helper does not count).
 - Component `in progress`: the owner-selected component is being implemented or visually iterated.
-- Component `done`: implemented, documented and tested in at least one example widget, with its appearance accepted by the owner; other consumers may still be pending.
+- Component `done`: implemented, documented and tested in at least one example widget, with its appearance accepted by the owner or verified under the owner's explicit delegation of the complete workflow; other consumers may still be pending. Record which form of acceptance applies, with its evidence. Delegated verification must not be described as explicit owner screenshot acceptance.
 - Component `migration of all widgets complete`: `done`, and every listed consumer has adopted it with evidence. A widget may still be `todo` for another component.
 - Widget `todo`: no migration or only a partial migration. Record partial adoption and evidence in that row; do not invent another status.
 - Widget `migrated`: all applicable listed components adopted, old conflicting rules removed, intended variants/states tested and the result reviewed. Optional sections count even if disabled in the default fixture.
