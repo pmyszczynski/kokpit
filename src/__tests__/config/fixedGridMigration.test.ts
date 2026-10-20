@@ -3,19 +3,21 @@ import { describe, expect, it } from "vitest";
 import { migrateFixedGridConfig } from "@/config/loader";
 
 describe("fixed-grid config migration", () => {
-  it.each([
-    { saved: undefined, expected: { columnSpan: 6, rowSpan: 2 } },
-    { saved: { columnSpan: 6, rowSpan: 2 }, expected: { columnSpan: 6, rowSpan: 2 } },
-    { saved: { columnSpan: 3, rowSpan: 2 }, expected: { columnSpan: 3, rowSpan: 2 } },
-    { saved: { columnSpan: 6, rowSpan: 4 }, expected: { columnSpan: 6, rowSpan: 2 } },
-  ])("preserves Search geometry or its historical Wide fallback: $saved", ({ saved, expected }) => {
+  it.each([undefined, "normal", "wide", "tall", "large"])("preserves Search's Wide fallback with legacy hint %s and honors saved footprints", size => {
     const serviceId = "10000000-0000-4000-8000-000000000001";
-    const migrated = migrateFixedGridConfig({
+    const tile = { id: "20000000-0000-4000-8000-000000000001", service_id: serviceId, size, widget: { type: "search" } };
+    const base = {
       schema_version: 2,
       services: [{ id: serviceId, name: "Search" }],
-      service_tiles: [{ id: "20000000-0000-4000-8000-000000000001", service_id: serviceId, footprint: saved, widget: { type: "search" } }],
-    });
-    expect(migrated.service_tiles[0].footprint).toEqual(expected);
+      service_tiles: [tile],
+    };
+    expect(migrateFixedGridConfig(base).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    for (const footprint of [{ columnSpan: 6, rowSpan: 2 }, { columnSpan: 3, rowSpan: 2 }]) {
+      expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint }] }).service_tiles[0].footprint).toEqual(footprint);
+    }
+    for (const footprint of [{ columnSpan: 6, rowSpan: 4 }, { columnSpan: 3, rowSpan: 4 }, { columnSpan: 9, rowSpan: 9 }, { columnSpan: 3 }]) {
+      expect(migrateFixedGridConfig({ ...base, service_tiles: [{ ...tile, footprint }] }).service_tiles[0].footprint).toEqual({ columnSpan: 6, rowSpan: 2 });
+    }
   });
   it.each([undefined, "normal", "wide", "tall", "large"])("preserves historical Unraid geometry with legacy size %s", size => {
     const id = "10000000-0000-4000-8000-000000000001";
