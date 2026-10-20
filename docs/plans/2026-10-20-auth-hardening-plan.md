@@ -1,6 +1,6 @@
 # Authentication hardening implementation plan
 
-Date: 2026-10-20. Status: **mixed — IMP-01 implemented for v0.30.1; IMP-02 and IMP-03 completed upstream in PR #132; IMP-06 and IMP-07 planned**.
+Date: 2026-10-20. Status: **mixed — IMP-01 implemented for v0.30.2; IMP-02 and IMP-03 completed upstream in PR #132; IMP-06 and IMP-07 planned**.
 
 This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-07, rechecked against main `71ef878` (v0.27.1). The IDs retain the numbering of the original 20-item review. See the [implementation index](2026-10-20-improvement-plan.md) for sequencing across plans and the full required pre-PR validation gate. Focused tests below supplement that gate.
 
@@ -8,7 +8,7 @@ This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-
 
 ## IMP-01 — Make unknown-user password checks perform real bcrypt work
 
-Status: **implemented for v0.30.1**.
+Status: **implemented for v0.30.2**.
 
 The password module now owns a complete, precomputed cost-10 dummy hash beside
 the password work-factor policy. Login uses it for unknown usernames and still

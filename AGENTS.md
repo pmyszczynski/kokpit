@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Owner-selected roadmap improvement loop (2026-10-20). IMP-01 is implemented for v0.30.1; assess the next unfinished selected improvement. For each item, complete the local gate, PR, CI and AI review, administrator merge, and release including Docker verification. Continue autonomously until all selected improvements are done or an item requires a human decision. The selected improvement section and linked implementation index in docs/Roadmap.md track implementation versions and progress. Preserve existing widgets; Netdata UI migration remains deferred.
+**Current task:** Owner-selected roadmap improvement loop (2026-10-20). IMP-01 is implemented for v0.30.2; assess the next unfinished selected improvement. For each item, complete the local gate, PR, CI and AI review, administrator merge, and release including Docker verification. Continue autonomously until all selected improvements are done or an item requires a human decision. Compact 3x2 Search was merged separately in PR #142 for v0.30.1; preserve its saved and implicit Wide geometry. The selected improvement section and linked implementation index in docs/Roadmap.md track implementation versions and progress. Preserve existing widgets; Netdata UI migration remains deferred.
 
 ---
 

@@ -8,7 +8,7 @@ import "@/integrations/search/widget";
 describe("Search configuration and native destination", () => {
   it("uses DuckDuckGo defaults without an integration or background polling", async () => {
     expect(await fetchSearch({})).toEqual({ action: "https://duckduckgo.com/", parameters: [], queryParameter: "q", engineName: "DuckDuckGo", newTab: true });
-    expect(getWidget("search")).toMatchObject({ integrationType: null, refreshInterval: 0, supportsConnectionTest: false, sharedUI: true, hasLinks: true, supportedFootprints: [{ label: "Search", columnSpan: 6, rowSpan: 2 }] });
+    expect(getWidget("search")).toMatchObject({ integrationType: null, refreshInterval: 0, supportsConnectionTest: false, sharedUI: true, hasLinks: true, preferredSize: "wide", supportedFootprints: [{ label: "Wide", columnSpan: 6, rowSpan: 2 }, { label: "Compact", columnSpan: 3, rowSpan: 2 }] });
     expect(splitWidgetConfig("search", { search_url: "https://search.example/search", query_parameter: "query" })).toEqual({ connection: {}, options: { search_url: "https://search.example/search", query_parameter: "query" } });
   });
   it("preserves fixed/repeated parameters and replaces all existing query values", async () => {

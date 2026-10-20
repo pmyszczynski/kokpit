@@ -2,15 +2,16 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 /** Locate Search independently of its configurable service and engine names. */
 const tile = (page: Page) => page.locator('.service-tile').filter({ has: page.locator('[data-widget-type="search"]') });
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
+const FOOTPRINTS = [{ columnSpan: 6, rowSpan: 2 }, { columnSpan: 3, rowSpan: 2 }] as const;
 /** Persist a canonical Search tile through the public settings API for browser checks. */
-async function configure(request: APIRequestContext, config: Record<string, unknown> = {}, theme: typeof THEMES[number] = "dark", custom_css = "", launch_url?: string) {
+async function configure(request: APIRequestContext, config: Record<string, unknown> = {}, theme: typeof THEMES[number] = "dark", custom_css = "", launch_url?: string, footprint: typeof FOOTPRINTS[number] = FOOTPRINTS[0]) {
   const response = await request.patch("/api/settings", { data: { services: [{ id: "10000000-0000-4000-8000-000000000001", name: "Search", description: "Find something useful", icon: "/icons/search.svg", ...(launch_url ? { launch_url } : {}) }],
-    service_tiles: [{ id: "20000000-0000-4000-8000-000000000001", service_id: "10000000-0000-4000-8000-000000000001", footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: "search", config } }], groups: [], bookmarks: [], appearance: { theme, custom_css } } });
+    service_tiles: [{ id: "20000000-0000-4000-8000-000000000001", service_id: "10000000-0000-4000-8000-000000000001", footprint, widget: { type: "search", config } }], groups: [], bookmarks: [], appearance: { theme, custom_css } } });
   expect(response.ok()).toBe(true);
 }
 
-test("Search uses native encoded GET submission with fixed parameters and an isolated new tab", async ({ page, context, request }) => {
-  await configure(request, { search_url: "https://search.example/profile/search?language=pl&category=it&category=science&query=obsolete&query=older", query_parameter: "query", engine_name: "Home search" });
+for (const footprint of FOOTPRINTS) test(`Search ${footprint.columnSpan}x2 uses native encoded GET submission with fixed parameters and an isolated new tab`, async ({ page, context, request }) => {
+  await configure(request, { search_url: "https://search.example/profile/search?language=pl&category=it&category=science&query=obsolete&query=older", query_parameter: "query", engine_name: "Home search" }, "dark", "", undefined, footprint);
   let engineRequests = 0; const localRequests: string[] = [];
   page.on("request", request => { if (request.url().startsWith("http://localhost")) localRequests.push(request.url()); });
   await context.route("https://search.example/**", route => { engineRequests++; return route.fulfill({ contentType: "text/html", body: "Search results" }); });
@@ -46,9 +47,9 @@ test("Search blocks blank queries and performs no background polling or engine r
   await page.clock.fastForward(600_000); expect(widgetRequests).toBe(initialRequests); expect(engineRequests).toBe(0);
 });
 
-test("Search fits its 6x2 tile with visible controls, keyboard focus and contrast in four themes", async ({ page, request }) => {
+for (const footprint of FOOTPRINTS) test(`Search fits its ${footprint.columnSpan}x2 tile with visible controls, keyboard focus and contrast in four themes`, async ({ page, request }) => {
   for (const theme of THEMES) {
-    await configure(request, {}, theme); await page.goto("/"); const widget = tile(page);
+    await configure(request, {}, theme, "", undefined, footprint); await page.goto("/"); const widget = tile(page);
     await expect(widget.getByRole("searchbox", { name: "Search query" })).toBeVisible(); await expect(widget.getByRole("button", { name: "Search", exact: true })).toBeVisible();
     await expect(widget.getByText("DuckDuckGo · Opens in a new tab", { exact: true })).toBeVisible();
     const geometry = await widget.evaluate(element => {
@@ -59,7 +60,7 @@ test("Search fits its 6x2 tile with visible controls, keyboard focus and contras
         const rect = node.getBoundingClientRect(); return rect.left >= bounds.left && rect.right <= bounds.right && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
       }) };
     });
-    expect(geometry).toEqual({ width: 688, height: 128, alignedInput: true, completeCaption: true, fit: true });
+    expect(geometry).toEqual({ width: footprint.columnSpan === 3 ? 340 : 688, height: 128, alignedInput: true, completeCaption: true, fit: true });
     const ratios = await widget.locator(".widget-search-form__input, .widget-search-form__button, .search-widget__destination").evaluateAll(elements => {
       /** Compute WCAG relative luminance from serialized RGB or CSS Color 4 sRGB. */
       function luminance(color: string) { const values = color.match(/\d+(?:\.\d+)?/g)!.slice(0, 3).map(Number); return values.map(v => { const c = color.startsWith("color(srgb ") ? v : v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0); }
@@ -70,11 +71,13 @@ test("Search fits its 6x2 tile with visible controls, keyboard focus and contras
   }
 });
 
-test("Search preset saves and immediately applies engine options without a service connection", async ({ page, request }) => {
+for (const footprint of FOOTPRINTS) test(`Search preset saves ${footprint.columnSpan}x2 and immediately applies engine options without a service connection`, async ({ page, request }) => {
   expect((await request.patch("/api/settings", { data: { services: [], service_tiles: [], groups: [{ name: "Tools" }], bookmarks: [] } })).ok()).toBe(true);
   await page.goto("/"); await page.getByRole("button", { name: "Edit dashboard" }).click(); await page.getByRole("button", { name: "Add tile to Tools" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByLabel("Footprint", { exact: true })).toHaveValue("6x2");
+  await expect(page.getByLabel("Footprint", { exact: true }).locator("option")).toHaveText(["Wide (6×2)", "Compact (3×2)"]);
+  await page.getByLabel("Footprint", { exact: true }).selectOption(`${footprint.columnSpan}x2`);
   await expect(page.getByRole("button", { name: "Test connection", exact: true })).toHaveCount(0);
   await page.getByLabel("Search URL", { exact: true }).fill("https://search.example/search?language=pl"); await page.getByLabel("Query parameter", { exact: true }).fill("query");
   await page.getByLabel("Engine name", { exact: true }).fill("SearXNG"); await page.getByLabel("Open results in a new tab", { exact: true }).uncheck();
@@ -82,12 +85,12 @@ test("Search preset saves and immediately applies engine options without a servi
   await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
   await expect(tile(page).getByRole("search", { name: "Search with SearXNG" })).toHaveAttribute("action", "https://search.example/search");
   const persisted = await (await request.get("/api/settings")).json(); expect(persisted.services[0].integration).toBeUndefined();
-  expect(persisted.service_tiles[0]).toMatchObject({ footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: "search", config: { search_url: "https://search.example/search?language=pl", query_parameter: "query", engine_name: "SearXNG", new_tab: false } } });
+  expect(persisted.service_tiles[0]).toMatchObject({ footprint, widget: { type: "search", config: { search_url: "https://search.example/search?language=pl", query_parameter: "query", engine_name: "SearXNG", new_tab: false } } });
   await page.reload(); await expect(tile(page).getByRole("search")).toHaveAttribute("target", "_self");
 });
 
-test("Search retains query, focus and control geometry through a failed options refresh", async ({ page, request }) => {
-  await configure(request);
+for (const footprint of FOOTPRINTS) test(`Search ${footprint.columnSpan}x2 retains query, focus and control geometry through a failed options refresh`, async ({ page, request }) => {
+  await configure(request, {}, "dark", "", undefined, footprint);
   const settings = await (await request.get("/api/settings")).json(); settings.service_tiles[0].widget.refresh_interval_ms = 5000;
   const saved = await request.patch("/api/settings", { data: { service_tiles: settings.service_tiles } });
   expect(saved.ok(), await saved.text()).toBe(true);
@@ -110,7 +113,7 @@ test("Search controls remain independent of a linked service header", async ({ p
 
 test("Search supports ordinary custom CSS and retains the full long engine name", async ({ page, request }) => {
   const engine_name = "My self-hosted search engine with a deliberately long but meaningful label";
-  await configure(request, { engine_name }, "dark", ".widget-search-form__button { background: rgb(1, 2, 3); font-size: 16px; } .widget-search-form__input { border-color: rgb(18, 52, 86); }"); await page.goto("/");
+  await configure(request, { engine_name }, "dark", ".widget-search-form__button { background: rgb(1, 2, 3); font-size: 16px; } .widget-search-form__input { border-color: rgb(18, 52, 86); }", undefined, FOOTPRINTS[1]); await page.goto("/");
   await expect(tile(page).getByRole("button", { name: "Search", exact: true })).toHaveCSS("background-color", "rgb(1, 2, 3)");
   await expect(tile(page).getByRole("button", { name: "Search", exact: true })).toHaveCSS("font-size", "16px");
   await expect(tile(page).getByRole("searchbox")).toHaveCSS("border-color", "rgb(18, 52, 86)");
@@ -120,9 +123,10 @@ test("Search supports ordinary custom CSS and retains the full long engine name"
 
 test("Search dark and light previews", async ({ page, request }, testInfo) => {
   await page.setViewportSize({ width: 1108, height: 570 });
-  for (const theme of ["dark", "light"] as const) {
-    await configure(request, {}, theme); await page.goto("/"); await expect(tile(page).getByRole("searchbox")).toBeVisible();
+  for (const footprint of FOOTPRINTS) for (const theme of ["dark", "light"] as const) {
+    await configure(request, {}, theme, "", undefined, footprint); await page.goto("/"); await expect(tile(page).getByRole("searchbox")).toBeVisible();
     await expect.poll(() => tile(page).locator('img[src="/icons/search.svg"]').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
-    await testInfo.attach(`Search-${theme}`, { body: await tile(page).screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/search-${theme}.png` : undefined }), contentType: "image/png" });
+    const name = `search${footprint.columnSpan === 3 ? "-compact" : ""}-${theme}`;
+    await testInfo.attach(name, { body: await tile(page).screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/${name}.png` : undefined }), contentType: "image/png" });
   }
 });
