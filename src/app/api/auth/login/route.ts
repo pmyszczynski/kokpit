@@ -3,16 +3,13 @@ import {
   getUserByUsername,
   getUserById,
   verifyPassword,
+  DUMMY_PASSWORD_HASH,
   signTotpChallenge,
 } from "@/auth";
 import { createSessionCookie } from "../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
 import { SessionInvalidatedError } from "@/auth/errors";
 import { reserveLoginAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
-
-// Use a pre-computed dummy hash so bcrypt always runs its full work factor,
-// preventing username enumeration via response-time timing attacks.
-const DUMMY_HASH = "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012";
 
 export async function POST(req: Request) {
   if (!isTrustedMutation(req)) {
@@ -51,7 +48,7 @@ export async function POST(req: Request) {
   }
 
   const user = getUserByUsername(username);
-  const candidateHash = user?.passwordHash ?? DUMMY_HASH;
+  const candidateHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
   const passwordOk = await verifyPassword(password, candidateHash);
   if (!user || !passwordOk) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });

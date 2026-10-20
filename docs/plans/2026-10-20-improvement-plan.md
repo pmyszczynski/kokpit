@@ -1,7 +1,7 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 15 planned, three already implemented upstream; this
-review changes documentation only.
+Date: 2026-10-20. Status: 14 planned, four implemented (IMP-01 for v0.30.2;
+IMP-02, IMP-03 and IMP-18 upstream).
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
 The `IMP-NN` identifiers below retain those original numbers. The roadmap owns
@@ -12,15 +12,15 @@ for every listed item, including implementation steps and acceptance criteria.
 Baseline reconciled to `main` at `71ef878` (v0.27.1). PR #132 / commit `1097384`
 already implements IMP-02, IMP-03 and IMP-18. Those entries are completed in the
 roadmap, with implementation evidence in their linked sections; their historical
-findings are not claims about the current code. The remaining entries are future
-work. IMP-01's malformed dummy hash and IMP-06's per-challenge replay state remain
-open despite the related authentication work in that PR.
+findings are not claims about the current code. IMP-01 is now implemented for
+v0.30.2; IMP-06's per-challenge replay state remains open. The other uncompleted
+entries are future work.
 
 ## Selected work
 
 | ID | Priority | Outcome | Implementation plan |
 | --- | --- | --- | --- |
-| IMP-01 | P0 | Valid dummy bcrypt verification prevents the current unknown-user timing shortcut. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-01) |
+| IMP-01 | P0 | **Implemented for v0.30.2:** valid dummy bcrypt verification removes the unknown-user timing shortcut. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-01) |
 | IMP-02 | P0 | **Implemented, PR #132:** missing, empty and session-policy-only auth mappings default to protected access. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-02) |
 | IMP-03 | P0 | **Implemented, PR #132:** durable account/TOTP throttling and a rolling shared budget bound admitted attempts. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-03) |
 | IMP-04 | P0 | Credential-bearing integration requests cannot follow redirects to another origin. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-04) |

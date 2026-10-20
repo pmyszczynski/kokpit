@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Add the owner-requested Compact 3x2 Search footprint alongside default Wide 6x2. Branch feature/search-compact targets v0.30.1 after Search PR #141 / v0.30.0. Reuse the existing shared form without style changes; preserve saved and implicit Wide geometry. Follow the established screenshot/test/PR/CI/AI-review/administrator-merge/release workflow. Netdata remains deferred.
+**Current task:** Owner-selected roadmap improvement loop (2026-10-20). IMP-01 is implemented for v0.30.2; assess the next unfinished selected improvement. For each item, complete the local gate, PR, CI and AI review, administrator merge, and release including Docker verification. Continue autonomously until all selected improvements are done or an item requires a human decision. Compact 3x2 Search was merged separately in PR #142 for v0.30.1; preserve its saved and implicit Wide geometry. The selected improvement section and linked implementation index in docs/Roadmap.md track implementation versions and progress. Preserve existing widgets; Netdata UI migration remains deferred.
 
 ---
 

@@ -12,7 +12,7 @@ export {
   updatePasswordHash,
   updatePasswordWithRecoveryCode,
 } from "./users";
-export { hashPassword, verifyPassword } from "./passwords";
+export { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "./passwords";
 export { signTotpChallenge, verifyTotpChallenge } from "./jwt";
 export { getAuthUser, getAuthSession, SESSION_COOKIE_NAME } from "./session";
 export { createSession, revokeSession, revokeUserSessions, revokeToken, listSessions } from "./sessionStore";
