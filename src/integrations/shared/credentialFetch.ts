@@ -1,14 +1,15 @@
 import { WidgetFetchError } from "@/widgets/publicFetchError";
+import { parseHttpUrl } from "./httpUrl";
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /** A controlled error: never include a credential-bearing URL or Location. */
 export class CredentialRedirectError extends WidgetFetchError {
-  constructor() {
+  constructor(diagnostic?: { integration: string; stage: string }) {
     super("widget_upstream_redirect_blocked", {
-      integration: "unknown",
-      stage: "redirect",
+      integration: diagnostic?.integration ?? "unknown",
+      stage: diagnostic?.stage ?? "redirect",
       retryable: false,
     });
     this.name = "CredentialRedirectError";
@@ -16,15 +17,14 @@ export class CredentialRedirectError extends WidgetFetchError {
 }
 
 function safeUrl(value: string | URL, base?: URL): URL {
-  let url: URL;
+  let resolved: URL;
   try {
-    url = new URL(value, base);
+    resolved = new URL(value, base);
   } catch {
     throw new CredentialRedirectError();
   }
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
-    throw new CredentialRedirectError();
-  }
+  const url = parseHttpUrl(resolved.href);
+  if (!url) throw new CredentialRedirectError();
   // Fragments are never sent over HTTP and must not disguise a redirect loop.
   url.hash = "";
   return url;

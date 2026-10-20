@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clearRegistry } from "@/widgets";
+import { CredentialRedirectError } from "@/integrations/shared/credentialFetch";
+import { widgetFetchFailure } from "@/widgets/publicFetchError";
 import {
   clearSidCache,
   fetchQbittorrentStats,
@@ -70,8 +72,20 @@ describe("fetchTransferInfo", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       const error = await fetchTransferInfo(BASE_CONFIG).catch(error => error);
-      expect(error).toMatchObject({ code: "widget_upstream_redirect_blocked" });
+      expect(error).toBeInstanceOf(CredentialRedirectError);
+      expect(error).toMatchObject({
+        code: "widget_upstream_redirect_blocked",
+        diagnostic: { integration: "qbittorrent", stage: "login", retryable: false },
+      });
       expect(String(error)).not.toContain(BASE_CONFIG.password);
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const failure = widgetFetchFailure("load", "qbittorrent-stats", error);
+      expect(log).toHaveBeenCalledWith(expect.objectContaining({
+        integration: "qbittorrent", stage: "login", code: "widget_upstream_redirect_blocked", retryable: false,
+      }));
+      const serialized = JSON.stringify([failure, log.mock.calls]);
+      expect(serialized).not.toContain(BASE_CONFIG.password);
+      expect(serialized).not.toMatch(/qbt\.local|other\.local/);
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", redirect: "manual" });
     }
@@ -90,6 +104,7 @@ describe("fetchTransferInfo", () => {
 
     await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
       code: "widget_upstream_redirect_blocked",
+      diagnostic: { integration: "qbittorrent", stage: "transfer-info", retryable: false },
     });
     expect(fetchMock).toHaveBeenCalledTimes(reauthenticate ? 4 : 2);
     expect(fetchMock.mock.calls.every(([url]) => new URL(String(url)).origin === "http://qbt.local:8080")).toBe(true);

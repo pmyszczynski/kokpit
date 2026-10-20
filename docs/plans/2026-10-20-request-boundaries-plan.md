@@ -20,9 +20,11 @@ below is migrated, including secondary Plex requests and qBittorrent login and
 reauthentication. Calendar and Hermes retain their stricter DNS-pinned
 no-redirect policy. The public redirect error supplies final-URL guidance
 without including credentials or raw locations; README records the compatibility
-change. Real two-server tests verify zero forbidden requests for header, query,
-cookie and body credentials, alongside chain, loop and abort regressions. The
-following evidence and design describe the pre-fix gap and accepted contract.
+change. Real two-server GET/HEAD tests verify zero forbidden requests for header,
+query and cookie credentials. Body replay is checked separately with a real
+single-server POST test across all supported redirect statuses and mocked
+integration tests, alongside chain, loop and abort regressions. The following
+evidence and design describe the pre-fix gap and accepted contract.
 
 ### Evidence and scope
 

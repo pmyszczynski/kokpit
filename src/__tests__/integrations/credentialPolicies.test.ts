@@ -39,6 +39,7 @@ describe("credential policies on integration transports", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(run()).rejects.toBeInstanceOf(CredentialRedirectError);
     expect(fetchMock.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(1);
+    for (const [, options] of fetchMock.mock.calls) expect(options.redirect).toBe("manual");
     expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain("http://service.local/replayed");
   });
 

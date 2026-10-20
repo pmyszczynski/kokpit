@@ -135,7 +135,9 @@ async function qBittorrentFetch(
     if (init.signal?.aborted || isAbortError(error)) {
       throw abortedRequestError();
     }
-    if (error instanceof CredentialRedirectError) throw error;
+    if (error instanceof CredentialRedirectError) {
+      throw new CredentialRedirectError({ integration: "qbittorrent", stage });
+    }
     throw new WidgetFetchError("widget_upstream_unreachable", {
       integration: "qbittorrent",
       stage,
