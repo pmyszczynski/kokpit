@@ -88,7 +88,7 @@ git clone https://github.com/pmyszczynski/kokpit.git
 cd kokpit
 ```
 
-1. Set a strong session secret in `docker-compose.yml` (replace the placeholder value for `KOKPIT_SESSION_SECRET`).
+1. Keep the `./data:/data` volume. Kokpit generates its own private server key in `/data/.session_secret` and reuses it after restarts. If you manage this key yourself, generate a random value with `openssl rand -hex 32` and set the optional `KOKPIT_SESSION_SECRET` override in Compose.
 2. Start the production container:
 
 ```bash
@@ -96,6 +96,14 @@ docker compose up kokpit --build
 ```
 
 **For Docker image releases, versioning, and GHCR publishing, see [docs/DOCKER_RELEASES.md](docs/DOCKER_RELEASES.md).**
+
+#### Replacing the old Compose secret placeholder
+
+Older copies of the repository's Compose file supplied a public placeholder for `KOKPIT_SESSION_SECRET`. Kokpit now rejects that exact value during startup. Stop the container, remove the override to use the generated key, or replace it with a random value from `openssl rand -hex 32`, retain the data volume, and restart.
+
+Without an override, an existing valid `/data/.session_secret` is reused; it is never automatically rotated. If that file contains the old placeholder, stop Kokpit and deliberately replace the file with a generated random value while preserving its private permissions (`0600`), then restart. Do not delete or replace a valid persisted key merely to adopt the new Compose default. Local source installations store this file beside their SQLite database (by default `data/.session_secret`).
+
+Changing the effective key invalidates in-flight two-factor login challenges and existing widget-secret references/configuration revisions. Retry two-factor login and reload open editors before saving. Existing opaque login sessions remain valid because SQLite backs them; revoke those separately through session management when needed. A valid explicit override keeps its current precedence and exact bytes, so keep that value stable across restarts and use the same key for processes sharing one data volume.
 
 ### Local development
 

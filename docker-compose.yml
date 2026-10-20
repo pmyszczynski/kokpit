@@ -15,7 +15,9 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: development
-      KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret-before-use
+      # Optional managed key; otherwise a generated key is persisted in /data.
+      # Generate with `openssl rand -hex 32` and retain it across restarts.
+      # KOKPIT_SESSION_SECRET: <your-generated-random-value>
       KOKPIT_DB_PATH: /data/users.db
       # WATCHPACK_POLLING: "true"  # Uncomment on Windows/WSL2 if hot reload
                                    # doesn't trigger on file save.
@@ -35,8 +37,10 @@ services:
       target: runner
     ports:
       - "3000:3000"
-    environment:
-      KOKPIT_SESSION_SECRET: change-this-to-a-random-32-char-secret-before-use
+    # Optional managed key; otherwise a generated key is persisted in /data.
+    # Generate with `openssl rand -hex 32` and retain it across restarts.
+    # environment:
+    #   KOKPIT_SESSION_SECRET: <your-generated-random-value>
     volumes:
       - ./data:/data
       # Uncomment to enable the Docker widget (read-only socket; see README):

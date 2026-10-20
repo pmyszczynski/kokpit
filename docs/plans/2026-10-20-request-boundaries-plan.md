@@ -1,6 +1,6 @@
 # Request boundaries and deployment secret plan
 
-Date: 2026-10-20. Status: mixed — IMP-04 implemented for v0.30.3; IMP-05 and IMP-08 planned.
+Date: 2026-10-20. Status: mixed — IMP-04 implemented for v0.30.3 and IMP-05 for v0.30.4; IMP-08 planned.
 
 This document covers the owner-selected findings IMP-04, IMP-05 and IMP-08 from the twenty-item project review. The [improvement plan](2026-10-20-improvement-plan.md) owns the delivery order, cross-cutting dependencies and full required validation gate. Each item below is independently reviewable; completing one does not mark the others complete.
 
@@ -81,9 +81,25 @@ Compatibility impact: configurations relying on redirects to another host, port 
 
 ## IMP-05 — Use a generated persisted secret by default
 
+Status: **implemented for v0.30.4**.
+
+Compose no longer sets the public placeholder. The shared getter rejects that
+exact value from either the environment or a persisted file, preserves valid
+key precedence and bytes, and never silently replaces an existing key. Guarded
+runtime instrumentation validates the key before publishing configuration;
+build-time instrumentation does not initialize it. README documents deliberate
+migration and rotation, including the continued validity of opaque sessions.
+Focused tests cover actual private-file generation, restart reuse, independent
+data directories and cryptographic rotation behavior. An isolated final Alpine
+image additionally verified key mode/ownership, restart persistence, independent
+volumes, managed overrides and both placeholder failures. Next retains its
+process after instrumentation rejection, as with other startup errors, but
+cannot serve healthy requests or publish configuration; Docker does not mark it
+healthy. The original evidence and accepted design follow.
+
 ### Evidence and correction
 
-Both services in [`docker-compose.yml`](../../docker-compose.yml) force the public value `change-this-to-a-random-32-char-secret-before-use`. [`getServerSecret`](../../src/auth/serverSecret.ts) already supports an omitted override: it generates 32 random bytes, persists a hexadecimal secret beside the SQLite database with mode `0600`, handles a competing creator with an exclusive write, and reuses the persisted value. Explicit nonempty environment overrides currently take precedence.
+Before v0.30.4, both services in [`docker-compose.yml`](../../docker-compose.yml) forced the public value `change-this-to-a-random-32-char-secret-before-use`. [`getServerSecret`](../../src/auth/serverSecret.ts) already supported an omitted override: it generates 32 random bytes, persists a hexadecimal secret beside the SQLite database with mode `0600`, handles a competing creator with an exclusive write, and reuses the persisted value. Accepted explicit nonempty environment overrides retain precedence.
 
 The [README quick-start example](../../README.md) correctly makes the override optional, but its build-from-source Compose instructions still tell users to replace the placeholder. These should agree.
 

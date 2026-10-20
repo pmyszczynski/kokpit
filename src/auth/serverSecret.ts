@@ -4,10 +4,19 @@ import { dirname, join } from "path";
 
 let cachedSecret: Uint8Array | null = null;
 
+const SHIPPED_PLACEHOLDER = "change-this-to-a-random-32-char-secret-before-use";
+
+function rejectPlaceholder(secret: string, source: "environment" | "file"): void {
+  if (secret === SHIPPED_PLACEHOLDER) {
+    throw new Error(source === "environment"
+      ? "KOKPIT_SESSION_SECRET uses the shipped placeholder. Remove the override to use a generated persisted key, or replace it with a random value (openssl rand -hex 32)."
+      : "The persisted .session_secret uses the shipped placeholder. Stop Kokpit and deliberately replace that file with a random value (openssl rand -hex 32), then restart.");
+  }
+}
+
 /**
- * Returns the stable server secret shared by session signing and other
- * purpose-separated server primitives. The persisted bytes intentionally
- * retain the existing JWT behavior so already-issued sessions remain valid.
+ * Returns the stable key for TOTP challenges and purpose-separated server
+ * primitives. Opaque SQLite-backed login sessions do not depend on this key.
  */
 export function getServerSecret(): Uint8Array {
   if (cachedSecret) return cachedSecret;
@@ -17,6 +26,7 @@ export function getServerSecret(): Uint8Array {
     if (!envSecret.trim()) {
       throw new Error("KOKPIT_SESSION_SECRET must not be empty");
     }
+    rejectPlaceholder(envSecret, "environment");
     cachedSecret = new TextEncoder().encode(envSecret);
     return cachedSecret;
   }
@@ -60,6 +70,7 @@ export function getServerSecret(): Uint8Array {
   if (!secret.trim()) {
     throw new Error("Server session secret must not be empty");
   }
+  rejectPlaceholder(secret, "file");
 
   cachedSecret = new TextEncoder().encode(secret);
   return cachedSecret;

@@ -35,8 +35,8 @@ are reassessed separately and are not part of this work.
 - [x] `P0` **IMP-04 — Constrain redirects on credential-bearing integration requests**
   - Implemented for v0.30.3: audited credential transports reject cross-origin destinations and body replay, preserve bounded same-origin GET/HEAD redirects, and return safe final-URL guidance.
   - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-04)
-- [ ] `P0` **IMP-05 — Remove the shared Compose secret placeholder**
-  - Use the existing generated, persisted secret by default; preserve valid explicit overrides and document placeholder rejection/replacement.
+- [x] `P0` **IMP-05 — Remove the shared Compose secret placeholder**
+  - Implemented for v0.30.4: Compose defaults to private persisted generation; runtime rejects the shipped placeholder and documents deliberate replacement and rotation.
   - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-05)
 - [ ] `P1` **IMP-06 — Give TOTP challenges durable, atomic lifecycle state**
   - Add unique challenge identities and persist attempt/consumption state across restarts and cooperating processes; retain session-version checks.
