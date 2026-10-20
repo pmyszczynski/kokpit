@@ -6,4 +6,8 @@
     align-content: start;
     column-gap: 16px;
   }
+
+  .hermes-widget--wide .widget-list-item:nth-last-child(2):nth-child(odd) {
+    border-bottom: 0;
+  }
 }

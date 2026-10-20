@@ -49,6 +49,10 @@ describe("Hermes overview", () => {
     mock({ "health/detailed": { status: "degraded", readiness: { status: "degraded" }, api_server: { active_runs: 0 } }, "api/jobs": { jobs: [] }, "api/sessions": { data: [] } });
     expect(await fetchOverview({ ...config, url: config.url + "/" })).toMatchObject({ health: "degraded", activeApiRuns: 0, scheduledJobs: 0, failedJobs: 0, nextJob: null, sessions: [] });
   });
+  it.each([0, 3])("prefers the readiness background-queue count, including %s active API runs", async count => {
+    mock({ "health/detailed": { ...health, readiness: { status: "ok", checks: { background_queues: { active_api_runs: count } } } } });
+    expect(await fetchOverview(config)).toMatchObject({ activeApiRuns: count });
+  });
   it("falls back to liveness for older versions and distinguishes unsupported sections from empty ones", async () => {
     mock({ "health/detailed": new Response(null, { status: 404 }), "api/jobs": new Response(null, { status: 501 }), "api/sessions": new Response(null, { status: 404 }) });
     expect(await fetchOverview(config)).toEqual({ health: "online", activeApiRuns: null, scheduledJobs: null, failedJobs: null, nextJob: null, jobsState: "unsupported", sessionsState: "unsupported", sessions: [] });
@@ -66,6 +70,32 @@ describe("Hermes overview", () => {
   it.each([401, 403])("fails authentication even when only an optional section returns %s", async status => {
     mock({ "api/jobs": new Response(null, { status }) });
     await expect(fetchOverview(config)).rejects.toMatchObject({ code: "widget_upstream_auth_failed" });
+  });
+  it("marks rate-limited health requests as retryable", async () => {
+    mock({ "health/detailed": new Response(null, { status: 429 }) });
+    await expect(fetchOverview(config)).rejects.toMatchObject({ code: "widget_upstream_error", diagnostic: { upstreamStatus: 429, retryable: true } });
+  });
+  it.each([401, 503])("preserves HTTP %s classification when body cleanup rejects", async status => {
+    const body = new ReadableStream({ cancel() { throw new Error("private cleanup detail"); } });
+    mock({ "api/jobs": new Response(body, { status }) });
+    if (status === 401) await expect(fetchOverview(config)).rejects.toMatchObject({ code: "widget_upstream_auth_failed" });
+    else expect(await fetchOverview(config)).toMatchObject({ health: "ready", jobsState: "unavailable", scheduledJobs: null });
+  });
+  it("counts paused jobs only when their last result failed, including delivery failures", async () => {
+    mock({ "api/jobs": { jobs: [
+      { name: "Paused after failure", enabled: false, state: "paused", last_status: "error" },
+      { name: "Paused after success", enabled: false, state: "paused", last_status: "ok" },
+      { name: "Delivery failure", enabled: true, last_status: "delivery_failed" },
+    ] } });
+    expect(await fetchOverview(config)).toMatchObject({ scheduledJobs: 1, failedJobs: 2 });
+  });
+  it("excludes terminal jobs from upcoming work and includes blocked configuration and scheduling failures", async () => {
+    mock({ "api/jobs": { jobs: [
+      { name: "Schedule failure", enabled: true, state: "error", last_status: "ok", next_run_at: "2026-10-19T00:00:00Z" },
+      { name: "Completed", enabled: true, state: "completed", next_run_at: "2026-10-19T00:00:00Z" },
+      { name: "Awaiting repair", enabled: true, state: "scheduled", last_status: "blocked_config", next_run_at: "2026-10-21T00:00:00Z" },
+    ] } });
+    expect(await fetchOverview(config)).toMatchObject({ scheduledJobs: 1, failedJobs: 2, nextJob: { name: "Awaiting repair" } });
   });
   it("rejects redirects without sending credentials to another destination", async () => {
     const fetch = mock({ "health/detailed": new Response(null, { status: 302, headers: { Location: "http://other/private" } }) });

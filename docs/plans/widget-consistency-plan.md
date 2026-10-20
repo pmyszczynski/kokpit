@@ -6,7 +6,7 @@
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Current work:** Hermes Overview, owner-selected 2026-10-20 with Default 3x4 and Wide 6x3 plus tests, PR, completed AI reviews, override merge and release. Branch `feature/hermes-widget` starts from v0.27.1 (`71ef878`). Calendar is a separate open PR (#137). All existing non-Netdata migrations are complete; Netdata remains deferred. [Hermes slice](#hermes-overview--2026-10-20).
+**Current work:** Hermes Overview, owner-selected 2026-10-20 with Default 3x4 and Wide 6x3 with authorization for tests, PR, AI review, override merge and release. Implementation and local validation are complete in PR #140; final reviews, merge and release remain pending. Branch `feature/hermes-widget` starts from v0.27.1 (`71ef878`). Calendar is a separate open PR (#137). All existing non-Netdata migrations are complete; Netdata remains deferred. [Hermes slice](#hermes-overview--2026-10-20).
 
 **Completed Weather delivery:** [PR #133](https://github.com/pmyszczynski/kokpit/pull/133) merged as `9737831`; [v0.26.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.26.0) passed release validation and all four Docker tag checks. [Final delivery handoff](https://github.com/pmyszczynski/kokpit/pull/133#issuecomment-6206310001).
 
@@ -659,7 +659,7 @@ are unsupported; temporary/malformed optional responses are unavailable, not zer
 Authentication failures fail the fetch; cancellation propagates. Older listeners
 fall back to liveness when detailed health is unsupported.
 
-Validation: 30 focused unit checks and seven focused browser checks pass. Browser
+Focused API/component checks and seven focused browser checks pass. Browser
 coverage includes both footprints in all four themes, real End/Home scrolling,
 stable stale data and recovery, empty/unsupported sections, ordinary custom CSS,
 editor persistence and a real local HTTP upstream with bearer authentication and
@@ -667,3 +667,14 @@ metadata projection. The full required local gate and independent PR/AI-review
 results are recorded in the PR before merge.
 Dark/light previews: [Default and Wide, dark](../assets/widget-ui/hermes/hermes-dark.png)
 and [Default and Wide, light](../assets/widget-ui/hermes/hermes-light.png).
+
+
+PR #140 review corrections: rate-limited health responses are retryable, cleanup
+errors preserve the HTTP classification, and readiness background-queue counters
+are supported alongside the listener's API metrics. Terminal scheduling errors
+cannot become the next job; failed-job counts include blocked configuration and
+schedule-error states. Regressions cover those cases and paused-job semantics.
+The browser check explicitly retains the full long-title tooltip. Wide final-row
+separators are symmetric. Layout remains verified by actual browser geometry,
+while component checks verify content retention at each footprint. Handoff text
+explicitly distinguishes authorization from completed review/publication.

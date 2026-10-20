@@ -393,8 +393,9 @@ preserved. Use the listener root, rather than appending `/v1`.
 
 Default **3×4** and Wide **6×3** show readiness, active **API** runs, the next
 scheduled job and its last result, up to ten recent sessions, scheduled-job count
-and the number of jobs whose last run failed (including delivery failures and
-paused jobs). Times are UTC. Sessions are sorted by activity; a still-open session
+and the number of jobs with failed results, blocked configuration or scheduling
+errors. Delivery failures count too; pausing a job alone does not count as failure.
+Times are UTC. Sessions are sorted by activity; a still-open session
 is not assumed to be running. The active-run count covers the API listener, not
 all CLI or messaging work. Metadata is fetched every 30 seconds; prompts,
 transcript previews, raw errors and the API key are never returned with widget

@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** The owner selected Hermes Overview on 2026-10-20 with Default 3x4 and Wide 6x3, including implementation, tests, PR, completed AI review, override merge and release. RSS shipped in v0.27.0; auth hardening shipped in v0.27.1. Hermes uses shared list/feedback components and a reusable server-side API connection. Calendar is being developed separately in PR #137. Netdata remains deferred. Check the roadmap and current PR evidence before selecting new work.
+**Current task:** The owner selected Hermes Overview on 2026-10-20 with Default 3x4 and Wide 6x3, authorizing implementation, tests, PR, AI review, override merge and release. Implementation and local validation are complete in PR #140; final AI review, merge and release remain pending. RSS shipped in v0.27.0; auth hardening shipped in v0.27.1. Hermes uses shared list/feedback components and a reusable server-side API connection. Calendar is being developed separately in PR #137. Netdata remains deferred. Check the roadmap and current PR evidence before selecting new work.
 
 ---
 

@@ -6,7 +6,7 @@ import type { HermesData } from "@/integrations/hermes/api";
 const data: HermesData = { health: "ready", activeApiRuns: 2, jobsState: "available", scheduledJobs: 3, failedJobs: 1, nextJob: { name: "Daily homelab report", nextRun: "2026-10-20T12:00:00Z", lastStatus: "ok" }, sessionsState: "available", sessions: [{ id: "session", title: "Check backups", source: "telegram", lastActive: "2026-10-20T11:00:00Z" }] };
 const props = { data, loading: false, error: null, refresh: () => {} };
 describe("HermesWidget", () => {
-  it.each([[3, 4], [6, 3]])("shows health, API activity, next job and recent sessions at %s×%s", (columnSpan, rowSpan) => {
+  it.each([[3, 4], [6, 3]])("retains the same overview content at %s×%s", (columnSpan, rowSpan) => {
     render(<HermesWidget {...props} footprint={{ columnSpan, rowSpan }} />);
     expect(screen.getByText("Ready")).toBeInTheDocument(); expect(screen.getByText("2 API runs")).toBeInTheDocument();
     expect(screen.getByText("3 scheduled")).toBeInTheDocument(); expect(screen.getByText("1 failed job")).toBeInTheDocument();

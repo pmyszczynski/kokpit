@@ -7,7 +7,10 @@ const MAX_BYTES = 1024 * 1024;
 const Count = z.number().int().nonnegative().nullable().optional();
 const Health = z.object({
   status: z.string(),
-  readiness: z.object({ status: z.string() }).optional(),
+  readiness: z.object({
+    status: z.string(),
+    checks: z.object({ background_queues: z.object({ active_api_runs: Count }).optional() }).optional(),
+  }).optional(),
   api_server: z.object({ active_runs: Count }).optional(),
 });
 const Timestamp = z.union([z.string(), z.number()]).nullable().optional();
@@ -22,7 +25,7 @@ const Jobs = z.object({ jobs: z.array(z.object({
 })) });
 
 function failure(code: ConstructorParameters<typeof WidgetFetchError>[0], stage: string, status?: number) {
-  return new WidgetFetchError(code, { integration: "hermes", stage, upstreamStatus: status, retryable: code === "widget_upstream_unreachable" || (status !== undefined && status >= 500) });
+  return new WidgetFetchError(code, { integration: "hermes", stage, upstreamStatus: status, retryable: code === "widget_upstream_unreachable" || status === 429 || (status !== undefined && status >= 500) });
 }
 function cancelled(signal?: AbortSignal) { signal?.throwIfAborted(); }
 
@@ -41,12 +44,12 @@ async function request(config: HermesConfig, path: string, signal?: AbortSignal)
     throw failure(error instanceof SsrfBlockedError ? "widget_upstream_access_blocked" : "widget_upstream_unreachable", "connect");
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    await response.body?.cancel().catch(() => {});
     if (response.status === 401 || response.status === 403) throw failure("widget_upstream_auth_failed", "authenticate", response.status);
     return { status: response.status, data: null };
   }
   if (Number(response.headers.get("content-length")) > MAX_BYTES) {
-    await response.body?.cancel();
+    await response.body?.cancel().catch(() => {});
     throw failure("widget_invalid_response", "size");
   }
   const reader = response.body?.getReader();
@@ -113,7 +116,7 @@ export async function fetchOverview(rawConfig: HermesConfig, signal?: AbortSigna
     section(config, "api/sessions?limit=10&offset=0&include_children=false", Sessions, signal),
   ]);
   const allJobs = jobs.data?.jobs ?? [];
-  const scheduled = allJobs.filter(job => job.enabled !== false && job.state !== "paused" && job.state !== "completed" && !job.paused_at);
+  const scheduled = allJobs.filter(job => job.enabled !== false && !["paused", "completed", "error"].includes(job.state ?? "") && !job.paused_at);
   const next = scheduled.map(job => ({ name: text(job.name, "Unnamed job"), nextRun: date(job.next_run_at), lastStatus: job.last_status?.slice(0, 40) ?? null }))
     .filter((job): job is { name: string; nextRun: string; lastStatus: string | null } => job.nextRun !== null)
     .sort((a, b) => a.nextRun.localeCompare(b.nextRun))[0] ?? null;
@@ -123,9 +126,9 @@ export async function fetchOverview(rawConfig: HermesConfig, signal?: AbortSigna
   })).sort((a, b) => (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
   return {
     health: status === "ok" ? parsed.data.readiness?.status === "ok" ? "ready" : "online" : status === "degraded" ? "degraded" : "unknown",
-    activeApiRuns: detailed ? parsed.data.api_server?.active_runs ?? null : null,
+    activeApiRuns: detailed ? parsed.data.readiness?.checks?.background_queues?.active_api_runs ?? parsed.data.api_server?.active_runs ?? null : null,
     jobsState: jobs.state, scheduledJobs: jobs.data ? scheduled.length : null,
-    failedJobs: jobs.data ? allJobs.filter(job => ["error", "failed", "delivery_failed"].includes(job.last_status ?? "")).length : null,
+    failedJobs: jobs.data ? allJobs.filter(job => job.state === "error" || ["error", "failed", "delivery_failed", "blocked_config"].includes(job.last_status ?? "")).length : null,
     nextJob: next, sessionsState: sessions.state, sessions: recent.slice(0, 10),
   };
 }

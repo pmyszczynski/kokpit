@@ -26,6 +26,7 @@ test("Hermes fits 3×4 and 6×3 in all themes with a fixed summary and keyboard-
     await configure(request, [footprint], theme); await page.goto("/");
     const widget = tile(page); const list = widget.getByRole("list", { name: "Hermes activity" });
     await expect(list.getByRole("listitem")).toHaveCount(11);
+    await expect(list.getByText(DATA.sessions[6].title, { exact: true })).toHaveAttribute("title", DATA.sessions[6].title);
     await expect(widget.getByText("Ready", { exact: true })).toBeVisible(); await expect(widget.getByText("1 failed job")).toBeVisible();
     expect(await list.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const items = list.getByRole("listitem");
