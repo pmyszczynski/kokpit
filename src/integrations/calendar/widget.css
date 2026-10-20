@@ -1,0 +1,7 @@
+@layer widget-ui {
+  .calendar-widget__link { color: inherit; text-decoration: none; }
+  .calendar-widget__link:hover, .calendar-widget__link:focus-visible { text-decoration: underline; }
+  .calendar-widget__notice { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+  .calendar-widget__timezone { color: var(--color-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .calendar-widget__description { color: var(--color-text-muted); font-size: var(--widget-list-secondary-font-size, 0.7rem); line-height: 1.4; overflow-wrap: anywhere; }
+}

@@ -97,6 +97,8 @@ function isBlockedProtocol(protocol: string): boolean {
 
 export interface SsrfSafeFetchOptions {
   method?: string;
+  /** Read-only protocols such as CalDAV REPORT supply an XML request body. */
+  body?: string;
   signal?: AbortSignal;
   headers?: Record<string, string>;
   allowPrivateNetworks: boolean;
@@ -137,6 +139,7 @@ export async function ssrfSafeFetch(
     try {
       response = (await undiciFetch(target.toString(), {
         method: options.method ?? "GET",
+        body: options.body,
         signal: options.signal,
         headers: options.headers,
         redirect: "manual",

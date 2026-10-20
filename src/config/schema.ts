@@ -70,7 +70,7 @@ export function widgetIntegrationRequirement(type: string): string | null {
     "seerr-requests": "seerr", "seerr-stats": "seerr",
     "sonarr-calendar": "sonarr", "sonarr-queue": "sonarr",
     "tautulli-activity": "tautulli", "tdarr-stats": "tdarr",
-    "unraid-stats": "unraid",
+    "unraid-stats": "unraid", "calendar": "calendar",
     "hermes-overview": "hermes",
   };
   return known[type] ?? null;

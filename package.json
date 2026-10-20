@@ -1,6 +1,6 @@
 {
   "name": "kokpit",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "private": true,
   "engines": {
     "node": ">=22.19.0"
@@ -17,7 +17,7 @@
     "test:e2e:nonvisual": "playwright test --grep-invert visual",
     "test:e2e:update-snapshots": "playwright test --grep visual --update-snapshots=changed",
     "test:e2e:ui": "playwright test --ui",
-    "start:standalone": "sh -c 'f=$(find .next/standalone -name server.js | grep -v node_modules | head -1); [ -n \"$f\" ] || { echo \"Error: server.js not found — run npm run build first\" >&2; exit 1; }; node \"$f\"'",
+    "start:standalone": "sh -c 'f=$(find .next/standalone -name server.js | grep -v node_modules | head -1); [ -n \"$f\" ] || { echo \"Error: server.js not found \u2014 run npm run build first\" >&2; exit 1; }; node \"$f\"'",
     "test:e2e:auth": "npm run build && playwright test --config playwright.auth.config.ts",
     "type-check": "tsc --noEmit && tsc --project tsconfig.test.json",
     "reset-password": "node scripts/reset-password.js"
@@ -34,6 +34,7 @@
     "jose": "^6.1.3",
     "jsdom": "^25.0.1",
     "next": "^16.3.4",
+    "node-ical": "^0.27.3",
     "otplib": "^13.3.0",
     "proper-lockfile": "^4.1.2",
     "qrcode": "^1.5.4",
