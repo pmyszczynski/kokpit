@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Search widget, owner-selected 2026-10-20 Europe/Warsaw, with the same complete screenshot/test/PR/CI/AI-review/administrator-merge/release workflow. Branch feature/search-widget targets v0.30.0 after Calendar PR #137 / v0.29.0. One 6x2 search form, configurable HTTP(S) engine URL/query parameter, browser-only query submission, no engine polling. Introduce a shared WidgetSearchForm control using existing theme tokens and form baseline. Preserve all existing widgets; Netdata remains deferred.
+**Current task:** Add the owner-requested Compact 3x2 Search footprint alongside default Wide 6x2. Branch feature/search-compact targets v0.30.1 after Search PR #141 / v0.30.0. Reuse the existing shared form without style changes; preserve saved and implicit Wide geometry. Follow the established screenshot/test/PR/CI/AI-review/administrator-merge/release workflow. Netdata remains deferred.
 
 ---
 

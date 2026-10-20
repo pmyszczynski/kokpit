@@ -384,7 +384,7 @@ Widgets display live data from your self-hosted services and opt-in external API
 
 ### Search
 
-Add a **Search** tile for a native browser search form at **6×2**. It uses the shared input/button component and the dashboard's theme colors, with an accessible search label and keyboard submission. The default engine is DuckDuckGo. Searches go directly from the browser to the configured endpoint; there are no suggestions, engine polling or search-history storage in the widget.
+Add a **Search** tile for a native browser search form at **Wide 6×2** (default) or **Compact 3×2**. Both sizes use the same shared input/button component, caption and dashboard theme colors, with an accessible search label and keyboard submission. Select the footprint in the editor, or set `columnSpan: 3` for Compact in YAML. Existing Wide tiles retain their size. The default engine is DuckDuckGo. Searches go directly from the browser to the configured endpoint; there are no suggestions, engine polling or search-history storage in the widget.
 
 Configure the **Search URL** and **Query parameter** (default `q`). Use `https://www.google.com/search` for Google or your SearXNG instance's `/search` endpoint. Other HTTP(S) engines work when they accept a GET query parameter. Existing fixed URL parameters, including repeated values, are preserved; existing values of the query parameter are replaced by the typed query. Supply the endpoint URL, without a `{query}` template. Embedded URL credentials and fragments are rejected. A self-hosted endpoint must be reachable from your browser; Kokpit does not proxy searches.
 

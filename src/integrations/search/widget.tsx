@@ -21,6 +21,6 @@ const FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [
 ];
 registerWidget<SearchConfig, SearchData>({ id: "search", name: "Search", integrationType: null, configSchema: SearchConfigSchema,
   fetchData: fetchSearch, component: SearchWidget, refreshInterval: 0, supportsConnectionTest: false, compactHeader: true, sharedUI: true, hasLinks: true,
-  preferredSize: "wide", supportedFootprints: [{ label: "Search", columnSpan: 6, rowSpan: 2 }],
+  preferredSize: "wide", supportedFootprints: [{ label: "Wide", columnSpan: 6, rowSpan: 2 }, { label: "Compact", columnSpan: 3, rowSpan: 2 }],
   configFields: FIELDS, optionFields: FIELDS, serviceEditorPreset: { defaultName: "Search", defaultIconUrl: "/icons/search.svg" },
 });
