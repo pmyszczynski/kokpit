@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-20
 
-**Status:** IMP-18 completed upstream in PR #132 (included in v0.27.1); IMP-19 and IMP-20 remain planned. This document update changes no application or workflow code.
+**Status:** IMP-18 completed upstream in PR #132 (included in v0.27.1); IMP-20 implemented for v0.30.5; IMP-19 remains planned.
 
 **Selected audit items:** IMP-18, IMP-19 and IMP-20.
 
@@ -79,7 +79,13 @@ This remains worthwhile as operational visibility and trustworthy version identi
 
 ## IMP-20 — Run the complete type-check command in validation workflows
 
-### Verified problem and workflow scope
+Status: **implemented for v0.30.5**.
+
+PR/main CI and release validation now run the shared `npm run type-check` command, covering production code and `tsconfig.test.json` while preserving existing check names, triggers and release dependencies. Docker publication checks out the requested release tag, installs its locked dependencies and runs that same command before publishing, including UI-release and manual recovery entry points.
+
+The publication preflight is a complete type check, not a substitute for the release test gate. An older tag with invalid test types needs a corrected reviewed release. The edited workflow YAML has been parsed successfully; integrated validation and CI results are recorded separately.
+
+### Original problem and workflow scope
 
 [`npm run type-check`](../../package.json#L22) runs both `tsc --noEmit` and `tsc --project tsconfig.test.json`. The [base TypeScript config](../../tsconfig.json#L41) excludes `src/__tests__`, while the [test config](../../tsconfig.test.json#L3) includes it. Vitest executes transformed tests but does not substitute for TypeScript checking them.
 
@@ -90,7 +96,7 @@ This remains worthwhile as operational visibility and trustworthy version identi
 | [Docker publication](../../.github/workflows/publish.yml#L73) | Builds the runner and verifies pushed image tags. UI releases/manual recovery can bypass the `release.yml` test job; Next's build check still excludes unit-test files. | Add exact-tag Node/npm dependency setup and `npm run type-check` before image publication, so every supported publish trigger gets the complete type check. This is a type-check preflight, not a claim that direct publication ran the full release gate. |
 | [Snapshot generation](../../.github/workflows/update-playwright-snapshots.yml#L29) | Installs dependencies and generates/upload visual baselines. It is an artifact-generation workflow, not a full validation gate. | Retain that purpose; do not claim it has CI/release parity or add the whole gate merely to generate snapshots. Existing CI remains required when baselines are committed. |
 
-The finding is confirmed and inexpensive to fix. No actual test type failure is claimed here; the issue is a missing automated check that local project policy already requires.
+The original finding was a missing automated check that local project policy already required. The deliberate test-only type-error exercise confirmed that the complete command detects errors excluded by the base command. The clean tree passes both compiler configurations.
 
 ### Ordered implementation tasks
 

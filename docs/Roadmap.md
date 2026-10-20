@@ -68,8 +68,8 @@ are reassessed separately and are not part of this work.
 - [ ] `P1` **IMP-19 — Add readiness diagnostics and reliable runtime version metadata**
   - Keep liveness backward-compatible; expose separate safe readiness and report the deployed version under direct standalone startup.
   - [Operations plan](plans/2026-10-20-operations-validation-plan.md#imp-19)
-- [ ] `P1` **IMP-20 — Type-check production and test code in CI and releases**
-  - Use the complete `npm run type-check` gate wherever validation currently invokes only `tsc --noEmit`.
+- [x] `P1` **IMP-20 — Type-check production and test code in CI and releases**
+  - Implemented for v0.30.5: PR, release and exact-tag publication workflows type-check production and tests.
   - [Operations plan](plans/2026-10-20-operations-validation-plan.md#imp-20)
 
 ---

@@ -35,6 +35,21 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      # Check the exact release tag for every supported publication entry point,
+      # including manual recovery and releases created through the GitHub UI.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check production and tests
+        run: npm run type-check
 
       - name: Resolve release info
         id: release_info
