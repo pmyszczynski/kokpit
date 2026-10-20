@@ -155,8 +155,8 @@ are reassessed separately and are not part of this work.
   - [x] Weather: Open-Meteo (no API key), current conditions / five-day forecast, per-tile coordinates and metric/imperial units, shared UI
   - [ ] Additional weather provider: OpenWeatherMap (API key)
   - [x] RSS / Atom feed reader: per-tile feed URL and article limit, shared scrolling headlines/dates/links, Detailed summaries
+  - [x] Calendar widget: read-only CalDAV collections and public Google Calendar via API key, shared Agenda 3×4 / Detailed 6×4, per-tile time zone and event window
   - [x] Hermes AI agent: read-only health, API-run count, scheduled jobs and recent sessions; Default 3x4 / Wide 6x3
-  - Calendar widget (CalDAV, Google Calendar via API key)
   - Search bar widget (configurable search engine)
 
 - [x] `P1` **Docker widget** *(re-scoped from "Docker auto-discovery")*

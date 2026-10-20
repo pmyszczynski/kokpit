@@ -1,13 +1,26 @@
 import type { NextConfig } from "next";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 
 // Turbopack omits jsdom's form-data dependency tree from standalone output.
 // Follow installed manifests so dependency updates do not leave a stale list.
 function runtimePackageFiles(name: string): string[] {
   const packages = new Set<string>();
   function visit(packageName: string, resolveFrom: NodeRequire) {
-    const manifest = resolveFrom.resolve(`${packageName}/package.json`);
+    let manifest: string;
+    try { manifest = resolveFrom.resolve(`${packageName}/package.json`); }
+    catch {
+      // Some packages export their entry point but keep package.json private.
+      let directory = path.dirname(resolveFrom.resolve(packageName));
+      for (;;) {
+        const candidate = path.join(directory, "package.json");
+        if (existsSync(candidate) && JSON.parse(readFileSync(candidate, "utf8")).name === packageName) { manifest = candidate; break; }
+        const parent = path.dirname(directory);
+        if (parent === directory) throw new Error(`Cannot locate runtime package ${packageName}`);
+        directory = parent;
+      }
+    }
     if (packages.has(manifest)) return;
     packages.add(manifest);
     const { dependencies = {} } = resolveFrom(manifest) as {
@@ -26,7 +39,8 @@ function runtimePackageFiles(name: string): string[] {
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingIncludes: {
-    "/api/*": runtimePackageFiles("form-data"),
+    // Keep aligned with the static Worker path in calendar/server.ts.
+    "/api/*": [...runtimePackageFiles("form-data"), ...runtimePackageFiles("node-ical"), "./src/integrations/calendar/parser.cjs"],
     // Operational CLI entry points are not imported by app routes. Keep the
     // emergency reset command available in standalone and Docker deployments.
     "/api/auth/login": ["./scripts/reset-password.js", "./node_modules/bcryptjs/**/*"],

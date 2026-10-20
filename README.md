@@ -382,6 +382,44 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
 
+### Calendar
+
+Add a **Calendar** tile for a read-only upcoming agenda. Both **Agenda (3×4)** and **Detailed (6×4)** keep the same configured events, ordered by start time, with keyboard scrolling. Detailed adds location and description. Date badges use the shared informational color; times use the tile's time zone. All-day dates retain their original day and show the inclusive last day of a multi-day event. Tentative and in-progress events are explicitly labeled.
+
+The reusable **Calendar** service connection accepts either:
+
+- A **CalDAV collection URL**, such as `https://cloud.example.com/remote.php/dav/calendars/me/personal/`. Use the calendar collection itself, not a discovery/account URL or an ICS download link. Enter both **CalDAV username** and **CalDAV password**, or leave both empty for an unauthenticated collection. App passwords are recommended where supported. LAN collections are supported. Only read-only `REPORT` queries are sent; there is no event creation or editing.
+- A **public Google calendar ID**, usually an email address such as `example@group.calendar.google.com`, plus a **Google API key** with Google Calendar API enabled. Find the ID under Google Calendar **Settings → Integrate calendar**. API-key access requires the calendar to be public; private calendars and OAuth login are outside this widget's scope. Leave CalDAV credentials empty. Requests use Google's fixed HTTPS endpoint; the key is sent in a header.
+
+Credentials remain server-side and are bound to the calendar destination. Calendar requests do not follow redirects: use the collection's final URL so credentials cannot be forwarded to another destination. HTTP(S) collection URLs with embedded credentials or fragments are rejected. Prefer HTTPS for calendars carrying credentials.
+
+Each tile configures **Days ahead** (1–30, default 7), **Event limit** (1–50, default 10), and an IANA **Time zone** (default `UTC`, for example `Europe/Warsaw`). The window starts at the last fetch and extends by that many 24-hour periods; ongoing events are included. Floating CalDAV times use the calendar's `X-WR-TIMEZONE`, including a custom zone backed by an embedded definition, or the tile's time zone when absent. RRULE meetings, explicit RDATE dates, excluded dates, moved instances and cancellations are handled server-side. RDATE periods (a start plus duration/end) and recurrence ranges (`THISANDFUTURE`) are currently unsupported and produce an error rather than an incomplete or outdated agenda. All-day end dates are exclusive in the source and rendered inclusively.
+
+```yaml
+services:
+  - id: "10000000-0000-4000-8000-000000000001"
+    name: Calendar
+    icon: /icons/calendar.svg
+    integration:
+      type: calendar
+      config:
+        calendar: https://cloud.example.com/remote.php/dav/calendars/me/personal/
+        username: me
+        password: your-app-password
+service_tiles:
+  - id: "20000000-0000-4000-8000-000000000001"
+    service_id: "10000000-0000-4000-8000-000000000001"
+    footprint: { columnSpan: 6, rowSpan: 4 }
+    widget:
+      type: calendar
+      config:
+        days_ahead: 7
+        max_items: 10
+        timezone: Europe/Warsaw
+```
+
+Refreshes every five minutes, with a fifteen-second fetch deadline for slow or paginated providers. A valid empty calendar shows “No upcoming events”; refresh errors retain the last event list and scroll position with the shared warning. Each response is bounded to 2 MiB of UTF-8 data; CalDAV XML rejects DTDs and excessive nesting. Synchronous iCalendar parsing/expansion runs in a worker with a two-second budget, a memory cap, a 5,000-instance cap, and at most four active parsers. Unreadable or excessive responses show an error instead of a misleading partial agenda. Calendar text is rendered as text, and only HTTP(S) event links are clickable.
+
 ### Hermes AI agent
 
 Add a **Hermes Overview** tile and enter the **API server URL** (for example,

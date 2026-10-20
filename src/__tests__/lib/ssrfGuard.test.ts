@@ -187,6 +187,15 @@ describe("ssrfSafeFetch", () => {
     expect(undiciFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("sends a CalDAV REPORT body to a pinned destination without forwarding credentials", async () => {
+    dnsLookupMock.mockResolvedValue(resolvesTo("93.184.216.34"));
+    undiciFetchMock.mockResolvedValueOnce(response(307, { location: "https://another.example.com/" }));
+    const body = '<c:calendar-query xmlns:c="urn:ietf:params:xml:ns:caldav"/>';
+    await ssrfSafeFetch("https://safe.example.com/calendar/", { method: "REPORT", body, allowPrivateNetworks: true, followRedirects: false, headers: { Authorization: "Basic test" } });
+    expect(undiciFetchMock).toHaveBeenCalledExactlyOnceWith("https://safe.example.com/calendar/", expect.objectContaining({ method: "REPORT", body, redirect: "manual", headers: { Authorization: "Basic test" } }));
+    expect(dnsLookupMock).toHaveBeenCalledTimes(1);
+  });
+
   it("follows a redirect chain across allowed hosts and returns the final response", async () => {
     dnsLookupMock.mockResolvedValue(resolvesTo("93.184.216.34"));
     undiciFetchMock
