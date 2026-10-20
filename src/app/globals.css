@@ -159,8 +159,9 @@ body {
 /* === FORM ELEMENT BASELINE ===
    Gives every raw <input>/<select>/<textarea>/<button> a themed look even
    before any component-specific class is applied, so forms never fall back
-   to unstyled browser chrome. */
-input:not([type="checkbox"]):not([type="radio"]),
+   to unstyled browser chrome. Shared widget controls own their styles in the
+   widget-ui layer so the user-custom layer can override them. */
+input:not([type="checkbox"]):not([type="radio"]):not(:where(.widget-ui input)),
 select,
 textarea {
   appearance: none;
@@ -195,13 +196,13 @@ select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23333333' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-input::placeholder,
+input:not(:where(.widget-ui input))::placeholder,
 textarea::placeholder {
   color: var(--color-text-muted);
   opacity: 0.8;
 }
 
-input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+input:not([type="checkbox"]):not([type="radio"]):not(:where(.widget-ui input)):focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: none;
@@ -209,13 +210,13 @@ textarea:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
-input[aria-invalid="true"],
+input[aria-invalid="true"]:not(:where(.widget-ui input)),
 select[aria-invalid="true"],
 textarea[aria-invalid="true"] {
   border-color: var(--color-error);
 }
 
-input:disabled,
+input:disabled:not(:where(.widget-ui input)),
 select:disabled,
 textarea:disabled,
 button:disabled {
@@ -228,7 +229,7 @@ input[type="radio"] {
   accent-color: var(--color-accent);
 }
 
-button {
+button:not(:where(.widget-ui button)) {
   font: inherit;
   cursor: pointer;
 }

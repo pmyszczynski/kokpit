@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Calendar is selected in PR #137 with the full implementation, screenshot, test, CI/AI review, administrator merge and release workflow; it now targets v0.29.0 after Hermes Overview merged in PR #140 with package v0.28.0. Calendar was selected on 2026-10-20 Europe/Warsaw (2026-10-19 UTC). Preserve Hermes and the newly merged roadmap/improvement plans while finishing Calendar. Check PR #140 for Hermes publication evidence. All existing non-Netdata widgets use shared UI; Netdata remains deferred. Other roadmap items require owner selection.
+**Current task:** Search widget, owner-selected 2026-10-20 Europe/Warsaw, with the same complete screenshot/test/PR/CI/AI-review/administrator-merge/release workflow. Branch feature/search-widget targets v0.30.0 after Calendar PR #137 / v0.29.0. One 6x2 search form, configurable HTTP(S) engine URL/query parameter, browser-only query submission, no engine polling. Introduce a shared WidgetSearchForm control using existing theme tokens and form baseline. Preserve all existing widgets; Netdata remains deferred.
 
 ---
 

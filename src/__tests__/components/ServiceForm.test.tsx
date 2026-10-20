@@ -21,6 +21,7 @@ vi.mock("next/navigation", () => ({
 const allPresetTiles = getWidgetsWithServiceEditorPreset().map((w) => ({
   id: w.id,
   emptyConfigValid: w.configSchema.safeParse({}).success,
+  supportsConnectionTest: w.supportsConnectionTest !== false,
 }));
 
 beforeEach(() => {
@@ -696,7 +697,7 @@ describe("ServiceForm – optional widget config", () => {
 
   it.each(allPresetTiles)(
     "$id: status line and test button reflect the empty-config state",
-    ({ id, emptyConfigValid }) => {
+    ({ id, emptyConfigValid, supportsConnectionTest }) => {
       render(
         <ServiceForm service={null} existingGroups={[]} onSave={noop} onClose={noop} />
       );
@@ -705,9 +706,14 @@ describe("ServiceForm – optional widget config", () => {
       });
       if (emptyConfigValid) {
         expect(screen.getByText(/widget configured/i)).toBeInTheDocument();
-        expect(screen.getByText("Test connection")).toBeEnabled();
       } else {
         expect(screen.getByText(/widget not configured/i)).toBeInTheDocument();
+      }
+      if (!supportsConnectionTest) {
+        expect(screen.queryByText("Test connection")).toBeNull();
+      } else if (emptyConfigValid) {
+        expect(screen.getByText("Test connection")).toBeEnabled();
+      } else {
         expect(screen.getByText("Test connection")).toBeDisabled();
       }
     }

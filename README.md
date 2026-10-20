@@ -382,6 +382,34 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
 
+### Search
+
+Add a **Search** tile for a native browser search form at **6×2**. It uses the shared input/button component and the dashboard's theme colors, with an accessible search label and keyboard submission. The default engine is DuckDuckGo. Searches go directly from the browser to the configured endpoint; there are no suggestions, engine polling or search-history storage in the widget.
+
+Configure the **Search URL** and **Query parameter** (default `q`). Use `https://www.google.com/search` for Google or your SearXNG instance's `/search` endpoint. Other HTTP(S) engines work when they accept a GET query parameter. Existing fixed URL parameters, including repeated values, are preserved; existing values of the query parameter are replaced by the typed query. Supply the endpoint URL, without a `{query}` template. Embedded URL credentials and fragments are rejected. A self-hosted endpoint must be reachable from your browser; Kokpit does not proxy searches.
+
+**Engine name** is an optional display label. Otherwise the widget shows DuckDuckGo, Google or the endpoint host. **Open results in a new tab** defaults to enabled; results tabs have no opener or referrer. Search text is trimmed, blank queries are blocked, and the browser encodes special characters. Each tile loads its saved engine options once; automatic widget refresh is disabled by default.
+
+```yaml
+services:
+  - id: "10000000-0000-4000-8000-000000000001"
+    name: Search
+    icon: /icons/search.svg
+service_tiles:
+  - id: "20000000-0000-4000-8000-000000000001"
+    service_id: "10000000-0000-4000-8000-000000000001"
+    footprint: { columnSpan: 6, rowSpan: 2 }
+    widget:
+      type: search
+      config:
+        search_url: https://search.example.com/search?language=en
+        query_parameter: q
+        engine_name: SearXNG
+        new_tab: true
+```
+
+No service integration or API key is required. Saving validates the endpoint format; the browser contacts it when you submit a query. Search has no connection-test action. Engine settings are public tile options, so do not put tokens or other secrets in the search URL. The tile can also have an independent service launch URL; only its header becomes a link, leaving the search controls accessible.
+
 ### Calendar
 
 Add a **Calendar** tile for a read-only upcoming agenda. Both **Agenda (3×4)** and **Detailed (6×4)** keep the same configured events, ordered by start time, with keyboard scrolling. Detailed adds location and description. Date badges use the shared informational color; times use the tile's time zone. All-day dates retain their original day and show the inclusive last day of a multi-day event. Tentative and in-progress events are explicitly labeled.
