@@ -30,5 +30,6 @@ import "./actualbudget/accountsWidget";
 import "./actualbudget/schedulesWidget";
 import "./weather/widget";
 import "./rss/widget";
+import "./hermes/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

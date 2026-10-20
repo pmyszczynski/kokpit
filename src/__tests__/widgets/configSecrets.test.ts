@@ -63,6 +63,7 @@ describe("widget credential scope registry invariant", () => {
       "actualbudget-categories": ["url", "budget_sync_id"],
       "actualbudget-schedules": ["url", "budget_sync_id"],
       "actualbudget-summary": ["url", "budget_sync_id"],
+      "hermes-overview": ["url"],
       "immich-stats": ["url"],
       "netdata-cpu": ["url"],
       "netdata-disk-io": ["url"],

@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Phase 2 P0s are complete. Open-Meteo Weather shipped in PR #133 / v0.26.0. RSS / Atom is implemented in PR #134, targeting v0.27.0; see its PR handoff for validation, review and publication evidence. All existing non-Netdata widgets use the shared library; Netdata remains deferred at the owner's request. The next unselected `P1` widget features are calendar and search; OpenWeatherMap is a separate future weather provider. Check the roadmap and current PR handoff before selecting new work.
+**Current task:** The owner selected Hermes Overview on 2026-10-20 with Default 3x4 and Wide 6x3, authorizing implementation, tests, PR, AI review, override merge and release. Implementation and local validation are complete in PR #140; final AI review, merge and release remain pending. RSS shipped in v0.27.0; auth hardening shipped in v0.27.1. Hermes uses shared list/feedback components and a reusable server-side API connection. Calendar is being developed separately in PR #137. Netdata remains deferred. Check the roadmap and current PR evidence before selecting new work.
 
 ---
 

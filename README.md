@@ -382,6 +382,60 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
 
+### Hermes AI agent
+
+Add a **Hermes Overview** tile and enter the **API server URL** (for example,
+`http://hermes:8642`) and **API server key** (`API_SERVER_KEY`). Enable Hermes's
+API listener with `API_SERVER_ENABLED=true` and start its gateway. Kokpit must be
+able to reach that listener from its own container; `localhost` refers to the
+Kokpit container. A reverse-proxy base path or Hermes `/p/<profile>` prefix is
+preserved. Use the listener root, rather than appending `/v1`.
+
+Default **3×4** and Wide **6×3** show readiness, active **API** runs, the next
+scheduled job and its last result, up to ten recent sessions, scheduled-job count
+and the number of jobs with failed results, blocked configuration or scheduling
+errors. Delivery failures count too; pausing a job alone does not count as failure.
+Times are UTC. Sessions are sorted by activity; a still-open session
+is not assumed to be running. The active-run count covers the API listener, not
+all CLI or messaging work. Metadata is fetched every 30 seconds; prompts,
+transcript previews, raw errors and the API key are never returned with widget
+data. Long titles retain their full normalized text in tooltips, and the activity
+list supports keyboard scrolling while the summary remains fixed. Wide arranges
+activity in two columns within the same scroll region.
+
+Set the service **launch URL** to your Hermes web dashboard for the tile's open
+link; it is independent of the API connection URL. The first version is read-only.
+Upcoming work includes enabled, scheduled jobs; running, paused and terminal jobs
+are excluded.
+Missing job/session endpoints are labeled unsupported; transient section errors
+are labeled unavailable. Older listeners without detailed health fall back to
+Online, with an unknown active-run count. Online establishes liveness, while
+Ready requires a successful readiness report. Failed refreshes retain the last
+complete snapshot with a stale notice.
+
+```yaml
+services:
+  - id: 10000000-0000-4000-8000-000000000010
+    name: Hermes
+    launch_url: https://hermes.example.com
+    icon: /icons/hermes.svg
+    integration:
+      type: hermes
+      config:
+        url: http://hermes:8642
+        api_key: your-api-server-key
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000010
+    service_id: 10000000-0000-4000-8000-000000000010
+    footprint: { columnSpan: 3, rowSpan: 4 }
+    widget:
+      type: hermes-overview
+```
+
+The credential stays in server-side settings and is scoped to the saved API URL.
+Requests use validated LAN/VPN destinations and never follow redirects with the
+bearer token. See [Hermes API setup](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
+
 ### RSS / Atom
 
 Add an **RSS / Atom** tile from the editor and enter a public **Feed URL**. **Article limit** accepts 1–50 (default 10). Each tile keeps its own URL and limit; no service integration or API key is required. RSS 2.0, RSS 1.0/RDF and Atom feeds are supported.
