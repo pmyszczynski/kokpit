@@ -101,7 +101,7 @@ healthy. The original evidence and accepted design follow.
 
 Before v0.30.4, both services in [`docker-compose.yml`](../../docker-compose.yml) forced the public value `change-this-to-a-random-32-char-secret-before-use`. [`getServerSecret`](../../src/auth/serverSecret.ts) already supported an omitted override: it generates 32 random bytes, persists a hexadecimal secret beside the SQLite database with mode `0600`, handles a competing creator with an exclusive write, and reuses the persisted value. Accepted explicit nonempty environment overrides retain precedence.
 
-The [README quick-start example](../../README.md) correctly makes the override optional, but its build-from-source Compose instructions still tell users to replace the placeholder. These should agree.
+Before v0.30.4, the [README quick-start example](../../README.md) made the override optional, while its build-from-source Compose instructions still told users to replace the placeholder. Both deployment paths now document the generated persisted secret as the default.
 
 Do not describe this as a shared signing key for normal login sessions. [`sessionStore.ts`](../../src/auth/sessionStore.ts) uses opaque tokens backed by SQLite. The server secret currently signs [five-minute TOTP challenges](../../src/auth/jwt.ts), [widget secret/config references](../../src/widgets/secretReference.server.ts) and [configuration revision HMACs](../../src/config/revision.ts). A known value weakens these primitives; knowing it alone does not create a valid opaque session or supply a user's TOTP code.
 
