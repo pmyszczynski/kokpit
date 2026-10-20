@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Search widget, owner-selected 2026-10-20 Europe/Warsaw, with the same complete screenshot/test/PR/CI/AI-review/administrator-merge/release workflow. Branch feature/search-widget targets v0.30.0 after Calendar PR #137 / v0.29.0. One 6x2 search form, configurable HTTP(S) engine URL/query parameter, browser-only query submission, no engine polling. Introduce a shared WidgetSearchForm control using existing theme tokens and form baseline. Preserve all existing widgets; Netdata remains deferred.
+**Current task:** Owner-selected roadmap improvement loop (2026-10-20): implement IMP-01 for v0.30.1, then assess the next unfinished improvement. For each item, complete the local gate, PR, CI and AI review, administrator merge, and release including Docker verification. Continue autonomously until all selected improvements are done or an item requires a human decision. The selected improvement section and linked implementation index in docs/Roadmap.md track progress. Preserve existing widgets; Netdata UI migration remains deferred.
 
 ---
 

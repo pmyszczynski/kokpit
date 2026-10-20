@@ -1,6 +1,6 @@
 # Authentication hardening implementation plan
 
-Date: 2026-10-20. Status: **mixed — IMP-02 and IMP-03 completed upstream in PR #132; IMP-01, IMP-06, and IMP-07 planned**. This documentation change implements no runtime behavior.
+Date: 2026-10-20. Status: **mixed — IMP-01 implemented for v0.30.1; IMP-02 and IMP-03 completed upstream in PR #132; IMP-06 and IMP-07 planned**.
 
 This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-07, rechecked against main `71ef878` (v0.27.1). The IDs retain the numbering of the original 20-item review. See the [implementation index](2026-10-20-improvement-plan.md) for sequencing across plans and the full required pre-PR validation gate. Focused tests below supplement that gate.
 
@@ -8,11 +8,20 @@ This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-
 
 ## IMP-01 — Make unknown-user password checks perform real bcrypt work
 
-Status: **planned**.
+Status: **implemented for v0.30.1**.
+
+The password module now owns a complete, precomputed cost-10 dummy hash beside
+the password work-factor policy. Login uses it for unknown usernames and still
+rejects every unknown user even if the dummy password matches. Deterministic
+regressions verify a real successful bcrypt comparison, matching work factors,
+the actual route's real verifier calls, identical credential failures, and no
+session, cookie, or challenge response for the matching dummy password. Existing
+rate limits and credential-generation race checks are preserved. The design and
+acceptance criteria below record the original problem and implementation scope.
 
 ### Evidence and scope
 
-[The login route](../../src/app/api/auth/login/route.ts#L12) intends to perform an expensive dummy comparison for unknown usernames. Its hard-coded hash has 58 characters; a complete bcrypt hash has 60. [The password helper](../../src/auth/passwords.ts#L9) passes it straight to `bcrypt.compare`.
+Before this fix, [the login route](../../src/app/api/auth/login/route.ts) used a malformed 58-character dummy hash; a complete bcrypt hash has 60. [The password helper](../../src/auth/passwords.ts) passed it straight to `bcrypt.compare`.
 
 A local reproduction against installed bcryptjs 3.0.3 returned `false` in approximately 0 ms for that string, versus approximately 52 ms for an ordinary valid cost-10 hash. These are illustrative local measurements, not performance guarantees. This confirms a username-enumeration timing signal; it does not itself reveal a password or grant a session. It matters most for internet-exposed deployments and is cheap to fix.
 

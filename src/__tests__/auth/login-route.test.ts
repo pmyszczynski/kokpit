@@ -81,6 +81,44 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(401);
   });
 
+  it("verifies unknown users with the real dummy hash and the same failure response", async () => {
+    const auth = await import("@/auth");
+    const bcrypt = (await import("bcryptjs")).default;
+    const user = await auth.createUser("known-user", await auth.hashPassword("correct-password"));
+    const compare = vi.spyOn(bcrypt, "compare");
+    try {
+      const { POST } = await import("../../app/api/auth/login/route");
+      const unknown = await POST(trustedRequest("http://localhost/api/auth/login", {
+        method: "POST", body: JSON.stringify({ username: "missing-user", password: "wrong-password" }),
+      }));
+      expect(compare).toHaveBeenLastCalledWith("wrong-password", auth.DUMMY_PASSWORD_HASH);
+      const wrongPassword = await POST(trustedRequest("http://localhost/api/auth/login", {
+        method: "POST", body: JSON.stringify({ username: user.username, password: "wrong-password" }),
+      }));
+      expect(compare).toHaveBeenLastCalledWith("wrong-password", user.passwordHash);
+      expect(unknown.status).toBe(401);
+      expect(wrongPassword.status).toBe(unknown.status);
+      expect(await wrongPassword.json()).toEqual(await unknown.json());
+    } finally { compare.mockRestore(); }
+  });
+
+  it("cannot authenticate an unknown user even when the dummy password matches", async () => {
+    const auth = await import("@/auth");
+    const { cookies } = await import("next/headers");
+    const set = vi.fn();
+    vi.mocked(cookies).mockResolvedValue({ set, delete: vi.fn(), get: vi.fn() } as unknown as Awaited<ReturnType<typeof cookies>>);
+    const { POST } = await import("../../app/api/auth/login/route");
+    const response = await POST(trustedRequest("http://localhost/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username: "missing-dummy-user", password: "kokpit-dummy-password-not-an-account" }),
+    }));
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Invalid credentials" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(set).not.toHaveBeenCalled();
+    expect(auth.getDb().prepare("SELECT count(*) AS count FROM sessions").get()).toEqual({ count: 0 });
+  });
+
   it("returns 400 on missing fields", async () => {
     const { POST } = await import("../../app/api/auth/login/route");
     const res = await POST(

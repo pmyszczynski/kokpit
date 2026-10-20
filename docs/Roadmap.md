@@ -15,15 +15,15 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 The owner selected 18 items from the project review. `IMP-NN` retains the
 original review number. IMP-02, IMP-03 and IMP-18 were already implemented in
-PR #132 / v0.27.1; the other 15 items remain planned. The
+PR #132 / v0.27.1; IMP-01 is implemented for v0.30.1 and the other 14 items remain planned. The
 [implementation index](plans/2026-10-20-improvement-plan.md) contains the complete
 selection, suggested delivery order, compatibility decisions, and validation gate.
 IMP-15 and IMP-16 are tracked in the existing Phase 3 status/onboarding entries
 below to avoid duplicate completion state. Unselected items 9 and 12
 are reassessed separately and are not part of this work.
 
-- [ ] `P0` **IMP-01 — Correct the dummy bcrypt hash used for unknown usernames**
-  - Run a valid cost-matched comparison for unknown users; add deterministic regression coverage for the current timing shortcut.
+- [x] `P0` **IMP-01 — Correct the dummy bcrypt hash used for unknown usernames**
+  - Implemented for v0.30.1: valid cost-matched dummy verification, deterministic real-bcrypt regression coverage, and rejection even when the dummy password matches.
   - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-01)
 - [x] `P0` **IMP-02 — Default omitted authentication flags to enabled**
   - Implemented in PR #132 / v0.27.1: missing, empty and session-policy-only auth mappings remain protected; explicit disablement is preserved.
