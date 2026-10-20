@@ -129,6 +129,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       ? definition.supportedFootprints?.find(candidate => candidate.columnSpan === 3 && candidate.rowSpan === 2)
       : undefined;
     const legacySummaryNeedsFootprint = legacySummaryDefault && !isTileFootprint(savedFootprint);
+    const legacySearchNeedsFootprint = definition?.id === "search" && !isTileFootprint(savedFootprint);
     // Unraid previously supported only 6x4, regardless of any legacy size hint.
     const historicalUnraidFootprint = definition?.id === "unraid-stats"
       ? definition.supportedFootprints?.find(candidate => candidate.columnSpan === 6 && candidate.rowSpan === 4)
@@ -140,7 +141,9 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       : definition?.preferredSize;
     const effectiveWidgetSize = definition
       ? resolveServiceSize(
-          legacySize ? { size: legacySize } : {},
+          // Search previously supported only Wide, regardless of legacy hints.
+          // Compact must be selected through an explicit saved footprint.
+          legacySize && definition.id !== "search" ? { size: legacySize } : {},
           preferredSize,
           definition.minSize
         )
@@ -169,7 +172,7 @@ export function migrateFixedGridConfig(raw: Record<string, unknown>): KokpitConf
       const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallbackValue;
       return Math.max(1, numeric);
     };
-    const normalized = isRecord(savedFootprint) && !legacyUnraidNeedsFootprint && !legacySystemNeedsFootprint && !legacyPlexNeedsFootprint && !legacySummaryNeedsFootprint ? {
+    const normalized = isRecord(savedFootprint) && !legacyUnraidNeedsFootprint && !legacySystemNeedsFootprint && !legacyPlexNeedsFootprint && !legacySummaryNeedsFootprint && !legacySearchNeedsFootprint ? {
       columnSpan: normalizeSpan(savedFootprint.columnSpan, fallback.columnSpan),
       rowSpan: normalizeSpan(savedFootprint.rowSpan, fallback.rowSpan),
     } : fallback;
