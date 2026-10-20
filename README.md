@@ -405,6 +405,8 @@ activity in two columns within the same scroll region.
 
 Set the service **launch URL** to your Hermes web dashboard for the tile's open
 link; it is independent of the API connection URL. The first version is read-only.
+Upcoming work includes enabled, scheduled jobs; running, paused and terminal jobs
+are excluded.
 Missing job/session endpoints are labeled unsupported; transient section errors
 are labeled unavailable. Older listeners without detailed health fall back to
 Online, with an unknown active-run count. Online establishes liveness, while

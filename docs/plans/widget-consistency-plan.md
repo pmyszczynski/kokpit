@@ -659,7 +659,7 @@ are unsupported; temporary/malformed optional responses are unavailable, not zer
 Authentication failures fail the fetch; cancellation propagates. Older listeners
 fall back to liveness when detailed health is unsupported.
 
-Focused API/component checks and seven focused browser checks pass. Browser
+42 focused API/component checks and seven focused browser checks pass. Browser
 coverage includes both footprints in all four themes, real End/Home scrolling,
 stable stale data and recovery, empty/unsupported sections, ordinary custom CSS,
 editor persistence and a real local HTTP upstream with bearer authentication and
@@ -671,10 +671,12 @@ and [Default and Wide, light](../assets/widget-ui/hermes/hermes-light.png).
 
 PR #140 review corrections: rate-limited health responses are retryable, cleanup
 errors preserve the HTTP classification, and readiness background-queue counters
-are supported alongside the listener's API metrics. Terminal scheduling errors
+are supported alongside the listener's API metrics. Running jobs and terminal scheduling errors
 cannot become the next job; failed-job counts include blocked configuration and
 schedule-error states. Regressions cover those cases and paused-job semantics.
 The browser check explicitly retains the full long-title tooltip. Wide final-row
 separators are symmetric. Layout remains verified by actual browser geometry,
 while component checks verify content retention at each footprint. Handoff text
-explicitly distinguishes authorization from completed review/publication.
+explicitly distinguishes authorization from completed review/publication. Optional
+health counters and diagnostic objects tolerate null or malformed values without
+hiding valid readiness; regressions preserve unknown counts instead of zero.

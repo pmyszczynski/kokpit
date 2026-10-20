@@ -53,6 +53,10 @@ describe("Hermes overview", () => {
     mock({ "health/detailed": { ...health, readiness: { status: "ok", checks: { background_queues: { active_api_runs: count } } } } });
     expect(await fetchOverview(config)).toMatchObject({ activeApiRuns: count });
   });
+  it.each([null, { background_queues: null }, { background_queues: { active_api_runs: 1.5 } }, { background_queues: { active_api_runs: "2" } }, { background_queues: { active_api_runs: -1 } }, { background_queues: [] }])("retains readiness when optional diagnostic counts are malformed: %j", async checks => {
+    mock({ "health/detailed": { status: "ok", readiness: { status: "ok", checks }, api_server: null } });
+    expect(await fetchOverview(config)).toMatchObject({ health: "ready", activeApiRuns: null });
+  });
   it("falls back to liveness for older versions and distinguishes unsupported sections from empty ones", async () => {
     mock({ "health/detailed": new Response(null, { status: 404 }), "api/jobs": new Response(null, { status: 501 }), "api/sessions": new Response(null, { status: 404 }) });
     expect(await fetchOverview(config)).toEqual({ health: "online", activeApiRuns: null, scheduledJobs: null, failedJobs: null, nextJob: null, jobsState: "unsupported", sessionsState: "unsupported", sessions: [] });
@@ -89,10 +93,11 @@ describe("Hermes overview", () => {
     ] } });
     expect(await fetchOverview(config)).toMatchObject({ scheduledJobs: 1, failedJobs: 2 });
   });
-  it("excludes terminal jobs from upcoming work and includes blocked configuration and scheduling failures", async () => {
+  it("excludes terminal and running jobs from upcoming work and includes configuration and scheduling failures", async () => {
     mock({ "api/jobs": { jobs: [
       { name: "Schedule failure", enabled: true, state: "error", last_status: "ok", next_run_at: "2026-10-19T00:00:00Z" },
       { name: "Completed", enabled: true, state: "completed", next_run_at: "2026-10-19T00:00:00Z" },
+      { name: "Running", enabled: true, state: "running", next_run_at: "2026-10-18T00:00:00Z", last_status: "ok" },
       { name: "Awaiting repair", enabled: true, state: "scheduled", last_status: "blocked_config", next_run_at: "2026-10-21T00:00:00Z" },
     ] } });
     expect(await fetchOverview(config)).toMatchObject({ scheduledJobs: 1, failedJobs: 2, nextJob: { name: "Awaiting repair" } });

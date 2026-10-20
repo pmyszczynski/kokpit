@@ -4,14 +4,14 @@ import { WidgetFetchError } from "@/widgets/publicFetchError";
 import { HermesConfigSchema, type HermesConfig, type HermesData, type HermesSectionState } from "./api";
 
 const MAX_BYTES = 1024 * 1024;
-const Count = z.number().int().nonnegative().nullable().optional();
+const Count = z.number().int().nonnegative().nullable().optional().catch(undefined);
 const Health = z.object({
   status: z.string(),
   readiness: z.object({
     status: z.string(),
-    checks: z.object({ background_queues: z.object({ active_api_runs: Count }).optional() }).optional(),
-  }).optional(),
-  api_server: z.object({ active_runs: Count }).optional(),
+    checks: z.object({ background_queues: z.object({ active_api_runs: Count }).optional().catch(undefined) }).optional().catch(undefined),
+  }).optional().catch(undefined),
+  api_server: z.object({ active_runs: Count }).optional().catch(undefined),
 });
 const Timestamp = z.union([z.string(), z.number()]).nullable().optional();
 const Sessions = z.object({ data: z.array(z.object({
@@ -116,7 +116,7 @@ export async function fetchOverview(rawConfig: HermesConfig, signal?: AbortSigna
     section(config, "api/sessions?limit=10&offset=0&include_children=false", Sessions, signal),
   ]);
   const allJobs = jobs.data?.jobs ?? [];
-  const scheduled = allJobs.filter(job => job.enabled !== false && !["paused", "completed", "error"].includes(job.state ?? "") && !job.paused_at);
+  const scheduled = allJobs.filter(job => job.enabled !== false && (!job.state || job.state === "scheduled") && !job.paused_at);
   const next = scheduled.map(job => ({ name: text(job.name, "Unnamed job"), nextRun: date(job.next_run_at), lastStatus: job.last_status?.slice(0, 40) ?? null }))
     .filter((job): job is { name: string; nextRun: string; lastStatus: string | null } => job.nextRun !== null)
     .sort((a, b) => a.nextRun.localeCompare(b.nextRun))[0] ?? null;
