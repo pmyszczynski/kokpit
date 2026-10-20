@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { credentialFetch, CredentialRedirectError } from "@/integrations/shared/credentialFetch";
 import { WIDGET_FETCH_TIMEOUT_MS } from "@/lib/fetchTimeout";
 import { WidgetFetchError } from "@/widgets/publicFetchError";
 
@@ -123,15 +124,19 @@ function isAbortError(error: unknown): boolean {
 }
 
 async function qBittorrentFetch(
+  configuredBase: string,
   input: string,
-  init: RequestInit,
+  init: Omit<RequestInit, "redirect">,
   stage: string
 ): Promise<Response> {
   try {
-    return await fetch(input, init);
+    return await credentialFetch(configuredBase, input, init);
   } catch (error) {
     if (init.signal?.aborted || isAbortError(error)) {
       throw abortedRequestError();
+    }
+    if (error instanceof CredentialRedirectError) {
+      throw new CredentialRedirectError({ integration: "qbittorrent", stage });
     }
     throw new WidgetFetchError("widget_upstream_unreachable", {
       integration: "qbittorrent",
@@ -200,7 +205,7 @@ async function getSession(
         password: config.password,
       }).toString();
 
-      const response = await qBittorrentFetch(loginUrl, {
+      const response = await qBittorrentFetch(config.url, loginUrl, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body,
@@ -271,7 +276,7 @@ async function fetchWithAuth(
   const url = new URL(path, base).toString();
   const stage = path === "api/v2/transfer/info" ? "transfer-info" : "torrents-info";
 
-  let response = await qBittorrentFetch(url, {
+  let response = await qBittorrentFetch(config.url, url, {
     headers: { Cookie: `${session.name}=${session.value}` },
     signal,
   }, stage);
@@ -279,7 +284,7 @@ async function fetchWithAuth(
   if (response.status === 403) {
     sidCache.delete(cacheKey(config));
     const newSession = await getSession(config, signal);
-    response = await qBittorrentFetch(url, {
+    response = await qBittorrentFetch(config.url, url, {
       headers: { Cookie: `${newSession.name}=${newSession.value}` },
       signal,
     }, stage);

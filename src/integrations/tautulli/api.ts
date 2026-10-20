@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { credentialFetch, CredentialRedirectError } from "@/integrations/shared/credentialFetch";
 
 export const TAUTULLI_SECTIONS = ["summary", "sessions"] as const;
 export type TautulliSection = (typeof TAUTULLI_SECTIONS)[number];
@@ -108,11 +109,12 @@ export async function fetchActivity(
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), { signal });
+    response = await credentialFetch(config.url, url.toString(), { signal });
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) {
       throw abortedRequestError();
     }
+    if (error instanceof CredentialRedirectError) throw error;
     throw new Error("Tautulli network request failed");
   }
   if (!response.ok) {

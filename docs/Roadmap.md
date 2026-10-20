@@ -15,7 +15,8 @@ Mark tasks with `[x]` as you complete them. Claude Code will read this state.
 
 The owner selected 18 items from the project review. `IMP-NN` retains the
 original review number. IMP-02, IMP-03 and IMP-18 were already implemented in
-PR #132 / v0.27.1; IMP-01 is implemented for v0.30.2 and the other 14 items remain planned. The
+PR #132 / v0.27.1. Completed entries below record their implementation version;
+unchecked entries remain planned. The
 [implementation index](plans/2026-10-20-improvement-plan.md) contains the complete
 selection, suggested delivery order, compatibility decisions, and validation gate.
 IMP-15 and IMP-16 are tracked in the existing Phase 3 status/onboarding entries
@@ -31,8 +32,8 @@ are reassessed separately and are not part of this work.
 - [x] `P0` **IMP-03 — Bound and throttle login attempts**
   - Implemented in PR #132 / v0.27.1: durable SQLite account/TOTP limits and a rolling shared request budget reserve before password/code work, without trusting forwarding headers.
   - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-03)
-- [ ] `P0` **IMP-04 — Constrain redirects on credential-bearing integration requests**
-  - Prevent API keys, custom authentication headers, and credential bodies/query strings from reaching a different origin; audit integrations beyond the shared helper.
+- [x] `P0` **IMP-04 — Constrain redirects on credential-bearing integration requests**
+  - Implemented for v0.30.3: audited credential transports reject cross-origin destinations and body replay, preserve bounded same-origin GET/HEAD redirects, and return safe final-URL guidance.
   - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-04)
 - [ ] `P0` **IMP-05 — Remove the shared Compose secret placeholder**
   - Use the existing generated, persisted secret by default; preserve valid explicit overrides and document placeholder rejection/replacement.

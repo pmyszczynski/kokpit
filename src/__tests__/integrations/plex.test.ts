@@ -29,6 +29,19 @@ describe("fetchPlexSessions", () => {
     fields: ["streams", "transcodes", "lan_streams", "remote_streams", "users", "bandwidth"] as const,
   };
 
+  it("does not forward its query token across a sessions redirect", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, {
+      status: 302, headers: { Location: "http://other.local/sessions?X-Plex-Token=mytoken" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchPlexSessions({ ...baseConfig, fields: ["streams"] })).rejects.toMatchObject({
+      code: "widget_upstream_redirect_blocked",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
+  });
+
   it("returns correct streams, transcodes, lan/remote split, users and bandwidth", async () => {
     vi.stubGlobal(
       "fetch",
@@ -137,6 +150,27 @@ describe("fetchPlexLibraries", () => {
     token: "mytoken",
     fields: ["library_movies", "library_shows", "library_episodes", "library_music"] as const,
   };
+
+  it.each(["sections", "counts"])("blocks cross-origin redirects on library %s requests", async (stage) => {
+    const redirected = new Response(null, {
+      status: 302, headers: { Location: "http://other.local/counts?X-Plex-Token=mytoken" },
+    });
+    const fetchMock = vi.fn();
+    if (stage === "counts") {
+      fetchMock.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: async () => ({ MediaContainer: { Directory: [{ key: "1", type: "movie" }] } }),
+      });
+    }
+    fetchMock.mockResolvedValue(redirected);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchPlexLibraries({ ...baseConfig, fields: ["library_movies"] })).rejects.toMatchObject({
+      code: "widget_upstream_redirect_blocked",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(stage === "counts" ? 2 : 1);
+    expect(fetchMock.mock.calls.every(([url]) => new URL(String(url)).origin === "http://plex.local:32400")).toBe(true);
+  });
 
   /** URL-based mock: avoids order-dependence from nested Promise.all */
   function makeSectionsMock(

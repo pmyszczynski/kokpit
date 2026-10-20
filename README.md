@@ -584,6 +584,20 @@ Connection credentials belong in `services[].integration.config`; tile-specific
 display options belong in `service_tiles[].widget.config`. Credentials are read
 server-side only and are never sent to the browser.
 
+**Integration URLs and redirects:** configure the final HTTP(S) service URL,
+including the correct scheme, port and reverse-proxy base path. Plex, Tautulli,
+Sonarr, Radarr, Prowlarr, qBittorrent, SABnzbd, Seerr, Immich, Netdata, Unraid,
+Tdarr and Actual Budget keep credential-bearing requests on that configured
+origin (scheme, host and port). GET/HEAD requests can follow up to five
+same-origin redirects, such as trailing-slash canonicalization. Cross-origin
+redirects, including HTTP-to-HTTPS upgrades, are blocked before contacting the
+destination. URLs with embedded usernames/passwords are rejected; use the
+integration's credential fields. Login and other requests with bodies do not
+follow redirects, even within the same origin, so configure their final
+endpoint directly. Private LAN service URLs remain supported. Calendar and
+Hermes retain their stricter no-redirect policies; Weather, RSS and icon
+discovery retain their separate transport rules.
+
 **Troubleshooting widget configuration:** If a widget's config fails validation (e.g., a missing required field like `token` or a malformed URL), the tile displays a small warning badge in its corner. Hover the badge to see the specific validation errors in a tooltip. Users with edit permission can click the badge to open the service editor with the widget section focused, then fix the configuration and save.
 
 ---

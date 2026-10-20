@@ -3,6 +3,7 @@ export type WidgetFetchOperation = "load" | "connection-test";
 export type WidgetFetchErrorCode =
   | "widget_upstream_auth_failed"
   | "widget_upstream_access_blocked"
+  | "widget_upstream_redirect_blocked"
   | "widget_upstream_session_failed"
   | "widget_upstream_unreachable"
   | "widget_upstream_error"
@@ -34,6 +35,8 @@ const WIDGET_FETCH_ERROR_MESSAGES: Record<WidgetFetchErrorCode, string> = {
   widget_upstream_auth_failed: "The integration rejected the configured credentials.",
   widget_upstream_access_blocked:
     "The integration blocked access. Check its access controls or temporary bans.",
+  widget_upstream_redirect_blocked:
+    "The integration URL or redirect was blocked. Configure its final URL, including the correct scheme and port.",
   widget_upstream_session_failed: "The integration did not establish a session.",
   widget_upstream_unreachable: "The integration could not be reached.",
   widget_upstream_error: "The integration returned an unexpected response.",
@@ -76,6 +79,7 @@ type IntegrationWidgetFetchErrorCode = Exclude<
 const INTEGRATION_ERROR_CODES = new Set<IntegrationWidgetFetchErrorCode>([
   "widget_upstream_auth_failed",
   "widget_upstream_access_blocked",
+  "widget_upstream_redirect_blocked",
   "widget_upstream_session_failed",
   "widget_upstream_unreachable",
   "widget_upstream_error",

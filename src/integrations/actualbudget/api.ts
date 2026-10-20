@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { credentialFetch } from "../shared/credentialFetch";
 import type { WidgetConfigField } from "@/widgets";
 import { daysUntil, formatInTimeZone } from "./format";
 
@@ -386,7 +387,7 @@ async function actualFetch<T>(
     headers["budget-encryption-password"] = config.encryption_password;
   }
 
-  const response = await fetch(url, { method: "GET", headers, signal });
+  const response = await credentialFetch(config.url, url, { method: "GET", headers, signal });
 
   if (!response.ok) {
     throw new Error(await errorMessage(response));

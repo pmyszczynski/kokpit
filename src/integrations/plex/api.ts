@@ -1,3 +1,4 @@
+import { credentialFetch } from "@/integrations/shared/credentialFetch";
 export type PlexField =
   | "streams"
   | "transcodes"
@@ -123,7 +124,7 @@ export async function fetchPlexSessions(
   const url = new URL("status/sessions", plexBase(config.url));
   url.searchParams.set("X-Plex-Token", config.token);
 
-  const response = await fetch(url.toString(), {
+  const response = await credentialFetch(config.url, url.toString(), {
     signal,
     headers: { Accept: "application/json" },
   });
@@ -177,7 +178,7 @@ export async function fetchPlexLibraries(
   const sectionsUrl = new URL("library/sections", plexBase(config.url));
   sectionsUrl.searchParams.set("X-Plex-Token", config.token);
 
-  const response = await fetch(sectionsUrl.toString(), {
+  const response = await credentialFetch(config.url, sectionsUrl.toString(), {
     signal,
     headers: { Accept: "application/json" },
   });
@@ -237,7 +238,7 @@ export async function fetchPlexLibraries(
             }
           }
 
-          const res = await fetch(url.toString(), {
+          const res = await credentialFetch(config.url, url.toString(), {
             signal,
             headers: { Accept: "application/json" },
           });

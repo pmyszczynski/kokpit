@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clearRegistry } from "@/widgets";
+import { CredentialRedirectError } from "@/integrations/shared/credentialFetch";
+import { widgetFetchFailure } from "@/widgets/publicFetchError";
 import {
   clearSidCache,
   fetchQbittorrentStats,
@@ -61,6 +63,52 @@ function make403Response() {
 describe("fetchTransferInfo", () => {
   beforeEach(() => clearSidCache());
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it.each(["http://other.local/api/v2/auth/login", "/api/v2/auth/login/"])(
+    "never replays its login form after a redirect to %s", async (location) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, {
+        status: 307, headers: { Location: location },
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const error = await fetchTransferInfo(BASE_CONFIG).catch(error => error);
+      expect(error).toBeInstanceOf(CredentialRedirectError);
+      expect(error).toMatchObject({
+        code: "widget_upstream_redirect_blocked",
+        diagnostic: { integration: "qbittorrent", stage: "login", retryable: false },
+      });
+      expect(String(error)).not.toContain(BASE_CONFIG.password);
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const failure = widgetFetchFailure("load", "qbittorrent-stats", error);
+      expect(log).toHaveBeenCalledWith(expect.objectContaining({
+        integration: "qbittorrent", stage: "login", code: "widget_upstream_redirect_blocked", retryable: false,
+      }));
+      const serialized = JSON.stringify([failure, log.mock.calls]);
+      expect(serialized).not.toContain(BASE_CONFIG.password);
+      expect(serialized).not.toMatch(/qbt\.local|other\.local/);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", redirect: "manual" });
+    }
+  );
+
+  it.each([false, true])("blocks cookie redirects on authenticated GET after reauthentication=%s", async (reauthenticate) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(makeLoginResponse("sid-original"));
+    if (reauthenticate) {
+      fetchMock.mockResolvedValueOnce(make403Response());
+      fetchMock.mockResolvedValueOnce(makeLoginResponse("sid-refreshed"));
+    }
+    fetchMock.mockResolvedValue(new Response(null, {
+      status: 302, headers: { Location: "http://other.local/transfer/info" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_redirect_blocked",
+      diagnostic: { integration: "qbittorrent", stage: "transfer-info", retryable: false },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(reauthenticate ? 4 : 2);
+    expect(fetchMock.mock.calls.every(([url]) => new URL(String(url)).origin === "http://qbt.local:8080")).toBe(true);
+  });
 
   it("logs in and returns transfer info", async () => {
     vi.stubGlobal(
@@ -201,7 +249,7 @@ describe("fetchTransferInfo", () => {
 
     await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
     resolveStaleLogin(makeLoginResponse("staleSid") as Response);
-    await expect(staleRequest).resolves.toEqual(MOCK_TRANSFER_INFO);
+    await expect(staleRequest).rejects.toMatchObject({ name: "AbortError" });
 
     await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
     const latestDataCall = mockFetch.mock.calls.at(-1);

@@ -40,14 +40,19 @@ describe("fetchWithApiKey", () => {
     expect(calledUrl).toBe("http://host:1234/v1/foo");
   });
 
-  it("passes an absolute http(s) URL through unchanged, ignoring config.url", async () => {
+  it("rejects an absolute URL on another origin before sending its key", async () => {
     vi.mocked(fetch).mockResolvedValue(fakeResponse());
-    await fetchWithApiKey(
+    await expect(fetchWithApiKey(
       { url: "http://host:1234/api/", api_key: "k" },
       "https://other-host.example.com/foo/bar"
-    );
-    const calledUrl = vi.mocked(fetch).mock.calls[0][0];
-    expect(calledUrl).toBe("https://other-host.example.com/foo/bar");
+    )).rejects.toThrow("Widget integration failure");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("accepts an absolute URL on the configured origin", async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse());
+    await fetchWithApiKey({ url: "http://host:1234/api/", api_key: "k" }, "http://host:1234/foo");
+    expect(fetch).toHaveBeenCalledWith("http://host:1234/foo", expect.objectContaining({ redirect: "manual" }));
   });
 
   it("sets the X-Api-Key header to config.api_key", async () => {
