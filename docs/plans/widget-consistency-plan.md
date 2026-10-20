@@ -2,13 +2,13 @@
 
 **Start here:** [component and widget tracking tables](widget-component-and-migration-tracker.md).
 
-**Current state:** twenty-five widgets use shared UI (twenty-one migrations plus Weather, RSS / Atom, Calendar and Hermes Overview): SABnzbd, Actual Budget Summary, Categories, Accounts and Schedules, Unraid Stats, Plex, Tautulli Activity, System Stats, Immich, qBittorrent Stats, qBittorrent Torrents, Prowlarr Stats, Radarr Stats, Tdarr Stats, Seerr Stats, Seerr Requests, Sonarr Calendar, Sonarr Queue, Radarr Queue, Docker, Weather, RSS / Atom, Calendar and Hermes Overview. Twelve library entries are done, including `WidgetBar`, `WidgetStatusDot` and the new `WidgetStatRow`. System Stats, StatRow and the selected shared extensions were accepted on 2026-10-07. Docker and StatusDot were accepted on 2026-10-06. Seerr [PR #121](https://github.com/pmyszczynski/kokpit/pull/121) merged as `76fcc86` and shipped in [v0.18.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.18.0): final CI and both AI reviews completed, all threads resolved, release validation and Docker tag verification passed. SABnzbd is completed under the owner's 2026-10-15 delegation of selection and the entire implementation/verification/publication workflow; no new explicit screenshot acceptance is claimed. The owner selected Sonarr Calendar, Sonarr Queue and Radarr Queue together on 2026-10-05; the owner accepted the three widgets and WidgetBar on 2026-10-05. [PR #122](https://github.com/pmyszczynski/kokpit/pull/122) merged as `9c99912` and shipped in [v0.19.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.19.0). Final CI and both AI reviews completed, all 16 review threads are resolved, and release validation plus Docker tag verification passed. The accepted readable Status/ETA design was retained with explanation. [Completed delivery handoff](https://github.com/pmyszczynski/kokpit/pull/122#issuecomment-6005279018).
+**Current state:** twenty-six widgets use shared UI (twenty-one migrations plus Weather, RSS / Atom, Calendar, Hermes Overview and Search): SABnzbd, Actual Budget Summary, Categories, Accounts and Schedules, Unraid Stats, Plex, Tautulli Activity, System Stats, Immich, qBittorrent Stats, qBittorrent Torrents, Prowlarr Stats, Radarr Stats, Tdarr Stats, Seerr Stats, Seerr Requests, Sonarr Calendar, Sonarr Queue, Radarr Queue, Docker, Weather, RSS / Atom, Calendar, Hermes Overview and Search. Thirteen library entries are done, including `WidgetBar`, `WidgetStatusDot` and the new `WidgetStatRow`. System Stats, StatRow and the selected shared extensions were accepted on 2026-10-07. Docker and StatusDot were accepted on 2026-10-06. Seerr [PR #121](https://github.com/pmyszczynski/kokpit/pull/121) merged as `76fcc86` and shipped in [v0.18.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.18.0): final CI and both AI reviews completed, all threads resolved, release validation and Docker tag verification passed. SABnzbd is completed under the owner's 2026-10-15 delegation of selection and the entire implementation/verification/publication workflow; no new explicit screenshot acceptance is claimed. The owner selected Sonarr Calendar, Sonarr Queue and Radarr Queue together on 2026-10-05; the owner accepted the three widgets and WidgetBar on 2026-10-05. [PR #122](https://github.com/pmyszczynski/kokpit/pull/122) merged as `9c99912` and shipped in [v0.19.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.19.0). Final CI and both AI reviews completed, all 16 review threads are resolved, and release validation plus Docker tag verification passed. The accepted readable Status/ETA design was retained with explanation. [Completed delivery handoff](https://github.com/pmyszczynski/kokpit/pull/122#issuecomment-6005279018).
 
 **Planning history:** originally prepared on `codex/widget-consistency-plan` from `30c7861`; planning documents landed in `71e7c8d` and `5a5aa5c`. Check the current branch before implementation.
 
-**Current work:** Calendar, selected on 2026-10-20 (Europe/Warsaw; 2026-10-19 UTC) with the full established workflow. Branch `feature/calendar-widget`, targeting v0.29.0. Screenshots, the full local gate before each commit, independent CI and completed AI reviews precede the authorized administrator merge and release/Docker verification. RSS / Atom shipped in PR #134 / v0.27.0; [completed delivery handoff](https://github.com/pmyszczynski/kokpit/pull/134#issuecomment-6217998832). All existing non-Netdata migrations are complete; Netdata remains deferred. [Calendar slice](#calendar-widget--2026-10-20).
+**Current work:** Search, owner-selected 2026-10-20 with the complete screenshot, full local gate, PR/CI/AI reviews, authorized administrator merge and release workflow. Branch `feature/search-widget`, targeting v0.30.0. Introduces the shared `controls/WidgetSearchForm` based on the existing global themed form baseline. Calendar shipped in [PR #137 / v0.29.0](https://github.com/pmyszczynski/kokpit/pull/137#issuecomment-6281291602). Netdata remains deferred.
 
-**Hermes integration:** [PR #140](https://github.com/pmyszczynski/kokpit/pull/140) has merged on `main` with package v0.28.0. Its slice and source are preserved here; check that PR for publication evidence. Calendar targets the next minor version, v0.29.0.
+**Hermes integration:** [PR #140](https://github.com/pmyszczynski/kokpit/pull/140) has merged on `main` with package v0.28.0. Its slice and source are preserved here; check that PR for publication evidence. Hermes shipped in v0.28.0; Calendar followed in v0.29.0.
 
 **Completed Weather delivery:** [PR #133](https://github.com/pmyszczynski/kokpit/pull/133) merged as `9737831`; [v0.26.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.26.0) passed release validation and all four Docker tag checks. [Final delivery handoff](https://github.com/pmyszczynski/kokpit/pull/133#issuecomment-6206310001).
 
@@ -41,6 +41,8 @@ src/widgets/ui/
 │   ├── WidgetBody/
 │   ├── WidgetStatGrid/
 │   └── WidgetList/
+├── controls/
+│   └── WidgetSearchForm/
 ├── data-display/
 │   ├── WidgetStat/
 │   │   ├── WidgetStat.tsx
@@ -67,6 +69,7 @@ The root `index.ts` exposes the public API, so integrations import from `@/widge
 | `foundation` | Shared spacing, typography, surfaces, borders, radii and color tokens. |
 | `layout` | Body composition, stat-grid placement and one deliberate list scroll region with optional fixed header/footer. |
 | `data-display` | Reusable presentation of values, collection items, statuses, bars and small charts. |
+| `controls` | Reusable interactive widget controls, based on native form semantics and shared theme tokens; consumers supply destination and domain meaning. |
 | `feedback` | Accessible state and stale-data notices; fetching and state selection remain with their existing owners. |
 
 The agreed names distinguish these patterns:
@@ -695,3 +698,18 @@ while component checks verify content retention at each footprint. Handoff text
 explicitly distinguishes authorization from completed review/publication. Optional
 health counters and diagnostic objects tolerate null or malformed values without
 hiding valid readiness; regressions preserve unknown counts instead of zero.
+
+
+## Search widget — 2026-10-20
+
+The owner selected Search with the established complete workflow, including screenshots, full local validation, CI/AI review fixes, administrator merge and release. Branch `feature/search-widget` targets v0.30.0 after Calendar PR #137 / v0.29.0. No separate approval pause is required.
+
+One 6x2 footprint uses Body, State, StaleNotice and the new shared `controls/WidgetSearchForm`, exposed through the public barrel. The control owns native GET form semantics, the labeled input/button, whitespace validation and protected new-tab behavior. Search owns endpoint validation, fixed parameters and provider labels. Styling uses the existing themed form baseline and shared tokens in the widget-ui cascade layer; ordinary custom CSS remains authoritative.
+
+A public tile option selects an HTTP(S) engine URL, query parameter, optional display name and tab behavior. Defaults use DuckDuckGo; Google and browser-reachable SearXNG/custom endpoints are supported. URL credentials and fragments are rejected. Fixed/repeated parameters are retained while saved query values are removed. The browser encodes typed queries and navigates directly to the engine; widget option resolution performs no engine requests. Default refresh is zero. No suggestions or persisted query history are introduced.
+
+The shared form and widget currently pass 27 focused unit checks and ten focused browser checks, with dark/light previews inspected at the actual 6x2 footprint. Visual verification is delegated by the owner; no separate screenshot acceptance is claimed.
+
+Focused coverage verifies normalized destinations, replacement/preservation of parameters, rejection of unsafe URLs, blank-query validation, cancellation and absence of engine fetches. Browser evidence covers actual new-tab/same-tab GET submissions with Unicode and special characters, opener/referrer isolation, no polling, four-theme geometry/contrast/focus, editor persistence, independent header links, custom CSS and dark/light previews. Final validation/review/release evidence is recorded in the PR handoff.
+
+PR #141 review alignment: Search uses Body’s existing centered-content wrapper and gap token; native controls consistently opt out of legacy disabled styling. Shared absolute HTTP(S) destination validation is reused by Search and Calendar while preserving event-fragment versus endpoint-fragment rules. Search control colors use an accent-derived resting token and the existing accent-hover token. The resting accent is shaded slightly to keep white-text contrast at least 4.5:1 in the built-in themes. The tracker explicitly distinguishes owner screenshot acceptance from visual verification delegated through the complete workflow.

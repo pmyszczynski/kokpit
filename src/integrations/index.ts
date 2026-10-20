@@ -32,5 +32,6 @@ import "./weather/widget";
 import "./rss/widget";
 import "./calendar/widget";
 import "./hermes/widget";
+import "./search/widget";
 
 export type IntegrationStatus = "ok" | "error" | "unknown";

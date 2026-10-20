@@ -342,7 +342,13 @@ describe("POST /api/widget/test", () => {
       vi.stubGlobal("fetch", fetchMock);
       const { POST } = await import("../../app/api/widget/test/route");
       const res = await POST(post({ type: id, config: {} }));
-      if (emptyConfigValid) {
+      if (id === "search") {
+        // Search resolves local options; it never probes the engine.
+        expect(emptyConfigValid).toBe(true);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true });
+        expect(fetchMock).not.toHaveBeenCalled();
+      } else if (emptyConfigValid) {
         // Schema accepts an empty config — the endpoint attempts the fetch.
         expect(res.status).toBe(500);
         if (id !== "docker" && id !== "system-stats") {

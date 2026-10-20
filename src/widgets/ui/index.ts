@@ -1,4 +1,6 @@
 import "./foundation/tokens.css";
+export { WidgetSearchForm } from "./controls/WidgetSearchForm";
+export type { WidgetSearchFormProps } from "./controls/WidgetSearchForm";
 
 export { WidgetStat } from "./data-display/WidgetStat";
 export type { WidgetStatProps, WidgetStatTone } from "./data-display/WidgetStat";

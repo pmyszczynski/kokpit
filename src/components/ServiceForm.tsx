@@ -527,6 +527,7 @@ function WidgetConfigFields({
   );
 }
 
+/** Edit a service and its widget options, omitting upstream tests for local-only widgets. */
 export default function ServiceForm({
   service,
   existingGroups,
@@ -1691,7 +1692,7 @@ export default function ServiceForm({
               </p>
             )}
 
-            {(!selectedIntegrationDef || legacyDirectConfig) && <div className="service-form__test-row">
+            {selectedWidgetDef?.supportsConnectionTest !== false && (!selectedIntegrationDef || legacyDirectConfig) && <div className="service-form__test-row">
               <button
                 type="button"
                 className="settings-btn"

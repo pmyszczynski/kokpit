@@ -157,7 +157,7 @@ are reassessed separately and are not part of this work.
   - [x] RSS / Atom feed reader: per-tile feed URL and article limit, shared scrolling headlines/dates/links, Detailed summaries
   - [x] Calendar widget: read-only CalDAV collections and public Google Calendar via API key, shared Agenda 3×4 / Detailed 6×4, per-tile time zone and event window
   - [x] Hermes AI agent: read-only health, API-run count, scheduled jobs and recent sessions; Default 3x4 / Wide 6x3
-  - Search bar widget (configurable search engine)
+  - [x] Search widget: configurable HTTP(S) GET engine, shared native form at 6×2, query parameter and tab behavior, direct browser submission
 
 - [x] `P1` **Docker widget** *(re-scoped from "Docker auto-discovery")*
   - Widget listing active (running, paused, restarting) containers via the Docker socket (state, name, image, uptime) with a running/total summary

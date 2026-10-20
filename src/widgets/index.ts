@@ -107,6 +107,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   ) => Promise<TData>;
   /** Refresh interval in milliseconds. Defaults to 30_000. */
   refreshInterval?: number;
+  /** Local-only widgets can omit the editor's upstream connection-test action. */
+  supportsConnectionTest?: boolean;
   component: React.ComponentType<WidgetProps<TData>>;
   /** Exact desktop canvases implemented by this widget. */
   supportedFootprints?: Array<TileFootprint & { label?: string }>;
