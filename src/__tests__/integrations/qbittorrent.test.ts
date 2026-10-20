@@ -62,6 +62,39 @@ describe("fetchTransferInfo", () => {
   beforeEach(() => clearSidCache());
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+  it.each(["http://other.local/api/v2/auth/login", "/api/v2/auth/login/"])(
+    "never replays its login form after a redirect to %s", async (location) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, {
+        status: 307, headers: { Location: location },
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const error = await fetchTransferInfo(BASE_CONFIG).catch(error => error);
+      expect(error).toMatchObject({ code: "widget_upstream_redirect_blocked" });
+      expect(String(error)).not.toContain(BASE_CONFIG.password);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", redirect: "manual" });
+    }
+  );
+
+  it.each([false, true])("blocks cookie redirects on authenticated GET after reauthentication=%s", async (reauthenticate) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(makeLoginResponse("sid-original"));
+    if (reauthenticate) {
+      fetchMock.mockResolvedValueOnce(make403Response());
+      fetchMock.mockResolvedValueOnce(makeLoginResponse("sid-refreshed"));
+    }
+    fetchMock.mockResolvedValue(new Response(null, {
+      status: 302, headers: { Location: "http://other.local/transfer/info" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchTransferInfo(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_redirect_blocked",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(reauthenticate ? 4 : 2);
+    expect(fetchMock.mock.calls.every(([url]) => new URL(String(url)).origin === "http://qbt.local:8080")).toBe(true);
+  });
+
   it("logs in and returns transfer info", async () => {
     vi.stubGlobal(
       "fetch",
@@ -201,7 +234,7 @@ describe("fetchTransferInfo", () => {
 
     await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
     resolveStaleLogin(makeLoginResponse("staleSid") as Response);
-    await expect(staleRequest).resolves.toEqual(MOCK_TRANSFER_INFO);
+    await expect(staleRequest).rejects.toMatchObject({ name: "AbortError" });
 
     await expect(fetchTransferInfo(BASE_CONFIG)).resolves.toEqual(MOCK_TRANSFER_INFO);
     const latestDataCall = mockFetch.mock.calls.at(-1);

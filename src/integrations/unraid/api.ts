@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { credentialFetch } from "../shared/credentialFetch";
 
 export interface UnraidConfig {
   url: string;
@@ -77,7 +78,7 @@ export async function fetchStats(
   const base = config.url.endsWith("/") ? config.url : `${config.url}/`;
   const url = new URL("graphql", base).toString();
 
-  const response = await fetch(url, {
+  const response = await credentialFetch(config.url, url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

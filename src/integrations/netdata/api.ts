@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { credentialFetch } from "../shared/credentialFetch";
 
 export const NetdataBaseConfigSchema = z.object({
   url: z.string().url(),
@@ -53,7 +54,7 @@ async function netdataFetch(
   if (config.api_token) {
     headers["X-Netdata-Auth"] = `Bearer ${config.api_token}`;
   }
-  const res = await fetch(url, { headers, signal });
+  const res = await credentialFetch(config.url, url, { headers, signal });
   if (!res.ok) throw new Error(`Netdata responded with ${res.status}`);
   return res;
 }

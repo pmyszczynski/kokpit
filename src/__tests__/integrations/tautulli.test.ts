@@ -65,6 +65,19 @@ describe("fetchActivity", () => {
     vi.unstubAllGlobals();
   });
 
+  it("blocks cross-origin redirects without exposing the query API key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, {
+      status: 302, headers: { Location: "http://other.local/api?apikey=super-secret-key" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const error = await fetchActivity(BASE_CONFIG).catch(error => error);
+    expect(error).toMatchObject({ code: "widget_upstream_redirect_blocked" });
+    expect(String(error)).not.toContain(BASE_CONFIG.api_key);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
+  });
+
   it("maps the activity response to a privacy-minimized DTO", async () => {
     vi.stubGlobal("fetch", mockFetch(ACTIVITY_RESPONSE));
 
@@ -111,7 +124,7 @@ describe("fetchActivity", () => {
 
     await fetchActivity(BASE_CONFIG, controller.signal);
 
-    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), { signal: controller.signal });
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), { signal: controller.signal, redirect: "manual" });
   });
 
   it("returns only summary when sections is summary-only", async () => {

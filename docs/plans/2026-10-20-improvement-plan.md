@@ -1,7 +1,7 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 14 planned, four implemented (IMP-01 for v0.30.2;
-IMP-02, IMP-03 and IMP-18 upstream).
+Date: 2026-10-20. Status: 13 planned, five implemented; completed rows record
+their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
 The `IMP-NN` identifiers below retain those original numbers. The roadmap owns
@@ -23,7 +23,7 @@ entries are future work.
 | IMP-01 | P0 | **Implemented for v0.30.2:** valid dummy bcrypt verification removes the unknown-user timing shortcut. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-01) |
 | IMP-02 | P0 | **Implemented, PR #132:** missing, empty and session-policy-only auth mappings default to protected access. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-02) |
 | IMP-03 | P0 | **Implemented, PR #132:** durable account/TOTP throttling and a rolling shared budget bound admitted attempts. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-03) |
-| IMP-04 | P0 | Credential-bearing integration requests cannot follow redirects to another origin. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-04) |
+| IMP-04 | P0 | **Implemented for v0.30.3:** credential-bearing integration requests cannot follow redirects to another origin. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-04) |
 | IMP-05 | P0 | Compose uses generated persisted secrets instead of a public placeholder. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-05) |
 | IMP-06 | P1 | Unique TOTP challenges have atomic, durable attempt and consumption state. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-06) |
 | IMP-07 | P1 | New and replacement passwords cannot be silently truncated by bcrypt. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-07) |

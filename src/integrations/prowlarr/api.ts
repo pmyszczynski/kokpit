@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fetchWithApiKey } from "../shared/http";
 
 export interface ProwlarrConfig {
   url: string;
@@ -43,19 +44,7 @@ async function fetchWithAuth(
   path: string,
   signal?: AbortSignal
 ): Promise<Response> {
-  // Strip leading slashes from relative paths so new URL resolves relative to
-  // the full config.url (including any base path) rather than the origin.
-  // Absolute URLs (http/https) are passed through unchanged.
-  const relativePath = /^https?:\/\//i.test(path) ? path : path.replace(/^\/+/, "");
-  const url = new URL(relativePath, config.url).toString();
-  const response = await fetch(url, {
-    headers: { "X-Api-Key": config.api_key },
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Prowlarr responded with ${response.status}`);
-  }
-  return response;
+  return fetchWithApiKey(config, path, signal, "Prowlarr");
 }
 
 export async function fetchStats(

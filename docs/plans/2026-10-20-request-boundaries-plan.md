@@ -1,6 +1,6 @@
 # Request boundaries and deployment secret plan
 
-Date: 2026-10-20. Status: planned; no runtime changes implemented.
+Date: 2026-10-20. Status: mixed — IMP-04 implemented for v0.30.3; IMP-05 and IMP-08 planned.
 
 This document covers the owner-selected findings IMP-04, IMP-05 and IMP-08 from the twenty-item project review. The [improvement plan](2026-10-20-improvement-plan.md) owns the delivery order, cross-cutting dependencies and full required validation gate. Each item below is independently reviewable; completing one does not mark the others complete.
 
@@ -10,9 +10,23 @@ Source links are relative to this document and point to the inspected repository
 
 ## IMP-04 — Keep integration credentials within the configured origin
 
+Status: **implemented for v0.30.3**.
+
+The new shared `credentialFetch` enforces the configured origin before every
+request, follows at most five same-origin GET/HEAD redirects, rejects URL
+userinfo and body-bearing redirects, closes discarded response bodies, and
+preserves whole-chain cancellation. Every credential transport in the inventory
+below is migrated, including secondary Plex requests and qBittorrent login and
+reauthentication. Calendar and Hermes retain their stricter DNS-pinned
+no-redirect policy. The public redirect error supplies final-URL guidance
+without including credentials or raw locations; README records the compatibility
+change. Real two-server tests verify zero forbidden requests for header, query,
+cookie and body credentials, alongside chain, loop and abort regressions. The
+following evidence and design describe the pre-fix gap and accepted contract.
+
 ### Evidence and scope
 
-[`fetchWithApiKey`](../../src/integrations/shared/http.ts) sends `X-Api-Key` using the default fetch redirect policy. Its callers include Radarr, Sonarr, Seerr and Immich. The helper also accepts an arbitrary absolute HTTP(S) request URL, and its [current tests](../../src/__tests__/integrations/shared-http.test.ts) explicitly permit sending the configured key to another origin.
+Before v0.30.3, [`fetchWithApiKey`](../../src/integrations/shared/http.ts) sent `X-Api-Key` using the default fetch redirect policy. Its callers include Radarr, Sonarr, Seerr and Immich. The helper also accepted an arbitrary absolute HTTP(S) request URL, and its [tests](../../src/__tests__/integrations/shared-http.test.ts) explicitly permitted sending the configured key to another origin; that case is now a rejection regression.
 
 A read-only reproduction on 2026-10-20 used two temporary loopback HTTP servers on different ports and synthetic credentials. Node fetch followed a 302 and delivered both `X-Api-Key` and `X-Netdata-Auth` to the second origin. Fetch removed `Authorization` and `Cookie` in that reproduction. The issue is therefore confirmed for custom credential headers; it should not be described as every credential header leaking identically.
 

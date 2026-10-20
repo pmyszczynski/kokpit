@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { credentialFetch } from "../shared/credentialFetch";
 
 export interface TdarrConfig {
   url: string;
@@ -86,7 +87,7 @@ export async function fetchTdarrStats(
   // this Promise.all or the overall function.
   const nodesUrl = new URL("api/v2/get-nodes", base).toString();
   const [response, nodesResponse] = await Promise.all([
-    fetch(cruddbUrl, {
+    credentialFetch(config.url, cruddbUrl, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -98,7 +99,7 @@ export async function fetchTdarrStats(
       }),
       signal,
     }),
-    fetch(nodesUrl, {
+    credentialFetch(config.url, nodesUrl, {
       method: "GET",
       headers: buildGetHeaders(config),
       signal,

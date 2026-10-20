@@ -1,3 +1,4 @@
+import { credentialFetch } from "@/integrations/shared/credentialFetch";
 import { z } from "zod";
 
 export interface SabnzbdConfig {
@@ -44,7 +45,7 @@ export async function fetchQueueData(
   url.searchParams.set("apikey", config.apikey);
   url.searchParams.set("mode", "queue");
 
-  const response = await fetch(url.toString(), { signal });
+  const response = await credentialFetch(config.url, url.toString(), { signal });
 
   if (!response.ok) {
     throw new Error(`SABnzbd responded with ${response.status}`);

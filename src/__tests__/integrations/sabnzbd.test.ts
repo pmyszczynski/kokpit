@@ -39,6 +39,19 @@ describe("fetchQueueData", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not forward its query API key to another origin", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, {
+      status: 307, headers: { Location: "http://other.local/api?apikey=abc123def456" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchQueueData(BASE_CONFIG)).rejects.toMatchObject({
+      code: "widget_upstream_redirect_blocked",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
+  });
+
   it("returns correctly transformed data", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeJsonResponse(MOCK_QUEUE_RESPONSE)));
 
