@@ -527,6 +527,7 @@ function WidgetConfigFields({
   );
 }
 
+/** Edit a service and its widget options, omitting upstream tests for local-only widgets. */
 export default function ServiceForm({
   service,
   existingGroups,

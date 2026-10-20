@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseHttpUrl } from "../shared/httpUrl";
 
+/** Validate an absolute search endpoint while excluding credentials and fragments. */
 export function searchUrl(value: string): URL | null {
   return parseHttpUrl(value, { allowFragment: false });
 }

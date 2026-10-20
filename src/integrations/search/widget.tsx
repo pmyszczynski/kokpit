@@ -3,6 +3,7 @@ import { WidgetBody, WidgetSearchForm, WidgetStaleNotice, WidgetState } from "@/
 import { fetchSearch, searchUrl, SearchConfigSchema, type SearchConfig, type SearchData } from "./api";
 import "./widget.css";
 
+/** Compose the shared native form with an engine caption and stable refresh feedback. */
 export function SearchWidget({ data, loading, error }: WidgetProps<SearchData>) {
   if (!data || !searchUrl(data.action)) return <WidgetBody centered className="search-widget"><WidgetState state={loading ? "loading" : "error"}>{!loading ? error ?? "Search unavailable" : undefined}</WidgetState></WidgetBody>;
   return <WidgetBody className="search-widget" contentCentered reserveNotice noticeClassName="search-widget__notice" notice={<>

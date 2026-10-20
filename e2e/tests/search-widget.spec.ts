@@ -1,6 +1,8 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+/** Locate Search independently of its configurable service and engine names. */
 const tile = (page: Page) => page.locator('.service-tile').filter({ has: page.locator('[data-widget-type="search"]') });
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
+/** Persist a canonical Search tile through the public settings API for browser checks. */
 async function configure(request: APIRequestContext, config: Record<string, unknown> = {}, theme: typeof THEMES[number] = "dark", custom_css = "", launch_url?: string) {
   const response = await request.patch("/api/settings", { data: { services: [{ id: "10000000-0000-4000-8000-000000000001", name: "Search", description: "Find something useful", icon: "/icons/search.svg", ...(launch_url ? { launch_url } : {}) }],
     service_tiles: [{ id: "20000000-0000-4000-8000-000000000001", service_id: "10000000-0000-4000-8000-000000000001", footprint: { columnSpan: 6, rowSpan: 2 }, widget: { type: "search", config } }], groups: [], bookmarks: [], appearance: { theme, custom_css } } });
@@ -59,6 +61,7 @@ test("Search fits its 6x2 tile with visible controls, keyboard focus and contras
     });
     expect(geometry).toEqual({ width: 688, height: 128, alignedInput: true, completeCaption: true, fit: true });
     const ratios = await widget.locator(".widget-search-form__input, .widget-search-form__button, .search-widget__destination").evaluateAll(elements => {
+      /** Compute WCAG relative luminance from serialized RGB or CSS Color 4 sRGB. */
       function luminance(color: string) { const values = color.match(/\d+(?:\.\d+)?/g)!.slice(0, 3).map(Number); return values.map(v => { const c = color.startsWith("color(srgb ") ? v : v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0); }
       return elements.map(element => { let parent: Element | null = element; let background = "rgba(0, 0, 0, 0)"; while (parent && background === "rgba(0, 0, 0, 0)") { background = getComputedStyle(parent).backgroundColor; parent = parent.parentElement; } const values = [luminance(getComputedStyle(element).color), luminance(background)].sort((a, b) => b - a); return (values[0] + .05) / (values[1] + .05); });
     });

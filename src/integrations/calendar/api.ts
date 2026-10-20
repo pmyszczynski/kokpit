@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { parseHttpUrl } from "../shared/httpUrl";
 
+/** Validate an absolute event link, retaining its optional fragment destination. */
 export function eventUrl(value: string): string | null {
   return parseHttpUrl(value)?.href ?? null;
 }
+/** Validate a CalDAV collection endpoint without credentials or fragment markers. */
 export function calendarUrl(value: string): string | null {
   return parseHttpUrl(value, { allowFragment: false })?.href ?? null;
 }

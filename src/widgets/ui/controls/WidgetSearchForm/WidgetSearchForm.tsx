@@ -17,6 +17,7 @@ export interface WidgetSearchFormProps {
 /** Native GET submission keeps the query in the browser rather than widget polling. */
 export function WidgetSearchForm({ action, queryParameter, parameters = [], label, newTab = true, className }: WidgetSearchFormProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Reject blank input while retaining the browser's native GET submission. */
   function submit(event: FormEvent<HTMLFormElement>) {
     // Engine parameter names can shadow methods on HTMLFormElement.
     const input = inputRef.current!;
