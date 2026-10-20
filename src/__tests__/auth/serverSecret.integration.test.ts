@@ -26,7 +26,9 @@ describe("persisted server key lifecycle", () => {
     const first = getServerSecret();
     const secretPath = join(directory, "first", ".session_secret");
     expect(readFileSync(secretPath, "utf8")).toMatch(/^[0-9a-f]{64}$/);
-    expect(statSync(secretPath).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect(statSync(secretPath).mode & 0o777).toBe(0o600);
+    }
 
     vi.resetModules();
     const restarted = await import("@/auth/serverSecret");
