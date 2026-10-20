@@ -118,13 +118,14 @@ test("ordinary custom CSS overrides Calendar description and links", async ({ pa
 test("Calendar API reads a real CalDAV REPORT through the isolated parser worker", async ({ request }) => {
   const start = new Date(Date.now() + 3_600_000); const end = new Date(start.getTime() + 3_600_000);
   const stamp = (value: Date) => value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const officeStamp = (value: Date) => stamp(new Date(value.getTime() + 2 * 3_600_000)).slice(0, -1);
   let method = ""; let report = ""; let authorization = "";
   const server = createServer((req, res) => {
     method = req.method ?? ""; authorization = req.headers.authorization ?? "";
     req.setEncoding("utf8"); req.on("data", chunk => { report += chunk; });
     req.on("end", () => {
       res.writeHead(207, { "Content-Type": "application/xml" });
-      res.end(`<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:propstat><d:prop><c:calendar-data><![CDATA[BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:transport-test\r\nDTSTART:${stamp(start)}\r\nDTEND:${stamp(end)}\r\nSUMMARY:Real calendar transport\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n]]></c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>`);
+      res.end(`<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:propstat><d:prop><c:calendar-data><![CDATA[BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:Custom/Office\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0200\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:transport-test\r\nDTSTART;TZID="Custom/Office":${officeStamp(start)}\r\nDTEND;TZID="Custom/Office":${officeStamp(end)}\r\nSUMMARY:Real calendar transport\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n]]></c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>`);
     });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

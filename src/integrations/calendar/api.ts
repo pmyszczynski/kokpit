@@ -8,7 +8,7 @@ export function eventUrl(value: string): string | null {
 }
 export function calendarUrl(value: string): string | null {
   const url = eventUrl(value);
-  return url && !new URL(url).hash ? url : null;
+  return url && !url.includes("#") ? url : null;
 }
 const ConnectionFields = z.object({
   calendar: z.string().trim().min(1).max(2048),

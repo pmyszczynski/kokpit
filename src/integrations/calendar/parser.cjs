@@ -2,6 +2,13 @@
 // A separate worker lets the server interrupt synchronous recurrence expansion.
 const { parentPort, workerData } = require("node:worker_threads");
 const ical = require("node-ical");
+const path = require("node:path");
+const runtimeRequire = require("node:module").createRequire(path.join(process.cwd(), "package.json"));
+// Use the dependency's own resolver before parseICS can substitute the host zone.
+// Its packaged ESM helper is synchronous under the project's Node >=22.19 floor;
+// standalone tracing includes the complete node-ical package and dependencies.
+// Node's runtime resolver avoids Turbopack rewriting this path to build-time /ROOT.
+const { resolveVTimezoneToIana } = runtimeRequire(path.join(path.dirname(runtimeRequire.resolve("node-ical/package.json")), "lib/tz-utils.js"));
 
 function propertyText(value) {
   return typeof value === "string" ? value : typeof value?.val === "string" ? value.val : "";
@@ -97,24 +104,47 @@ function prepareCalendar(document, timezone) {
   const declared = lines.find(field => field.name === "X-WR-TIMEZONE")?.value.trim() || timezone;
   const zone = zoneMap.get(declared) ?? declared;
   if (!namedZone(zone) && !aliases.has(zone)) throw new Error("Invalid timezone");
-  let inEvent = false;
+  let inEvent = false; const customYears = new Map();
   for (const field of lines) {
     for (const param of field.params) if (param.key === "TZID") {
       const id = param.value.replace(/^"(.*)"$/, "$1");
       if (zoneMap.has(id)) param.value = `"${zoneMap.get(id)}"`;
+      else if (!namedZone(id)) throw new Error("Timezone identifier has no definition");
     }
     if (field.name === "BEGIN" && field.value === "VEVENT") inEvent = true;
     if (field.name === "END" && field.value === "VEVENT") inEvent = false;
     // VTIMEZONE observances are local transition rules, not event instants.
     if (inEvent && ["DTSTART", "DTEND", "RECURRENCE-ID", "EXDATE", "RDATE"].includes(field.name)
       && !field.params.some(param => param.key === "TZID") && /^\d{8}T\d{6}(?:,\d{8}T\d{6})*$/.test(field.value)) field.params.push({ key: "TZID", value: `"${zone}"` });
+    if (inEvent && ["DTSTART", "DTEND", "RECURRENCE-ID", "EXDATE", "RDATE"].includes(field.name)) {
+      const id = field.params.find(param => param.key === "TZID")?.value.replace(/^"(.*)"$/, "$1");
+      if (id && aliases.has(id)) {
+        const years = customYears.get(id) ?? new Set(); customYears.set(id, years);
+        for (const date of field.value.split(",")) {
+          const year = /^(\d{4})\d{4}T\d{6}$/.exec(date);
+          if (!year) throw new Error("Invalid custom timezone date");
+          years.add(Number(year[1]));
+        }
+      }
+    }
   }
   const zones = [...timezoneFields]; const core = lines.filter(field => !timezoneFields.has(field));
+  const timezoneContext = zones.map(serialize).join("\r\n");
+  if (customYears.size) {
+    const parsedZones = Object.values(ical.sync.parseICS(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${timezoneContext}\r\nEND:VCALENDAR\r\n`));
+    for (const [id, years] of customYears) {
+      const definition = parsedZones.find(component => component?.type === "VTIMEZONE" && propertyText(component.tzid) === id);
+      for (const year of years) {
+        const resolved = resolveVTimezoneToIana(definition, year);
+        if (!resolved.iana && !resolved.offset) throw new Error("Unsupported timezone definition");
+      }
+    }
+  }
   const firstComponent = core.findIndex((field, index) => index > 0 && field.name === "BEGIN");
   const insertion = firstComponent === -1 ? core.length - 1 : firstComponent;
   // Definitions may legally follow events; the dependency needs them first.
   const ordered = [...core.slice(0, insertion), ...zones, ...core.slice(insertion)];
-  return { document: ordered.map(serialize).join("\r\n"), timezoneContext: zones.map(serialize).join("\r\n"), aliases };
+  return { document: ordered.map(serialize).join("\r\n"), timezoneContext, aliases };
 }
 function resolvedDate(date, aliases) {
   if (aliases.has(date?.tz)) throw new Error("Unsupported timezone definition");

@@ -419,6 +419,7 @@ service_tiles:
 ```
 
 Refreshes every five minutes, with a fifteen-second fetch deadline for slow or paginated providers. A valid empty calendar shows “No upcoming events”; refresh errors retain the last event list and scroll position with the shared warning. Each response is bounded to 2 MiB of UTF-8 data; CalDAV XML rejects DTDs and excessive nesting. Synchronous iCalendar parsing/expansion runs in a worker with a two-second budget, a memory cap, a 5,000-instance cap, and at most four active parsers. Unreadable or excessive responses show an error instead of a misleading partial agenda. Calendar text is rendered as text, and only HTTP(S) event links are clickable.
+
 ### Hermes AI agent
 
 Add a **Hermes Overview** tile and enter the **API server URL** (for example,

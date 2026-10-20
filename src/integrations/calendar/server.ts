@@ -182,7 +182,8 @@ export async function fetchAgenda(input: CalendarConfig, signal?: AbortSignal, n
       headers: { Depth: "1", "Content-Type": "application/xml; charset=utf-8", Accept: "application/xml, text/xml", ...(config.username ? { Authorization: `Basic ${Buffer.from(`${config.username}:${config.password}`).toString("base64")}` } : {}) } });
     events = await parseCalendarDocuments(calendarDocuments(xml), now, until, config.timezone, signal);
   } else events = await googleEvents(config, now, until, signal);
-  const dateKey = (event: AgendaEvent) => event.allDay ? event.start : day(new Date(event.start), config.timezone);
-  events.sort((a, b) => dateKey(a).localeCompare(dateKey(b)) || (a.allDay !== b.allDay ? a.allDay ? -1 : 1 : a.allDay ? 0 : Date.parse(a.start) - Date.parse(b.start)) || a.id.localeCompare(b.id));
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: config.timezone, year: "numeric", month: "2-digit", day: "2-digit" });
+  const dateKeys = new Map(events.map(event => [event, event.allDay ? event.start : formatter.format(new Date(event.start))]));
+  events.sort((a, b) => dateKeys.get(a)!.localeCompare(dateKeys.get(b)!) || (a.allDay !== b.allDay ? a.allDay ? -1 : 1 : a.allDay ? 0 : Date.parse(a.start) - Date.parse(b.start)) || a.id.localeCompare(b.id));
   return { events: events.slice(0, config.max_items), timezone: config.timezone, daysAhead: config.days_ahead };
 }

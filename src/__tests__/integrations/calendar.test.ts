@@ -33,7 +33,7 @@ describe("Calendar configuration and credential boundaries", () => {
     expect(CalendarConfigSchema.safeParse(google).success).toBe(true);
   });
   it.each([
-    { calendar: "https://user:pass@cloud.example.com/" }, { calendar: "https://cloud.example.com/#fragment" }, { calendar: "ftp://cloud.example.com/" },
+    { calendar: "https://user:pass@cloud.example.com/" }, { calendar: "https://cloud.example.com/#fragment" }, { calendar: "https://cloud.example.com/#" }, { calendar: "ftp://cloud.example.com/" },
     { calendar: config.calendar, username: "me" }, { calendar: config.calendar, api_key: "wrong-provider" }, { calendar: config.calendar, username: "me:other", password: "secret" },
     { calendar: "calendar@example.com" }, { ...google, username: "me", password: "secret" },
     { ...config, timezone: "Invalid/Zone" }, { ...config, timezone: "+05:00" }, { ...config, timezone: "-03:30" }, { ...config, days_ahead: 0 }, { ...config, max_items: 51 },
@@ -154,6 +154,19 @@ describe("CalDAV XML and iCalendar events", () => {
   });
   it("rejects an unresolved embedded zone instead of falling back to the host timezone", async () => {
     const ics = calendar("BEGIN:VTIMEZONE\r\nTZID:Custom/Office\r\nEND:VTIMEZONE", event("DTSTART:20261020T110000\r\nSUMMARY:Unsupported zone")).replace("VERSION:2.0", "VERSION:2.0\r\nX-WR-TIMEZONE:Custom/Office");
+    await expect(parse(ics)).rejects.toMatchObject({ code: "widget_invalid_response" });
+  });
+  it.each(["Customized Time Zone", "Custom/Office"])("rejects an unknown event TZID without an embedded definition: %s", async timezone => {
+    const ics = calendar(event(`DTSTART;TZID="${timezone}":20261020T110000\r\nDTEND;TZID="${timezone}":20261020T120000\r\nSUMMARY:Undefined zone`));
+    await expect(parse(ics)).rejects.toMatchObject({ code: "widget_invalid_response" });
+  });
+  it.each(["UTC", "America/Los_Angeles"])("rejects unmappable custom offset pairs when the server runs in %s", async serverTimezone => {
+    const timezone = "BEGIN:VTIMEZONE\r\nTZID:Custom/Office\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0349\r\nTZOFFSETTO:+0237\r\nEND:STANDARD\r\nBEGIN:DAYLIGHT\r\nDTSTART:19700601T000000\r\nTZOFFSETFROM:+0237\r\nTZOFFSETTO:+0349\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE";
+    const ics = calendar(timezone, event("DTSTART:20261020T110000\r\nDTEND:20261020T120000\r\nSUMMARY:Unmappable zone")).replace("VERSION:2.0", "VERSION:2.0\r\nX-WR-TIMEZONE:Custom/Office");
+    const input = { documents: [ics], now: now.toISOString(), until: until.toISOString(), timezone: config.timezone };
+    const script = `const {parseCalendars}=require('./src/integrations/calendar/parser.cjs');try{parseCalendars(${JSON.stringify(input)});console.log('accepted')}catch{console.log('rejected')}`;
+    const { stdout } = await promisify(execFile)(process.execPath, ["-e", script], { env: { ...process.env, TZ: serverTimezone }, encoding: "utf8" });
+    expect(stdout.trim()).toBe("rejected");
     await expect(parse(ics)).rejects.toMatchObject({ code: "widget_invalid_response" });
   });
   it("rejects THISANDFUTURE overrides instead of showing obsolete subsequent times", async () => {
