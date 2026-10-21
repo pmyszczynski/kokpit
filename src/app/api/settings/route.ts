@@ -24,6 +24,7 @@ import {
 } from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 import { pruneOrphanedUploads } from "@/lib/uploadGc";
+import { UnsupportedYamlUpdateError } from "@/config/reconcileYaml";
 import {
   toClientSafeSettings,
   resolveServiceIntegrationSecrets,
@@ -209,6 +210,9 @@ export async function PATCH(request: NextRequest) {
         headers: { [CONFIG_REVISION_HEADER]: configRevision(updated.source) },
       });
     } catch (error) {
+      if (error instanceof UnsupportedYamlUpdateError) {
+        return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+      }
       if (error instanceof ConfigUnavailableError) {
         return NextResponse.json(
           { error: "settings.yaml is being updated; reload before saving.", code: "config_unavailable" },

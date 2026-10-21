@@ -265,6 +265,46 @@ describe("PATCH /api/settings – validation", () => {
     const res = await PATCH(patch({ appearance: { theme: "rainbow" } }));
     expect(res.status).toBe(400);
   });
+
+  it("returns a safe actionable YAML-graph error without writing or exposing config annotations", async () => {
+    const source = BASE_YAML.replace("appearance:\n  theme: dark", "appearance: &shared\n  theme: dark # private operator annotation")
+      + "\noperator_extension: *shared\n";
+    const fs = createSettingsFsSimulation(source);
+    const { PATCH } = await initializedSettingsRoute();
+    const response = await PATCH(patch({ appearance: { theme: "light" } }));
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.code).toBe("unsupported_yaml_update");
+    expect(body.error).toContain("expand shared aliases");
+    expect(JSON.stringify(body)).not.toContain("private operator annotation");
+    expect(fs.yaml).toBe(source);
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/settings – comment and secret boundaries", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it("preserves server annotations and resolved secrets without adding them to client settings", async () => {
+    const source = SECRET_YAML.replace("name: Tautulli", "name: Tautulli # private operator annotation");
+    const fs = createSettingsFsSimulation(source);
+    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const initial = await (await GET()).json();
+    expect(JSON.stringify(initial)).not.toContain("private operator annotation");
+    expect(JSON.stringify(initial)).not.toContain("tautulli-secret-value");
+    initial.services[0].name = "Renamed Tautulli";
+    const response = await PATCH(patch({ services: initial.services }));
+    expect(response.status).toBe(200);
+    const result = JSON.stringify(await response.json());
+    expect(result).not.toContain("private operator annotation");
+    expect(result).not.toContain("tautulli-secret-value");
+    expect(fs.yaml).toContain("name: Renamed Tautulli # private operator annotation");
+    expect(fs.yaml).toContain("tautulli-secret-value");
+    expect(fs.yaml).toContain("qbittorrent-secret-value");
+  });
 });
 
 describe("PATCH /api/settings – layout", () => {
