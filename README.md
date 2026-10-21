@@ -530,6 +530,36 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 ## Widgets
 
+Saved-widget requests share successful results within each Kokpit server process.
+Equivalent tiles and browser tabs use one upstream operation, with a reuse window
+of at most five seconds and never longer than the requesting tile's effective
+polling interval. Widgets with automatic refresh disabled share only simultaneous
+work. Existing widget polling intervals and integration-specific caches remain
+unchanged; the reuse window can add up to five seconds of data age.
+
+Each request still checks the current configuration, saved tile, widget inputs
+and authorization. Credentials, options, widget type and footprint keep different
+requests separate. YAML changes, including comments, invalidate retained results;
+an in-flight result from an older configuration is rejected rather than returned.
+Session revocation is checked again before returning data. Connection tests and
+authentication responses are outside this cache, and HTTP responses use
+`Cache-Control: private, no-store`.
+
+The process-local cache retains at most 256 successful results and 16 MiB of
+serialized UTF-8 payloads, with a 1 MiB per-result retention limit. Larger valid
+results are still returned without retention. At most 64 distinct upstream
+operations run through this cache at once, including old-generation work. A hard
+timeout ends consumer waits and sharing for that attempt, but its upstream slot
+remains occupied until the actual load settles, even if it ignores cancellation.
+Existing pending identities can still be joined, and fresh cached successes remain
+available at capacity. New work receives retryable `503` / `widget_busy` with
+`Retry-After: 1`; loads that never settle keep their slots rather than allowing
+unbounded replacement work. Failures are not cached, and client stale-data behavior
+is unchanged. These limits bound retained serialized data, not the server's total
+heap usage. A tab aborting its browser request does not cancel shared work needed
+by another tab. No external cache service is required, and separate server
+processes have independent caches.
+
 Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
 
 Automatic widget and service-status refreshes run only while the dashboard is

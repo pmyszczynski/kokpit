@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: IMP-13 implemented for v0.30.11; IMP-17 implemented for v0.30.10; IMP-14–16 remain planned.
+Status: IMP-13 implemented for v0.30.11; IMP-14 implemented for v0.31.1; IMP-17 implemented for v0.30.10; IMP-15–16 remain planned.
 
 Scope: IMP-13, IMP-14, IMP-15, IMP-16 and IMP-17 from the project review
 
@@ -70,16 +70,24 @@ Hidden/offline dashboards stop automatic widget/status requests, active dashboar
 
 ## IMP-14 — Share identical widget fetches safely
 
+Status: **implemented for v0.31.1**.
+
+Equivalent saved-widget requests now share upstream work and recent successful results inside each server process. Identity includes credentials, effective options, widget type, footprint, live definition and the exact configuration generation. Each caller still passes current authorization and saved-input checks before lookup and after awaited work; source changes invalidate results, including old-generation completions. Freshness is at most five seconds and never exceeds the caller's effective interval; interval zero shares only simultaneous work.
+
+The cache bounds retained data to 256 entries/16 MiB, with 1 MiB per retained result and 64 underlying operations across generations. Hard timeouts end consumer waits and sharing for that attempt; its upstream capacity remains reserved until the raw load actually settles, including when it ignores cancellation. Fresh cached successes remain available when capacity is full. Oversized valid results are returned without retention, failures are not cached, and new identities at capacity receive retryable 503 guidance. Caller aborts cannot cancel another consumer's work, returned payloads are copied, and HTTP responses remain private/no-store. Concurrency, authorization/configuration races, byte/capacity calibration, abort and mutation regressions cover these guarantees; integrated validation is recorded separately.
+
 Priority: P1. Reduces repeated integration work when several tiles or browser tabs request the same data.
 
-### Evidence and qualification
+### Pre-implementation evidence and qualification
 
-- Each validated `GET /api/widget` independently calls `fetchWithHardTimeout(widget.fetchData)` in [the widget route](../../src/app/api/widget/route.ts#L88). A tile can share a reusable integration with other tiles while each browser polls separately through [useWidget](../../src/widgets/useWidget.ts#L26).
-- Fetch identity includes more than the service: [the route](../../src/app/api/widget/route.ts#L61) separates integration connection settings from per-tile options and passes the resolved footprint to legacy fetchers. Widget type, credentials, options and footprint can change the returned data.
-- This is not a claim that every integration has no caching. [Netdata](../../src/integrations/netdata/api.ts#L34) already caches metrics, [qBittorrent](../../src/integrations/qbittorrent/api.ts#L54) shares authentication, and [Docker](../../src/integrations/docker/api.ts#L110) caches its API version. Those do not provide a general saved-widget result cache. Keep those layers' semantics intact.
-- [Config snapshots](../../src/config/loader.ts#L45) distinguish usable and dirty configuration and expose the source used for a revision. Invalid or changing config must never authorize a cached response.
+The evidence below is pinned to pre-PR revision `ab5469305429bcf97062fc72661fef1e96297ee2`, before v0.31.1; the accepted design and task list describe the completed change.
 
-### Design
+- Each validated `GET /api/widget` independently called `fetchWithHardTimeout(widget.fetchData)` in [the widget route](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/app/api/widget/route.ts#L89-L97). A tile could share a reusable integration with other tiles while each browser polled separately through [useWidget](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/widgets/useWidget.ts#L47).
+- Fetch identity includes more than the service: [the route](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/app/api/widget/route.ts#L61-L96) separated integration connection settings from per-tile options and passed the resolved footprint to legacy fetchers. Widget type, credentials, options and footprint can change the returned data.
+- This is not a claim that every integration has no caching. [Netdata](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/integrations/netdata/api.ts#L35-L36) already cached metrics, [qBittorrent](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/integrations/qbittorrent/api.ts#L55-L56) shared authentication, and [Docker](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/integrations/docker/api.ts#L110) cached its API version. Those did not provide a general saved-widget result cache. Keep those layers' semantics intact.
+- [Config snapshots](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/config/loader.ts#L46-L50) distinguished usable and dirty configuration and exposed the source used for a revision. Invalid or changing config must never authorize a cached response.
+
+### Accepted design
 
 Introduce a server-only, process-local result cache and in-flight promise map around the route's existing validated fetch. Authenticate, obtain a usable current configuration, resolve the saved tile, and validate type/integration/options **before every cache lookup**. Cache public widget data only; connection tests and authentication responses stay outside this cache. Send `Cache-Control: private, no-store` on HTTP responses so the internal cache does not create a browser or proxy cache of authenticated payloads.
 
@@ -89,24 +97,24 @@ Use in-flight sharing plus a short successful-result TTL, initially at most five
 
 Bound settled entries, serialized retained payload bytes, individual cacheable payload size and pending fetches. Initial implementation targets are 256 settled entries, 16 MiB retained payloads, 1 MiB per retained payload and 64 pending fetches; verify these against representative RSS, media and budget payloads before settling constants. Oversized successful payloads can still be returned without retention. LRU-evict settled entries only; never evict pending work in a way that starts duplicate work. A full pending pool returns a sanitized retriable busy response for a new identity while existing identities can join their pending promise. The size limit concerns retained serialized data, not a guarantee about total process heap usage.
 
-The cache owns the hard timeout and upstream `AbortController`. One browser aborting, unmounting or changing widget type must not cancel shared work for another consumer. Preserve current public error sanitization. Failed, timed-out and late-completing promises must release accounting and cannot replace a newer entry.
+The cache owns the hard timeout and upstream `AbortController`. One browser aborting, unmounting or changing widget type must not cancel shared work for another consumer. Preserve current public error sanitization. A hard timeout releases the logical pending identity and its consumer waits, but the underlying-work permit is released only when the raw load settles. This includes old generations and loads that ignore cancellation; a load that never settles keeps its bounded slot. Fresh cached hits remain available, while new work at capacity receives the existing retriable busy response. Failures and late completions cannot replace a newer entry.
 
-Use a configuration generation/revision boundary: clear settled entries when the revision changes or config becomes unavailable, and reject writes from older in-flight generations. Before returning an awaited result, check the current snapshot again; if it is dirty or its revision differs, return the existing retriable configuration-change response rather than returning a result for the previous configuration. This covers UI saves, YAML edits, credential rotation and tile deletion. Old work may finish under its timeout but cannot repopulate the new generation. This mechanism must work independently of IMP-11's browser refresh transport.
+Use a configuration generation/revision boundary: clear settled entries when the revision changes or config becomes unavailable, and reject writes from older in-flight generations. Before returning an awaited result, check the current snapshot again; if it is dirty or its revision differs, return the existing retriable configuration-change response rather than returning a result for the previous configuration. This covers UI saves, YAML edits, credential rotation and tile deletion. Old work cannot repopulate the new generation and continues to count against underlying capacity until actual settlement, even after its consumer timeout. This mechanism must work independently of IMP-11's browser refresh transport.
 
-### Ordered implementation tasks
+### Completed implementation tasks
 
-1. Inventory widget polling intervals, footprint-sensitive fetchers and representative payload sizes; fix cache limits and freshness constants with this evidence.
-2. Add a small server-only cache module with injected time/fetch dependencies, canonical identity generation, settled/pending limits, byte accounting and generation invalidation.
-3. Integrate it after the widget route's existing auth, saved-tile lookup and validation. Retain both legacy and options-schema calling conventions, existing timeouts and public error mapping.
-4. Add the post-await config-generation check and explicit private/no-store response headers. Keep secrets out of observability and test diagnostics.
-5. Verify a multi-tile/multi-tab dashboard reduces identical upstream requests; document the freshness window and process-local scope.
+- [x] Inventoried widget polling intervals, footprint-sensitive fetchers and representative payload sizes, then calibrated cache limits and freshness constants against that evidence.
+- [x] Added a small server-only cache module with injected time/fetch dependencies, canonical identity generation, settled/pending limits, byte accounting and generation invalidation.
+- [x] Integrated it after the widget route's existing auth, saved-tile lookup and validation, retaining both legacy and options-schema calling conventions, existing timeouts and public error mapping.
+- [x] Added post-await configuration-generation and authorization checks plus explicit private/no-store response headers, keeping secrets out of observability and test diagnostics.
+- [x] Added a multi-tile/multi-tab browser regression for shared upstream requests and documented the freshness window and process-local scope.
 
 ### Tests
 
 - Extend [widget API tests](../../src/__tests__/api/widget.test.ts): concurrent identical requests perform one upstream fetch; completed data is reused only within TTL; nonidentical credentials, options, integration type, widget type and footprint remain isolated. Canonical object key order does not split equivalent inputs.
 - Assert unauthorized, unknown-tile, changed-type, invalid-config and dirty-config requests never receive a cached success. Rotate credentials, delete a tile and change YAML/UI revisions during a delayed request; old results cannot be served or reinserted.
 - Use fake time for TTL, expiry and LRU tests. Exercise entry, byte, individual-payload and pending limits, including failures/timeouts and late completion after invalidation.
-- Abort one of two consumers and verify the other still receives the result. Verify upstream hard timeout still aborts the underlying work and releases all pending capacity.
+- Abort one of two consumers and verify the other still receives the result. Verify the hard timeout aborts its upstream signal and ends consumer waits promptly, while ignored-abort work retains its capacity across generations until actual resolution or rejection. Check fresh cached hits and pending joins at capacity, plus exact release on synchronous failure, cooperative cancellation and wrapper failure before load invocation.
 - Preserve [useWidget tests](../../src/__tests__/widgets/useWidget.test.ts), Netdata cache behavior and qBittorrent login deduplication. Verify public errors and HTTP headers never expose identity material.
 
 ### Acceptance and compatibility

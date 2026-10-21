@@ -56,8 +56,8 @@ are reassessed separately and are not part of this work.
 - [x] `P1` **IMP-13 — Adapt browser polling to visibility, connectivity, and failures**
   - Implemented for v0.30.11: Shared completion-based visible/online polling uses bounded retries, aborts obsolete work and waits for access reconciliation before resuming.
   - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-13)
-- [ ] `P1` **IMP-14 — Share and cache equivalent widget requests**
-  - Bound cache/in-flight state, isolate credentials and render inputs, invalidate on config changes, and keep one consumer's abort from canceling others.
+- [x] `P1` **IMP-14 — Share and cache equivalent widget requests**
+  - Implemented for v0.31.1: Bounded process-local saved-widget result reuse and in-flight sharing with per-caller validation and config/auth race checks.
   - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-14)
 - [x] `P1` **IMP-17 — Protect unsaved changes during navigation**
   - Implemented for v0.30.10: Independent draft baselines, guarded app exits and native unload/modal protection preserve work with bounded non-secret history recovery.

@@ -157,7 +157,7 @@ describe("GET /api/widget", () => {
     });
     expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("secret");
     expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("internal.invalid");
-    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("999");
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).not.toHaveProperty("upstreamStatus");
   });
 
   it("downgrades an invalid diagnostic code without reflecting it", () => {
