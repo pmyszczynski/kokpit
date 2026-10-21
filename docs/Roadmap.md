@@ -210,7 +210,8 @@ are reassessed separately and are not part of this work.
   - [ ] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
 
 - [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
-  - [ ] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)
+  - [x] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)
+    - Implemented for v0.31.3: Authorized empty dashboards offer the existing staged tile/service flow, preserve saved catalog records and retain unsaved-navigation guards.
   - Ghost "+" tile in empty groups while editing; first-edit coach marks
 
 - [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*

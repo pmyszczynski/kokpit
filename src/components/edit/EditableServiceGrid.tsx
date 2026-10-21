@@ -361,6 +361,8 @@ export default function EditableServiceGrid({
     updateDraft,
     pendingEditService,
     clearPendingEditService,
+    pendingAddTile,
+    clearPendingTileAdd,
     baseRevision,
     recoveryResetVersion,
   } = useEditMode();
@@ -408,6 +410,12 @@ export default function EditableServiceGrid({
       setDialog({ kind: "service-edit", id: service.tileId ?? service.id!, focusWidget: true });
     clearPendingEditService();
   }, [pendingEditService, services, clearPendingEditService]);
+
+  useEffect(() => {
+    if (!pendingAddTile) return;
+    setDialog({ kind: pendingAddTile === "service" ? "service-add" : "add-picker", group: null });
+    clearPendingTileAdd();
+  }, [pendingAddTile, clearPendingTileAdd]);
 
   // Group names (declared + auto-appended), de-duped, for the forms' pickers.
   const knownGroupNames = useMemo(() => {

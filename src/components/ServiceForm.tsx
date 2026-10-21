@@ -1282,7 +1282,7 @@ export default function ServiceForm({
   const iconPreviewUrl = resolveIconRef(icon).url;
 
   return (
-    <dialog ref={dialogRef} className="service-form-dialog" onClose={onClose}
+    <dialog ref={dialogRef} className="service-form-dialog" aria-label={service ? "Edit Service" : "Add Service"} onClose={onClose}
       onCancel={(event) => { event.preventDefault(); handleClose(); }}>
       <div className="service-form-dialog__header">
         <h2>{service ? "Edit Service" : "Add Service"}</h2>

@@ -68,6 +68,8 @@ export interface EditModeState {
    * does not exist yet; EditableServiceGrid consumes it and clears it.
    */
   pendingEditService: { serviceId?: string; tileId?: string; name: string } | string | null;
+  /** One-shot view-mode add request, consumed after the edit grid mounts. */
+  pendingAddTile: "service" | "picker" | null;
 }
 
 export const initialEditModeState: EditModeState = {
@@ -79,6 +81,7 @@ export const initialEditModeState: EditModeState = {
   error: null,
   conflict: false,
   pendingEditService: null,
+  pendingAddTile: null,
 };
 
 export type EditModeAction =
@@ -93,7 +96,9 @@ export type EditModeAction =
   | { type: "CONFLICT"; error: string }
   | { type: "RELOAD_SUCCESS"; config: ClientSafeSettings; revision: string | null }
   | { type: "REQUEST_SERVICE_EDIT"; request?: { serviceId?: string; tileId?: string; name: string }; name?: string }
-  | { type: "CLEAR_PENDING_EDIT" };
+  | { type: "CLEAR_PENDING_EDIT" }
+  | { type: "REQUEST_TILE_ADD"; kind: "service" | "picker" }
+  | { type: "CLEAR_PENDING_ADD" };
 
 export function editModeReducer(
   state: EditModeState,
@@ -115,6 +120,7 @@ export function editModeReducer(
         // dispatched from view mode *before* enter() resolves, and this case
         // builds a fresh state object rather than spreading.
         pendingEditService: state.pendingEditService,
+        pendingAddTile: state.pendingAddTile,
       };
     case "ENTER_ERROR":
       return { ...initialEditModeState, status: "error", error: action.error };
@@ -166,6 +172,11 @@ export function editModeReducer(
     case "CLEAR_PENDING_EDIT":
       if (state.pendingEditService === null) return state;
       return { ...state, pendingEditService: null };
+    case "REQUEST_TILE_ADD":
+      // Keep the first request when rapid activations are batched together.
+      return state.pendingAddTile ? state : { ...state, pendingAddTile: action.kind };
+    case "CLEAR_PENDING_ADD":
+      return state.pendingAddTile === null ? state : { ...state, pendingAddTile: null };
     default:
       return state;
   }
@@ -217,6 +228,8 @@ export interface EditModeContextValue extends EditModeState {
   requestServiceEdit: (request: { serviceId?: string; tileId?: string; name: string } | string) => void;
   /** Drop a pending request (after it has been honoured, or is unresolvable). */
   clearPendingEditService: () => void;
+  requestTileAdd: (kind: "service" | "picker") => void;
+  clearPendingTileAdd: () => void;
 }
 
 const EditModeContext = createContext<EditModeContextValue | null>(null);
@@ -248,6 +261,7 @@ export function EditModeProvider({
   const canEdit = serverCanEdit && (!sync || sync.available && sync.editable);
   const removeRecoveryScope = unsaved?.removeRecoveryScope;
   const [state, dispatch] = useReducer(editModeReducer, initialEditModeState);
+  const enteringRef = useRef(false);
   const [recoveryResetVersion, resetRecovery] = useReducer((version: number) => version + 1, 0);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -258,7 +272,8 @@ export function EditModeProvider({
   }, [removeRecoveryScope]);
 
   const enter = useCallback(async () => {
-    if (!canEdit) return;
+    if (!canEdit || enteringRef.current) return;
+    enteringRef.current = true;
     dispatch({ type: "ENTER_START" });
     try {
       const res = await fetch("/api/settings");
@@ -270,6 +285,8 @@ export function EditModeProvider({
         type: "ENTER_ERROR",
         error: err instanceof Error ? err.message : "Failed to enter edit mode",
       });
+    } finally {
+      enteringRef.current = false;
     }
   }, [canEdit]);
 
@@ -442,6 +459,14 @@ export function EditModeProvider({
     []
   );
 
+  const requestTileAdd = useCallback((kind: "service" | "picker") => {
+    if (!canEdit || state.status === "loading" || state.status === "saving" || state.pendingAddTile) return;
+    dispatch({ type: "REQUEST_TILE_ADD", kind });
+    if (!state.active) void enter();
+  }, [canEdit, state.status, state.pendingAddTile, state.active, enter]);
+
+  const clearPendingTileAdd = useCallback(() => dispatch({ type: "CLEAR_PENDING_ADD" }), []);
+
   // First global hotkey in the app: Mod+E toggles edit mode. Ignored while the
   // user is typing into a field so it never eats an in-form keystroke.
   useEffect(() => {
@@ -513,6 +538,8 @@ export function EditModeProvider({
       setBookmarks,
       requestServiceEdit,
       clearPendingEditService,
+      requestTileAdd,
+      clearPendingTileAdd,
     }),
     [
       state,
@@ -532,6 +559,8 @@ export function EditModeProvider({
       setBookmarks,
       requestServiceEdit,
       clearPendingEditService,
+      requestTileAdd,
+      clearPendingTileAdd,
     ]
   );
 

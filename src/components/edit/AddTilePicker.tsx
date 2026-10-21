@@ -38,6 +38,7 @@ export default function AddTilePicker({
     <dialog
       ref={dialogRef}
       className="service-form-dialog add-tile-picker"
+      aria-label={`Add tile${targetGroup ? ` to ${targetGroup}` : ""}`}
       onClose={onClose}
     >
       <div className="service-form-dialog__header">

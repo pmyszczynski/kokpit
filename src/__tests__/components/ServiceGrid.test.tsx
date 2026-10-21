@@ -3,6 +3,7 @@ import { render, screen, act } from "@testing-library/react";
 import type { KokpitConfig, Service } from "@/config/schema";
 
 const getConfig = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }), redirect: vi.fn() }));
 
 vi.mock("@/config/server", () => ({
   getConfigSnapshot: () => ({ state: "ready", config: getConfig(), source: "test-source" }),
@@ -31,11 +32,11 @@ function makeService(overrides: Partial<Service> & { name: string }): Service {
 // Minimal config shape ServiceGrid consumes; layout is always present in a
 // parsed config (schema default), so the mock provides it too.
 function makeConfig(
-  overrides: Partial<Pick<KokpitConfig, "layout" | "groups" | "bookmarks">> & {
+  overrides: Partial<Pick<KokpitConfig, "layout" | "groups" | "bookmarks" | "service_tiles">> & {
     services?: Service[];
   } = {}
 ): Pick<KokpitConfig, "layout"> &
-  Partial<Pick<KokpitConfig, "groups" | "bookmarks">> & {
+  Partial<Pick<KokpitConfig, "groups" | "bookmarks" | "service_tiles">> & {
     services: Service[];
   } {
   return {
@@ -68,13 +69,55 @@ describe("ServiceGrid", () => {
     window.localStorage.clear();
   });
 
-  it("renders null when there are no services and no bookmarks", async () => {
+  it("renders welcome guidance without issuing requests when there are no service or bookmark tiles", async () => {
     getConfig.mockReturnValue(makeConfig());
     let container!: HTMLElement;
     await act(async () => {
       ({ container } = render(await ServiceGrid()));
     });
-    expect(container.innerHTML).toBe("");
+    expect(screen.getByRole("heading", { name: "Your dashboard is ready to make your own" })).toBeInTheDocument();
+    expect(container.querySelectorAll(".service-tile, .bookmark-tile")).toHaveLength(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not let empty declared groups suppress onboarding", async () => {
+    getConfig.mockReturnValue(makeConfig({ groups: [{ name: "Media" }, { name: "Monitoring" }], service_tiles: [] }));
+    let container!: HTMLElement;
+    await act(async () => { ({ container } = render(await ServiceGrid())); });
+    expect(screen.getByRole("heading", { name: "Your dashboard is ready to make your own" })).toBeInTheDocument();
+    expect(sectionHeaders(container)).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("recognizes saved services without placements as an empty dashboard", async () => {
+    getConfig.mockReturnValue(makeConfig({
+      services: [makeService({ id: "10000000-0000-4000-8000-000000000001", name: "Saved Plex", launch_url: "http://plex.local" })],
+      service_tiles: [],
+    }));
+    let container!: HTMLElement;
+    await act(async () => { ({ container } = render(await ServiceGrid())); });
+    expect(screen.getByText(/saved services, but no tiles placed/i)).toBeInTheDocument();
+    expect(screen.queryByText("Saved Plex")).not.toBeInTheDocument();
+    expect(container.querySelector(".service-tile")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("renders a placed service instead of the welcome state", async () => {
+    getConfig.mockReturnValue(makeConfig({
+      services: [makeService({ id: "10000000-0000-4000-8000-000000000001", name: "Placed Plex" })],
+      service_tiles: [{ id: "20000000-0000-4000-8000-000000000001", service_id: "10000000-0000-4000-8000-000000000001", footprint: { columnSpan: 3, rowSpan: 1 } }],
+    }));
+    await act(async () => { render(await ServiceGrid()); });
+    expect(screen.getByText("Placed Plex")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your dashboard is ready to make your own" })).not.toBeInTheDocument();
+  });
+
+  it("withholds welcome guidance while the authorized configuration is unavailable", async () => {
+    const unavailable = new Error("configuration unavailable");
+    getConfig.mockImplementation(() => { throw unavailable; });
+    await act(async () => { render(await ServiceGrid()); });
+    expect(screen.queryByRole("heading", { name: "Your dashboard is ready to make your own" })).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("renders ungrouped services in a plain dashboard-tile-grid", async () => {
@@ -405,6 +448,7 @@ describe("ServiceGrid", () => {
       });
       expect(sectionHeaders(container)).toEqual(["Bookmarks"]);
       expect(container.querySelector(".bookmark-tile")).not.toBeNull();
+      expect(screen.queryByRole("heading", { name: "Your dashboard is ready to make your own" })).not.toBeInTheDocument();
     });
 
     it("defaults bookmark tile sizes per style (list→tall, icon-grid/compact→normal)", async () => {

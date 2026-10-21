@@ -466,6 +466,19 @@ CSS and representative configs for all registered widgets fit the selected limit
 
 ## Edit Mode
 
+An empty dashboard shows a welcome card. When editing is allowed and no services
+are saved, it offers **Add your first service** and **More tile options**. These
+open the existing service, widget-preset and bookmark forms in edit mode;
+changes are staged until **Save & exit**, while **Discard** leaves the saved
+configuration intact. Merely opening or cancelling the flow does not create
+anything. Catalog services without placed tiles remain saved: the editable card
+offers **Add a tile** and **Manage saved services**. The latter opens the general
+**Settings** page; select its **Services** tab to manage the catalog. Read-only
+viewers see guidance to ask an administrator or update the configuration file,
+instead of edit buttons. Declared empty groups do not hide the card;
+bookmark-only dashboards and placed service tiles do. The same layout remains
+configurable through `settings.yaml`, without a required onboarding wizard.
+
 Click the pencil icon in the navbar (or press `Mod+E` — Cmd+E on macOS, Ctrl+E on Windows/Linux) to edit the dashboard in place. Edit mode follows the same access as `/settings` — any authenticated user, or everyone if `auth.enabled: false`. Outside edit mode, the dashboard is unchanged and read-only, exactly as it renders today.
 
 While editing:

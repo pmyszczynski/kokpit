@@ -21,6 +21,7 @@ import { resolveTileWidget } from "@/widgets/tileWidget";
 import BookmarkTile from "./BookmarkTile";
 import CollapsibleGroup from "./CollapsibleGroup";
 import ServiceTile from "./ServiceTile";
+import EmptyDashboard from "./EmptyDashboard";
 
 /**
  * Default tile size for a bookmark group without an explicit
@@ -110,7 +111,7 @@ function renderGrid(config: import("@/config/schema").KokpitConfig) {
   const bookmarks = config.bookmarks ?? [];
 
   if (services.length === 0 && bookmarks.length === 0) {
-    return null;
+    return <EmptyDashboard hasSavedServices={config.services.length > 0} />;
   }
 
   // Bucket services by normalized group key (matches resolveGroupOrder's
