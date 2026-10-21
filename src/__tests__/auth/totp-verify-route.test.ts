@@ -181,19 +181,27 @@ describe("POST /api/auth/totp/verify", () => {
     const secret = auth.generateTotpSecret();
     auth.setTotpSecret(user.id, secret);
     const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
-    const verify = vi.spyOn(totp, "verifyTotpCode").mockImplementationOnce(() => { throw new Error("synthetic verifier failure"); });
+    const code = generateSync({ secret });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const verify = vi.spyOn(totp, "verifyTotpCode").mockImplementationOnce(() => {
+      throw new Error(`private verifier failure: ${challengeToken} ${code} ${secret}`);
+    });
     try {
       const { POST } = await import("../../app/api/auth/totp/verify/route");
       const request = () => POST(trustedRequest("http://localhost", {
-        method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+        method: "POST", body: JSON.stringify({ challengeToken, code }),
       }));
-      expect((await request()).status).toBe(503);
+      const response = await request();
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "Login could not be completed. Try again or restart login." });
+      expect(errorLog.mock.calls).toEqual([["[auth] TOTP verification could not be completed"]]);
       expect(auth.getDb().prepare("SELECT attempts, state FROM totp_challenges").get()).toEqual({ attempts: 0, state: "active" });
       expect(auth.getDb().prepare("SELECT * FROM login_rate_limits").all()).toEqual([]);
       expect(auth.getDb().prepare("SELECT * FROM login_request_times").all()).toEqual([]);
       expect(mockCookieSet).not.toHaveBeenCalled();
       expect((await request()).status).toBe(200);
-    } finally { verify.mockRestore(); }
+      expect(errorLog).toHaveBeenCalledOnce();
+    } finally { verify.mockRestore(); errorLog.mockRestore(); }
   });
 
   it("returns 200 and sets session cookie on valid challenge + valid code", async () => {

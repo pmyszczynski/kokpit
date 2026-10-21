@@ -59,6 +59,8 @@ export async function POST(req: Request) {
   } catch {
     // Includes a failed session insertion: its enclosing transaction rolled
     // back, so a temporary storage failure cannot consume the challenge.
+    // Log an operational signal without exception text, tokens or OTP values.
+    console.error("[auth] TOTP verification could not be completed");
     return NextResponse.json({ error: "Login could not be completed. Try again or restart login." }, { status: 503 });
   }
 }
