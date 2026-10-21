@@ -95,3 +95,5 @@ All consumer IDs below refer to the second table. `All 33` includes indirect use
 Actual Budget's existing `Amount` and privacy behavior remain integration-owned; they compose inside shared primitives. No new generic currency/privacy component is planned. Widget-specific formatters, filters, status calculations, data fetching, config and service-tile chrome remain outside this library.
 
 Before adding a new widget or changing a mapping, update both tables in the same change. If a newly discovered visual pattern needs another component, add its source evidence and intended consumers before implementing it.
+
+2026-10-21 Weather follow-up: the tile editor adds **Use my location**, a single permission-based browser lookup that fills editable coordinates rounded to three decimal places. Existing shared widget components and footprint mappings remain as listed above. [Behavior and verification scope](widget-consistency-plan.md#weather-location-detection--2026-10-21).
