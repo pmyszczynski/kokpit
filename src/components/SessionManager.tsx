@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
 import { useRouter } from "next/navigation";
 import { useUnsavedChanges, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 
@@ -23,6 +24,7 @@ function formatDate(time: number) {
 
 export default function SessionManager() {
   const router = useRouter();
+  const revoke = useConfigurationSync()?.revoke;
   const unsaved = useUnsavedChanges();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +93,7 @@ export default function SessionManager() {
       setPassword("");
       setPendingAction(null);
       if (action.action === "revoke-all" || (action.action === "revoke" && action.session.current)) {
+        if (revoke) { revoke(); return; }
         unsaved?.clear();
         router.push("/login");
         router.refresh();

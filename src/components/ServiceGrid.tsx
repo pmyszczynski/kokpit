@@ -1,7 +1,10 @@
 // Populate the widget registry server-side so widget configs can be
 // validated (and size hints looked up) before rendering tiles.
 import "@/integrations";
-import { getConfig } from "@/config/server";
+import { redirect } from "next/navigation";
+import { getAuthorizedRenderSnapshot } from "@/config/authorizedRender";
+import { configRevision } from "@/config/revision";
+import { ConfigurationSnapshotBoundary } from "./ConfigurationSyncProvider";
 import {
   DEFAULT_BOOKMARK_STYLE,
   resolveGroupOrder,
@@ -77,8 +80,17 @@ function TileGrid({
   );
 }
 
-export default function ServiceGrid() {
-  const config = getConfig();
+export default async function ServiceGrid() {
+  const access = await getAuthorizedRenderSnapshot();
+  if (access.state === "denied") redirect("/login");
+  if (access.state !== "allowed") {
+    return <ConfigurationSnapshotBoundary revision={null}>{null}</ConfigurationSnapshotBoundary>;
+  }
+  const { snapshot } = access;
+  return <ConfigurationSnapshotBoundary revision={configRevision(snapshot.source)}>{renderGrid(snapshot.config)}</ConfigurationSnapshotBoundary>;
+}
+
+function renderGrid(config: import("@/config/schema").KokpitConfig) {
   const serviceTiles = config.service_tiles ?? config.services.map((service, index) => ({
     id: service.id ?? `legacy-tile-${index}`,
     service_id: service.id ?? `legacy-service-${index}`,

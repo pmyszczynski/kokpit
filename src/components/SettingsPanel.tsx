@@ -17,6 +17,7 @@ import {
   applyServiceTileGroupCascades,
   type GroupCascadeOp,
 } from "@/config/groupCascade";
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
 import ServiceForm from "./ServiceForm";
 import GroupsTab from "./GroupsTab";
 import BookmarksTab from "./BookmarksTab";
@@ -90,6 +91,7 @@ export default function SettingsPanel({
 }) {
   const router = useRouter();
   const unsaved = useUnsavedChanges();
+  const sync = useConfigurationSync();
   const [, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("appearance");
 
@@ -194,12 +196,15 @@ export default function SettingsPanel({
   // blocked until the complete server snapshot is explicitly reloaded.
   const revisionRef = useRef(initialRevision);
   const confirmedConfigRef = useRef(config);
+  const serverRevisionRef = useRef(initialRevision);
+  const latestAuthorizedRevision = useRef(initialRevision);
   const writePendingRef = useRef(false);
   const conflictRef = useRef(false);
   const [writePending, setWritePending] = useState(false);
   const [conflict, setConflict] = useState(false);
   const configurationMutationBlocked = () =>
-    writePendingRef.current || conflictRef.current || recovery.validating || recovery.conflict || Boolean(unsaved?.saving);
+    writePendingRef.current || conflictRef.current || recovery.validating || recovery.conflict || Boolean(unsaved?.saving)
+      || Boolean(sync && (!sync.available || !sync.editable || sync.stale(revisionRef.current)));
   const appearancePayload = () => {
     const blur = clampNumericField(cardBlur, 0, 40);
     return { theme, custom_css: customCss || undefined, card_blur: blur !== undefined && blur > 0 ? blur : undefined, background: buildBackgroundPayload() };
@@ -361,7 +366,9 @@ export default function SettingsPanel({
       }
       if (changedRevision) { conflictRef.current = true; setConflict(true); }
     }, Object.values(dirtySections).some(Boolean));
-  const draftBlocked = writePending || conflict || recovery.validating || recovery.conflict || Boolean(unsaved?.saving);
+  const syncConflict = Boolean(sync?.stale(revisionRef.current));
+  const draftBlocked = writePending || conflict || syncConflict || recovery.validating || recovery.conflict || Boolean(unsaved?.saving)
+    || Boolean(sync && (!sync.available || !sync.editable));
   useEffect(() => {
     if (recovery.conflict) { conflictRef.current = true; setConflict(true); }
   }, [recovery.conflict]);
@@ -383,15 +390,51 @@ export default function SettingsPanel({
     setUngrouped(confirmed.layout.ungrouped ?? "last");
     const restored = normalizeServicesForForm(confirmed.services, confirmed.service_tiles ?? []);
     setServices(projectCatalogServices(restored.services, restored.service_tiles)); setPersistedServices(restored.services); setServiceTiles(restored.service_tiles);
-    setShowServiceForm(false); setShowBookmarkForm(false); resetSecrets(); recovery.dismiss();
+    setShowServiceForm(false); setShowBookmarkForm(false); resetSecrets();
+    revisionRef.current = latestAuthorizedRevision.current;
+    recovery.acknowledgeRevision(revisionRef.current); recovery.dismiss();
+    conflictRef.current = false; setConflict(false);
+    const background = confirmed.appearance.background;
+    const normalizedBackground = background ? Object.fromEntries(Object.entries(background)
+      .filter(([, value]) => value !== undefined && (typeof value !== "string" || value.trim()))
+      .map(([key, value]) => [key, typeof value === "string" ? value.trim() : value])) : {};
+    setBaselines({
+      appearance: { theme: confirmed.appearance.theme, custom_css: confirmed.appearance.custom_css || undefined,
+        card_blur: confirmed.appearance.card_blur && confirmed.appearance.card_blur > 0 ? confirmed.appearance.card_blur : undefined,
+        background: Object.keys(normalizedBackground).length ? normalizedBackground : undefined },
+      auth: { enabled: confirmed.auth.enabled, session_idle_timeout_hours: confirmed.auth.session_idle_timeout_hours ?? 0 },
+      groups: { groups: (confirmed.groups ?? []).map((group) => ({ name: group.name, ...(group.collapsed ? { collapsed: true } : {}) })),
+        layout: { ungrouped: confirmed.layout.ungrouped === "first" ? "first" : undefined }, tileGroups: [], bookmarkGroups: [] },
+      services: { services: restored.services, service_tiles: restored.service_tiles }, bookmarks: confirmed.bookmarks ?? [],
+    });
   }
+  const localWork = Object.values(dirtySections).some(Boolean) || accountFieldsDirty || showServiceForm || showBookmarkForm;
+  useEffect(() => {
+    // An earlier save's refresh can render bytes published by the next PATCH
+    // before that PATCH acknowledges them. Classify after its baseline settles.
+    if (serverRevisionRef.current === initialRevision || writePendingRef.current) return;
+    serverRevisionRef.current = initialRevision;
+    latestAuthorizedRevision.current = initialRevision;
+    confirmedConfigRef.current = config;
+    if (initialRevision === revisionRef.current) return;
+    if (localWork || unsaved?.dirty) {
+      conflictRef.current = true; setConflict(true);
+    } else discardSettings();
+    // Reset only on a newly rendered server snapshot, never on ordinary edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, initialRevision, localWork, unsaved?.dirty, writePending]);
+  const previewTheme = sync?.previewTheme;
+  useEffect(() => {
+    previewTheme?.(dirtySections.appearance ? theme : null);
+    return () => previewTheme?.(null);
+  }, [previewTheme, dirtySections.appearance, theme]);
   function settingsSource(section: keyof typeof drafts) {
     return {
       label: `${section[0].toUpperCase()}${section.slice(1)} settings`, dirty: dirtySections[section],
       saving: saveStatus[section] === "saving" || section === "appearance" && bgUploadStatus.state === "uploading",
       scope: "settings" as const, writeRevision: revisionRef.current, version: canonicalJSONString(drafts[section]),
       discard: discardSettings,
-      save: conflict ? undefined : async () => {
+      save: conflict || syncConflict || !sync?.editable && Boolean(sync) ? undefined : async () => {
         const result = section === "groups" ? await handleSaveGroups()
           : section === "services" ? await saveServices(services)
           : section === "auth" ? await handleSaveAuth()
@@ -560,6 +603,7 @@ export default function SettingsPanel({
         const preservesChildren = Object.keys(payload).every((key) => ["appearance", "auth", "auth_password"].includes(key));
         recovery.acknowledgeRevision(nextRevision, preservesChildren ? submittedRevision || undefined : undefined);
         revisionRef.current = nextRevision;
+        sync?.acknowledge(nextRevision);
       }
       // A services response contains freshly redacted credential references.
       // Those references identify the service by name, so a rename must replace
@@ -999,7 +1043,7 @@ export default function SettingsPanel({
       {recovery.recovered && <p className="settings-hint" role="status">Recovered unsaved settings from this tab. Review before saving; credentials and URL query/fragment values need re-entry. Some CSS edits may need re-entry.</p>}
       {!recovery.available && <p className="settings-hint" role="alert">This draft is too large for navigation recovery. Save before using browser Back or Forward.</p>}
       {Object.values(dirtySections).some(Boolean) && <p className="settings-hint" role="status">Unsaved settings changes.</p>}
-      {conflict && (
+      {(conflict || syncConflict) && (
         <div className="settings-form-hint settings-form-hint--error" role="alert">
           settings.yaml changed on disk. Reload to discard this draft and review the latest settings.
           <button className="settings-btn" onClick={() => {

@@ -8,6 +8,9 @@ import { useEditModeOptional } from "./edit/EditModeProvider";
 import { WidgetRenderer } from "./WidgetRenderer";
 import { dimensionsForFootprint, GENERIC_SERVICE_FOOTPRINT, legacyWidgetFootprint, type TileFootprint } from "@/layout/grid";
 import { getWidget } from "@/widgets";
+import { usePollingLifecycle } from "./PollingLifecycle";
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
+import { retryAfterMilliseconds, startPolling } from "@/lib/clientPolling";
 
 // The client-safe widget slice now lives next to the resolver that builds it
 // (src/widgets/tileWidget.ts); re-exported here so the long-standing
@@ -209,31 +212,49 @@ function useMobileGrid(): boolean {
 
 function StatusDot({ serviceId, preview }: { serviceId: string; preview?: boolean }) {
   const [status, setStatus] = useState<PingStatus>("pending");
+  const lifecycle = usePollingLifecycle();
+  const dataRevision = useConfigurationSync()?.dataRevision;
 
   useEffect(() => {
     if (preview) return; // no live probing while editing
-    let active = true;
-    const check = async () => {
-      try {
-        const res = await fetch("/api/ping", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ serviceId }),
-        });
-        const data = await res.json();
-        if (active) setStatus(data.ok ? "ok" : "error");
-      } catch {
-        if (active) setStatus("error");
-      }
-    };
-
-    check();
-    const interval = setInterval(check, 30_000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [serviceId, preview]);
+    setStatus("pending");
+    const subscription = startPolling({
+      interval: 30_000,
+      lifecycle,
+      async attempt(signal) {
+        let retryAfterMs: number | undefined;
+        try {
+          const response = await fetch("/api/ping", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ serviceId }),
+            signal,
+          });
+          retryAfterMs = retryAfterMilliseconds(response.headers?.get("Retry-After"));
+          // A temporary configuration conflict is not a service outage or a
+          // terminal saved identity change; retry even after identical repair.
+          if (response.status === 409) return { kind: "failure", retryAfterMs };
+          // Kokpit authorization/configuration failures are not observations
+          // that the monitored service is offline. Let the surface reconcile.
+          if ([401, 403, 400, 404].includes(response.status)) {
+            return { kind: "reconcile", reason: {
+              kind: response.status === 401 || response.status === 403 ? "authorization" : "identity",
+              status: response.status,
+            } };
+          }
+          const data = await response.json();
+          if (signal.aborted) return { kind: "success" };
+          const ok = data.ok && response.ok !== false;
+          setStatus(ok ? "ok" : "error");
+          return ok ? { kind: "success" } : { kind: "failure", retryAfterMs };
+        } catch {
+          if (!signal.aborted) setStatus("error");
+          return { kind: "failure", retryAfterMs };
+        }
+      },
+    });
+    return () => subscription.dispose();
+  }, [serviceId, preview, lifecycle, dataRevision]);
 
   return (
     <div

@@ -173,14 +173,14 @@ test("Plex and Tautulli preserve scoped loading/error hooks and recover saved da
   for (const i of [2, 5]) await expect(tile(page, i).getByRole("status", { name: "Loading widget" })).toBeVisible();
   mode = "error"; release();
   for (const i of [2, 5]) await expect(tile(page, i).getByRole("alert")).toHaveText("Service unavailable");
-  mode = "success"; await page.clock.runFor(10001);
+  mode = "success"; await page.clock.runFor(12001);
   await expect(tile(page, 2).locator(".widget-stat")).toHaveCount(6); await expect(tile(page, 5).locator(".widget-stat")).toHaveCount(5);
   const before = await tile(page, 5).locator(".widget-stat-grid").boundingBox();
   mode = "error"; await page.clock.runFor(10001);
   for (const i of [2, 5]) await expect(tile(page, i).getByRole("alert")).toContainText("Refresh failed");
   expect(await tile(page, 5).locator(".widget-stat-grid").boundingBox()).toEqual(before);
   await expect(tile(page, 5).locator(".widget-list-item")).toHaveCount(3);
-  mode = "success"; await page.clock.runFor(10001);
+  mode = "success"; await page.clock.runFor(12001);
   for (const i of [2, 5]) await expect(tile(page, i).getByRole("alert")).toHaveCount(0);
 });
 

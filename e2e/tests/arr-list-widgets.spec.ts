@@ -209,7 +209,7 @@ for (const empty of [false, true]) test(`Arr saved ${empty ? "empty" : "populate
     for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
     expect(await bounds()).toEqual(healthy); await expectScrollContract();
     if (!empty && theme === "dark") await testInfo.attach("Arr stale", { body: await page.locator(".dashboard-tile-grid").screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
-    fails = false; await page.clock.fastForward(60000);
+    fails = false; await page.clock.fastForward(300_001);
     for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(healthy); await expectScrollContract();
   }

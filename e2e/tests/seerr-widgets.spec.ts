@@ -168,7 +168,7 @@ test("Seerr refresh failure and recovery preserve stats, list scroll and notice 
   expect(await bounds()).toEqual(healthy);expect(await list.evaluate(node=>node.scrollTop)).toBe(scroll);
   await statsFit(page,FOOTPRINTS[2]);await requestsFit(tile(page,"seerr-requests"));
   if(theme==="dark") await testInfo.attach("Seerr stale",{body:await page.locator(".dashboard-tile-grid").screenshot({path:process.env.KOKPIT_WIDGET_PREVIEW_DIR?`${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/seerr-stale-dark.png`:undefined}),contentType:"image/png"});
-  fails=false;await page.clock.fastForward(60000);
+  fails=false;await page.clock.fastForward(300_001);
   for(const type of ["seerr-stats","seerr-requests"]) await expect(tile(page,type).getByRole("alert")).toHaveCount(0);expect(await bounds()).toEqual(healthy);expect(await list.evaluate(node=>node.scrollTop)).toBe(scroll);
  }
 });
@@ -215,5 +215,5 @@ test("Seerr retains an empty saved request list through refresh failure",async({
  const healthy=await bounds();fails=true;await page.clock.fastForward(60000);
  await expect(widget.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
  await expect(widget.getByText("No requests")).toBeVisible();expect(await bounds()).toEqual(healthy);
- fails=false;await page.clock.fastForward(60000);await expect(widget.getByRole("alert")).toHaveCount(0);expect(await bounds()).toEqual(healthy);
+ fails=false;await page.clock.fastForward(300_001);await expect(widget.getByRole("alert")).toHaveCount(0);expect(await bounds()).toEqual(healthy);
 });

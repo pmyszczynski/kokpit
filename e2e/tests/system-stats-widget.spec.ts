@@ -246,7 +246,7 @@ for (const empty of [false, true]) test(`System Stats saved ${empty ? "empty" : 
     if (empty) await expect(widget.getByRole("region")).toHaveCount(0);
     else { await expect(widget.getByText("Docker unavailable")).toHaveAttribute("title", "Socket unavailable"); await expect(widget.getByText("12%", { exact: true })).toBeVisible(); }
     if (!empty && theme === "dark") await testInfo.attach("System Stats stale", { body: await widget.screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
-    fails = false; await page.clock.fastForward(10000); await expect(widget.getByRole("alert")).toHaveCount(0);
+    fails = false; await page.clock.fastForward(300_001); await expect(widget.getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
   }
 });

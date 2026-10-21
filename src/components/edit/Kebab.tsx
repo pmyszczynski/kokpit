@@ -4,11 +4,12 @@
 // `<span role="button">` (not a `<button>`) so it can live inside an anchor
 // tile without invalid interactive-content nesting, and it stops pointer/click
 // propagation so it never starts a drag or follows the tile's link. The menu
-// body is rendered through a portal to `document.body`, positioned under the
+// body is rendered through the protected surface's portal host, positioned under the
 // trigger — this keeps the menu items out of the anchor entirely and avoids
 // being clipped by the tile's overflow.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useProtectedPortalHost } from "../ConfigurationSyncProvider";
 
 interface KebabProps {
   /** Accessible label for the trigger, e.g. `"Plex options"`. */
@@ -20,6 +21,7 @@ interface KebabProps {
 }
 
 export default function Kebab({ label, triggerClassName, children }: KebabProps) {
+  const portalHost = useProtectedPortalHost();
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(
     null
@@ -138,7 +140,7 @@ export default function Kebab({ label, triggerClassName, children }: KebabProps)
       </svg>
       {open &&
         coords &&
-        typeof document !== "undefined" &&
+        portalHost &&
         createPortal(
           <div
             ref={menuRef}
@@ -150,7 +152,7 @@ export default function Kebab({ label, triggerClassName, children }: KebabProps)
           >
             {children(close)}
           </div>,
-          document.body
+          portalHost
         )}
     </span>
   );

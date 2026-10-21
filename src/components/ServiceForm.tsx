@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -550,6 +552,7 @@ export default function ServiceForm({
   // capability when it is available.
   const editMode = useEditModeOptional();
   const unsaved = useUnsavedChanges();
+  const sync = useConfigurationSync();
   const connectionTestingEnabled = editMode?.connectionTestingEnabled ?? true;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const widgetSectionRef = useRef<HTMLDivElement>(null);
@@ -636,6 +639,8 @@ export default function ServiceForm({
   );
   const [integrationTouched, setIntegrationTouched] = useState(false);
   const [recoveryConflict, setRecoveryConflict] = useState(false);
+  const sourceRevision = useRef(baselineRevision ?? editMode?.baseRevision ?? null);
+  const syncBlocked = Boolean(sync && (!sync.available || !sync.editable || sync.stale(sourceRevision.current)));
   const [submitting, setSubmitting] = useState(false);
   const sourceId = `${draftScope}:service-form:${service?.tileId ?? service?.id ?? `new:${initialGroup ?? ""}:${initialPreset ?? ""}`}`;
   const values = {
@@ -728,7 +733,7 @@ export default function ServiceForm({
     label: "Service form", dirty, saving: submitting || iconUploadStatus.state === "uploading", scope: draftScope, version,
     priority: 0,
     discard: () => { setBaseline(version); closeWithoutWarning(); },
-    save: recoveryConflict || recovery.validating || recovery.conflict ? undefined : submit,
+    save: syncBlocked || recoveryConflict || recovery.validating || recovery.conflict ? undefined : submit,
   });
 
   const presetWidgets = getWidgetsWithServiceEditorPreset();
@@ -1185,7 +1190,7 @@ export default function ServiceForm({
   }, []);
 
   async function submit(): Promise<boolean> {
-    if (submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || recovery.validating || recovery.conflict) return false;
+    if (submitting || syncBlocked || recoveryConflict || iconUploadStatus.state === "uploading" || unsaved?.saving || recovery.validating || recovery.conflict) return false;
     setSubmitError(null);
     const trimmedName = name.trim();
     if (trimmedName === "") {
@@ -1291,9 +1296,11 @@ export default function ServiceForm({
       </div>
       <form onSubmit={handleSubmit} className="service-form" noValidate>
         {recovery.recovered && <p className="settings-hint" role="status">Recovered basic service fields. Connection settings, widget options and URL query/fragment values were not retained; review before saving.</p>}
-        {(recoveryConflict || recovery.conflict) && <p className="settings-hint" role="alert">Settings changed or could not be verified. Close and reopen this form after reloading the configuration.</p>}
+        {(syncBlocked || recoveryConflict || recovery.conflict) && <p className="settings-hint" role="alert">{sync?.available && !sync.editable
+          ? "Settings are read-only because settings.yaml requires migration. Update the file to schema version 2, then reopen this form once settings can be edited."
+          : "Settings changed or could not be verified. Close and reopen this form after reloading the configuration."}</p>}
         {!recovery.available && <p className="settings-hint" role="alert">This draft is too large for navigation recovery. Save before using browser Back or Forward.</p>}
-        <div className="service-form__body"><fieldset className="service-form__fields settings-fieldset" disabled={submitting || iconUploadStatus.state === "uploading" || unsaved?.saving}>
+        <div className="service-form__body"><fieldset className="service-form__fields settings-fieldset" disabled={submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || syncBlocked}>
         <div className="settings-form-row">
           <label htmlFor="sf-tile-type">Tile type</label>
           <select
@@ -1826,7 +1833,7 @@ export default function ServiceForm({
           <button
             type="submit"
             className="settings-save-btn"
-            disabled={integrationConflict || savedCredentialsStale || submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || recovery.validating || recovery.conflict || recoveryConflict}
+            disabled={syncBlocked || integrationConflict || savedCredentialsStale || submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || recovery.validating || recovery.conflict || recoveryConflict}
           >
             Save
           </button>

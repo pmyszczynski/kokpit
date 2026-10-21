@@ -24,6 +24,7 @@ import type {
   Service,
 } from "@/config/schema";
 import { canonicalJSONString } from "@/config/canonicalJson";
+import { useConfigurationSync } from "../ConfigurationSyncProvider";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import EditBar from "./EditBar";
@@ -237,17 +238,20 @@ export interface EditModeProviderProps {
 }
 
 export function EditModeProvider({
-  canEdit,
+  canEdit: serverCanEdit,
   connectionTestingEnabled,
   children,
 }: EditModeProviderProps) {
   const router = useRouter();
   const unsaved = useUnsavedChanges();
+  const sync = useConfigurationSync();
+  const canEdit = serverCanEdit && (!sync || sync.available && sync.editable);
   const removeRecoveryScope = unsaved?.removeRecoveryScope;
   const [state, dispatch] = useReducer(editModeReducer, initialEditModeState);
   const [recoveryResetVersion, resetRecovery] = useReducer((version: number) => version + 1, 0);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const externalConflict = Boolean(state.active && sync?.stale(state.baseRevision));
   const resetDashboardRecovery = useCallback(() => {
     removeRecoveryScope?.("dashboard");
     resetRecovery();
@@ -311,7 +315,7 @@ export function EditModeProvider({
     // Refuse to save while conflicted: the draft is based on a now-stale
     // revision, so committing it would overwrite the external change. The user
     // must Reload (re-fetch) or Discard first.
-    if (state.conflict) return false;
+    if (state.conflict || externalConflict || !canEdit) return false;
     const keys = changedKeys(state.draft, state.baseline);
     const draft = state.draft;
     // Nothing changed → just exit without a write.
@@ -358,6 +362,7 @@ export function EditModeProvider({
         throw new Error(`Save failed (${res.status})${detail ? `: ${detail}` : ""}`);
       }
       const unchanged = changedKeys(stateRef.current.draft, draft).length === 0;
+      sync?.acknowledge(readRevision(res));
       dispatch({ type: "SAVE_SUCCESS", revision: readRevision(res), submitted: draft });
       router.refresh();
       return unchanged;
@@ -368,7 +373,7 @@ export function EditModeProvider({
       });
       return false;
     }
-  }, [state.draft, state.baseline, state.baseRevision, state.conflict, state.status, router]);
+  }, [state.draft, state.baseline, state.baseRevision, state.conflict, state.status, router, sync, externalConflict, canEdit]);
 
   const reload = useCallback(async () => {
     if (unsaved && !(await unsaved.confirm({ scope: "dashboard" }))) return;
@@ -390,6 +395,23 @@ export function EditModeProvider({
       });
     }
   }, [unsaved, resetDashboardRecovery]);
+
+  useEffect(() => {
+    if (!externalConflict || !canEdit || unsaved?.dirty || state.status !== "idle") return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/settings", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) return;
+        const config = await response.json() as ClientSafeSettings;
+        if (controller.signal.aborted || changedKeys(stateRef.current.draft, stateRef.current.baseline).length) return;
+        const next = readRevision(response);
+        if (sync?.stale(next)) { sync.recheck(); return; }
+        dispatch({ type: "RELOAD_SUCCESS", config, revision: next });
+      } catch { /* The stale notice keeps writes blocked until retry/reload. */ }
+    })();
+    return () => controller.abort();
+  }, [externalConflict, canEdit, unsaved?.dirty, state.status, sync]);
 
   const toggle = useCallback(() => {
     if (state.active) {
@@ -467,12 +489,14 @@ export function EditModeProvider({
     priority: 20,
     version: draftVersion,
     discard,
-    save: state.conflict ? undefined : save,
+    save: state.conflict || externalConflict || !canEdit ? undefined : save,
   });
 
   const value = useMemo<EditModeContextValue>(
     () => ({
       ...state,
+      conflict: state.conflict || externalConflict,
+      error: externalConflict ? "settings.yaml changed on disk. Reload to review before saving." : state.error,
       canEdit,
       connectionTestingEnabled,
       dirty: keys.length > 0,
@@ -492,6 +516,7 @@ export function EditModeProvider({
     }),
     [
       state,
+      externalConflict,
       canEdit,
       connectionTestingEnabled,
       keys,

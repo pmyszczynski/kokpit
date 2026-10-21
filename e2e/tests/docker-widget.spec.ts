@@ -161,7 +161,7 @@ for (const empty of [false, true]) test(`Docker saved ${empty ? "empty" : "popul
     await expect(widget.locator(".docker-widget__summary")).toHaveText(`${docker.running} running${docker.total} total`);
     if (empty) await expect(widget.getByRole("list")).toHaveCount(0);
     if (!empty && theme === "dark") await testInfo.attach("Docker stale", { body: await widget.screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
-    fails = false; await page.clock.fastForward(15000); await expect(widget.getByRole("alert")).toHaveCount(0);
+    fails = false; await page.clock.fastForward(300_001); await expect(widget.getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
     if (empty) await expect(widget.getByRole("list")).toHaveCount(0);
   }

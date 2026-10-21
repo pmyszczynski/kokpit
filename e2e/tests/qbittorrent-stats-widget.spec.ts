@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const TILE_DATA = schemaV2Fixtures([{
   name: "qBittorrent",
@@ -304,22 +305,23 @@ test("qBittorrent stale warnings preserve stats and card positions for every foo
   for (const footprint of FOOTPRINTS) {
     await setFootprint(request, footprint);
     refreshFails = false;
-    await page.goto("/");
+    await withSettledConfigurationCheck(page, () => page.goto("/"));
     await expect(tile(page).locator(".widget-stat")).toHaveCount(footprint.cards);
     const healthyBounds = await layoutBounds(page);
     refreshFails = true;
-    await page.clock.fastForward(10_000);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(10_000));
     const alert = tile(page).getByRole("alert");
     await expect(alert).toHaveAttribute("title", error);
     await expect(alert).toHaveAccessibleName(`Refresh failed; saved data is shown. ${error}`);
     expect(await layoutBounds(page)).toEqual(healthyBounds);
     await assertFits(page, footprint.height);
     error = "qBittorrent timed out during refresh";
-    await page.clock.fastForward(10_000);
+    // Retries use bounded exponential backoff rather than the normal interval.
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     await expect(alert).toHaveAttribute("title", error);
     expect(await layoutBounds(page)).toEqual(healthyBounds);
     refreshFails = false;
-    await page.clock.fastForward(10_000);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     await expect(alert).toHaveCount(0);
     expect(await layoutBounds(page)).toEqual(healthyBounds);
   }

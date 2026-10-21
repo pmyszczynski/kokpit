@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: IMP-17 implemented for v0.30.10; IMP-13–16 remain planned.
+Status: IMP-13 implemented for v0.30.11; IMP-17 implemented for v0.30.10; IMP-14–16 remain planned.
 
 Scope: IMP-13, IMP-14, IMP-15, IMP-16 and IMP-17 from the project review
 
@@ -12,9 +12,17 @@ Follow the sequencing, cross-cutting constraints and full pre-PR validation gate
 
 ## IMP-13 — Make dashboard polling visibility-aware and adaptive
 
+Status: **implemented for v0.30.11**.
+
+Widget and saved-service status refreshes now share a completion-based polling lifecycle: one request per subscription, suspension and abort while hidden/offline or access-gated, and refresh of due or recovering data after a verified resume. Failures retain last successful data and apply exponential backoff with bounded jitter and Retry-After handling. Manual refresh joins active work and can bypass backoff with a one-second minimum retry gap.
+
+Automatic intervals retain their meaning, including interval zero's initial/manual behavior; returning focus does not enable recurring requests. Changed saved fetch inputs can trigger a new payload, while cosmetic changes do not. No hidden keepalive extends idle-limited sessions, so normal expiry may require sign-in on return. Fake-clock/hook and prepared browser regressions cover slow requests, retry scheduling, visibility/connectivity, cancellation, stale completions and interval changes. Integrated validation is recorded separately.
+
 Priority: P1. Reduce unused browser/server work and repeated failures while preserving fresh data when the dashboard is active.
 
 ### Evidence and qualification
+
+The pre-v0.30.11 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
 - [useWidget](../../src/widgets/useWidget.ts#L26) starts a request immediately, then uses a fixed `setInterval`. Each tick aborts the previous request before replacing it. A slow response can therefore be repeatedly cancelled instead of allowed to finish; failures keep the same polling frequency. Cleanup and superseded-response protection already exist and must be preserved.
 - [StatusDot](../../src/components/ServiceTile.tsx#L210) also runs a fixed 30-second interval. It can start overlapping checks if a previous request has not completed, and its cleanup suppresses updates without aborting the browser request. Neither loop explicitly pauses on hidden/offline state.
@@ -56,7 +64,7 @@ Coordinate lifecycle ownership with [IMP-11](2026-10-20-config-sync-plan.md#imp-
 
 ### Acceptance and compatibility
 
-Hidden/offline dashboards stop automatic widget/status requests, active dashboards recover promptly without event storms, and repeated failures back off within documented bounds. A slow response can finish, each subscription has one request in flight, and unmounted/obsolete subscriptions cannot update current data. Existing stale states, explicit refresh, configured normal intervals, interval `0` and edit/mobile suppression remain intact. No browser lifecycle event can cancel another consumer's shared server fetch. Session activity/expiry rules remain unchanged; hidden idle-limited tabs may legitimately require login on return. This is planned work only, with no YAML schema change or new cloud dependency.
+Hidden/offline dashboards stop automatic widget/status requests, active dashboards recover promptly without event storms, and repeated failures back off within documented bounds. A slow response can finish, each subscription has one request in flight, and unmounted/obsolete subscriptions cannot update current data. Existing stale states, explicit refresh, configured normal intervals, interval `0` and edit/mobile suppression remain intact. No browser lifecycle event can cancel another consumer's shared server fetch. Session activity/expiry rules remain unchanged; hidden idle-limited tabs may legitimately require login on return. IMP-13 introduces no YAML schema change or new cloud dependency.
 
 <a id="imp-14"></a>
 

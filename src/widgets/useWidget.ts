@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePollingLifecycle } from "@/components/PollingLifecycle";
+import { useConfigurationSync } from "@/components/ConfigurationSyncProvider";
+import { retryAfterMilliseconds, startPolling } from "@/lib/clientPolling";
 
 const DEFAULT_REFRESH_INTERVAL = 30_000;
 
@@ -21,56 +24,70 @@ export function useWidget<TData = unknown>(
   const [data, setData] = useState<TData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  const fetchData = useCallback(async () => {
-    // Type distinguishes a tile's successive widget instances and protects
-    // against stale server data after an unsaved type change.
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({ tile_id: tileId });
-      if (widgetType) params.set("widget_type", widgetType);
-      const res = await fetch(`/api/widget?${params}`, {
-        signal: controller.signal,
-      });
-      const json = (await res.json()) as { ok: boolean; data?: TData; error?: string };
-
-      if (!controller.signal.aborted) {
-        if (json.ok) {
-          setData(json.data ?? null);
-        } else {
-          setError(json.error ?? "Widget fetch failed");
-        }
-      }
-    } catch (err) {
-      if (!controller.signal.aborted) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
-    }
-  }, [tileId, widgetType]);
+  const lifecycle = usePollingLifecycle();
+  const dataRevision = useConfigurationSync()?.dataRevision;
+  const poller = useRef<ReturnType<typeof startPolling> | null>(null);
 
   useEffect(() => {
     setData(null);
-    void fetchData();
-    const interval =
-      refreshInterval > 0
-        ? setInterval(() => void fetchData(), refreshInterval)
-        : undefined;
-    return () => {
-      clearInterval(interval);
-      abortRef.current?.abort();
-    };
-  }, [fetchData, refreshInterval, fetchIdentity]);
+    setError(null);
+  }, [tileId, widgetType, fetchIdentity, dataRevision]);
 
-  return { data, loading, error, refresh: fetchData };
+  useEffect(() => {
+    const subscription = startPolling({
+      interval: refreshInterval,
+      lifecycle,
+      onPause: () => setLoading(false),
+      async attempt(signal) {
+        setLoading(true);
+        let retryAfterMs: number | undefined;
+        try {
+          const params = new URLSearchParams({ tile_id: tileId });
+          if (widgetType) params.set("widget_type", widgetType);
+          const response = await fetch(`/api/widget?${params}`, { signal });
+          retryAfterMs = retryAfterMilliseconds(response.headers?.get("Retry-After"));
+          const reconcile = [400, 401, 403, 404, 409].includes(response.status);
+          const json = (await response.json().catch((err: unknown) => {
+            // A terminal Kokpit status remains terminal even if its body was
+            // replaced by an intermediary's HTML or is otherwise unreadable.
+            if (reconcile) return { ok: false };
+            throw err;
+          })) as { ok: boolean; data?: TData; error?: string; code?: string };
+          if (signal.aborted) return { kind: "success" };
+          if (response.status === 401 || response.status === 403) {
+            setError(json.error ?? "Authentication required");
+            return { kind: "reconcile", reason: { kind: "authorization", status: response.status } };
+          }
+          // A source update can invalidate the request without changing its
+          // saved fetch identity. Retain data/errors and retry this known case.
+          if (response.status === 409 && json.code === "config_unavailable") {
+            return { kind: "failure", retryAfterMs };
+          }
+          if ([400, 404, 409].includes(response.status)) {
+            setError(json.error ?? "Widget configuration changed");
+            return { kind: "reconcile", reason: { kind: "identity", status: response.status } };
+          }
+          if (json.ok && response.ok !== false) {
+            setData(json.data ?? null);
+            setError(null);
+            return { kind: "success" };
+          }
+          setError(json.error ?? "Widget fetch failed");
+        } catch (err) {
+          if (!signal.aborted) setError(err instanceof Error ? err.message : "Unknown error");
+        } finally {
+          if (!signal.aborted) setLoading(false);
+        }
+        return { kind: "failure", retryAfterMs };
+      },
+    });
+    poller.current = subscription;
+    return () => {
+      subscription.dispose();
+      if (poller.current === subscription) poller.current = null;
+    };
+  }, [tileId, widgetType, fetchIdentity, dataRevision, refreshInterval, lifecycle]);
+
+  const refresh = useCallback(() => poller.current?.refresh(), []);
+  return { data, loading, error, refresh };
 }

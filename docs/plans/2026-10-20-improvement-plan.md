@@ -1,6 +1,6 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 6 planned, 12 implemented; completed rows record
+Date: 2026-10-20. Status: 4 planned, 14 implemented; completed rows record
 their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
@@ -29,8 +29,8 @@ entries are future work.
 | IMP-07 | P1 | **Implemented for v0.30.8:** New and replacement passwords reject values beyond 72 UTF-8 bytes while legacy verification remains compatible and authenticated guidance stays server-side until login completes. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-07) |
 | IMP-08 | P1 | **Implemented for v0.30.6:** Actual streamed request bytes are bounded before parsing, with JSON-object validation and fresh authorization. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-08) |
 | IMP-10 | P1 | **Implemented for v0.30.9:** UI writes reconcile retained YAML nodes and identities, preserve supported comments/styles, and reject unsafe alias edits before persistence. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-10) |
-| IMP-11 | P1 | Open browsers observe stable configuration changes without silently losing drafts. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-11) |
-| IMP-13 | P1 | Visible, online consumers poll without overlap and use bounded failure backoff. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-13) |
+| IMP-11 | P1 | **Implemented for v0.30.11:** Authorized revision observation refreshes stable views and appearance while preserving dirty baselines and failing closed on availability or access changes. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-11) |
+| IMP-13 | P1 | **Implemented for v0.30.11:** Shared completion-based visible/online polling uses bounded retries, aborts obsolete work and waits for access reconciliation before resuming. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-13) |
 | IMP-14 | P1 | Equivalent widget requests share bounded upstream work and cached results. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-14) |
 | IMP-15 | P1 | Service indicators distinguish reachability, HTTP failures, and probe errors. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-15) |
 | IMP-16 | P2 | An empty dashboard offers an accessible first-service action. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-16) |

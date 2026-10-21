@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
 import { useRouter } from "next/navigation";
 import { useUnsavedChanges } from "./unsaved/UnsavedChangesProvider";
 
@@ -10,6 +11,7 @@ const REQUEST_TIMEOUT_MS = 15 * 1000;
 /** Keeps the persistent session cookie alive without exposing its token to JS. */
 export default function SessionRenewal() {
   const router = useRouter();
+  const revoke = useConfigurationSync()?.revoke;
   const clearUnsaved = useUnsavedChanges()?.clear;
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export default function SessionRenewal() {
         });
         if (disposed) return;
         if (response.status === 401) {
+          if (revoke) { revoke(); return; }
           clearUnsaved?.();
           router.push("/login");
           router.refresh();
@@ -67,7 +70,7 @@ export default function SessionRenewal() {
       window.clearTimeout(nextRefresh);
       activeController?.abort();
     };
-  }, [router, clearUnsaved]);
+  }, [router, clearUnsaved, revoke]);
 
   return null;
 }

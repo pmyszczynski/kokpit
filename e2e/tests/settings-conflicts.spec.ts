@@ -22,11 +22,6 @@ test("settings conflict preserves the other editor's services and reloads a fres
 
   const updated = schemaV2Fixtures([first, { name: "Added elsewhere", url: "http://localhost:32400/other" }]);
   expect((await request.patch("/api/settings", { data: updated })).status()).toBe(200);
-  const rejectedSave = page.waitForResponse((response) =>
-    response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
-  );
-  await page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true }).click();
-  expect((await rejectedSave).status()).toBe(409);
   await expect(page.getByRole("alert").filter({ hasText: "settings.yaml changed on disk" })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: first.name })).toBeVisible();
   expect((await (await request.get("/api/settings")).json()).services.map((service: { name: string }) => service.name))
@@ -50,6 +45,7 @@ test("settings conflict preserves the other editor's services and reloads a fres
 
 test("settings detects a comment-only external edit before saving", async ({ page, request }) => {
   await page.goto("/settings");
+  await page.getByLabel("Custom CSS").fill(".kept-stale-baseline {} ");
   await page.getByRole("button", { name: "Services", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: first.name })).toBeVisible();
   const initial = await request.get("/api/settings");
@@ -67,12 +63,8 @@ test("settings detects a comment-only external edit before saving", async ({ pag
       return response.status() === 200 && response.headers()["x-config-revision"] !== revision;
     }).toBe(true);
 
-    const rejectedSave = page.waitForResponse((response) =>
-      response.url().endsWith("/api/settings") && response.request().method() === "PATCH"
-    );
-    await page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true }).click();
-    expect((await rejectedSave).status()).toBe(409);
     await expect(page.getByRole("alert").filter({ hasText: "settings.yaml changed on disk" })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true })).toBeDisabled();
     expect(await readFile(configPath, "utf-8")).toBe(externalSource);
   } finally {
     await writeFile(configPath, originalSource);

@@ -12,7 +12,7 @@ function canonicalize(value: unknown): unknown {
   }
   if (value !== null && typeof value === "object") {
     const source = value as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
+    const out: Record<string, unknown> = Object.create(null);
     for (const key of Object.keys(source).sort()) {
       const v = source[key];
       // Drop `undefined` values so an explicitly-undefined key and an absent

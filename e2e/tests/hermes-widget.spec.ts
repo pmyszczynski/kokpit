@@ -51,7 +51,7 @@ test("Hermes refresh failure retains metadata, scroll position and geometry befo
   const bounds = await list.boundingBox(); const scroll = await list.evaluate(el => el.scrollTop);
   fails = true; await page.clock.fastForward(30_000); await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Hermes unavailable");
   expect(await list.boundingBox()).toEqual(bounds); expect(await list.evaluate(el => el.scrollTop)).toBe(scroll);
-  fails = false; await page.clock.fastForward(30_000); await expect(tile(page).getByRole("alert")).toHaveCount(0);
+  fails = false; await page.clock.fastForward(300_001); await expect(tile(page).getByRole("alert")).toHaveCount(0);
 });
 
 test("Hermes shows empty, unsupported and unavailable data explicitly", async ({ page, request }) => {

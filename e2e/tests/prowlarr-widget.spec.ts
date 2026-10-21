@@ -235,7 +235,8 @@ test("Prowlarr refresh failure and recovery retain data and card positions", asy
     await assertFits(page);
     await testInfo.attach(`Prowlarr-stale-${theme}`, { body: await tile(page).screenshot(), contentType: "image/png" });
     refreshFails = false;
-    await page.clock.fastForward(60_000);
+    // Allow the documented capped backoff before checking recovery.
+    await page.clock.fastForward(300_001);
     await expect(alert).toHaveCount(0);
     expect(await layoutBounds(page)).toEqual(healthyBounds);
   }

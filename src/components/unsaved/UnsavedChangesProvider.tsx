@@ -46,6 +46,7 @@ interface UnsavedChangesContextValue {
   acknowledgeRecovery: (id: string, owner: string, revision: string | null, compatibleChildrenFrom?: string) => void;
   verifyRevision: () => Promise<RevisionCheck>;
   beginWrite: () => () => void;
+  registerAuthorizationLoss: (handler: () => void) => () => void;
 }
 
 const Context = createContext<UnsavedChangesContextValue | null>(null);
@@ -124,6 +125,7 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
   const verificationController = useRef<AbortController | null>(null);
   const verificationGeneration = useRef(0);
   const mounted = useRef(true);
+  const authorizationLoss = useRef<(() => void) | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const stay = useRef<HTMLButtonElement>(null);
   const changed = useCallback(() => setVersion((value) => value + 1), []);
@@ -233,6 +235,10 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
     sources.current.forEach((source) => source().discard());
     changed();
   }, [changed]);
+  const registerAuthorizationLoss = useCallback((handler: () => void) => {
+    authorizationLoss.current = handler;
+    return () => { if (authorizationLoss.current === handler) authorizationLoss.current = null; };
+  }, []);
   const verifyRevision = useCallback(() => {
     if (verification.current) return verification.current;
     const generation = verificationGeneration.current;
@@ -248,7 +254,8 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
         }
         if (!mounted.current) return { state: "unavailable" };
         if (response.status === 401 || response.status === 403) {
-          clear(); router.replace("/login"); router.refresh();
+          if (authorizationLoss.current) authorizationLoss.current();
+          else { clear(); router.replace("/login"); router.refresh(); }
           return { state: "unauthorized" };
         }
         const revision = response.ok ? response.headers?.get(CONFIG_REVISION_HEADER) : null;
@@ -342,10 +349,10 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
   const pendingWrite = pending.some((source) => source.saving);
   const compatible = compatibleWrites(pending);
   const canSave = compatible && pending.length > 0 && pending.every((source) => source.save && !source.saving);
-  const value = useMemo(() => ({ dirty, saving, revisionCheckGeneration: verificationGeneration.current, register, changed, confirm, clear, readRecovery, writeRecovery, removeRecovery, removeRecoveryScope, acknowledgeRecovery, verifyRevision, beginWrite }),
+  const value = useMemo(() => ({ dirty, saving, revisionCheckGeneration: verificationGeneration.current, register, changed, confirm, clear, readRecovery, writeRecovery, removeRecovery, removeRecoveryScope, acknowledgeRecovery, verifyRevision, beginWrite, registerAuthorizationLoss }),
     // version publishes registrations/dirty changes even when aggregate booleans match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version, dirty, saving, register, changed, confirm, clear, readRecovery, writeRecovery, removeRecovery, removeRecoveryScope, acknowledgeRecovery, verifyRevision, beginWrite]);
+    [version, dirty, saving, register, changed, confirm, clear, readRecovery, writeRecovery, removeRecovery, removeRecoveryScope, acknowledgeRecovery, verifyRevision, beginWrite, registerAuthorizationLoss]);
   return <Context.Provider value={value}>
     {children}
     {confirmation && <dialog ref={dialog} className="service-form-dialog" aria-labelledby="unsaved-changes-title"

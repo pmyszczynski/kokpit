@@ -1,6 +1,6 @@
 # Configuration preservation and browser synchronization
 
-Date: 2026-10-20. Status: **IMP-10 implemented for v0.30.9; IMP-11 remains planned**.
+Date: 2026-10-20. Status: **IMP-10 implemented for v0.30.9; IMP-11 implemented for v0.30.11**.
 
 Selected improvements: **IMP-10** and **IMP-11** from the [improvement delivery plan](2026-10-20-improvement-plan.md). That plan owns sequencing and the required validation gate; this document supplies implementation details. The existing [architecture](../ARCHITECTURE.md#configuration-and-persistence) and [AGENTS.md](../../AGENTS.md) remain applicable.
 
@@ -68,7 +68,15 @@ Main risks are attaching comments to the wrong reordered item, accidentally rest
 
 ## IMP-11 — Apply external YAML changes to already-open dashboards
 
+Status: **implemented for v0.30.11**.
+
+Open dashboards now observe an authorized, private/no-store endpoint returning only an opaque exact-source revision and editability. A shared five-second observer refreshes changed server renders, updates clean settings and resolved appearance, and removes obsolete CSS/background values. Dirty settings, layout drafts and open forms retain their original baseline and are blocked from overwriting an external change; owner-save acknowledgments prevent an older poll from rolling back a successful write.
+
+On resume, access and configuration are verified before child polling restarts. Dirty/unavailable configuration masks the protected surface and native dialogs without discarding mounted drafts; authorization loss clears sensitive draft state and follows sign-in. Stable migration-required snapshots remain read-only. Revision requests cannot bootstrap or migrate YAML. Real-filesystem, authorization/source-race, draft-conflict, appearance and lifecycle regressions exercise these paths; integrated validation is recorded separately.
+
 ### Evidence and qualification
+
+The pre-v0.30.11 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
 The [watcher](../../src/config/watcher.ts) marks the process cache dirty, debounces filesystem events, and retries until [the loader](../../src/config/loader.ts) can publish a stable snapshot. The server side already updates without restarting. However, [the home page](<../../src/app/(protected)/page.tsx>) renders server components and has no browser config-change subscription. Current `router.refresh()` calls follow the same browser's saves in [EditModeProvider](../../src/components/edit/EditModeProvider.tsx) and [SettingsPanel](../../src/components/SettingsPanel.tsx); they do not notify other tabs or browsers.
 
@@ -80,7 +88,7 @@ Appearance needs explicit treatment: [the root layout](../../src/app/layout.tsx)
 
 **Transport:** start with a lightweight same-origin revision polling endpoint (proposed `GET /api/config/revision`), rather than SSE. Polling avoids long-lived proxy connections, per-process broadcast state, and assumptions that all requests reach the watcher process. Each request reads the stable snapshot and rechecks the current authorization policy. Do not poll the full settings document solely to detect changes.
 
-Use one controller per protected browser surface, one request at a time, and a proposed five-second visible-tab interval. Pause hidden/offline polling, abort on unmount, use bounded retry backoff, and check immediately on focus/online. The watcher still performs server-side stability detection; the endpoint must not rewrite/migrate the YAML to satisfy a browser poll. Make the interval and its resulting authorization-change detection delay explicit in docs.
+Use one controller per protected browser surface, one request at a time, and a proposed five-second visible-tab interval. Pause hidden/offline polling, abort on unmount, use bounded retry backoff, and check immediately on focus/online. The watcher still performs server-side stability detection; the endpoint must not rewrite/migrate the YAML to satisfy a browser poll. Make the interval and its resulting authorization-change detection delay explicit in docs. Initial startup continues to validate configuration and the deployment key fatally; invalid startup YAML requires repair and restart. The unavailable/cold endpoint contract is defensive for a reachable running process, while automatic watcher/controller recovery covers external edits after successful startup.
 
 **Endpoint response and authorization:**
 

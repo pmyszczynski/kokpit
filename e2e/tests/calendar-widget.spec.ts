@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import type { CalendarData } from "../../src/integrations/calendar/api";
 import { createServer } from "node:http";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const FOOTPRINTS = [{ columnSpan: 3, rowSpan: 4 }, { columnSpan: 6, rowSpan: 4 }];
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
@@ -55,13 +56,13 @@ test("Calendar preserves scroll, focused event and geometry through failed refre
   let failed = false;
   await page.clock.install({ time: new Date("2026-10-20T06:00:00Z") });
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(failed ? { ok: false, error: "Calendar temporarily unavailable" } : { ok: true, data: DATA }) }));
-  await configure(request, [FOOTPRINTS[1]]); await page.goto("/");
+  await configure(request, [FOOTPRINTS[1]]); await withSettledConfigurationCheck(page, () => page.goto("/"));
   const widget = tile(page); const list = widget.getByRole("list"); await expect(list.getByRole("listitem")).toHaveCount(8);
   const last = list.getByRole("link").last(); await last.focus(); const top = await list.evaluate(element => element.scrollTop);
-  const bounds = await list.boundingBox(); failed = true; await page.clock.fastForward(300_000);
+  const bounds = await list.boundingBox(); failed = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_000));
   await expect(widget.getByRole("alert")).toHaveAttribute("title", "Calendar temporarily unavailable"); await expect(last).toBeFocused();
   expect(await list.evaluate(element => element.scrollTop)).toBe(top); expect(await list.boundingBox()).toEqual(bounds);
-  failed = false; await page.clock.fastForward(300_000); await expect(widget.getByRole("alert")).toHaveCount(0); await expect(last).toBeFocused();
+  failed = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_000)); await expect(widget.getByRole("alert")).toHaveCount(0); await expect(last).toBeFocused();
   expect(await list.evaluate(element => element.scrollTop)).toBe(top); expect(await list.boundingBox()).toEqual(bounds);
 });
 
