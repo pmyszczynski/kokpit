@@ -1,3 +1,4 @@
+import { MULTIPART_ALLOWANCE_BYTES, readBoundedFormData, RequestBodyError } from "@/lib/requestBody";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
 import {
@@ -15,22 +16,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Reject an oversized body up front from the Content-Length header, before
-  // buffering the multipart body into memory. The 1024-byte allowance covers
-  // multipart boundary/field overhead around the actual file bytes; the
-  // post-buffer check below (against the real decoded file size) remains the
-  // authoritative cap.
-  const contentLengthHeader = request.headers.get("content-length");
-  const contentLength = contentLengthHeader === null ? NaN : Number(contentLengthHeader);
-  if (Number.isFinite(contentLength) && contentLength > MAX_ICON_UPLOAD_BYTES + 1024) {
-    return NextResponse.json({ error: "File exceeds the 2 MB limit" }, { status: 413 });
-  }
-
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "Expected multipart/form-data" }, { status: 400 });
+    form = await readBoundedFormData(request, MAX_ICON_UPLOAD_BYTES + MULTIPART_ALLOWANCE_BYTES);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof RequestBodyError && error.status === 413
+        ? "File exceeds the 2 MB limit" : "Expected multipart/form-data" },
+      { status: error instanceof RequestBodyError ? error.status : 400 }
+    );
+  }
+  if (!(await isRequestAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const file = form.get("file");
@@ -45,6 +42,9 @@ export async function POST(request: Request) {
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!(await isRequestAuthenticated())) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const processed = processIconUpload({
       bytes,
       declaredType: file.type,

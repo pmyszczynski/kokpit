@@ -1,3 +1,4 @@
+import { ICON_DETECTION_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/auth";
 import { detectServiceIcon } from "@/lib/iconDetect";
@@ -29,9 +30,10 @@ export async function POST(request: Request) {
 
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    body = await readJsonObject(request, ICON_DETECTION_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const { url: raw, name } = (body ?? {}) as { url?: unknown; name?: unknown };
@@ -48,6 +50,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid url" }, { status: 400 });
   }
 
+  // The bounded body read yielded; authorize again before starting server-side
+  // discovery with a URL supplied by that now-complete request.
+  if (!(await isRequestAuthenticated())) {
+    return NextResponse.json({ icon: null, source: null, error: "Unauthorized" }, { status: 401 });
+  }
   const result = await detectServiceIcon(raw, typeof name === "string" ? name : undefined);
   return NextResponse.json(result);
 }

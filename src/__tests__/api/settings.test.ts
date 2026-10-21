@@ -39,6 +39,14 @@ import {
   WIDGET_SECRET_REFERENCE_PREFIX,
 } from "@/widgets/secretReference";
 
+// Mirror application startup: preliminary PATCH authorization only reads
+// published configuration and must never cold-load/migrate it itself.
+async function initializedSettingsRoute() {
+  const { getConfigSnapshot } = await import("@/config/server");
+  getConfigSnapshot();
+  return import("../../app/api/settings/route");
+}
+
 const BASE_YAML = `
 schema_version: 2
 auth:
@@ -205,7 +213,7 @@ describe("PATCH /api/settings – validation", () => {
   });
 
   it("returns 400 for malformed JSON", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const req = new NextRequest("http://localhost/api/settings", {
       method: "PATCH",
       body: "not json",
@@ -221,7 +229,7 @@ describe("PATCH /api/settings – validation", () => {
       getConfigSnapshotForWrite: () => ({ state: "dirty", config: null, source: null }),
     }));
     try {
-      const { PATCH } = await import("../../app/api/settings/route");
+      const { PATCH } = await initializedSettingsRoute();
       const res = await PATCH(patch({ appearance: { theme: "light" } }));
 
       expect(res.status).toBe(409);
@@ -241,7 +249,7 @@ describe("PATCH /api/settings – validation", () => {
       };
     });
     try {
-      const { PATCH } = await import("../../app/api/settings/route");
+      const { PATCH } = await initializedSettingsRoute();
       const res = await PATCH(patch({ service_tiles: [] }));
 
       expect(res.status).toBe(409);
@@ -253,7 +261,7 @@ describe("PATCH /api/settings – validation", () => {
 
 
   it("returns 400 for unknown theme value", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(patch({ appearance: { theme: "rainbow" } }));
     expect(res.status).toBe(400);
   });
@@ -268,7 +276,7 @@ describe("PATCH /api/settings – layout", () => {
       },
     }));
     try {
-      const { PATCH } = await import("../../app/api/settings/route");
+      const { PATCH } = await initializedSettingsRoute();
       const res = await PATCH(patch({ services: [] }));
 
       expect(res.status).toBe(500);
@@ -287,7 +295,7 @@ describe("PATCH /api/settings – layout", () => {
   });
 
   it("drops deprecated desktop geometry and returns 200", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(patch({ layout: { columns: 6, row_height: 150 } }));
     expect(res.status).toBe(200);
     expect(writeFileSync).toHaveBeenCalledTimes(1);
@@ -297,7 +305,7 @@ describe("PATCH /api/settings – layout", () => {
   });
 
   it("drops deprecated tablet geometry", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({ layout: { columns: 4, row_height: 120, tablet: { columns: 2 } } })
     );
@@ -307,7 +315,7 @@ describe("PATCH /api/settings – layout", () => {
   });
 
   it("drops all deprecated viewport geometry", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({
         layout: {
@@ -335,7 +343,7 @@ describe("PATCH /api/settings – appearance & services", () => {
   });
 
   it("saves appearance theme", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
     expect(res.status).toBe(200);
     const written = vi.mocked(writeFileSync).mock.calls[0][1] as string;
@@ -343,7 +351,7 @@ describe("PATCH /api/settings – appearance & services", () => {
   });
 
   it("saves services list", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({
         services: [
@@ -367,7 +375,7 @@ describe("PATCH /api/settings – opaque tile widget config", () => {
   });
 
   it("round-trips a signed opaque tile config without exposing or persisting its marker", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
@@ -395,7 +403,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("saves a groups array", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({
         groups: [
@@ -413,7 +421,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("returns 400 for duplicate group names and writes nothing", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({ groups: [{ name: "Media" }, { name: "media" }] })
     );
@@ -422,7 +430,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("saves a bookmarks array", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({
         bookmarks: [
@@ -446,7 +454,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("returns 400 for a bookmark link with an invalid URL", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({
         bookmarks: [{ name: "Dev", links: [{ name: "Bad", url: "nope" }] }],
@@ -457,7 +465,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("saves layout.ungrouped", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({ layout: { columns: 4, row_height: 120, ungrouped: "first" } })
     );
@@ -467,7 +475,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("returns 400 for an invalid layout.ungrouped value", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({ layout: { columns: 4, row_height: 120, ungrouped: "middle" } })
     );
@@ -475,7 +483,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("normalizes a widgetless legacy size preset to the generic footprint", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({
         services: [{ id: "10000000-0000-4000-8000-000000000005", name: "Plex", launch_url: "http://plex.local" }],
@@ -490,7 +498,7 @@ describe("PATCH /api/settings – groups, bookmarks & new layout/service fields"
   });
 
   it("returns 400 for an invalid service size", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({ service_tiles: [{ id: "20000000-0000-4000-8000-000000000005", service_id: "10000000-0000-4000-8000-000000000005", size: "huge" }] })
     );
@@ -515,13 +523,13 @@ describe("/api/settings – auth", () => {
   });
 
   it("GET returns 401 without a session when auth is enabled", async () => {
-    const { GET } = await import("../../app/api/settings/route");
+    const { GET } = await initializedSettingsRoute();
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("PATCH returns 401 and writes nothing without a session when auth is enabled", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
     expect(res.status).toBe(401);
     expect(writeFileSync).not.toHaveBeenCalled();
@@ -529,7 +537,7 @@ describe("/api/settings – auth", () => {
 
   it("does not retain a formerly disabled auth policy after a stable external rewrite", async () => {
     const fs = createSettingsFsSimulation(BASE_YAML);
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const { refreshConfigCache } = await import("@/config/loader");
     expect((await GET()).status).toBe(200);
 
@@ -553,7 +561,7 @@ describe("/api/settings – auth", () => {
       "",
     ].join("\n");
     const fs = createSettingsFsSimulation(BASE_YAML);
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const { refreshConfigCache } = await import("@/config/loader");
     // Bootstrap a current source first, then introduce an external legacy one.
     await import("@/config/server").then(({ getConfigSnapshot }) => getConfigSnapshot());
@@ -574,7 +582,7 @@ describe("/api/settings – auth", () => {
 
   it("succeeds without a session when KOKPIT_AUTH_DISABLED is set", async () => {
     process.env.KOKPIT_AUTH_DISABLED = "true";
-    const { GET } = await import("../../app/api/settings/route");
+    const { GET } = await initializedSettingsRoute();
     const res = await GET();
     expect(res.status).toBe(200);
   });
@@ -589,7 +597,7 @@ describe("GET /api/settings", () => {
   });
 
   it("returns the current config with status 200", async () => {
-    const { GET } = await import("../../app/api/settings/route");
+    const { GET } = await initializedSettingsRoute();
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -599,7 +607,7 @@ describe("GET /api/settings", () => {
 
   it("does not return per-viewport layout overrides", async () => {
     createSettingsFsSimulation(VIEWPORT_YAML);
-    const { GET } = await import("../../app/api/settings/route");
+    const { GET } = await initializedSettingsRoute();
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -609,7 +617,7 @@ describe("GET /api/settings", () => {
   });
 
   it("returns a stable X-Config-Revision header (HMAC-SHA256 hex)", async () => {
-    const { GET } = await import("../../app/api/settings/route");
+    const { GET } = await initializedSettingsRoute();
     const res = await GET();
     const rev = res.headers.get("X-Config-Revision");
     expect(rev).toMatch(/^[0-9a-f]{64}$/);
@@ -626,7 +634,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("redacts every metadata-declared password from GET without changing non-secret config", async () => {
-    const { GET } = await import("../../app/api/settings/route");
+    const { GET } = await initializedSettingsRoute();
 
     const res = await GET();
     const json = await res.json();
@@ -654,7 +662,7 @@ describe("/api/settings – widget password fields", () => {
 
   it("hides and preserves complete configs for unregistered widget types", async () => {
     fs.yaml = UNKNOWN_WIDGET_SECRET_YAML;
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
@@ -684,7 +692,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("preserves unchanged secrets through rename and reorder with an optimistic revision", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
@@ -716,7 +724,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("writes an explicit replacement and redacts it from the PATCH response", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
@@ -740,7 +748,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("preserves a saved secret across display-only and canonical-equivalent URL edits", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
@@ -764,7 +772,7 @@ describe("/api/settings – widget password fields", () => {
       services[1].integration.config.username = "other-admin";
     }],
   ])("rejects a saved secret when %s scope changes and writes nothing", async (_label, change) => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const getRes = await GET();
     const revision = getRes.headers.get("X-Config-Revision")!;
     const redacted = await getRes.json();
@@ -784,7 +792,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("rejects malformed references with a stable safe code and no write", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const redacted = await (await GET()).json();
     redacted.services[0].integration.config.api_key = {
       [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
@@ -801,7 +809,7 @@ describe("/api/settings – widget password fields", () => {
   });
 
   it("keeps the revision-conflict check ahead of secret resolution", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const redacted = await (await GET()).json();
     redacted.services[0].integration.config.api_key = {
       [WIDGET_SECRET_REFERENCE_KEY]: `${WIDGET_SECRET_REFERENCE_PREFIX}malformed`,
@@ -827,14 +835,14 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
   });
 
   it("proceeds (200) when no If-Match header is sent (back-compat)", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
     expect(res.status).toBe(200);
     expect(writeFileSync).toHaveBeenCalledTimes(1);
   });
 
   it("proceeds (200) when If-Match matches the current revision", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const revision = (await GET()).headers.get("X-Config-Revision")!;
     const res = await PATCH(
       patch({ appearance: { theme: "light" } }, { "If-Match": revision })
@@ -844,7 +852,7 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
   });
 
   it("responds 409 and writes nothing when If-Match is stale", async () => {
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
     const res = await PATCH(
       patch({ appearance: { theme: "light" } }, { "If-Match": "deadbeef" })
     );
@@ -862,7 +870,7 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
       if (String(source).endsWith("settings.yaml")) fs.yaml = externallyEdited;
       fs.moveConfig(source, destination);
     });
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const { configRevision } = await import("@/config/revision");
 
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
@@ -888,7 +896,7 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
       if (String(source).endsWith("settings.yaml")) fs.yaml = "appearance: [";
       fs.moveConfig(source, destination);
     });
-    const { PATCH } = await import("../../app/api/settings/route");
+    const { PATCH } = await initializedSettingsRoute();
 
     const res = await PATCH(patch({ appearance: { theme: "light" } }));
 
@@ -900,7 +908,7 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
   });
 
   it("rejects a stale revision after a stable comment-only external edit", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const { refreshConfigCache } = await import("@/config/loader");
     const { configRevision } = await import("@/config/revision");
     const revision = (await GET()).headers.get("X-Config-Revision")!;
@@ -921,7 +929,7 @@ describe("PATCH /api/settings – revision conflict (If-Match)", () => {
   });
 
   it("allows only one concurrent PATCH to commit for the same revision", async () => {
-    const { GET, PATCH } = await import("../../app/api/settings/route");
+    const { GET, PATCH } = await initializedSettingsRoute();
     const revision = (await GET()).headers.get("X-Config-Revision")!;
 
     const responses = await Promise.all([

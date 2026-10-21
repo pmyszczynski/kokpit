@@ -7,6 +7,7 @@
 export {
   getConfig,
   getConfigSnapshot,
+  getPublishedConfigSnapshot,
   getConfigSnapshotForWrite,
   writeConfigSnapshot,
   loadConfig,

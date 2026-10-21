@@ -1,7 +1,9 @@
+import { WIDGET_TEST_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import "@/integrations";
 import { NextResponse } from "next/server";
 import { isAuthenticationEnabled, isRequestAuthenticated } from "@/auth";
 import { getConfigSnapshot, legacyIntegrationType } from "@/config/server";
+import type { KokpitConfig } from "@/config/schema";
 import { getWidget } from "@/widgets";
 import { isTileFootprint } from "@/layout/grid";
 import { fetchWithHardTimeout, WidgetFetchTimeoutError } from "@/lib/fetchTimeout";
@@ -15,41 +17,54 @@ import {
   widgetFetchTimeoutFailure,
 } from "@/widgets/publicFetchError";
 
-// Tests a widget connection with config straight from the (possibly unsaved)
-// service form. Unlike GET /api/widget, the config arrives in the body instead
-// of being looked up in settings.yaml — the service may not exist yet. This
-// endpoint triggers server-side requests to caller-supplied URLs, so it is
-// strictly auth-gated.
-export async function POST(request: Request) {
+/** Require current protected configuration before parsing or using credentials. */
+async function connectionTestConfig(): Promise<{ config: KokpitConfig } | { response: NextResponse }> {
   const snapshot = getConfigSnapshot();
   if (
     !(await isRequestAuthenticated(
       snapshot.state === "dirty" ? undefined : snapshot.config ?? undefined
     ))
   ) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return { response: NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 }) };
   }
   if (snapshot.state === "dirty" || !snapshot.config) {
-    return NextResponse.json(
+    return { response: NextResponse.json(
       {
         ok: false,
         error: "settings.yaml is being updated; retry once the change is complete",
         code: "config_unavailable",
       },
       { status: 409 }
-    );
+    ) };
   }
-  const activeConfig = snapshot.config;
-  if (!isAuthenticationEnabled(activeConfig)) {
-    return NextResponse.json({ ok: false, error: "Connection tests require authentication" }, { status: 403 });
+  if (!isAuthenticationEnabled(snapshot.config)) {
+    return { response: NextResponse.json({ ok: false, error: "Connection tests require authentication" }, { status: 403 }) };
   }
+  return { config: snapshot.config };
+}
+
+// Tests a widget connection with config straight from the (possibly unsaved)
+// service form. Unlike GET /api/widget, the config arrives in the body instead
+// of being looked up in settings.yaml — the service may not exist yet. This
+// endpoint triggers server-side requests to caller-supplied URLs, so it is
+// strictly auth-gated.
+export async function POST(request: Request) {
+  const initial = await connectionTestConfig();
+  if ("response" in initial) return initial.response;
 
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+    body = await readJsonObject(request, WIDGET_TEST_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
+
+  // Reading a streamed body yields. A revoked session or an intervening config
+  // change must not authorize outbound work or resolve stale saved credentials.
+  const current = await connectionTestConfig();
+  if ("response" in current) return current.response;
+  const activeConfig = current.config;
 
   const { type, config, footprint } = (body ?? {}) as { type?: unknown; config?: unknown; footprint?: unknown };
   if (typeof type !== "string" || type === "") {

@@ -13,6 +13,7 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "o
 vi.mock("@/auth/reauthenticate", () => ({ verifySessionPassword: mocks.proof }));
 vi.mock("@/config/server", () => ({
   getConfigSnapshot: mocks.snapshot,
+  getPublishedConfigSnapshot: mocks.snapshot,
   getConfigSnapshotForWrite: mocks.snapshot,
   writeConfigSnapshot: mocks.write,
   ConfigUnavailableError: class extends Error {},

@@ -1,3 +1,4 @@
+import { SETTINGS_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isRequestAuthenticated } from "@/auth";
@@ -9,6 +10,7 @@ import {
   ConfigRevisionMismatchError,
   ConfigUnavailableError,
   getConfigSnapshot,
+  getPublishedConfigSnapshot,
   getConfigSnapshotForWrite,
   writeConfigSnapshot,
 } from "@/config/server";
@@ -90,11 +92,31 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  // A slow/large body must not be parsed by an unauthorized caller or hold the
+  // write queue. This read cannot initialize/migrate YAML. The queue below
+  // still authorizes a fresh exact source after the awaited body read.
+  const preliminary = getPublishedConfigSnapshot();
+  if (preliminary.state === "cold") {
+    return NextResponse.json(
+      { error: "settings.yaml is being updated; reload before saving.", code: "config_unavailable" },
+      { status: 409 }
+    );
+  }
+  if (!(await isRequestAuthenticated(preliminary.state === "dirty" ? undefined : preliminary.config ?? undefined))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (preliminary.state === "dirty" || !preliminary.config || !preliminary.source) {
+    return NextResponse.json(
+      { error: "settings.yaml is being updated; reload before saving.", code: "config_unavailable" },
+      { status: 409 }
+    );
+  }
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    body = await readJsonObject(request, SETTINGS_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const result = PatchBodySchema.safeParse(body);

@@ -1,8 +1,8 @@
 # Request boundaries and deployment secret plan
 
-Date: 2026-10-20. Status: mixed — IMP-04 implemented for v0.30.3 and IMP-05 for v0.30.4; IMP-08 planned.
+Date: 2026-10-20. Status: implemented — IMP-04 for v0.30.3, IMP-05 for v0.30.4 and IMP-08 for v0.30.6.
 
-This document covers the owner-selected findings IMP-04, IMP-05 and IMP-08 from the twenty-item project review. The [improvement plan](2026-10-20-improvement-plan.md) owns the delivery order, cross-cutting dependencies and full required validation gate. Each item below is independently reviewable; completing one does not mark the others complete.
+This document records the owner-selected findings IMP-04, IMP-05 and IMP-08 from the twenty-item project review. The [improvement plan](2026-10-20-improvement-plan.md) owns the delivery order, cross-cutting dependencies and full required validation gate. Each item below has its own implementation record and accepted design.
 
 Source links are relative to this document and point to the inspected repository state. Recheck them and the installed Next.js documentation before implementation.
 
@@ -138,7 +138,15 @@ Compatibility impact: existing operators using the known placeholder must remove
 
 ## IMP-08 — Bound request parsing and validate JSON objects
 
+Status: **implemented for v0.30.6**.
+
+Mutation handlers now bound actual streamed bytes before JSON or multipart parsing, including absent or misleading Content-Length headers. Routes using the shared JSON parser require an object before endpoint field validation. Malformed shapes return controlled 400 responses and overflow returns 413. Limits are 16 KiB for auth/setup, 64 KiB for icon detection, 256 KiB for connection tests and 2 MiB for settings; uploads allow the existing 2 MiB icon or 8 MiB background file limit plus 64 KiB for the entire multipart envelope.
+
+Protected handlers authorize before parsing, and settings writes and connection tests recheck access after the awaited read. The auth transport ceiling remains separate from the new-password policy; exceptional legacy inputs exceeding it require host recovery. Regression coverage includes chunked/incorrect-length bodies, arrays/primitives, upload overhead, authorization changes, unchanged persistence on rejection, and calibrated large dashboards and registered-widget configurations. Browser regressions are prepared; integrated validation is recorded separately.
+
 ### Evidence and scope
+
+The pre-v0.30.6 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
 Rechecked against `71ef878` (v0.27.1): [`login`](../../src/app/api/auth/login/route.ts) now rejects `null`, arrays and other JSON primitives with a controlled 400 before credential work. Its SQLite account/global limiter is also already present and must be preserved when migrating its parser. The original login-null example is resolved, although login still lacks a streamed body-size cap.
 

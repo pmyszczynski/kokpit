@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -67,6 +68,40 @@ afterEach(() => {
 async function freshLoader() {
   return import("@/config/loader");
 }
+
+describe("getPublishedConfigSnapshot", () => {
+  it("does not create a missing configuration during a preliminary read", async () => {
+    const { getPublishedConfigSnapshot } = await freshLoader();
+    expect(getPublishedConfigSnapshot()).toEqual({ state: "cold", config: null, source: null });
+    expect(getPublishedConfigSnapshot().state).toBe("cold");
+    expect(readdirSync(tempDir)).toEqual([]);
+  });
+
+  it("does not parse or migrate a legacy/invalid file before startup", async () => {
+    const source = "auth: { enabled: false }\nservices: []\n";
+    writeFileSync(configPath, source);
+    const { getPublishedConfigSnapshot } = await freshLoader();
+    expect(getPublishedConfigSnapshot().state).toBe("cold");
+    expect(readFileSync(configPath, "utf8")).toBe(source);
+    expect(readdirSync(tempDir)).toEqual(["settings.yaml"]);
+    writeFileSync(configPath, "invalid: [");
+    expect(getPublishedConfigSnapshot().state).toBe("cold");
+    expect(readFileSync(configPath, "utf8")).toBe("invalid: [");
+  });
+
+  it("detects source drift without promoting or rewriting the external edit", async () => {
+    vi.useFakeTimers();
+    writeFileSync(configPath, "schema_version: 2\nauth: { enabled: false }\nservices: []\nservice_tiles: []\n");
+    const { loadConfig, getPublishedConfigSnapshot } = await freshLoader();
+    loadConfig();
+    expect(getPublishedConfigSnapshot().state).toBe("ready");
+    const external = "invalid: [";
+    writeFileSync(configPath, external);
+    expect(getPublishedConfigSnapshot().state).toBe("dirty");
+    expect(readFileSync(configPath, "utf8")).toBe(external);
+    expect(readdirSync(tempDir)).toEqual(["settings.yaml"]);
+  });
+});
 
 describe("getConfigPath", () => {
   it("reflects KOKPIT_CONFIG_PATH set at module load time", async () => {

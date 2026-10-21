@@ -779,6 +779,13 @@ export function getConfigSnapshot(): ConfigSnapshot {
   return { state: current.state, config: current.config, source: current.source };
 }
 
+/** Read published state without initializing, migrating or rewriting YAML. */
+export function getPublishedConfigSnapshot(): ConfigSnapshot {
+  const current = configCache();
+  verifyConfirmedSource(current);
+  return { state: current.state, config: current.config, source: current.source };
+}
+
 /** Marks the cache dirty if a caller observes disk bytes different from the
  * last source that was fully parsed and published. */
 function verifyConfirmedSource(cache: ConfigCache): void {

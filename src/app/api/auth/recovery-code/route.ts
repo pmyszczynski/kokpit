@@ -1,3 +1,4 @@
+import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
@@ -6,6 +7,7 @@ import {
   hashRecoveryCode,
   setRecoveryCodeHash,
   verifySessionPassword,
+  getAuthSession,
 } from "@/auth";
 import { isTrustedMutation } from "@/auth/requestGuard";
 
@@ -19,18 +21,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  const token = await getSessionToken();
+  if (!(await getAuthSession(token))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (typeof body !== "object" || body === null) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+
+  let body: Record<string, unknown>;
+  try {
+    body = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const { password } = body as { password?: unknown };
-  const token = await getSessionToken();
   const verified = await verifySessionPassword(token, password);
   if (!("auth" in verified)) return NextResponse.json({ error: verified.error }, { status: verified.status });
 

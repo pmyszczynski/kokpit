@@ -344,6 +344,38 @@ API clients calling authentication mutation endpoints must send
 `X-Kokpit-Request: 1`; cross-site browser mutations are rejected. Tokens should never
 be copied into URLs, logs, or browser local storage.
 
+## API request limits
+
+JSON mutation endpoints accept an object, with endpoint-specific field checks.
+Malformed JSON or a primitive/array body returns `400`; bodies above these limits
+return `413`. Limits count actual streamed UTF-8 bytes, including when
+`Content-Length` is missing or incorrect.
+
+| Request | Body limit |
+| --- | --- |
+| Setup and authentication/session JSON | 16 KiB (16,384 bytes) |
+| Icon detection JSON | 64 KiB (65,536 bytes) |
+| Widget connection-test JSON | 256 KiB (262,144 bytes) |
+| Settings PATCH JSON | 2 MiB (2,097,152 bytes) |
+| Saved-service ping JSON | 1 KiB (1,024 bytes; existing limit) |
+| Icon multipart upload | 2 MiB decoded file plus 64 KiB total multipart overhead |
+| Background multipart upload | 8 MiB decoded file plus 64 KiB total multipart overhead |
+
+Upload envelope limits include every field, filename and boundary; excessive
+extra fields can return `413` even if the selected file is small. Existing file
+type, content and sanitization checks still apply. Normal-sized clients retain
+their existing content-type requirements and error response shapes. Protected
+routes authorize before parsing; settings writes recheck the current session,
+configuration and revision after parsing. An unauthorized malformed request may
+therefore return `401` before JSON validation.
+
+The authentication transport limit is separate from bcrypt's password policy.
+Existing passwords that cannot fit in the 16 KiB JSON envelope require the host
+password-reset utility; this limit does not silently truncate password input.
+Large deployments can edit YAML directly when a complete settings payload exceeds
+the API limit. A validated 1,000-service/1,000-tile dashboard with 256 KiB custom
+CSS and representative configs for all registered widgets fit the selected limits.
+
 ## Edit Mode
 
 Click the pencil icon in the navbar (or press `Mod+E` — Cmd+E on macOS, Ctrl+E on Windows/Linux) to edit the dashboard in place. Edit mode follows the same access as `/settings` — any authenticated user, or everyone if `auth.enabled: false`. Outside edit mode, the dashboard is unchanged and read-only, exactly as it renders today.
