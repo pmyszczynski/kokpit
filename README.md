@@ -528,6 +528,59 @@ npm run reset-password
 
 This walks you through setting a new password, and optionally clearing 2FA and/or the saved recovery code, directly against the database.
 
+## Service reachability
+
+Service dots check the service's saved launch URL from the Kokpit server. Hover the
+dot or focus its tile/link to read the observed HTTP status, server-to-service
+latency, and when the check completed. Escape dismisses the tooltip. For tiles
+whose widget contains separate links, the dot has its own keyboard stop.
+
+- **Reachable:** a 2xx response arrived.
+- **Reachable, qualified:** a redirect, authentication requirement (401/403),
+  unsupported HEAD method (405/501), or another HTTP client error arrived.
+  These responses establish reachability without proving application health.
+- **Reachable, degraded:** the service returned another 5xx error.
+- **Unreachable from Kokpit:** a DNS, connection, TLS, or five-second probe timeout
+  prevented a response. This describes Kokpit's network path to the service.
+- **Status unavailable:** dashboard authentication/configuration, probe capacity,
+  safety restrictions, or the checker prevented a usable observation. A hollow
+  dot distinguishes this from an unreachable service; prior observations remain
+  available in the tooltip.
+
+Checks use `HEAD` only, never follow redirects, and never inject integration
+credentials. A 405/501 does not trigger an automatic GET fallback. Configured LAN
+destinations remain supported within the existing SSRF restrictions. Results are
+shared briefly across tiles/tabs handled by the same Kokpit server process;
+cached results retain their original timestamp and latency. Latency stops when response headers arrive and measures neither page
+load time nor the browser's connection. This indicator does not check application
+dependencies or authenticated functionality.
+
+`POST /api/ping` accepts `{ "serviceId": "<saved service UUID>" }`, rather than a
+caller-supplied URL. HTTP 200 probe envelopes retain `ok` and, for received HTTP
+responses, `status`. Additive `reachable`, `assessment`, `reason`, `checkedAt`
+(UTC epoch milliseconds), and `responseTimeMs` distinguish observations from
+checker failures:
+
+| `reachable` | `assessment` values | `reason` values |
+| --- | --- | --- |
+| `true` (`ok: true`, with `status`) | `reachable`, `redirect`, `authentication-required`, `access-restricted`, `method-unsupported`, `http-error`, `degraded` | Omitted |
+| `false` (`ok: false`) | `unreachable` | `timeout`, `connection-failed`, `dns-failed` |
+| `null` (`ok: false`) | `unavailable` | `capacity`, `probe-blocked`, `checker-failed` |
+
+`ok: true` includes reachable HTTP errors. `reachable: false` means a transport
+failure; `reachable: null` means no service observation was possible. Capacity,
+safety and checker failures use the HTTP 200 probe envelope above; latency can be
+`null` when no probe ran. Public failure reasons exclude upstream error text.
+
+Controlled request/authentication/configuration errors instead return only
+`{ "error": "<message>" }`, without `ok` or probe metadata: HTTP 400 for invalid
+JSON, service IDs or launch URLs; 401 for missing/expired dashboard authorization;
+404 for an unknown saved service; 409 for changing/unavailable configuration;
+413 for a body exceeding 1 KiB; and 415 for a non-JSON content type. Check the HTTP
+status before interpreting a response as a service observation.
+Status colors use `--color-success`, `--color-warning`, `--color-error`, and
+`--color-text-muted`; ordinary custom CSS can override them.
+
 ## Widgets
 
 Saved-widget requests share successful results within each Kokpit server process.

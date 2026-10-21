@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: IMP-13 implemented for v0.30.11; IMP-14 implemented for v0.31.1; IMP-17 implemented for v0.30.10; IMP-15–16 remain planned.
+Status: IMP-13 implemented for v0.30.11; IMP-14 implemented for v0.31.1; IMP-15 implemented for v0.31.2; IMP-17 implemented for v0.30.10; IMP-16 remains planned.
 
 Scope: IMP-13, IMP-14, IMP-15, IMP-16 and IMP-17 from the project review
 
@@ -125,16 +125,24 @@ Identical authorized saved-widget requests share one upstream operation within a
 
 ## IMP-15 — Explain service reachability and HTTP health accurately
 
+Status: **implemented for v0.31.2**.
+
+IMP-15 adds explicit reachability assessments to the existing saved-service `POST /api/ping` contract while retaining `ok` and HTTP `status`. A reachable 401/403, redirect, unsupported HEAD response, client error, or server error now carries a distinct assessment; transport failures are separated from checker capacity, safety, and internal failures using bounded public reasons. Observations include a completion timestamp and monotonic latency measured to response headers. Existing bounded request sharing now includes the confirmed configuration generation, preserves cached measurements, and checks configuration and authorization again before returning a result. Probes remain HEAD-only, use the existing SSRF guard, follow no redirects, inject no integration credentials, and have a five-second hard timeout.
+
+The client presents checker failures as unavailable while retaining the last actual observation, resets and cancels work when the saved destination changes, and provides hover/keyboard tooltips with status, latency, and observation age. Tooltip descriptions attach to the existing launch-link focus stop or standalone dot, support Escape, and preserve other accessible descriptions. Theme variables and layered CSS permit ordinary custom overrides. Regression coverage includes HTTP classifications, sanitized failures, cache/timing reuse, in-flight configuration and authorization changes, destination replacement, cancellation, and tooltip accessibility/cleanup. Browser regressions cover themes, custom CSS, and shared observations across tabs handled by one server process. The validation requirements below describe delivery checks; PR and release records hold their results.
+
 Priority: P1. Expand the existing Phase C **Status indicator upgrades** roadmap item, rather than creating a parallel feature.
 
-### Evidence and qualification
+### Pre-implementation evidence and qualification
 
-- [The saved-service probe](../../src/app/api/ping/route.ts#L93) sends a bounded `HEAD` to the saved launch URL, refuses redirects, permits configured LAN targets, and returns any received HTTP status as `{ ok: true, status }`. It already shares concurrent requests and retains results for three seconds with bounded pending/settled entries.
-- [Ping tests](../../src/__tests__/api/ping.test.ts#L123) intentionally treat 404/503 and a rejected `HEAD` method as reachable. Receiving HTTP 500 proves the endpoint is reachable; the original finding overstated this as an incorrect network check.
-- [StatusDot](../../src/components/ServiceTile.tsx#L210) drops the returned HTTP status and labels every successful probe “Online.” It also maps a failed Kokpit API response to “Offline,” which can misrepresent an expired session, invalid saved configuration or a temporarily unavailable checker as a failed service.
+The evidence below is pinned to pre-feature revision `ab5469305429bcf97062fc72661fef1e96297ee2`, except where the original audit is called out explicitly. The accepted design and task list describe the completed change for v0.31.2.
+
+- [The saved-service probe](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/app/api/ping/route.ts#L82-L125) sends a bounded `HEAD` to the saved launch URL, refuses redirects, permits configured LAN targets, and returns any received HTTP status as `{ ok: true, status }`. It already shares concurrent requests and retains results for three seconds with bounded pending/settled entries.
+- [Ping tests](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/__tests__/api/ping.test.ts#L113-L138) intentionally treat 404/503 and a rejected `HEAD` method as reachable. Receiving HTTP 500 proves the endpoint is reachable; the original finding overstated this as an incorrect network check.
+- [StatusDot](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/components/ServiceTile.tsx#L245-L264) dropped the returned HTTP status and labeled every successful probe “Online.” At the original audit, its [older implementation](https://github.com/pmyszczynski/kokpit/blob/995811da47cafc96907bae6f5979a6fc4c9fa7dd/src/components/ServiceTile.tsx#L210-L242) also mapped failed Kokpit API responses to “Offline.” IMP-11 had already added [authorization/configuration reconciliation](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/components/ServiceTile.tsx#L233-L243) before IMP-15; the remaining work distinguished checker failures and HTTP health assessments.
 - The [existing Phase 3 roadmap item](../Roadmap.md#phase-3--personalization) already asks for HTTP status/response-time tooltips and a shared status scheduler. The existing three-second cache is a useful starting point, not missing infrastructure to replace without cause. Batching/scheduler work remains a broader follow-up and is not necessary to complete IMP-15.
 
-### Design
+### Accepted design
 
 Separate `reachable`, observed HTTP status and a user-facing assessment. Preserve the existing `ok` field initially for API compatibility while adding `checkedAt`, monotonic measured response time in milliseconds and a structured assessment/reason. Elapsed time measures the server-to-service probe until headers arrive, not a user's page load or browser latency. Cached results retain the original measurement and timestamp.
 
@@ -155,20 +163,24 @@ Do not follow login redirects or send integration credentials to a launch URL. D
 
 Reuse the existing bounded `/api/ping` probe layer and per-tile polling for this correction. Key work by config generation and saved destination; never return a previous destination's status after a config change. Distinguish capacity/checker failures from transport failures and retain original observation timestamps. Keep the existing roadmap's future batched endpoint, shared scheduler and client status owner outside IMP-15's completion criteria; they can reuse this result model later.
 
-### Ordered implementation tasks
+### Completed implementation tasks
 
-1. Define the backward-compatible result model and HTTP assessment table; document the difference between reachability and application health.
-2. Extract/reuse the current bounded probe cache; add monotonic timing, original observation timestamps, explicit local-checker failures and generation-aware result handling.
-3. Update `/api/ping` results with additive status/timing metadata and explicit unavailable reasons. Preserve saved-ID validation, authorization, current polling and preview/edit suppression.
-4. Update status-dot styles and accessible tooltips using existing theme/custom-CSS conventions. Keep the existing roadmap's optional badge display style outside this semantic correction.
-5. Update API and README documentation with health limitations and the meaning/age of latency measurements. Leave batching/scheduler work unchecked in the existing roadmap.
+- [x] Defined the backward-compatible result model and HTTP assessment table, documenting the difference between reachability and application health.
+- [x] Reused the bounded probe cache and added monotonic timing, original observation timestamps, explicit local-checker failures and generation-aware result handling.
+- [x] Added status/timing metadata and explicit unavailable reasons to `/api/ping`, preserving saved-ID validation, authorization, polling and preview/edit suppression.
+- [x] Added status-dot styles and accessible tooltips using existing theme/custom-CSS conventions, keeping the optional badge display style outside this semantic correction.
+- [x] Updated API and README documentation with health limitations and the meaning/age of latency measurements, leaving batching/scheduler work unchecked in the existing roadmap.
 
-### Tests
+### Regression coverage
 
-- Extend [ping API tests](../../src/__tests__/api/ping.test.ts) for 2xx, redirect/login redirect, 401, 403, 404, 405, 500, 501, 503, transport failure and timeout. Assert no redirect following, credential injection or automatic GET fallback.
-- Retain ID/body validation, authorization before work, unknown IDs, private saved URLs, bounded concurrency and shared-result tests; add timing/timestamp reuse and revision changes during a probe.
-- Extend [tile tests](../../src/__tests__/components/ServiceTile.test.tsx#L434) for status vs API failures, accessible labels, pending/unavailable/degraded styling, no-color-only communication and preview suppression.
-- Browser-check multiple tiles for one service and multiple dashboard tabs: the current bounded server deduplication, correct tooltip time/status, and no “Offline” label when the session expires.
+- [Ping API tests](../../src/__tests__/api/ping.test.ts) cover 2xx, redirect/login redirect, 401, 403, 404, 405, 500, 501, 503, transport failure and timeout, asserting no redirect following, credential injection or automatic GET fallback.
+- ID/body validation, authorization before work, unknown IDs, private saved URLs, bounded concurrency and shared-result tests remain covered alongside timing/timestamp reuse and revision changes during a probe.
+- [Status component tests](../../src/__tests__/components/ServiceStatus.test.tsx) and [tile tests](../../src/__tests__/components/ServiceTile.test.tsx) cover status vs API failures, accessible labels, pending/unavailable/degraded styling, no-color-only communication, cancellation and preview suppression.
+- Browser regressions cover keyboard tooltips across all themes, mobile launch-link descriptions, custom-CSS overrides, and multiple tiles/tabs sharing a guarded HEAD observation within one server process.
+
+### Validation requirements
+
+After final edits, run the complete five-command local gate in `AGENTS.md` before committing or updating the PR. Record local validation, browser execution, visual inspection, and current-head CI/reviewer results in the PR and release records.
 
 ### Acceptance and compatibility
 

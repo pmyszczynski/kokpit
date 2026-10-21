@@ -146,18 +146,38 @@ describe("ssrfSafeFetch", () => {
     expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 
-  it("blocks when DNS resolution throws", async () => {
-    dnsLookupMock.mockRejectedValue(new Error("ENOTFOUND"));
+  it.each(["ENOTFOUND", "ENODATA"])("classifies definitive DNS failure %s without making a request", async code => {
+    dnsLookupMock.mockRejectedValue(Object.assign(new Error("lookup failed"), { code }));
     await expect(
       ssrfSafeFetch("http://does-not-exist.example.com", { allowPrivateNetworks: false })
-    ).rejects.toThrow(SsrfBlockedError);
+    ).rejects.toMatchObject({ name: "SsrfBlockedError", reason: "dns-failed" });
+    expect(undiciFetchMock).not.toHaveBeenCalled();
+    expect(createdAgents).toHaveLength(0);
+  });
+
+  it.each(["EAI_AGAIN", "ECONNREFUSED", "ENETUNREACH", "ERR_INVALID_ARG_TYPE"])("keeps resolver failure %s distinct from a target connection failure", async code => {
+    dnsLookupMock.mockRejectedValue(Object.assign(new Error("resolver details"), { code }));
+    await expect(
+      ssrfSafeFetch("http://target.example.com", { allowPrivateNetworks: true })
+    ).rejects.toMatchObject({ name: "SsrfBlockedError", reason: "dns-unavailable" });
+    expect(undiciFetchMock).not.toHaveBeenCalled();
+    expect(createdAgents).toHaveLength(0);
+  });
+
+  it("treats an unexpected lookup exception as checker unavailability and fails closed", async () => {
+    dnsLookupMock.mockRejectedValue(new TypeError("lookup implementation failed"));
+    await expect(
+      ssrfSafeFetch("http://target.example.com", { allowPrivateNetworks: true })
+    ).rejects.toMatchObject({ name: "SsrfBlockedError", reason: "dns-unavailable" });
+    expect(undiciFetchMock).not.toHaveBeenCalled();
+    expect(createdAgents).toHaveLength(0);
   });
 
   it("blocks when DNS resolves to nothing", async () => {
     dnsLookupMock.mockResolvedValue([]);
     await expect(
       ssrfSafeFetch("http://no-records.example.com", { allowPrivateNetworks: false })
-    ).rejects.toThrow(SsrfBlockedError);
+    ).rejects.toMatchObject({ name: "SsrfBlockedError", reason: "dns-failed" });
   });
 
   it("re-validates a redirect target and rejects one pointing at a blocked address", async () => {

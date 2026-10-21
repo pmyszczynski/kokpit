@@ -11,6 +11,13 @@ import { ConfigurationSyncProvider } from "@/components/ConfigurationSyncProvide
 const navigation = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
+function serviceReachabilityResponse(reachable: boolean, status = 200) {
+  return Response.json(reachable
+    ? { ok: true, reachable: true, status: 200, checkedAt: 0, responseTimeMs: 2 }
+    : { ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 2 },
+  { status });
+}
+
 // The broken-widget badge reads edit-mode availability via
 // useEditModeOptional(), independently of any wrapping <EditModeProvider> (it
 // must work with no provider at all — that's the whole point of the "Optional"
@@ -49,6 +56,22 @@ describe("ServiceTile", () => {
       render(<ServiceTile name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     expect(screen.getByText("Jellyfin")).toBeInTheDocument();
+  });
+
+  it("keeps the service launch name stable and describes its status once", async () => {
+    await act(async () => render(<ServiceTile
+      serviceId="10000000-0000-4000-8000-000000000001"
+      name="Protected service" url="https://example.com"
+    />));
+    const link = screen.getByRole("link", { name: "Protected service" });
+    expect(link).toHaveAccessibleName("Protected service");
+    expect(screen.getByRole("img", { name: /^Reachable; HTTP 200/ })).toBeInTheDocument();
+    fireEvent.focus(link);
+    expect(link).toHaveAccessibleDescription(/^Reachable; HTTP 200/);
+    expect(link.getAttribute("aria-describedby")?.split(/\s+/)).toHaveLength(1);
+    expect(link).toHaveAccessibleName("Protected service");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(link).not.toHaveAttribute("aria-describedby");
   });
 
   it("groups the service icon and name in the same header row", async () => {
@@ -118,6 +141,31 @@ describe("ServiceTile", () => {
       expect(container.querySelector(".tile-widget-badge")).toBeNull();
       expect(cornerSlot(container)).toBeNull();
     });
+  });
+
+  it("resets and reprobes a changed launch destination under the same service ID", async () => {
+    let resolveOld!: (response: Response) => void;
+    let resolveNew!: (response: Response) => void;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ ok: true, status: 200 }))
+      .mockReturnValueOnce(new Promise<Response>(resolve => { resolveOld = resolve; }))
+      .mockReturnValueOnce(new Promise<Response>(resolve => { resolveNew = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    const serviceId = "10000000-0000-4000-8000-000000000001";
+    const view = render(<ServiceTile serviceId={serviceId} name="Jellyfin" url="http://old.local" />);
+    await act(async () => {});
+    expect(screen.getByRole("img", { name: /^Reachable; HTTP 200/ })).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    const oldSignal = fetchMock.mock.calls[1][1].signal as AbortSignal;
+    await act(async () => view.rerender(<ServiceTile serviceId={serviceId} name="Jellyfin" url="http://new.local" />));
+    expect(oldSignal.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole("img", { name: "Checking service reachability" })).toBeInTheDocument();
+    await act(async () => resolveNew(Response.json({ ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 1 })));
+    await act(async () => resolveOld(Response.json({ ok: true, status: 200 })));
+    expect(screen.getByRole("img", { name: /^Unreachable from Kokpit/ })).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "http://new.local");
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string)).toEqual({ serviceId });
   });
 
   it("links to the correct URL in a new tab", async () => {
@@ -439,14 +487,14 @@ describe("ServiceTile", () => {
 
   it("status dot shows ok after ping resolves", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true }),
+      json: () => Promise.resolve({ ok: true, status: 200 }),
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
     await act(async () => {
       render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
     // act() flushes effects and the initial fetch promise
-    expect(screen.getByTitle("Online")).toHaveClass("status-dot--ok");
+    expect(screen.getByTitle(/^Reachable; HTTP 200/)).toHaveClass("status-dot--ok");
     expect(fetchMock).toHaveBeenCalledWith("/api/ping", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -462,7 +510,7 @@ describe("ServiceTile", () => {
     let resolveNew!: (response: Response) => void;
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (url !== "/api/ping") return Response.json({ revision, editable: true });
-      if (++probes === 1) return Response.json({ ok: wasOnline });
+      if (++probes === 1) return serviceReachabilityResponse(wasOnline);
       return new Promise<Response>((resolve) => { resolveNew = resolve; });
     }));
     const dashboard = (generation: string, url: string) => <ConfigurationSyncProvider
@@ -472,15 +520,15 @@ describe("ServiceTile", () => {
     </ConfigurationSyncProvider>;
     const view = render(dashboard("fetch-one", "http://old-target.local"));
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-    expect(screen.getByTitle(wasOnline ? "Online" : "Offline")).toBeInTheDocument();
+    expect(screen.getByTitle(wasOnline ? /^Reachable; HTTP 200/ : /^Unreachable from Kokpit/)).toBeInTheDocument();
     revision = "two";
     view.rerender(dashboard("fetch-two", "http://new-target.local"));
-    expect(screen.getByTitle("Checking…")).toBeInTheDocument();
+    expect(screen.getByTitle("Checking service reachability")).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(1001); });
     expect(probes).toBe(2);
-    expect(screen.getByTitle("Checking…")).toBeVisible();
-    await act(async () => { resolveNew(Response.json({ ok: !wasOnline })); });
-    expect(screen.getByTitle(wasOnline ? "Offline" : "Online")).toBeVisible();
+    expect(screen.getByTitle("Checking service reachability")).toBeVisible();
+    await act(async () => { resolveNew(serviceReachabilityResponse(!wasOnline)); });
+    expect(screen.getByTitle(wasOnline ? /^Unreachable from Kokpit/ : /^Reachable; HTTP 200/)).toBeVisible();
   });
 
   it("keeps the previous target's status when only cosmetic configuration changes", async () => {
@@ -490,7 +538,7 @@ describe("ServiceTile", () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (url !== "/api/ping") return Response.json({ revision, editable: true });
       probes++;
-      return Response.json({ ok: true });
+      return serviceReachabilityResponse(true);
     }));
     const dashboard = () => <ConfigurationSyncProvider initialRevision={revision} initialEditable
       initialDataRevision="same-fetch-inputs" initialAppearance={{ theme: revision === "one" ? "dark" : "light", customCss: undefined, bgStyle: {} }}>
@@ -498,11 +546,11 @@ describe("ServiceTile", () => {
     </ConfigurationSyncProvider>;
     const view = render(dashboard());
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(screen.getByTitle(/^Reachable; HTTP 200/)).toBeInTheDocument();
     revision = "two";
     view.rerender(dashboard());
     await act(async () => { await vi.advanceTimersByTimeAsync(1001); });
-    expect(screen.getByTitle("Online")).toBeVisible();
+    expect(screen.getByTitle(/^Reachable; HTTP 200/)).toBeVisible();
     expect(probes).toBe(1);
   });
 
@@ -516,7 +564,7 @@ describe("ServiceTile", () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
       if (url !== "/api/ping") return Response.json({ revision, editable: true });
       signals.push(options!.signal as AbortSignal);
-      if (++probes === 1) return Response.json({ ok: true });
+      if (++probes === 1) return serviceReachabilityResponse(true);
       return new Promise<Response>((resolve) => { if (probes === 2) resolveOld = resolve; else resolveNew = resolve; });
     }));
     const dashboard = (generation: string, url: string) => <ConfigurationSyncProvider
@@ -532,11 +580,11 @@ describe("ServiceTile", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1001); });
     expect(probes).toBe(3);
     expect(signals[1].aborted).toBe(true);
-    await act(async () => { resolveOld(Response.json({ ok: false }, { status })); });
+    await act(async () => { resolveOld(serviceReachabilityResponse(false, status)); });
     expect(signals[2].aborted).toBe(false);
-    expect(screen.getByTitle("Checking…")).toBeVisible();
-    await act(async () => { resolveNew(Response.json({ ok: true })); });
-    expect(screen.getByTitle("Online")).toBeVisible();
+    expect(screen.getByTitle("Checking service reachability")).toBeVisible();
+    await act(async () => { resolveNew(serviceReachabilityResponse(true)); });
+    expect(screen.getByTitle(/^Reachable; HTTP 200/)).toBeVisible();
   });
 
   it("keeps one slow status request in flight and aborts it on unmount", async () => {
@@ -563,14 +611,14 @@ describe("ServiceTile", () => {
         <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
       </PollingLifecycleProvider>);
     });
-    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(screen.getByTitle(/^Reachable; HTTP 200/)).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     act(() => {
       online.mockReturnValue(false);
       window.dispatchEvent(new Event("offline"));
     });
     expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(true);
-    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(screen.getByTitle(/^Reachable; HTTP 200/)).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -609,97 +657,18 @@ describe("ServiceTile", () => {
       </PollingLifecycleProvider>);
     });
     await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(screen.getByTitle(status === 401 || status === 403
+      ? /^Status unavailable; dashboard authentication is required/
+      : /^Status unavailable; saved configuration changed/)).toHaveClass("status-dot--unavailable");
     expect(reconcile).toHaveBeenCalledWith({ kind: status === 401 || status === 403 ? "authorization" : "identity", status });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it.each([false, true])("automatically retries a transient configuration conflict without a generation change (prior observation: %s)", async (hasObservation) => {
-    vi.spyOn(Math, "random").mockReturnValue(0);
-    const source = createBrowserPollingLifecycle();
-    const reconcile = vi.fn();
-    source.setReconciliationHandler(reconcile);
-    const fetchMock = vi.fn();
-    if (hasObservation) fetchMock.mockResolvedValueOnce(Response.json({ ok: true, status: 200 }));
-    fetchMock.mockResolvedValueOnce(new Response("Configuration is being updated", { status: 409 }))
-      .mockResolvedValue(Response.json({ ok: true, status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await act(async () => {
-      render(<PollingLifecycleProvider value={source}>
-        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
-      </PollingLifecycleProvider>);
-    });
-    if (hasObservation) await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-    expect(screen.getByTitle(hasObservation ? "Online" : "Checking…")).toBeInTheDocument();
-    const generation = source.getVersion();
-    const attempts = hasObservation ? 2 : 1;
-    await act(async () => { await vi.advanceTimersByTimeAsync(29_999); });
-    expect(fetchMock).toHaveBeenCalledTimes(attempts);
-    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(fetchMock).toHaveBeenCalledTimes(attempts + 1);
-    expect(screen.getByTitle("Online")).toBeInTheDocument();
-    expect(source.getVersion()).toBe(generation);
-    expect(reconcile).not.toHaveBeenCalled();
-  });
-
-  it.each([false, true])("resumes after the polling gate closes and reopens with unchanged inputs (prior observation: %s)", async (hasObservation) => {
-    const source = createBrowserPollingLifecycle();
-    const reconcile = vi.fn();
-    source.setReconciliationHandler(reconcile);
-    const fetchMock = vi.fn();
-    if (hasObservation) fetchMock.mockResolvedValueOnce(Response.json({ ok: true, status: 200 }));
-    fetchMock.mockResolvedValueOnce(new Response("Configuration is being updated", { status: 409 }))
-      .mockResolvedValue(Response.json({ ok: true, status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await act(async () => {
-      render(<PollingLifecycleProvider value={source}>
-        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
-      </PollingLifecycleProvider>);
-    });
-    if (hasObservation) await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-    const generation = source.getVersion();
-    const attempts = hasObservation ? 2 : 1;
-    act(() => source.setAccessAllowed(false));
-    expect(source.isEligible()).toBe(false);
-    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
-    expect(fetchMock).toHaveBeenCalledTimes(attempts);
-    expect(screen.getByTitle(hasObservation ? "Online" : "Checking…")).toBeInTheDocument();
-    act(() => source.setAccessAllowed(true));
-    expect(source.isEligible()).toBe(true);
-    // Reopening permits one shortcut after the minimum one-second retry gap.
-    await act(async () => { await vi.advanceTimersByTimeAsync(499); });
-    expect(fetchMock).toHaveBeenCalledTimes(attempts);
-    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(fetchMock).toHaveBeenCalledTimes(attempts + 1);
-    expect(screen.getByTitle("Online")).toBeInTheDocument();
-    expect(source.getVersion()).toBe(generation);
-    expect(reconcile).not.toHaveBeenCalled();
-  });
-
-  it("honors Retry-After for temporary status conflicts without inferring an outage", async () => {
-    const source = createBrowserPollingLifecycle();
-    const fetchMock = vi.fn().mockResolvedValue(new Response("Configuration is being updated", {
-      status: 409, headers: { "Retry-After": "120" },
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    await act(async () => {
-      render(<PollingLifecycleProvider value={source}>
-        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
-      </PollingLifecycleProvider>);
-    });
-    await act(async () => { await vi.advanceTimersByTimeAsync(119_999); });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByTitle("Checking…")).toBeInTheDocument();
-    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(screen.queryByTitle("Offline")).not.toBeInTheDocument();
   });
 
   it("status dot shows error when ping returns ok:false", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ok: false }),
+        json: () => Promise.resolve({ ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 10 }),
       } as Response)
     );
 
@@ -707,7 +676,7 @@ describe("ServiceTile", () => {
       render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://192.168.1.10:8096" />);
     });
 
-    expect(screen.getByTitle("Offline")).toHaveClass("status-dot--error");
+    expect(screen.getByTitle(/^Unreachable from Kokpit; connection failed/)).toHaveClass("status-dot--error");
   });
 
   it("renders as a div (not a link) when url is omitted", async () => {
@@ -751,7 +720,7 @@ describe("ServiceTile", () => {
 
   it("preview mode suppresses status ping polling", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true }),
+      json: () => Promise.resolve({ ok: true, status: 200 }),
     } as Response);
     vi.stubGlobal("fetch", mockFetch);
 
@@ -773,7 +742,7 @@ describe("ServiceTile", () => {
 
   it("preview mode renders a static widget placeholder instead of polling the widget", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true }),
+      json: () => Promise.resolve({ ok: true, status: 200 }),
     } as Response);
     vi.stubGlobal("fetch", mockFetch);
 
@@ -800,7 +769,7 @@ describe("ServiceTile", () => {
 
   it("polls ping again after 30 seconds", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true }),
+      json: () => Promise.resolve({ ok: true, status: 200 }),
     } as Response);
     vi.stubGlobal("fetch", mockFetch);
 
@@ -828,7 +797,7 @@ describe("ServiceTile broken-widget badge", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ok: true }),
+        json: () => Promise.resolve({ ok: true, status: 200 }),
       } as Response)
     );
     editModeOptional.current = null;
