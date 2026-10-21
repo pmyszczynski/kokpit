@@ -89,7 +89,7 @@ The publication preflight is a complete type check, not a substitute for the rel
 
 [`npm run type-check`](../../package.json#L22) runs both `tsc --noEmit` and `tsc --project tsconfig.test.json`. The [base TypeScript config](../../tsconfig.json#L41) excludes `src/__tests__`, while the [test config](../../tsconfig.test.json#L3) includes it. Vitest executes transformed tests but does not substitute for TypeScript checking them.
 
-| Entry point | Current behavior | Planned handling |
+| Entry point | Historical baseline before v0.30.5 | Accepted change |
 | --- | --- | --- |
 | [PR/main CI](../../.github/workflows/ci.yml#L62) | Runs only `npx tsc --noEmit`. | Replace with `npm run type-check`; retain the existing `Type-check` job/check name. |
 | [Release validation](../../.github/workflows/release.yml#L47) | Also runs only `npx tsc --noEmit`, despite claiming a full test gate. | Use the same package script before release/tag publication. |
