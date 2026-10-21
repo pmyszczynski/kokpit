@@ -1,6 +1,6 @@
 # Authentication hardening implementation plan
 
-Date: 2026-10-20. Status: **mixed — IMP-01 implemented for v0.30.2; IMP-02 and IMP-03 completed upstream in PR #132; IMP-06 and IMP-07 planned**.
+Date: 2026-10-20. Status: **mixed — IMP-01 implemented for v0.30.2; IMP-02 and IMP-03 completed upstream in PR #132; IMP-06 implemented for v0.30.7; IMP-07 planned**.
 
 This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-07, rechecked against main `71ef878` (v0.27.1). The IDs retain the numbering of the original 20-item review. See the [implementation index](2026-10-20-improvement-plan.md) for sequencing across plans and the full required pre-PR validation gate. Focused tests below supplement that gate.
 
@@ -109,17 +109,24 @@ No additional limiter implementation is scheduled. Any later performance tuning 
 
 ## IMP-06 — Persist distinct, single-use TOTP challenges and their attempt budget
 
-Status: **planned**.
+Status: **implemented for v0.30.7**.
 
-### Evidence and scope
+TOTP password logins now issue distinct random challenge identifiers and register their fixed five-minute expiry only after asynchronous signing and a current credential-generation check. SQLite retains attempts and terminal state across restart and cooperating processes, with five attempts per challenge, bounded active/global capacity and expiry cleanup. Existing account/global admission behavior remains in place.
 
-[JWT issuance](../../src/auth/jwt.ts#L6) includes user ID, session version, type, issued-at and five-minute expiry, but no random challenge ID. Two challenges issued for the same user/version in the same second are identical. A local `jose` reproduction with identical timestamps confirmed this deterministic result. Separate login attempts can therefore share replay/attempt state accidentally.
+Verification performs the challenge claim, current-secret code check, limiter updates and opaque-session insertion in one synchronous IMMEDIATE transaction. Insertion failure rolls back; cookie failure revokes the committed session and leaves the challenge consumed. Legacy in-progress challenge tokens require a fresh login after upgrade; existing opaque sessions remain valid. Reopen, independent-connection and real two-process regressions cover replay, competing success/fifth-failure outcomes, generation races, capacity and rollback/cookie failures. Integrated validation is recorded separately.
 
-[The verification route](../../src/app/api/auth/totp/verify/route.ts#L12) enforces five failed attempts and single use using module-level maps. A fresh process has empty maps. [The signing secret is persisted](../../src/auth/serverSecret.ts), so an otherwise current unexpired token can remain cryptographically valid after a restart even though its spent/failed state is gone. Separate processes have separate maps. This still permits resetting the intended five-attempt per-challenge state or reusing a consumed challenge while its code is valid under those conditions. However, PR #132 added the durable per-user TOTP budget described in IMP-03, so a process restart or fresh challenge no longer resets the account-wide ten-failure allowance. Do not describe the remaining issue as unlimited TOTP guessing.
 
-Qualification: the current code already prevents same-process concurrent replay by claiming after its await, and [existing tests cover it](../../src/__tests__/auth/totp-verify-route.test.ts). It also binds challenges to the account's session generation and rejects them after password/TOTP changes, and reserves the shared durable TOTP/global budget before checking a code. This is not an unconditional TOTP bypass: a valid password-derived challenge and valid second factor are still required for successful authentication. [The database](../../src/auth/db.ts#L13) already persists users, opaque sessions and login/TOTP limiter state, but has no per-challenge table.
+### Original evidence and scope
 
-### Proposed design and compatibility
+The pre-v0.30.7 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
+
+Before v0.30.7, [JWT issuance](../../src/auth/jwt.ts) included user ID, session version, type, issued-at and five-minute expiry without a random challenge ID. Two challenges issued for the same user/version in the same second were identical; a local `jose` reproduction confirmed that deterministic result.
+
+The previous [verification route](../../src/app/api/auth/totp/verify/route.ts) retained its five-attempt and single-use state in module-level maps. Restart or another process could therefore reset per-challenge state while the persisted signing secret left the token cryptographically valid. PR #132 already provided durable account/global admission budgets, so this was not unlimited TOTP guessing. Existing generation checks and same-process replay protection were retained by the durable transaction implementation.
+
+The [database](../../src/auth/db.ts) now also stores the challenge identifier, credential generation, fixed timestamps, attempts and terminal state. The following design and acceptance criteria record the implemented contract; full integrated validation is recorded separately.
+
+### Design and compatibility
 
 Keep the short-lived JWT shape for client compatibility, adding a cryptographically random `jti`. Store a corresponding SQLite challenge row keyed by that identifier, with user ID, expected session version, fixed creation/expiry times, attempts used, and terminal state. Do not persist the bearer JWT or TOTP code. Cryptographic verification must require the expected algorithm, type, integer expiry/generation and a valid identifier, then require its matching live row. Never create state merely because a submitted token has a valid signature.
 

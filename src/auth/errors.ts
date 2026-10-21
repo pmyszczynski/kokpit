@@ -8,3 +8,10 @@ export class SessionInvalidatedError extends Error {
     this.name = "SessionInvalidatedError";
   }
 }
+
+export class TotpChallengeCapacityError extends Error {
+  constructor(public readonly retryAfterSeconds: number) {
+    super("Too many pending login challenges. Try again later.");
+    this.name = "TotpChallengeCapacityError";
+  }
+}

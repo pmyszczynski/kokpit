@@ -53,7 +53,20 @@ export function getDb(): Database.Database {
       requested_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS login_request_times_time_idx ON login_request_times(requested_at);
+    CREATE TABLE IF NOT EXISTS totp_challenges (
+      jti TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      session_version INTEGER NOT NULL,
+      issued_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 5),
+      state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'consumed', 'exhausted')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS totp_challenges_expiry_idx ON totp_challenges(expires_at);
+    CREATE INDEX IF NOT EXISTS totp_challenges_user_state_idx ON totp_challenges(user_id, state, expires_at);
   `);
+  db.prepare("DELETE FROM totp_challenges WHERE expires_at <= ?").run(Math.floor(Date.now() / 1000));
 
   return db;
 }

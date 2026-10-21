@@ -38,6 +38,31 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(403);
   });
 
+  it.each([
+    { name: "malformed JSON", body: "{", status: 400 },
+    { name: "non-object JSON", body: "[]", status: 400 },
+    { name: "streamed overflow", body: JSON.stringify({ username: "boundary-user", password: "x".repeat(16 * 1024) }), status: 413 },
+  ])("rejects $name before bcrypt, admission or durable challenge changes", async ({ body, status }) => {
+    const auth = await import("@/auth");
+    const bcrypt = (await import("bcryptjs")).default;
+    const user = await auth.createUser("boundary-user", "unused-hash");
+    auth.setTotpSecret(user.id, auth.generateTotpSecret());
+    await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const database = auth.getDb();
+    const before = database.prepare("SELECT * FROM totp_challenges").all();
+    const compare = vi.spyOn(bcrypt, "compare");
+    try {
+      const { POST } = await import("../../app/api/auth/login/route");
+      const response = await POST(trustedRequest("http://localhost/api/auth/login", { method: "POST", body }));
+      expect(response.status).toBe(status);
+      expect(compare).not.toHaveBeenCalled();
+      expect(database.prepare("SELECT * FROM totp_challenges").all()).toEqual(before);
+      expect(database.prepare("SELECT * FROM login_rate_limits").all()).toEqual([]);
+      expect(database.prepare("SELECT * FROM login_request_times").all()).toEqual([]);
+      expect(database.prepare("SELECT * FROM sessions").all()).toEqual([]);
+    } finally { compare.mockRestore(); }
+  });
+
   it("returns 200 on valid credentials", async () => {
     const { createUser, hashPassword } = await import("@/auth");
     const hash = await hashPassword("correctpassword");
@@ -152,6 +177,24 @@ describe("POST /api/auth/login", () => {
     expect(json.requiresTotp).toBe(true);
     expect(typeof json.challengeToken).toBe("string");
     expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  it("refuses challenge capacity without locking out a successfully verified password", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("pending-capacity", await auth.hashPassword("correct-password"));
+    auth.setTotpSecret(user.id, auth.generateTotpSecret());
+    const version = auth.getUserById(user.id)!.sessionVersion;
+    for (let i = 0; i < 16; i++) await auth.signTotpChallenge(user.id, version);
+    const { POST } = await import("../../app/api/auth/login/route");
+    const response = await POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ username: user.username, password: "correct-password" }),
+    }));
+    expect(response.status).toBe(429);
+    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await response.json()).toEqual({ error: "Too many pending login challenges. Try again later." });
+    expect(auth.getDb().prepare("SELECT attempts FROM login_rate_limits").all()).toEqual([{ attempts: 0 }]);
+    expect(auth.getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 1 });
+    expect(auth.listSessions(user.id)).toEqual([]);
   });
 
   it("rejects an old-password TOTP login that races with a password reset", async () => {

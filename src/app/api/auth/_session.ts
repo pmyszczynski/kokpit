@@ -26,6 +26,12 @@ function writeSessionCookie(
   });
 }
 
+/** Resolve Next's asynchronous cookie store before a synchronous DB transaction. */
+export async function prepareSessionCookie(): Promise<(token: string) => void> {
+  const cookieStore = await cookies();
+  return (token) => writeSessionCookie(cookieStore, token);
+}
+
 export async function createSessionCookie(
   userId: string,
   req?: Request,

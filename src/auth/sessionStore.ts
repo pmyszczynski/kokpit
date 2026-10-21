@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "crypto";
+import type Database from "better-sqlite3";
 import { getDb } from "./db";
 import { getUserById, type User } from "./users";
 import { SessionInvalidatedError } from "./errors";
@@ -60,9 +61,17 @@ function safeDeviceLabel(userAgent?: string): string {
   return browser && platform ? `${browser} on ${platform}` : browser ?? platform ?? "Unknown browser";
 }
 
-export function createSession(
+type CreateSessionOptions = { userAgent?: string; idleTimeoutHours?: number; expectedSessionVersion?: number };
+
+export function createSession(userId: string, options: CreateSessionOptions = {}): { token: string; session: AuthSession } {
+  return createSessionInDatabase(getDb(), userId, options);
+}
+
+/** Synchronous insertion, also usable inside the TOTP claim transaction. */
+export function createSessionInDatabase(
+  db: Database.Database,
   userId: string,
-  options: { userAgent?: string; idleTimeoutHours?: number; expectedSessionVersion?: number } = {}
+  options: CreateSessionOptions = {}
 ): { token: string; session: AuthSession } {
   const now = Date.now();
   const token = randomBytes(32).toString("base64url");
@@ -70,8 +79,10 @@ export function createSession(
   const idleTimeoutHours = Number.isFinite(options.idleTimeoutHours) && (options.idleTimeoutHours ?? 0) > 0
     ? Math.floor(options.idleTimeoutHours!)
     : 0;
-  const db = getDb();
-  const expectedVersion = options.expectedSessionVersion ?? getUserById(userId)?.sessionVersion;
+  const user = options.expectedSessionVersion === undefined
+    ? db.prepare("SELECT session_version FROM users WHERE id = ?").get(userId) as { session_version: number } | undefined
+    : undefined;
+  const expectedVersion = options.expectedSessionVersion ?? user?.session_version;
   if (expectedVersion === undefined) throw new SessionInvalidatedError();
 
   const result = db.prepare(`
