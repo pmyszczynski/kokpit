@@ -38,8 +38,8 @@ are reassessed separately and are not part of this work.
 - [x] `P0` **IMP-05 — Remove the shared Compose secret placeholder**
   - Implemented for v0.30.4: Compose defaults to private persisted generation; runtime rejects the shipped placeholder and documents deliberate replacement and rotation.
   - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-05)
-- [ ] `P1` **IMP-06 — Give TOTP challenges durable, atomic lifecycle state**
-  - Add unique challenge identities and persist attempt/consumption state across restarts and cooperating processes; retain session-version checks.
+- [x] `P1` **IMP-06 — Give TOTP challenges durable, atomic lifecycle state**
+  - Implemented for v0.30.7: Distinct five-minute challenges retain bounded attempts and single-use state in SQLite; code verification, admission and session creation commit atomically across processes.
   - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-06)
 - [ ] `P1` **IMP-07 — Prevent silent truncation of new bcrypt passwords**
   - Enforce the 72-byte UTF-8 boundary when setting passwords; preserve legacy login compatibility and explain password replacement requirements.

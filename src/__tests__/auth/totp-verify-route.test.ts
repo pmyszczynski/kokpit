@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateSync } from "otplib";
-import { SignJWT } from "jose";
 
 process.env.KOKPIT_DB_PATH = ":memory:";
 process.env.KOKPIT_SESSION_SECRET = "test-secret-32-chars-minimum-length-xx";
@@ -28,19 +27,10 @@ function trustedRequest(input: RequestInfo | URL, init?: RequestInit): globalThi
   return new globalThis.Request(input, { ...init, headers });
 }
 
-function freshChallenge(userId: string, sessionVersion: number, id: number): Promise<string> {
-  return new SignJWT({ userId, sessionVersion, type: "totp_challenge" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("5m")
-    .setIssuedAt()
-    .setJti(String(id))
-    .sign(new TextEncoder().encode(process.env.KOKPIT_SESSION_SECRET!));
-}
-
 describe("POST /api/auth/totp/verify", () => {
   beforeEach(() => {
     vi.resetModules();
-    mockCookieSet.mockClear();
+    mockCookieSet.mockReset();
   });
 
   it("returns 403 without the trusted-request header", async () => {
@@ -50,6 +40,32 @@ describe("POST /api/auth/totp/verify", () => {
       body: JSON.stringify({ challengeToken: "token", code: "123456" }),
     }));
     expect(res.status).toBe(403);
+  });
+
+  it.each([
+    { name: "malformed JSON", body: (_token: string) => "{", status: 400 },
+    { name: "non-object JSON", body: (_token: string) => "null", status: 400 },
+    { name: "streamed overflow", body: (token: string) => JSON.stringify({ challengeToken: token, code: "000000", padding: "x".repeat(16 * 1024) }), status: 413 },
+  ])("rejects $name without attempts, admission or challenge consumption", async ({ body, status }) => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("body-boundary-totp", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const database = auth.getDb();
+    const before = database.prepare("SELECT * FROM totp_challenges").all();
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const response = await POST(trustedRequest("http://localhost", { method: "POST", body: body(challengeToken) }));
+    expect(response.status).toBe(status);
+    expect(database.prepare("SELECT * FROM totp_challenges").all()).toEqual(before);
+    expect(database.prepare("SELECT * FROM login_rate_limits").all()).toEqual([]);
+    expect(database.prepare("SELECT * FROM login_request_times").all()).toEqual([]);
+    expect(auth.listSessions(user.id)).toEqual([]);
+    expect(mockCookieSet).not.toHaveBeenCalled();
+    const accepted = await POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+    }));
+    expect(accepted.status).toBe(200);
   });
 
   it("returns 400 on missing fields", async () => {
@@ -86,6 +102,108 @@ describe("POST /api/auth/totp/verify", () => {
     expect(res.status).toBe(401);
   });
 
+  it.each(["1", "12345", "1234567", "12a456", "１２３４５６", "123456\n"])(
+    "counts malformed OTP %j as a wrong attempt and still accepts a later valid code", async code => {
+      const auth = await import("@/auth");
+      const user = await auth.createUser("malformed-code", "unused-hash");
+      const secret = auth.generateTotpSecret();
+      auth.setTotpSecret(user.id, secret);
+      const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+      const database = auth.getDb();
+      const { POST } = await import("../../app/api/auth/totp/verify/route");
+      const request = (token: string) => POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ challengeToken, code: token }),
+      }));
+      const rejected = await request(code);
+      expect(rejected.status).toBe(401);
+      expect(await rejected.json()).toEqual({ error: "Invalid code" });
+      expect(database.prepare("SELECT attempts, state FROM totp_challenges").get()).toEqual({ attempts: 1, state: "active" });
+      expect(database.prepare("SELECT attempts FROM login_rate_limits").get()).toEqual({ attempts: 1 });
+      expect(database.prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 1 });
+      expect(mockCookieSet).not.toHaveBeenCalled();
+      expect((await request(generateSync({ secret }))).status).toBe(200);
+      expect(database.prepare("SELECT attempts, state FROM totp_challenges").get()).toEqual({ attempts: 1, state: "consumed" });
+      expect(database.prepare("SELECT attempts FROM login_rate_limits").get()).toEqual({ attempts: 1 });
+      expect(database.prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 2 });
+    }
+  );
+
+  it("exhausts a challenge after five malformed OTPs and rejects a later valid code without more admission", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("malformed-exhaustion", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const request = (code: string) => POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ challengeToken, code }),
+    }));
+    const malformed = ["1", "abcd12", "1234567", "１２３４５６", "123456\n"];
+    for (const [index, code] of malformed.entries()) expect((await request(code)).status).toBe(index < 4 ? 401 : 429);
+    expect((await request(generateSync({ secret }))).status).toBe(401);
+    expect(auth.getDb().prepare("SELECT attempts, state FROM totp_challenges").get()).toEqual({ attempts: 5, state: "exhausted" });
+    expect(auth.getDb().prepare("SELECT attempts FROM login_rate_limits").get()).toEqual({ attempts: 5 });
+    expect(auth.getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 5 });
+    expect(auth.listSessions(user.id)).toEqual([]);
+    expect(mockCookieSet).not.toHaveBeenCalled();
+  });
+
+  it("applies the durable account allowance to malformed codes across fresh challenges", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("malformed-shared-budget", "unused-hash");
+    auth.setTotpSecret(user.id, auth.generateTotpSecret());
+    const version = auth.getUserById(user.id)!.sessionVersion;
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    for (let challenge = 0; challenge < 3; challenge++) {
+      const challengeToken = await auth.signTotpChallenge(user.id, version);
+      const request = () => POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ challengeToken, code: "1" }),
+      }));
+      if (challenge < 2) {
+        for (let attempt = 0; attempt < 5; attempt++) expect((await request()).status).toBe(attempt < 4 ? 401 : 429);
+      } else {
+        const blocked = await request();
+        expect(blocked.status).toBe(429);
+        expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
+      }
+    }
+    expect(auth.getDb().prepare("SELECT attempts FROM login_rate_limits").get()).toEqual({ attempts: 10 });
+    expect(auth.getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 10 });
+    expect(auth.getDb().prepare("SELECT attempts FROM totp_challenges ORDER BY attempts").all())
+      .toEqual([{ attempts: 0 }, { attempts: 5 }, { attempts: 5 }]);
+    expect(mockCookieSet).not.toHaveBeenCalled();
+  });
+
+  it("rolls back a genuine verifier exception and allows retry instead of charging a wrong guess", async () => {
+    const auth = await import("@/auth");
+    const totp = await import("../../auth/totp");
+    const user = await auth.createUser("verifier-failure", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const code = generateSync({ secret });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const verify = vi.spyOn(totp, "verifyTotpCode").mockImplementationOnce(() => {
+      throw new Error(`private verifier failure: ${challengeToken} ${code} ${secret}`);
+    });
+    try {
+      const { POST } = await import("../../app/api/auth/totp/verify/route");
+      const request = () => POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ challengeToken, code }),
+      }));
+      const response = await request();
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "Login could not be completed. Try again or restart login." });
+      expect(errorLog.mock.calls).toEqual([["[auth] TOTP verification could not be completed"]]);
+      expect(auth.getDb().prepare("SELECT attempts, state FROM totp_challenges").get()).toEqual({ attempts: 0, state: "active" });
+      expect(auth.getDb().prepare("SELECT * FROM login_rate_limits").all()).toEqual([]);
+      expect(auth.getDb().prepare("SELECT * FROM login_request_times").all()).toEqual([]);
+      expect(mockCookieSet).not.toHaveBeenCalled();
+      expect((await request()).status).toBe(200);
+      expect(errorLog).toHaveBeenCalledOnce();
+    } finally { verify.mockRestore(); errorLog.mockRestore(); }
+  });
+
   it("returns 200 and sets session cookie on valid challenge + valid code", async () => {
     const { createUser, hashPassword, generateTotpSecret, setTotpSecret, signTotpChallenge, getUserById } = await import("@/auth");
     const hash = await hashPassword("pass");
@@ -104,6 +222,78 @@ describe("POST /api/auth/totp/verify", () => {
     const json = await res.json();
     expect(json.username).toBe("grace");
     expect(mockCookieSet).toHaveBeenCalled();
+  });
+
+  it("revokes the inserted session after cookie failure and keeps the challenge consumed", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("cookie-failure", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    mockCookieSet.mockImplementationOnce(() => { throw new Error("cookie store failure"); });
+    const request = () => POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+    }));
+    expect((await request()).status).toBe(503);
+    expect(auth.listSessions(user.id)).toEqual([]);
+    expect((await request()).status).toBe(401);
+    expect(mockCookieSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not consume a challenge when obtaining cookies fails", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("cookie-preparation-failure", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockRejectedValueOnce(new Error("cookie store unavailable"));
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const request = () => POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+    }));
+    expect((await request()).status).toBe(503);
+    expect(auth.listSessions(user.id)).toEqual([]);
+    expect((await request()).status).toBe(200);
+  });
+
+  it("rechecks generation after waiting for the cookie store", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("cookie-generation-race", "old-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockImplementationOnce(async () => {
+      auth.updatePasswordHash(user.id, "new-hash");
+      return { get: vi.fn(), set: mockCookieSet, delete: vi.fn() } as unknown as Awaited<ReturnType<typeof cookies>>;
+    });
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const response = await POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+    }));
+    expect(response.status).toBe(401);
+    expect(auth.listSessions(user.id)).toEqual([]);
+    expect(mockCookieSet).not.toHaveBeenCalled();
+  });
+
+  it("returns a controlled retry if inserting the session fails, then accepts the same challenge", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("session-insert-failure", "unused-hash");
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const challengeToken = await auth.signTotpChallenge(user.id, auth.getUserById(user.id)!.sessionVersion);
+    auth.getDb().exec("CREATE TRIGGER reject_session BEFORE INSERT ON sessions BEGIN SELECT RAISE(ABORT, 'synthetic storage failure'); END;");
+    const { POST } = await import("../../app/api/auth/totp/verify/route");
+    const request = () => POST(trustedRequest("http://localhost", {
+      method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
+    }));
+    expect((await request()).status).toBe(503);
+    expect(auth.listSessions(user.id)).toEqual([]);
+    expect(mockCookieSet).not.toHaveBeenCalled();
+    auth.getDb().exec("DROP TRIGGER reject_session");
+    expect((await request()).status).toBe(200);
   });
 
   it("allows only one of two simultaneous submissions of the same challenge", async () => {
@@ -185,14 +375,8 @@ describe("POST /api/auth/totp/verify", () => {
     const auth = await import("@/auth");
     const user = await auth.createUser("fresh-challenges", await auth.hashPassword("known-password"));
     auth.setTotpSecret(user.id, auth.generateTotpSecret());
-    const verifyTotpCode = vi.fn().mockReturnValue(false);
-    let challengeId = 0;
-    vi.doMock("@/auth", () => ({
-      ...auth,
-      verifyTotpCode,
-      // Make freshly signed challenges unique even within the same second.
-      signTotpChallenge: (id: string, version: number) => freshChallenge(id, version, challengeId++),
-    }));
+    const totp = await import("../../auth/totp");
+    const verifyTotpCode = vi.spyOn(totp, "verifyTotpCode").mockReturnValue(false);
     try {
       const { POST } = await import("../../app/api/auth/totp/verify/route");
       const { POST: login } = await import("../../app/api/auth/login/route");
@@ -211,7 +395,7 @@ describe("POST /api/auth/totp/verify", () => {
       expect(verifyTotpCode).toHaveBeenCalledTimes(10);
       expect(mockCookieSet).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock("@/auth");
+      verifyTotpCode.mockRestore();
     }
   });
 
@@ -223,7 +407,7 @@ describe("POST /api/auth/totp/verify", () => {
     const version = auth.getUserById(user.id)!.sessionVersion;
     const { POST } = await import("../../app/api/auth/totp/verify/route");
     for (let i = 0; i < 12; i++) {
-      const challengeToken = await freshChallenge(user.id, version, i);
+      const challengeToken = await auth.signTotpChallenge(user.id, version);
       const response = await POST(trustedRequest("http://localhost", {
         method: "POST", body: JSON.stringify({ challengeToken, code: generateSync({ secret }) }),
       }));

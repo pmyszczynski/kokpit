@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type Database from "better-sqlite3";
 import { getDb } from "./db";
 
 const ACCOUNT_LIMIT = 10;
@@ -22,12 +23,13 @@ export function reserveLoginAttempt(username: string): Decision {
 }
 
 /** Fresh challenge tokens share the same account's TOTP failure allowance. */
-export function reserveTotpAttempt(userId: string): Decision {
-  return reserveAttempt(`totp:${createHash("sha256").update(userId).digest("hex")}`);
+export function reserveTotpAttempt(userId: string, db: Database.Database = getDb()): Decision {
+  return reserveAttempt(`totp:${createHash("sha256").update(userId).digest("hex")}`, db);
 }
 
-function reserveAttempt(key: string): Decision {
-  const db = getDb();
+function reserveAttempt(key: string, db: Database.Database = getDb()): Decision {
+  // better-sqlite3 uses a savepoint when the challenge transaction already
+  // owns this connection. Its limiter writes then commit/roll back together.
   return db.transaction((): Decision => {
     const now = Date.now();
     db.prepare("DELETE FROM login_rate_limits WHERE expires_at <= ?").run(now);
@@ -59,8 +61,8 @@ function reserveAttempt(key: string): Decision {
  * and concurrent requests still count, and an old result cannot alter a new
  * window. Successful logins continue to consume the shared request budget.
  */
-export function releaseSuccessfulLoginAttempt(attempt: LoginAttempt): void {
-  getDb().prepare(`
+export function releaseSuccessfulLoginAttempt(attempt: LoginAttempt, db: Database.Database = getDb()): void {
+  db.prepare(`
     UPDATE login_rate_limits SET attempts = MAX(0, attempts - 1)
     WHERE key = ? AND expires_at = ?
   `).run(attempt.key, attempt.expiresAt);

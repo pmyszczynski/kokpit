@@ -9,7 +9,7 @@ import {
 } from "@/auth";
 import { createSessionCookie } from "../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
-import { SessionInvalidatedError } from "@/auth/errors";
+import { SessionInvalidatedError, TotpChallengeCapacityError } from "@/auth/errors";
 import { reserveLoginAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
 
 export async function POST(req: Request) {
@@ -77,6 +77,13 @@ export async function POST(req: Request) {
     // was reset), so do not issue a session for the stale credential check.
     if (error instanceof SessionInvalidatedError) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+    if (error instanceof TotpChallengeCapacityError) {
+      releaseSuccessfulLoginAttempt(reservation.attempt);
+      return NextResponse.json(
+        { error: "Too many pending login challenges. Try again later." },
+        { status: 429, headers: { "Retry-After": String(error.retryAfterSeconds) } }
+      );
     }
     throw error;
   }

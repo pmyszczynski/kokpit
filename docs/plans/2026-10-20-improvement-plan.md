@@ -1,6 +1,6 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 10 planned, 8 implemented; completed rows record
+Date: 2026-10-20. Status: 9 planned, 9 implemented; completed rows record
 their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
@@ -13,7 +13,7 @@ Baseline reconciled to `main` at `71ef878` (v0.27.1). PR #132 / commit `1097384`
 already implements IMP-02, IMP-03 and IMP-18. Those entries are completed in the
 roadmap, with implementation evidence in their linked sections; their historical
 findings are not claims about the current code. IMP-01 is now implemented for
-v0.30.2; IMP-06's per-challenge replay state remains open. The other uncompleted
+v0.30.2; IMP-06's per-challenge replay state is implemented for v0.30.7. The other uncompleted
 entries are future work.
 
 ## Selected work
@@ -25,7 +25,7 @@ entries are future work.
 | IMP-03 | P0 | **Implemented, PR #132:** durable account/TOTP throttling and a rolling shared budget bound admitted attempts. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-03) |
 | IMP-04 | P0 | **Implemented for v0.30.3:** credential-bearing integration requests cannot follow redirects to another origin. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-04) |
 | IMP-05 | P0 | **Implemented for v0.30.4:** Compose uses generated persisted secrets and rejects the public placeholder. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-05) |
-| IMP-06 | P1 | Unique TOTP challenges have atomic, durable attempt and consumption state. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-06) |
+| IMP-06 | P1 | **Implemented for v0.30.7:** Distinct five-minute challenges retain bounded attempts and single-use state in SQLite; code verification, admission and session creation commit atomically across processes. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-06) |
 | IMP-07 | P1 | New and replacement passwords cannot be silently truncated by bcrypt. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-07) |
 | IMP-08 | P1 | **Implemented for v0.30.6:** Actual streamed request bytes are bounded before parsing, with JSON-object validation and fresh authorization. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-08) |
 | IMP-10 | P1 | UI writes preserve comments on retained YAML settings and records. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-10) |

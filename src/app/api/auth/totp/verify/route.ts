@@ -1,44 +1,15 @@
 import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { NextResponse } from "next/server";
-import { createHash } from "crypto";
-import {
-  verifyTotpChallenge,
-  getUserById,
-  verifyTotpCode,
-} from "@/auth";
-import { createSessionCookie } from "../../_session";
+import { verifyTotpChallenge, revokeSession } from "@/auth";
+import { prepareSessionCookie } from "../../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
-import { SessionInvalidatedError } from "@/auth/errors";
-import { reserveTotpAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
-
-const MAX_TOTP_ATTEMPTS = 5;
-// TOTP challenge tokens expire in 5 minutes; prune local state at the same cadence.
-const CHALLENGE_TTL_MS = 5 * 60 * 1000;
-
-interface AttemptEntry { count: number; expiresAt: number }
-const failedAttempts = new Map<string, AttemptEntry>();
-const invalidatedTokens = new Map<string, number>(); // key -> expiresAt
-
-function tokenKey(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-function pruneExpiredEntries() {
-  const now = Date.now();
-  for (const [key, entry] of failedAttempts) {
-    if (now > entry.expiresAt) failedAttempts.delete(key);
-  }
-  for (const [key, expiresAt] of invalidatedTokens) {
-    if (now > expiresAt) invalidatedTokens.delete(key);
-  }
-}
+import { completeTotpChallenge } from "@/auth/totpChallengeStore";
+import { getConfig } from "@/config/server";
 
 export async function POST(req: Request) {
   if (!isTrustedMutation(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  pruneExpiredEntries();
-
   let body: { challengeToken?: unknown; code?: unknown };
   try {
     body = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
@@ -55,59 +26,41 @@ export async function POST(req: Request) {
     );
   }
 
-  const key = tokenKey(challengeToken);
-  if (invalidatedTokens.has(key)) {
-    return NextResponse.json({ error: "Challenge token has been invalidated" }, { status: 401 });
-  }
-
-  const challenge = await verifyTotpChallenge(challengeToken);
-  if (!challenge) {
-    return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
-  }
-
-  const user = getUserById(challenge.userId);
-  if (!user || !user.totpSecret) {
-    return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
-  }
-
-  const reservation = reserveTotpAttempt(user.id);
-  if (!reservation.allowed) {
-    return NextResponse.json(
-      { error: "Too many attempts. Try again later." },
-      { status: 429, headers: { "Retry-After": String(reservation.retryAfterSeconds) } }
-    );
-  }
-
-  if (!verifyTotpCode(code, user.totpSecret)) {
-    const expiresAt = Date.now() + CHALLENGE_TTL_MS;
-    const entry = failedAttempts.get(key);
-    const attempts = (entry?.count ?? 0) + 1;
-    if (attempts >= MAX_TOTP_ATTEMPTS) {
-      failedAttempts.delete(key);
-      invalidatedTokens.set(key, expiresAt);
-      return NextResponse.json({ error: "Too many failed attempts" }, { status: 429 });
-    }
-    failedAttempts.set(key, { count: attempts, expiresAt });
-    return NextResponse.json({ error: "Invalid code" }, { status: 401 });
-  }
-
-  // verifyTotpChallenge awaited above. Claim the in-memory single-use token
-  // only after that await, so simultaneous requests cannot both proceed.
-  if (invalidatedTokens.has(key)) {
-    return NextResponse.json({ error: "Challenge token has been invalidated" }, { status: 401 });
-  }
-  // Success: clear attempt state and prevent token replay.
-  failedAttempts.delete(key);
-  invalidatedTokens.set(key, Date.now() + CHALLENGE_TTL_MS);
-
   try {
-    await createSessionCookie(user.id, req, challenge.sessionVersion);
-  } catch (error) {
-    if (error instanceof SessionInvalidatedError) {
-      return NextResponse.json({ error: "Invalid or expired challenge" }, { status: 401 });
+    const challenge = await verifyTotpChallenge(challengeToken);
+    if (!challenge) return NextResponse.json({ error: "Invalid or expired challenge. Start login again." }, { status: 401 });
+    const writeCookie = await prepareSessionCookie();
+    const result = completeTotpChallenge(challenge, code, {
+      userAgent: req.headers.get("user-agent") ?? undefined,
+      idleTimeoutHours: getConfig().auth.session_idle_timeout_hours ?? 0,
+    });
+    if (result.status === "invalid") {
+      return NextResponse.json({ error: "Invalid or expired challenge. Start login again." }, { status: 401 });
     }
-    throw error;
+    if (result.status === "limited") {
+      return NextResponse.json(
+        { error: "Too many attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } }
+      );
+    }
+    if (result.status === "wrong") return NextResponse.json({ error: "Invalid code" }, { status: 401 });
+    if (result.status === "exhausted") {
+      return NextResponse.json({ error: "Too many failed attempts. Start login again." }, { status: 429 });
+    }
+    try {
+      // The transaction has committed. A broken cookie writer must not leave
+      // an unusable session behind, but the challenge stays consumed.
+      writeCookie(result.token);
+    } catch (error) {
+      revokeSession(result.user.id, result.session.id);
+      throw error;
+    }
+    return NextResponse.json(result.user);
+  } catch {
+    // Includes a failed session insertion: its enclosing transaction rolled
+    // back, so a temporary storage failure cannot consume the challenge.
+    // Log an operational signal without exception text, tokens or OTP values.
+    console.error("[auth] TOTP verification could not be completed");
+    return NextResponse.json({ error: "Login could not be completed. Try again or restart login." }, { status: 503 });
   }
-  releaseSuccessfulLoginAttempt(reservation.attempt);
-  return NextResponse.json({ id: user.id, username: user.username });
 }

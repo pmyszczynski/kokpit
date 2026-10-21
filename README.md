@@ -303,6 +303,23 @@ checks and requests for unknown usernames. Limits persist in SQLite across
 restarts and do not trust forwarded IP headers. A blocked request
 returns HTTP 429 with `Retry-After` in seconds.
 
+Each password-authenticated TOTP challenge has a unique random identity and a
+fixed five-minute expiry. Its five-attempt allowance and single-use state are
+stored in SQLite, so restarting Kokpit or using another process cannot reset
+the allowance or replay a completed challenge. Distinct challenges may still
+accept the same current authenticator code. At most 16 active challenges per
+account and 1,024 unexpired challenge records are retained; capacity refusal
+returns 429 with `Retry-After` without evicting an active challenge. Login must
+restart after expiry, exhaustion or consumption. If writing the browser cookie
+fails, its new session is revoked and login must restart; a failed session
+insertion rolls the transaction back and allows a retry.
+
+**TOTP upgrade:** challenges issued before durable challenge storage was added
+must restart the password step. Existing opaque login sessions remain valid.
+Cooperating processes must share the same SQLite file on a supported local
+filesystem and the same server signing secret; separately replicated databases
+are not supported.
+
 Kokpit keeps you signed in by default. Each browser has a revocable session stored
 in `data/users.db`; only a hash of its random cookie token is stored. Preserve the
 `/data` volume across container upgrades and restarts.
