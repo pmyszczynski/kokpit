@@ -113,3 +113,31 @@ describe("GET /api/backgrounds/user/[file]", () => {
     expect(res.status).toBe(404);
   });
 });
+
+
+describe("streamed upload envelope limits", () => {
+  it.each([undefined, "1"])("stops overflow with declared length %s", async declared => {
+    authMock.mockResolvedValue(true);
+    const { POST } = await import("../../app/api/backgrounds/upload/route");
+    const cancel = vi.fn();
+    const req = new Request("http://localhost/api/backgrounds/upload", {
+      method: "POST",
+      headers: { "content-type": "multipart/form-data; boundary=test", ...(declared ? { "content-length": declared } : {}) },
+      body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(8 * 1024 * 1024 + 64 * 1024 + 1)); }, cancel }),
+      duplex: "half",
+    } as RequestInit);
+    expect((await POST(req)).status).toBe(413);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("retains the decoded 8 MiB file limit with multipart overhead", async () => {
+    authMock.mockResolvedValue(true);
+    const { POST } = await import("../../app/api/backgrounds/upload/route");
+    const bytes = new Uint8Array(8 * 1024 * 1024);
+    bytes.set(PNG);
+    const form = new FormData();
+    form.set("file", new File([bytes], "max.png", { type: "image/png" }));
+    const req = new Request("http://localhost/api/backgrounds/upload", { method: "POST", body: form });
+    expect((await POST(req)).status).toBe(200);
+  });
+});

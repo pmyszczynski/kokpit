@@ -44,8 +44,8 @@ are reassessed separately and are not part of this work.
 - [ ] `P1` **IMP-07 — Prevent silent truncation of new bcrypt passwords**
   - Enforce the 72-byte UTF-8 boundary when setting passwords; preserve legacy login compatibility and explain password replacement requirements.
   - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-07)
-- [ ] `P1` **IMP-08 — Validate and bound JSON request bodies**
-  - Reject oversized streamed bodies and invalid object shapes; authorize protected endpoints before expensive parsing while retaining write-time snapshot checks.
+- [x] `P1` **IMP-08 — Validate and bound JSON request bodies**
+  - Implemented for v0.30.6: Actual streamed request bytes are bounded before parsing, with JSON-object validation and fresh authorization.
   - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-08)
 - [ ] `P1` **IMP-10 — Preserve nested YAML comments on UI writes**
   - Update retained AST nodes using record identity rather than replacing complete sections; cover reorder, edits, and deliberate deletion.

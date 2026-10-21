@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getAuthSession, listSessions, revokeSession, revokeUserSessions, SESSION_COOKIE_NAME } from "@/auth";
 import { isTrustedMutation } from "@/auth/requestGuard";
 import { verifySessionPassword } from "@/auth/reauthenticate";
+import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 
 const Mutation = z.discriminatedUnion("action", [
   z.object({ action: z.literal("revoke"), sessionId: z.uuid(), password: z.string().optional() }),
@@ -32,8 +33,18 @@ export async function POST(req: Request) {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const auth = await getAuthSession(token);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const parsed = Mutation.safeParse(await req.json().catch(() => null));
+  let input: unknown;
+  try {
+    input = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof RequestBodyError && error.status === 413 ? error.message : "Invalid session action" },
+      { status: error instanceof RequestBodyError ? error.status : 400 }
+    );
+  }
+  const parsed = Mutation.safeParse(input);
   if (!parsed.success) return NextResponse.json({ error: "Invalid session action" }, { status: 400 });
+  if (!(await getAuthSession(token))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = parsed.data;
   const currentOnly = body.action === "revoke" && body.sessionId === auth.session.id;
   if (!currentOnly) {

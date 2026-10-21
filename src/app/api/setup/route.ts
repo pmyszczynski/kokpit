@@ -1,3 +1,4 @@
+import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { NextResponse } from "next/server";
 import {
   countUsers,
@@ -22,9 +23,10 @@ export async function POST(req: Request) {
 
   let body: { username?: unknown; password?: unknown };
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    body = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const { username, password } = body;

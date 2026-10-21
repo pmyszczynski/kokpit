@@ -1,3 +1,4 @@
+import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
@@ -41,11 +42,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const token = await getSessionToken();
+  if (!(await getAuthSession(token))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: { secret?: unknown; code?: unknown; password?: unknown };
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    body = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const { secret, code, password } = body;
@@ -56,7 +63,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const token = await getSessionToken();
   const verified = await verifySessionPassword(token, password);
   if (!("auth" in verified)) return NextResponse.json({ error: verified.error }, { status: verified.status });
   const { user, session } = verified.auth;
@@ -88,18 +94,23 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const token = await getSessionToken();
+  if (!(await getAuthSession(token))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: { code?: unknown };
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    body = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof RequestBodyError ? error.message : "Invalid JSON" },
+      { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const { code } = body;
   if (typeof code !== "string" || !code) {
     return NextResponse.json({ error: "code is required" }, { status: 400 });
   }
-  const token = await getSessionToken();
   // Revalidate after parsing the request so an intervening logout/revocation
   // cannot change 2FA state through a stale authenticated request.
   const auth = await getAuthSession(token);

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "path";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
+import { chunkedRequest } from "../helpers/chunked-request";
 
 const ADMIN = { username: "testadmin", password: "Str0ngP@ssword1" };
 const MOCK_PLEX = "http://localhost:32401";
@@ -347,5 +348,18 @@ test.describe.serial("authentication flow", () => {
         expect(await response.json()).toEqual({ error: "Too many attempts. Try again later." });
       }
     }
+  });
+
+  test("standalone returns bounded JSON errors and authorizes settings before parsing", async ({ request, baseURL }) => {
+    const headers = { "X-Kokpit-Request": "1", "content-type": "application/json" };
+    expect((await request.post("/api/auth/totp/verify", { headers, data: "null" })).status()).toBe(400);
+    const chunked = await chunkedRequest(`${baseURL}/api/auth/login`, "POST", Buffer.alloc(16 * 1024 + 1, " "), headers);
+    expect(chunked.status).toBe(413);
+    const oversizedSettings = { appearance: { theme: "dark", custom_css: " ".repeat(2 * 1024 * 1024) } };
+    expect((await request.patch("/api/settings", { data: oversizedSettings })).status()).toBe(401);
+    expect((await request.post("/api/auth/login", { headers, data: ADMIN })).status()).toBe(200);
+    const before = await request.get("/api/settings");
+    expect((await request.patch("/api/settings", { data: oversizedSettings })).status()).toBe(413);
+    expect((await request.get("/api/settings")).headers()["x-config-revision"]).toBe(before.headers()["x-config-revision"]);
   });
 });
