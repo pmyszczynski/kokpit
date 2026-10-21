@@ -359,7 +359,12 @@ test.describe.serial("authentication flow", () => {
     expect((await request.patch("/api/settings", { data: oversizedSettings })).status()).toBe(401);
     expect((await request.post("/api/auth/login", { headers, data: ADMIN })).status()).toBe(200);
     const before = await request.get("/api/settings");
+    expect(before.status()).toBe(200);
+    const revision = before.headers()["x-config-revision"];
+    expect(revision).toBeTruthy();
     expect((await request.patch("/api/settings", { data: oversizedSettings })).status()).toBe(413);
-    expect((await request.get("/api/settings")).headers()["x-config-revision"]).toBe(before.headers()["x-config-revision"]);
+    const after = await request.get("/api/settings");
+    expect(after.status()).toBe(200);
+    expect(after.headers()["x-config-revision"]).toBe(revision);
   });
 });

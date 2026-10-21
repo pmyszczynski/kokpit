@@ -16,6 +16,27 @@ function streaming(chunks: Uint8Array[], headers?: HeadersInit, cancel = vi.fn()
 }
 
 describe("bounded request bodies", () => {
+  it.each([
+    { chunks: [] as Uint8Array[] },
+    { chunks: [Uint8Array.of(1)] },
+    { chunks: [new Uint8Array(0), Uint8Array.of(1)] },
+  ])(
+    "does not retain a large configured cap for empty or tiny input %j", async ({ chunks }) => {
+      const expected = chunks.flatMap(chunk => Array.from(chunk));
+      const result = await readBoundedBody(streaming(chunks), 8 * 1024 * 1024);
+      expect(Array.from(result)).toEqual(expected);
+      expect(result.buffer.byteLength).toBeLessThan(8 * 1024 * 1024);
+    }
+  );
+
+  it("grows for streamed data without losing previously received bytes", async () => {
+    const data = Uint8Array.from({ length: 4097 }, (_, index) => index % 251);
+    const chunks = [data.subarray(0, 7), data.subarray(7, 2050), data.subarray(2050)];
+    const result = await readBoundedBody(streaming(chunks), data.byteLength);
+    expect(result).toEqual(data);
+    expect(result.buffer.byteLength).toBeLessThanOrEqual(data.byteLength);
+  });
+
   it("accepts the exact byte cap, including multibyte UTF-8 across tiny chunks", async () => {
     const data = new TextEncoder().encode('{"value":"😀é"}');
     const request = streaming(Array.from(data, byte => Uint8Array.of(byte)));

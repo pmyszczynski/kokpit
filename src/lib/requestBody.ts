@@ -28,9 +28,9 @@ export async function readBoundedBody(request: Request, limit: number): Promise<
   } catch {
     throw new RequestBodyError("Invalid request body", 400);
   }
-  // One bounded allocation avoids a tiny-chunk sender retaining an unbounded
-  // number of chunk objects in addition to the payload itself.
-  const bytes = new Uint8Array(limit);
+  // Retain one bounded buffer rather than an unbounded list of tiny chunks.
+  // Grow only as data arrives so idle or small requests do not reserve the cap.
+  let bytes = new Uint8Array(0);
   let total = 0;
   const cancel = () => { void reader.cancel().catch(() => {}); };
   request.signal.addEventListener("abort", cancel, { once: true });
@@ -43,8 +43,15 @@ export async function readBoundedBody(request: Request, limit: number): Promise<
         cancel();
         throw new RequestBodyError("Request body too large", 413);
       }
+      const required = total + value.byteLength;
+      if (required > bytes.byteLength) {
+        const capacity = Math.min(limit, Math.max(required, bytes.byteLength * 2, 1024));
+        const grown = new Uint8Array(capacity);
+        grown.set(bytes.subarray(0, total));
+        bytes = grown;
+      }
       bytes.set(value, total);
-      total += value.byteLength;
+      total = required;
     }
   } catch (error) {
     if (error instanceof RequestBodyError) throw error;

@@ -140,7 +140,7 @@ Compatibility impact: existing operators using the known placeholder must remove
 
 Status: **implemented for v0.30.6**.
 
-Mutation handlers now bound actual streamed bytes before JSON or multipart parsing, including absent or misleading Content-Length headers. JSON must be an object before endpoint field validation. Malformed shapes return controlled 400 responses and overflow returns 413. Limits are 16 KiB for auth/setup, 64 KiB for icon detection, 256 KiB for connection tests and 2 MiB for settings; uploads allow the existing 2 MiB icon or 8 MiB background file limit plus 64 KiB for the entire multipart envelope.
+Mutation handlers now bound actual streamed bytes before JSON or multipart parsing, including absent or misleading Content-Length headers. Routes using the shared JSON parser require an object before endpoint field validation. Malformed shapes return controlled 400 responses and overflow returns 413. Limits are 16 KiB for auth/setup, 64 KiB for icon detection, 256 KiB for connection tests and 2 MiB for settings; uploads allow the existing 2 MiB icon or 8 MiB background file limit plus 64 KiB for the entire multipart envelope.
 
 Protected handlers authorize before parsing, and settings writes and connection tests recheck access after the awaited read. The auth transport ceiling remains separate from the new-password policy; exceptional legacy inputs exceeding it require host recovery. Regression coverage includes chunked/incorrect-length bodies, arrays/primitives, upload overhead, authorization changes, unchanged persistence on rejection, and calibrated large dashboards and registered-widget configurations. Browser regressions are prepared; integrated validation is recorded separately.
 
