@@ -32,6 +32,7 @@ import {
 import { useEditModeOptional } from "@/components/edit/EditModeProvider";
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { useDraftRecovery, useUnsavedChanges, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
+import { WeatherLocationButton } from "@/integrations/weather/WeatherLocationButton";
 
 interface ServiceFormProps {
   service: Service | null;
@@ -1643,6 +1644,18 @@ export default function ServiceForm({
                 Optional — leave these fields empty to add a plain link tile.
                 You can configure the widget later.
               </p>
+            )}
+
+            {activeWidgetType === "weather" && (
+              <WeatherLocationButton
+                latitude={activeRawConfig.latitude}
+                longitude={activeRawConfig.longitude}
+                onDetect={({ latitude, longitude }) => {
+                  const change = tileType !== "" ? handleWidgetConfigChange : handleOrphanWidgetConfigChange;
+                  change("latitude", latitude);
+                  change("longitude", longitude);
+                }}
+              />
             )}
 
             {widgetFields.length > 0 && (

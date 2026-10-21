@@ -690,7 +690,9 @@ Feeds are fetched server-side every ten minutes by default, including when the b
 
 ### Weather (Open-Meteo)
 
-Current conditions and a five-day forecast, with no API key. Add a **Weather** tile from the dashboard editor, enter latitude/longitude, and use the tile name for your location. Enable **Use imperial units** for Fahrenheit/mph; the default is Celsius/km/h. Location, units and footprint belong to each tile; no reusable service integration or launch URL is required.
+Current conditions and a five-day forecast, with no API key. Add or edit a **Weather** tile from the dashboard editor, enter latitude/longitude or click **Use my location**, and use the tile name for your location. Enable **Use imperial units** for Fahrenheit/mph; the default is Celsius/km/h. Location, units and footprint belong to each tile; no reusable service integration or launch URL is required.
+
+**Use my location** asks your browser for this device's location once, only when clicked. It requires HTTPS (or localhost) and browser permission. Coordinates are rounded to three decimal places (roughly 100 m), filled into the editable fields and saved to `settings.yaml` through the normal tile/dashboard save flow. All viewers of that tile see weather for the saved location; it does not track movement or detect each viewer automatically. The browser may use its own location provider; Kokpit performs no IP lookup or city search. Denied permission, unavailable location or a timeout leaves existing coordinates intact, with manual entry always available. Editing coordinates, switching tile type or closing the form prevents a pending result from changing the configuration.
 
 Compact **3×2** shows Temperature / Conditions. Wide **6×2** adds Feels like. Detailed **6×4** adds Humidity / Wind / dated precipitation and a named, keyboard-scrollable five-day forecast with low/high temperatures, conditions and precipitation probability. The summary and attribution stay fixed while the forecast scrolls. Times/dates come from the location's timezone; the attribution link's tooltip gives the observation time and timezone. Missing values display “—”, unknown condition codes display “Unknown”, and a missing forecast retains current conditions. Forecast temperature/probability values with missing or unexpected units stay unavailable. With an optional service URL, the header launches that service and attribution remains a separate link.
 
@@ -710,7 +712,7 @@ service_tiles:
         imperial: false
 ```
 
-Latitude is required (−90…90), as is longitude (−180…180); `imperial` is optional. The server makes one HTTPS request to the fixed Open-Meteo endpoint per fetch and refreshes every ten minutes by default. Each open tile polls independently; any configured shorter refresh override increases requests. A refresh failure preserves saved data with an accessible notice. No geolocation permission or city-search request is used. Setting coordinates opts that tile into the external weather service.
+Latitude is required (−90…90), as is longitude (−180…180); `imperial` is optional. The server makes one HTTPS request to the fixed Open-Meteo endpoint per fetch and refreshes every ten minutes by default. Each open tile polls independently; any configured shorter refresh override increases requests. A refresh failure preserves saved data with an accessible notice. Setting coordinates opts that tile into the external weather service and sends those coordinates to Open-Meteo for forecasts.
 
 Weather data: [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://open-meteo.com/en/licence). Its [free API terms](https://open-meteo.com/en/terms) apply, including non-commercial use and request limits. OpenWeatherMap is a separate future provider, not implemented by this widget.
 

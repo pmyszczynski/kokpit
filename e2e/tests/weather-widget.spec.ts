@@ -136,6 +136,51 @@ test("Weather preset saves fractional coordinates and units as tile options with
   await page.reload(); await expect(tile(page).locator(".widget-stat__value").first()).toHaveText("18°F");
 });
 
+test("Weather detects this browser's location only on request and persists reviewed coordinates", async ({ page, request, context }, testInfo) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 52.2297123, longitude: 21.0122456 });
+  expect((await request.patch("/api/settings", { data: { services: [], service_tiles: [], groups: [{ name: "Weather" }], bookmarks: [], appearance: { theme: "dark" } } })).ok()).toBe(true);
+  await mock(page); await page.goto("/");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await page.getByRole("button", { name: "Add tile to Weather" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Weather", exact: true }).click();
+  await expect(page.getByLabel("Latitude *", { exact: true })).toBeEmpty();
+  await expect(page.getByLabel("Longitude *", { exact: true })).toBeEmpty();
+  await page.getByRole("button", { name: "Use my location" }).click();
+  await expect(page.getByLabel("Latitude *", { exact: true })).toHaveValue("52.23");
+  await expect(page.getByLabel("Longitude *", { exact: true })).toHaveValue("21.012");
+  await expect(page.getByRole("status").filter({ hasText: "Location detected" })).toBeVisible();
+  await testInfo.attach("weather-location-editor", { body: await page.getByRole("dialog").screenshot(), contentType: "image/png" });
+  // Detection only fills the form. The normal save path persists manual edits too.
+  expect((await (await request.get("/api/settings")).json()).service_tiles).toEqual([]);
+  await page.getByLabel("Longitude *", { exact: true }).fill("21.015");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const saved = page.waitForResponse(r => r.url().endsWith("/api/settings") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
+  const persisted = await (await request.get("/api/settings")).json();
+  expect(persisted.service_tiles[0].widget).toMatchObject({ type: "weather", config: { latitude: 52.23, longitude: 21.015 } });
+  await page.reload(); await expect(tile(page).locator(".widget-stat").first()).toHaveText(/18°C/);
+});
+
+test("Weather location denial keeps manual coordinates usable", async ({ page, request, context }) => {
+  await context.clearPermissions();
+  await configure(request); await mock(page); await page.goto("/");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await tile(page).getByRole("button", { name: /options/i }).click();
+  await page.getByRole("menuitem", { name: /^Edit/ }).click();
+  await page.getByRole("button", { name: "Use my location" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Location permission was denied" })).toBeVisible();
+  await expect(page.getByLabel("Latitude *", { exact: true })).toHaveValue("51.5074");
+  await expect(page.getByLabel("Longitude *", { exact: true })).toHaveValue("-0.1278");
+  await page.getByLabel("Latitude *", { exact: true }).fill("0");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  const saved = page.waitForResponse(r => r.url().endsWith("/api/settings") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
+  const persisted = await (await request.get("/api/settings")).json();
+  expect(persisted.service_tiles[0].widget).toMatchObject({ type: "weather", config: { latitude: 0, longitude: -0.1278 } });
+});
+
 test("Weather attribution remains a valid independent link when the service has a launch URL", async ({ page, request, context }) => {
   const data = fixtures();
   const errors: string[] = [];
