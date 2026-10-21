@@ -41,6 +41,7 @@ const active: EditModeState = {
   error: null,
   conflict: false,
   pendingEditService: null,
+  pendingAddTile: null,
 };
 
 describe("editModeReducer", () => {

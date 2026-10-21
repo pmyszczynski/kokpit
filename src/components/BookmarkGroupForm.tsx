@@ -260,7 +260,7 @@ export default function BookmarkGroupForm({
   const accentIsHex = /^#[0-9a-fA-F]{6}$/.test(accent.trim());
 
   return (
-    <dialog ref={dialogRef} className="service-form-dialog" onClose={onClose}
+    <dialog ref={dialogRef} className="service-form-dialog" aria-label={bookmark ? "Edit Bookmark Group" : "Add Bookmark Group"} onClose={onClose}
       onCancel={(event) => { event.preventDefault(); handleClose(); }}>
       <div className="service-form-dialog__header">
         <h2>{bookmark ? "Edit Bookmark Group" : "Add Bookmark Group"}</h2>

@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: IMP-13 implemented for v0.30.11; IMP-14 implemented for v0.31.1; IMP-15 implemented for v0.31.2; IMP-17 implemented for v0.30.10; IMP-16 remains planned.
+Status: IMP-13 implemented for v0.30.11; IMP-14 implemented for v0.31.1; IMP-15 implemented for v0.31.2; IMP-17 implemented for v0.30.10; IMP-16 implemented for v0.31.3.
 
 Scope: IMP-13, IMP-14, IMP-15, IMP-16 and IMP-17 from the project review
 
@@ -190,15 +190,23 @@ An HTTP 500 is shown as reachable but degraded; protected services, redirects an
 
 ## IMP-16 — Give an empty dashboard a useful next action
 
+Status: **implemented for v0.31.3**.
+
+A dashboard with no placed service tiles and no bookmark groups now shows a themed, accessible welcome card with a useful add action. The predicate uses rendered placements, so unplaced saved services remain intact and receive catalog guidance; bookmark-only dashboards retain their existing content. Editable empty instances can open the existing blank-service form directly or choose another tile, while read-only views show usable guidance without an inactive editing control.
+
+The action enters the existing staged edit flow once: closing or cancelling does not persist configuration or reopen the dialog, and only explicit Save & exit writes the staged tile. Component regressions cover placement/catalog distinctions, duplicate entry, error and cancellation paths. Keyboard and browser regressions cover saving/discarding, existing catalog preservation, four mobile themes, computed spacing and custom-CSS precedence. The validation requirements below describe delivery checks; PR and release records hold their results.
+
 Priority: P2. Implement the welcome-card portion of the existing Phase C **Empty states & onboarding** roadmap item.
 
-### Evidence and qualification
+### Pre-implementation evidence and qualification
 
-- [ServiceGrid](../../src/components/ServiceGrid.tsx#L100) returns `null` when there are no renderable service tiles and no bookmark groups. An empty dashboard therefore has no contextual creation action, although navbar editing/settings still exist.
+The evidence below is pinned to pre-feature revision `ab5469305429bcf97062fc72661fef1e96297ee2`, before v0.31.3; the accepted design and task list describe the completed change.
+
+- [ServiceGrid](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/components/ServiceGrid.tsx#L112-L114) returned `null` when there were no renderable service tiles and no bookmark groups. An empty dashboard therefore had no contextual creation action, although navbar editing/settings still exist.
 - The [existing Phase 3 roadmap item](../Roadmap.md#phase-3--personalization) already specifies an “Add your first service” card, plus broader empty-group/coach-mark work. Record this implementation under that entry. Ghost tiles and coach marks remain separately scoped unless explicitly selected later.
-- [AddTilePicker](../../src/components/edit/AddTilePicker.tsx#L17), [EditableServiceGrid](../../src/components/edit/EditableServiceGrid.tsx#L928) and [EditModeProvider](../../src/components/edit/EditModeProvider.tsx#L237) already provide the picker, forms and staged save pipeline. No new onboarding wizard is needed. Some schema-v2 configurations intentionally have catalog services with no placed tiles; the card should describe an empty dashboard rather than falsely claiming there are no saved services. The current picker offers new services/presets/bookmarks, not a reusable-service placement selector.
+- [AddTilePicker](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/components/edit/AddTilePicker.tsx#L17-L28), [EditableServiceGrid](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/components/edit/EditableServiceGrid.tsx#L940-L983) and [EditModeProvider](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/components/edit/EditModeProvider.tsx#L240-L328) already provide the picker, forms and staged save pipeline. No new onboarding wizard is needed. Some schema-v2 configurations intentionally have catalog services with no placed tiles; the card should describe an empty dashboard rather than falsely claiming there are no saved services. The current picker offers new services/presets/bookmarks, not a reusable-service placement selector.
 
-### Design
+### Accepted design
 
 Render a small welcome card when the dashboard has no renderable content, with an “Add your first service” action and secondary access to the existing add-tile/bookmark choices. Explain that services and layout can also be configured in `settings.yaml`; do not expose the server's absolute config path or credentials.
 
@@ -206,18 +214,22 @@ The primary action checks `canEdit`, enters edit mode through the existing provi
 
 The empty predicate uses rendered tiles plus bookmarks, not just `services.length`. Declared empty groups alone do not suppress the card; a bookmark-only dashboard or any valid placed tile does suppress it. Do not present config failures as a healthy empty installation. Read-only rendering can show guidance without an unusable edit control. Preserve the current intentionally empty view for users once content exists and respect all themes, mobile layout and custom CSS overrides.
 
-### Ordered implementation tasks
+### Completed implementation tasks
 
-1. Add a small empty-dashboard component and derive emptiness from the same renderable content as ServiceGrid.
-2. Add one-shot pending-add handling to the edit provider/grid, including loading/error states, double-click protection and cancellation.
-3. Wire the welcome action to existing add/preset/bookmark forms; preserve normal staged save semantics and appropriate wording for existing unplaced catalog services.
-4. Add compact responsive styles and configuration guidance; update the existing roadmap item to point at this plan without marking the broader onboarding feature complete.
+- [x] Added a small empty-dashboard component and derived emptiness from the same renderable content as ServiceGrid.
+- [x] Added one-shot pending-add handling to the edit provider/grid, including loading/error states, double-click protection and cancellation.
+- [x] Wired the welcome action to existing add/preset/bookmark forms, preserving staged save semantics and appropriate wording for existing unplaced catalog services.
+- [x] Added compact responsive styles and configuration guidance, and linked the existing roadmap item to this plan without marking the broader onboarding feature complete.
 
-### Tests
+### Regression coverage
 
-- Extend [ServiceGrid tests](../../src/__tests__/components/ServiceGrid.test.tsx) for an empty config, only declared groups, catalog services without tiles, bookmark-only content and populated tiles. Assert no YAML write occurs on render.
-- Extend provider/grid tests for authenticated/edit-disabled states, entry failure, one-shot opening, rapid repeated activation, cancel and adding each existing picker type. Verify existing unplaced catalog entries are preserved.
-- Browser-test an empty installation: activate the action, create a service, Save & exit, reload and confirm persistence; discard and confirm YAML stays unchanged. Check keyboard focus, dialog labels, small screens and existing visual themes.
+- [ServiceGrid tests](../../src/__tests__/components/ServiceGrid.test.tsx) cover an empty config, only declared groups, catalog services without tiles, bookmark-only content and populated tiles, with no request issued on empty-state render.
+- Provider/grid and empty-dashboard regressions cover read-only access, entry failure and retry, one-shot opening, rapid repeated activation, cancellation, staged service creation and bookmark discard. Existing unplaced catalog entries remain preserved.
+- Browser regressions cover keyboard entry, service creation and persistence after Save & exit and reload, cancelling forms and discarding without configuration changes, and the existing bookmark and widget-preset forms. They also check dialog labels, four mobile themes, computed spacing and custom-CSS overrides.
+
+### Validation requirements
+
+After final edits, run the complete five-command local gate in `AGENTS.md` before committing or updating the PR. Record local validation, browser execution, visual inspection, and current-head CI/reviewer results in the PR and release records.
 
 ### Acceptance and compatibility
 

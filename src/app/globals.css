@@ -97,12 +97,12 @@
 }
 
 /* Shared widget UI opts into a layered reset so custom CSS can override it.
-   Settings fieldsets and password notices also own their spacing in layers;
-   exempt them so the unlayered reset cannot erase that spacing.
+   Settings fieldsets, password notices and the empty dashboard also own their
+   spacing in layers; exempt them so the unlayered reset cannot erase it.
    Keep the existing reset precedence for widgets that have not migrated. */
-*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *)),
-*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::before,
-*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::after {
+*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *)),
+*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::before,
+*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
