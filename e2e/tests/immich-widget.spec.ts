@@ -372,7 +372,8 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
 
     const previousAlert = await alert.elementHandle();
     error = "Immich timed out while refreshing the library";
-    await page.clock.fastForward(60_000);
+    // Retries use bounded exponential backoff rather than the normal interval.
+    await page.clock.fastForward(300_001);
     await expect(alert).toHaveAttribute("title", error);
     await expect(alert).toHaveAccessibleName(`Refresh failed; saved data is shown. ${error}`);
     await expect(alert).toHaveAttribute("aria-atomic", "true");
@@ -383,7 +384,7 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     await assertFits(page);
 
     refreshFails = false;
-    await page.clock.fastForward(60_000);
+    await page.clock.fastForward(300_001);
     await expect(alert).toHaveCount(0);
     await expect(widget.locator(".immich-stats-widget__value")).toHaveText(EXPECTED_VALUES);
     expect(await immichLayoutBounds(page)).toEqual(healthyBounds);

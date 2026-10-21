@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { Group } from "@/config/schema";
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
 import { useDraftRecovery, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -54,17 +55,21 @@ function GroupRow({
   const [recoveryConflict, setRecoveryConflict] = useState(false);
   const sourceId = `settings:group-name:${group.name}`;
   const dirty = nameDraft.trim() !== group.name.trim();
+  const sync = useConfigurationSync();
+  const sourceRevision = useRef(baselineRevision);
+  if (!dirty) sourceRevision.current = baselineRevision;
+  const syncBlocked = Boolean(sync && (!sync.available || !sync.editable || sync.stale(sourceRevision.current)));
   const recovery = useDraftRecovery(sourceId, baselineRevision ?? null, nameDraft, dirty,
     (saved, changed) => { setNameDraft(saved); setRecoveryConflict(changed); });
   useUnsavedSource(sourceId, {
     label: "Group name", dirty, scope: "settings", version: nameDraft.trim(),
     priority: 1,
     discard: () => { setNameDraft(group.name); setNameError(null); setRecoveryConflict(false); recovery.dismiss(); },
-    save: recoveryConflict || recovery.validating || recovery.conflict || !nameDraft.trim() ? undefined : async () => commitRename(),
+    save: syncBlocked || recoveryConflict || recovery.validating || recovery.conflict || !nameDraft.trim() ? undefined : async () => commitRename(),
   });
 
   function commitRename(): boolean {
-    if (recoveryConflict || recovery.validating || recovery.conflict) return false;
+    if (syncBlocked || recoveryConflict || recovery.validating || recovery.conflict) return false;
     const trimmed = nameDraft.trim();
     if (trimmed === "" || trimmed === group.name.trim()) {
       setNameDraft(group.name);
@@ -123,9 +128,11 @@ function GroupRow({
         }}
       />
       {nameError && <span id={nameErrorId} role="alert" className="settings-hint">{nameError}</span>}
-      {(recoveryConflict || recovery.conflict) && <span role="alert">Settings changed. <button type="button" className="settings-btn" onClick={() => {
+      {((syncBlocked && dirty) || recoveryConflict || recovery.conflict) && <span role="alert" className="settings-hint">{sync?.available && !sync.editable
+        ? "Settings are read-only because settings.yaml requires migration. Update the file to schema version 2, then retry. "
+        : "Settings changed or could not be verified. Discard this draft and reload the configuration before editing. "}<button type="button" className="settings-btn" onClick={() => {
         setNameDraft(group.name); setNameError(null); setRecoveryConflict(false); recovery.dismiss();
-      }}>Discard recovered name</button></span>}
+      }}>{recovery.recovered ? "Discard recovered name" : "Discard group name draft"}</button></span>}
 
       <label className="groups-row__collapsed">
         <input
@@ -183,6 +190,10 @@ export default function GroupsTab({
   baselineRevision = null,
 }: GroupsTabProps) {
   const [newGroup, setNewGroup] = useState("");
+  const sync = useConfigurationSync();
+  const sourceRevision = useRef(baselineRevision);
+  if (!newGroup.trim()) sourceRevision.current = baselineRevision;
+  const syncBlocked = Boolean(sync && (!sync.available || !sync.editable || sync.stale(sourceRevision.current)));
   const [entryError, setEntryError] = useState<string | null>(null);
   const recovery = useDraftRecovery("settings:group-entry", baselineRevision, newGroup, Boolean(newGroup.trim()),
     (saved) => setNewGroup(saved));
@@ -190,11 +201,11 @@ export default function GroupsTab({
     label: "New group name", dirty: Boolean(newGroup.trim()), scope: "settings", version: newGroup.trim(),
     priority: 1,
     discard: () => { setNewGroup(""); recovery.dismiss(); },
-    save: recovery.validating || recovery.conflict ? undefined : async () => handleAdd(),
+    save: syncBlocked || recovery.validating || recovery.conflict ? undefined : async () => handleAdd(),
   });
 
   function handleAdd() {
-    if (recovery.validating || recovery.conflict) return false;
+    if (syncBlocked || recovery.validating || recovery.conflict) return false;
     const trimmed = newGroup.trim();
     if (trimmed === "") return false;
     if (groups.some((group) => group.name.trim().toLowerCase() === trimmed.toLowerCase())) {
@@ -210,9 +221,11 @@ export default function GroupsTab({
     <section className="settings-section">
       <h2 className="settings-section__title">Groups</h2>
       {recovery.recovered && <p role="status" className="settings-hint">Recovered an unsaved group name. Review before adding.</p>}
-      {recovery.conflict && <p role="alert" className="settings-hint">Settings changed or could not be verified. <button type="button" className="settings-btn" onClick={() => {
+      {((syncBlocked && Boolean(newGroup.trim())) || recovery.conflict) && <p role="alert" className="settings-hint">{sync?.available && !sync.editable
+        ? "Settings are read-only because settings.yaml requires migration. Update the file to schema version 2, then retry. "
+        : "Settings changed or could not be verified. Discard this draft and reload the configuration before editing. "}<button type="button" className="settings-btn" onClick={() => {
         setNewGroup(""); recovery.dismiss();
-      }}>Discard recovered group name</button></p>}
+      }}>{recovery.recovered ? "Discard recovered group name" : "Discard new group name draft"}</button></p>}
       {entryError && <p role="alert" className="settings-hint">{entryError}</p>}
 
       <fieldset className="settings-section settings-fieldset" disabled={disabled}>

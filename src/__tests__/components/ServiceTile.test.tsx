@@ -4,6 +4,12 @@ import ServiceTile from "@/components/ServiceTile";
 import type { WidgetConfigIssue } from "@/widgets/tileWidget";
 import { z } from "zod";
 import { clearRegistry, registerWidget } from "@/widgets";
+import { createBrowserPollingLifecycle } from "@/lib/clientPolling";
+import { PollingLifecycleProvider } from "@/components/PollingLifecycle";
+import { ConfigurationSyncProvider } from "@/components/ConfigurationSyncProvider";
+
+const navigation = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
 // The broken-widget badge reads edit-mode availability via
 // useEditModeOptional(), independently of any wrapping <EditModeProvider> (it
@@ -445,7 +451,248 @@ describe("ServiceTile", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceId: "10000000-0000-4000-8000-000000000001" }),
+      signal: expect.any(AbortSignal),
     });
+  });
+
+  it.each([true, false])("clears the previous target's status while its replacement probe is pending (previously online: %s)", async (wasOnline) => {
+    vi.setSystemTime(0);
+    let revision = "one";
+    let probes = 0;
+    let resolveNew!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url !== "/api/ping") return Response.json({ revision, editable: true });
+      if (++probes === 1) return Response.json({ ok: wasOnline });
+      return new Promise<Response>((resolve) => { resolveNew = resolve; });
+    }));
+    const dashboard = (generation: string, url: string) => <ConfigurationSyncProvider
+      initialRevision={revision} initialEditable initialDataRevision={generation}
+      initialAppearance={{ theme: "dark", customCss: undefined, bgStyle: {} }}>
+      <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url={url} />
+    </ConfigurationSyncProvider>;
+    const view = render(dashboard("fetch-one", "http://old-target.local"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByTitle(wasOnline ? "Online" : "Offline")).toBeInTheDocument();
+    revision = "two";
+    view.rerender(dashboard("fetch-two", "http://new-target.local"));
+    expect(screen.getByTitle("Checking…")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1001); });
+    expect(probes).toBe(2);
+    expect(screen.getByTitle("Checking…")).toBeVisible();
+    await act(async () => { resolveNew(Response.json({ ok: !wasOnline })); });
+    expect(screen.getByTitle(wasOnline ? "Offline" : "Online")).toBeVisible();
+  });
+
+  it("keeps the previous target's status when only cosmetic configuration changes", async () => {
+    vi.setSystemTime(0);
+    let revision = "one";
+    let probes = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url !== "/api/ping") return Response.json({ revision, editable: true });
+      probes++;
+      return Response.json({ ok: true });
+    }));
+    const dashboard = () => <ConfigurationSyncProvider initialRevision={revision} initialEditable
+      initialDataRevision="same-fetch-inputs" initialAppearance={{ theme: revision === "one" ? "dark" : "light", customCss: undefined, bgStyle: {} }}>
+      <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name={`Jellyfin ${revision}`} url="http://same-target.local" />
+    </ConfigurationSyncProvider>;
+    const view = render(dashboard());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    revision = "two";
+    view.rerender(dashboard());
+    await act(async () => { await vi.advanceTimersByTimeAsync(1001); });
+    expect(screen.getByTitle("Online")).toBeVisible();
+    expect(probes).toBe(1);
+  });
+
+  it.each([200, 401])("aborts a previous target's probe and ignores its late HTTP %i completion", async (status) => {
+    vi.setSystemTime(0);
+    let revision = "one";
+    let probes = 0;
+    let resolveOld!: (response: Response) => void;
+    let resolveNew!: (response: Response) => void;
+    const signals: AbortSignal[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+      if (url !== "/api/ping") return Response.json({ revision, editable: true });
+      signals.push(options!.signal as AbortSignal);
+      if (++probes === 1) return Response.json({ ok: true });
+      return new Promise<Response>((resolve) => { if (probes === 2) resolveOld = resolve; else resolveNew = resolve; });
+    }));
+    const dashboard = (generation: string, url: string) => <ConfigurationSyncProvider
+      initialRevision={revision} initialEditable initialDataRevision={generation}
+      initialAppearance={{ theme: "dark", customCss: undefined, bgStyle: {} }}>
+      <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url={url} />
+    </ConfigurationSyncProvider>;
+    const view = render(dashboard("fetch-one", "http://old-target.local"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(probes).toBe(2);
+    revision = "two";
+    view.rerender(dashboard("fetch-two", "http://new-target.local"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1001); });
+    expect(probes).toBe(3);
+    expect(signals[1].aborted).toBe(true);
+    await act(async () => { resolveOld(Response.json({ ok: false }, { status })); });
+    expect(signals[2].aborted).toBe(false);
+    expect(screen.getByTitle("Checking…")).toBeVisible();
+    await act(async () => { resolveNew(Response.json({ ok: true })); });
+    expect(screen.getByTitle("Online")).toBeVisible();
+  });
+
+  it("keeps one slow status request in flight and aborts it on unmount", async () => {
+    const fetchMock = vi.fn().mockReturnValue(new Promise(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const { unmount } = render(<ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const signal = fetchMock.mock.calls[0][1].signal;
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("pauses offline without turning a previously online service into an outage", async () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const source = createBrowserPollingLifecycle();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ ok: true, status: 200 }))
+      .mockReturnValue(new Promise(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      render(<PollingLifecycleProvider value={source}>
+        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
+      </PollingLifecycleProvider>);
+    });
+    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    act(() => {
+      online.mockReturnValue(false);
+      window.dispatchEvent(new Event("offline"));
+    });
+    expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(true);
+    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not probe hidden mounts and waits for the access owner's resume gate", async () => {
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const source = createBrowserPollingLifecycle();
+    source.setBeforeResume(() => source.setAccessAllowed(false));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true, status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PollingLifecycleProvider value={source}>
+      <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
+    </PollingLifecycleProvider>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(fetchMock).not.toHaveBeenCalled();
+    act(() => {
+      visibility.mockReturnValue("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => source.setAccessAllowed(true));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([400, 401, 403, 404])("reconciles terminal Kokpit status %i without marking the service offline", async (status) => {
+    const source = createBrowserPollingLifecycle();
+    const reconcile = vi.fn();
+    source.setReconciliationHandler(reconcile);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ ok: true, status: 200 }))
+      .mockResolvedValue(new Response("unavailable", { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      render(<PollingLifecycleProvider value={source}>
+        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
+      </PollingLifecycleProvider>);
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(reconcile).toHaveBeenCalledWith({ kind: status === 401 || status === 403 ? "authorization" : "identity", status });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])("automatically retries a transient configuration conflict without a generation change (prior observation: %s)", async (hasObservation) => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const source = createBrowserPollingLifecycle();
+    const reconcile = vi.fn();
+    source.setReconciliationHandler(reconcile);
+    const fetchMock = vi.fn();
+    if (hasObservation) fetchMock.mockResolvedValueOnce(Response.json({ ok: true, status: 200 }));
+    fetchMock.mockResolvedValueOnce(new Response("Configuration is being updated", { status: 409 }))
+      .mockResolvedValue(Response.json({ ok: true, status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      render(<PollingLifecycleProvider value={source}>
+        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
+      </PollingLifecycleProvider>);
+    });
+    if (hasObservation) await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(screen.getByTitle(hasObservation ? "Online" : "Checking…")).toBeInTheDocument();
+    const generation = source.getVersion();
+    const attempts = hasObservation ? 2 : 1;
+    await act(async () => { await vi.advanceTimersByTimeAsync(29_999); });
+    expect(fetchMock).toHaveBeenCalledTimes(attempts);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(fetchMock).toHaveBeenCalledTimes(attempts + 1);
+    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(source.getVersion()).toBe(generation);
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("resumes after the polling gate closes and reopens with unchanged inputs (prior observation: %s)", async (hasObservation) => {
+    const source = createBrowserPollingLifecycle();
+    const reconcile = vi.fn();
+    source.setReconciliationHandler(reconcile);
+    const fetchMock = vi.fn();
+    if (hasObservation) fetchMock.mockResolvedValueOnce(Response.json({ ok: true, status: 200 }));
+    fetchMock.mockResolvedValueOnce(new Response("Configuration is being updated", { status: 409 }))
+      .mockResolvedValue(Response.json({ ok: true, status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      render(<PollingLifecycleProvider value={source}>
+        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
+      </PollingLifecycleProvider>);
+    });
+    if (hasObservation) await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    const generation = source.getVersion();
+    const attempts = hasObservation ? 2 : 1;
+    act(() => source.setAccessAllowed(false));
+    expect(source.isEligible()).toBe(false);
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(fetchMock).toHaveBeenCalledTimes(attempts);
+    expect(screen.getByTitle(hasObservation ? "Online" : "Checking…")).toBeInTheDocument();
+    act(() => source.setAccessAllowed(true));
+    expect(source.isEligible()).toBe(true);
+    // Reopening permits one shortcut after the minimum one-second retry gap.
+    await act(async () => { await vi.advanceTimersByTimeAsync(499); });
+    expect(fetchMock).toHaveBeenCalledTimes(attempts);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(fetchMock).toHaveBeenCalledTimes(attempts + 1);
+    expect(screen.getByTitle("Online")).toBeInTheDocument();
+    expect(source.getVersion()).toBe(generation);
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it("honors Retry-After for temporary status conflicts without inferring an outage", async () => {
+    const source = createBrowserPollingLifecycle();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("Configuration is being updated", {
+      status: 409, headers: { "Retry-After": "120" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      render(<PollingLifecycleProvider value={source}>
+        <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
+      </PollingLifecycleProvider>);
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(119_999); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTitle("Checking…")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTitle("Offline")).not.toBeInTheDocument();
   });
 
   it("status dot shows error when ping returns ok:false", async () => {

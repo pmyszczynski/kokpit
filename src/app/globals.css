@@ -2624,3 +2624,8 @@ button:not(:where(.widget-ui button)) {
   border-color: var(--color-accent);
   outline: none;
 }
+
+/* Keep the shell's navbar/main flex geometry while retaining one access gate. */
+.protected-surface, .protected-portals { display: contents; }
+.protected-surface[hidden] { display: none; }
+.config-recovery { margin: auto; padding: 2rem; text-align: center; }

@@ -197,7 +197,8 @@ test("SABnzbd refresh failure/recovery retains metrics and positions", async ({ 
       expect(await layoutBounds(page)).toEqual(healthy);
       await assertFits(page, footprint);
       fails = false;
-      await page.clock.fastForward(10_000);
+      // Allow the documented capped backoff before checking recovery.
+      await page.clock.fastForward(300_001);
       await expect(alert).toHaveCount(0);
       expect(await layoutBounds(page)).toEqual(healthy);
     }

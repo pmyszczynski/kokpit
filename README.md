@@ -251,6 +251,36 @@ service_tiles:
 - Anything else (a `http(s)://` URL or an uploaded path) is used as-is. When no icon resolves, tiles fall back to the site favicon, then a letter abbreviation.
 - In the service editor, **Browse icons** searches these sets, and **Upload icon** stores a custom image (PNG/JPG/WebP/SVG, up to 2 MB; SVGs are sanitized) in the persisted `data/uploads/` volume.
 
+**External YAML updates:**
+
+Already-open dashboards check the authorized source revision every five seconds
+while visible and online. Stable changes refresh services, ordering, bookmarks
+and appearance automatically, including removal of old CSS/background values.
+Comment-only edits also change the revision. One observer serves each protected
+browser surface; it does not fetch the full settings document just to check for
+changes, and polling never migrates or rewrites the YAML file.
+
+Unsaved settings, dashboard drafts and form input keep their original baseline.
+An external change shows a conflict and blocks stale saves until explicit
+reload/discard; a clean idle settings panel adopts the new server snapshot.
+Theme previews remain while their appearance draft is active. Successful saves
+acknowledge their own revision so they do not produce an external-change notice.
+
+Hidden/offline surfaces are masked and widget/status requests pause. Returning
+checks access before revealing content or resuming requests. A failed or invalid
+configuration check masks the surface and retries with bounded backoff (up to five
+minutes); it retains drafts in inaccessible memory. A confirmed authorization
+failure clears drafts and follows the existing login/setup flow. Under normal
+connectivity, active-tab authorization changes are detected within the five-second
+polling interval plus request/render time. This cannot recall content already
+delivered to a public browser. Migration-required configuration remains readable
+to allowed viewers, with editing blocked until the operator updates the file.
+
+Initial startup still validates the YAML and deployment key before serving. If
+startup rejects invalid YAML, repair the file and restart Kokpit. Automatic
+recovery here applies to external edits after a successful startup; revision
+polling does not bypass startup validation.
+
 **Unsaved changes and navigation:**
 
 The dashboard, settings sections, and service/bookmark forms track unsaved changes.
@@ -384,6 +414,11 @@ A positive whole number (up to 8760) expires a new session after that many hours
 without authenticated dashboard requests. Dashboard/widget polling counts as
 activity; silent cookie renewal does not. This measures request inactivity, not
 keyboard or mouse inactivity, so a dashboard that keeps polling can remain active.
+Widget and service-status polling pauses while the document is hidden, the
+browser reports offline, or the dashboard's access/configuration gate is closed.
+An idle-limited session can therefore expire while you are away; returning follows
+the normal login flow. Silent cookie renewal cannot revive an expired session,
+and no hidden keepalive is sent to extend the inactivity deadline.
 Changing the setting affects new sessions; revoke existing sessions to enforce a
 new policy immediately. The UI saves this setting back to YAML.
 
@@ -496,6 +531,19 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 ## Widgets
 
 Widgets display live data from your self-hosted services and opt-in external APIs directly on a service tile. Each widget polls its data source on a configurable interval.
+
+Automatic widget and service-status refreshes run only while the dashboard is
+visible and the browser does not report offline. Each refresh finishes before the
+next interval starts, so slow requests can complete. Failures retain the last
+successful data and retry with exponential backoff and bounded jitter, capped at
+five minutes (or the configured interval if longer); valid `Retry-After` guidance
+is bounded too. Returning refreshes data that is due or recovering, while recent
+successful data stays in place. Explicit refresh joins an active request and can
+bypass failure backoff, subject to a one-second minimum retry gap. An interval of
+`0` keeps its initial/manual behavior; focus or reconnect does not enable recurring
+polling. Changed saved fetch inputs can still trigger one new payload.
+Terminal configuration/identity failures wait for changed fetch inputs or an
+explicit retry after reconciliation, so an unchanged invalid target cannot loop.
 
 ### Search
 

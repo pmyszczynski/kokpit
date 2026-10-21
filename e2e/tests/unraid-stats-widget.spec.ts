@@ -169,7 +169,7 @@ test("Unraid retains saved measurements and geometry through 30-second refresh r
     await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Unraid API key rejected");
     expect(await bounds()).toEqual(before);
     await assertFits(page, footprint);
-    fails = false; await page.clock.fastForward(30000);
+    fails = false; await page.clock.fastForward(300_001);
     await expect(tile(page).getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(before);
   }

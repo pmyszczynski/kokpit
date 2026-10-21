@@ -321,7 +321,7 @@ test.describe("edit mode", () => {
 
   // ── Conflict (409 revision mismatch) ────────────────────────────────────
 
-  test("Save after an out-of-band change shows the conflict notice; Reload recovers", async ({
+  test("an out-of-band change blocks stale saves with a conflict notice; Reload recovers", async ({
     page,
     request,
   }) => {
@@ -349,11 +349,10 @@ test.describe("edit mode", () => {
     });
     expect(outOfBand.ok()).toBeTruthy();
 
-    await page.getByRole("button", { name: /Save & exit/ }).click();
-
     const notice = page.locator(".edit-bar__notice");
     await expect(notice).toBeVisible();
     await expect(notice).toContainText("settings.yaml changed on disk");
+    await expect(page.getByRole("button", { name: /Save & exit/ })).toBeDisabled();
     // Still in edit mode — the draft is kept so Reload is a deliberate choice.
     await expect(page.locator(".edit-bar")).toBeVisible();
 

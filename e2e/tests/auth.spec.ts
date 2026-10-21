@@ -3,6 +3,9 @@ import Database from "better-sqlite3";
 import path from "path";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
+import { parse, stringify } from "yaml";
+import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 import { chunkedRequest } from "../helpers/chunked-request";
 
@@ -188,6 +191,43 @@ test.describe.serial("authentication flow", () => {
       data: DEFAULT_MOCK_STATE,
     });
     expect(restore.ok(), `Mock control endpoint failed: ${restore.status()}`).toBeTruthy();
+  });
+
+  test("an open public browser hides drafts during invalid YAML and loses them when authentication becomes required", async ({ page, request }) => {
+    const configPath = path.resolve("./e2e/fixtures/auth-settings.yaml");
+    const original = await readFile(configPath, "utf8");
+    try {
+      const publicConfig = parse(original);
+      publicConfig.auth.enabled = false;
+      Object.assign(publicConfig, schemaV2Fixtures([{ name: "Formerly public service", url: MOCK_PLEX }]));
+      publicConfig.service_tiles[0].footprint = { columnSpan: 3, rowSpan: 1 };
+      publicConfig.appearance = { theme: "light", custom_css: ".formerly-public-marker { color: red; }", background: { color: "#123456" } };
+      await writeFile(configPath, stringify(publicConfig));
+      await expect.poll(async () => {
+        const response = await request.get("/api/config/revision");
+        return { status: response.status(), editable: response.ok() && (await response.json()).editable };
+      }).toEqual({ status: 200, editable: true });
+      await goto(page, "/settings");
+      await selectSettingsTab(page, "Services", "Services");
+      await page.getByRole("button", { name: "+ Add Service", exact: true }).click();
+      await page.getByLabel("Name *", { exact: true }).fill("Private unsaved name");
+      await page.getByLabel("Integration", { exact: true }).selectOption("qbittorrent");
+      await page.getByLabel("Password *", { exact: true }).fill("synthetic-inaccessible-draft");
+      await writeFile(configPath, "auth: [invalid during policy transition\n");
+      await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+      await expect(page.getByLabel("Name *", { exact: true })).not.toBeVisible();
+      publicConfig.auth.enabled = true;
+      await writeFile(configPath, stringify(publicConfig));
+      await expect(page).toHaveURL("/login");
+      await expect(page.getByLabel("Name *", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("Formerly public service", { exact: true })).toHaveCount(0);
+      await expect(page.locator("dialog[open], .kebab-menu")).toHaveCount(0);
+      await expect(page.locator("#kokpit-custom-css")).toHaveText("");
+      expect(await page.locator("body").evaluate((body) => body.style.getPropertyValue("--app-bg-color"))).toBe("");
+    } finally {
+      await writeFile(configPath, original);
+      await expect.poll(async () => (await request.get("/api/config/revision")).status()).toBe(401);
+    }
   });
 
   // ── Authenticated-state guards ────────────────────────────────────────────────

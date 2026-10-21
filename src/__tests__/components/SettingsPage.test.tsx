@@ -2,6 +2,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/auth/apiAuth", () => ({ isRequestAuthenticated: async () => true }));
+
 vi.mock("proper-lockfile", () => ({ lockSync: vi.fn(() => () => undefined) }));
 
 vi.mock("node:fs", () => {
@@ -72,9 +74,9 @@ describe("protected settings server component", () => {
     const { default: SettingsPage } = await import(
       "@/app/(protected)/settings/page"
     );
-    const page = SettingsPage();
+    const page = await SettingsPage();
     const serialized = JSON.stringify(page);
-    const panel = (page.props.children as unknown[])[1] as {
+    const panel = (page.props.children.props.children as unknown[])[1] as {
       props: { initialRevision: string };
     };
 
@@ -84,15 +86,15 @@ describe("protected settings server component", () => {
     expect(panel.props.initialRevision).toBe("revision-of-unredacted-snapshot");
   });
 
-  it("offers a full reload when the YAML source changes during rendering", async () => {
+  it("retains the mounted settings owner behind the shared recovery boundary when YAML changes during rendering", async () => {
     const { getConfigSnapshot } = await import("@/config/server");
     expect(getConfigSnapshot().state).toBe("ready");
     vi.mocked(readFileSync).mockReturnValue(`${SECRET_YAML}\n# external edit`);
     const { default: SettingsPage } = await import("@/app/(protected)/settings/page");
-    const page = SettingsPage();
+    const page = await SettingsPage();
 
-    expect(JSON.stringify(page)).toContain("settings.yaml is being updated");
-    const retry = (page.props.children as unknown[])[2] as { props: { href: string } };
-    expect(retry.props.href).toBe("/settings");
+    expect(page.props.revision).toBeNull();
+    expect(page.props.children).toBeNull();
+    expect(JSON.stringify(page)).not.toContain("rsc-saved-secret");
   });
 });

@@ -101,7 +101,7 @@ for (const footprint of FOOTPRINTS) test(`Search ${footprint.columnSpan}x2 retai
   await input.fill("keep my search"); await input.focus(); const bounds = await input.boundingBox();
   fail = true; await page.clock.fastForward(5000); await expect(tile(page).getByRole("alert")).toHaveAttribute("title", "Options unavailable");
   await expect(input).toHaveValue("keep my search"); await expect(input).toBeFocused(); expect(await input.boundingBox()).toEqual(bounds);
-  fail = false; await page.clock.fastForward(5000); await expect(tile(page).getByRole("alert")).toHaveCount(0); expect(await input.boundingBox()).toEqual(bounds);
+  fail = false; await page.clock.fastForward(300_001); await expect(tile(page).getByRole("alert")).toHaveCount(0); expect(await input.boundingBox()).toEqual(bounds);
 });
 
 test("Search controls remain independent of a linked service header", async ({ page, request }) => {

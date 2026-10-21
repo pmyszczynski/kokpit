@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { getConfig, getConfigPath } from "@/config/server";
+import { getConfigSnapshot, getPublishedConfigSnapshot } from "@/config/server";
+import { isRequestAuthenticated } from "@/auth/apiAuth";
 import { resolveAppearance } from "@/config/theme";
 
 export const metadata: Metadata = {
@@ -25,51 +26,33 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  let config: ReturnType<typeof getConfig> | null = null;
-  let configError: string | null = null;
-
+  // Keep children mounted on invalid/cold configuration so the protected
+  // surface can show neutral recovery and retry. Diagnostics belong on the
+  // server; unauthenticated layouts must not expose YAML contents or paths.
+  let appearance = { theme: "dark", customCss: undefined, bgStyle: {} } as ReturnType<typeof resolveAppearance>;
   try {
-    config = getConfig();
-  } catch (err) {
-    configError = err instanceof Error ? err.message : String(err);
-  }
-
-  if (configError !== null) {
-    return (
-      <html lang="en">
-        <body>
-          <div className="config-error">
-            <div className="config-error__box">
-              <p className="config-error__icon">⚠</p>
-              <h1 className="config-error__title">Configuration Error</h1>
-              <p className="config-error__subtitle">
-                <code>{getConfigPath()}</code> could not be loaded.
-              </p>
-              <pre className="config-error__details">{configError}</pre>
-            </div>
-          </div>
-        </body>
-      </html>
-    );
-  }
-
-  const { theme, customCss, bgStyle } = resolveAppearance(config!);
+    const snapshot = getConfigSnapshot();
+    if ((snapshot.state === "ready" || snapshot.state === "migration-required") && snapshot.config && snapshot.source
+      && await isRequestAuthenticated(snapshot.config)) {
+      const current = getPublishedConfigSnapshot();
+      if (current.state === snapshot.state && current.source === snapshot.source && current.config === snapshot.config) {
+        appearance = resolveAppearance(snapshot.config);
+      }
+    }
+  } catch { /* The protected layout owns the generic recovery surface. */ }
+  const { theme, customCss, bgStyle } = appearance;
 
   return (
     <html lang="en" data-theme={theme}>
       <body style={bgStyle as React.CSSProperties}>
-        {customCss && (
-          <style
-            dangerouslySetInnerHTML={{
-              __html: `@layer user-custom { ${customCss} }`,
-            }}
-          />
-        )}
+        <style id="kokpit-custom-css" dangerouslySetInnerHTML={{
+          __html: customCss ? `@layer user-custom { ${customCss} }` : "",
+        }} />
         {children}
       </body>
     </html>

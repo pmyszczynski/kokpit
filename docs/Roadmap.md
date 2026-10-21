@@ -50,11 +50,11 @@ are reassessed separately and are not part of this work.
 - [x] `P1` **IMP-10 — Preserve nested YAML comments on UI writes**
   - Implemented for v0.30.9: UI writes reconcile retained YAML nodes and identities, preserve supported comments/styles, and reject unsafe alias edits before persistence.
   - [Configuration-sync plan](plans/2026-10-20-config-sync-plan.md#imp-10)
-- [ ] `P1` **IMP-11 — Synchronize stable configuration changes into open browsers**
-  - Refresh layout and appearance after external YAML edits or another browser's save; protect dirty drafts and handle authentication changes safely.
+- [x] `P1` **IMP-11 — Synchronize stable configuration changes into open browsers**
+  - Implemented for v0.30.11: Authorized revision observation refreshes stable views and appearance while preserving dirty baselines and failing closed on availability or access changes.
   - [Configuration-sync plan](plans/2026-10-20-config-sync-plan.md#imp-11)
-- [ ] `P1` **IMP-13 — Adapt browser polling to visibility, connectivity, and failures**
-  - Pause hidden/offline polling, refresh on return, and back off with bounded jitter after failures; preserve stale data and document idle-session effects.
+- [x] `P1` **IMP-13 — Adapt browser polling to visibility, connectivity, and failures**
+  - Implemented for v0.30.11: Shared completion-based visible/online polling uses bounded retries, aborts obsolete work and waits for access reconciliation before resuming.
   - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-13)
 - [ ] `P1` **IMP-14 — Share and cache equivalent widget requests**
   - Bound cache/in-flight state, isolate credentials and render inputs, invalidate on config changes, and keep one consumer's abort from canceling others.

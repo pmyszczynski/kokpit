@@ -1,10 +1,12 @@
 "use client";
 
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
 import { useRouter } from "next/navigation";
 import { useUnsavedChanges } from "./unsaved/UnsavedChangesProvider";
 
 export default function LogoutButton() {
   const router = useRouter();
+  const revoke = useConfigurationSync()?.revoke;
   const unsaved = useUnsavedChanges();
 
   async function handleLogout() {
@@ -12,6 +14,7 @@ export default function LogoutButton() {
     try {
       const res = await fetch("/api/auth/logout", { method: "POST", headers: { "X-Kokpit-Request": "1" } });
       if (!res.ok) throw new Error("Logout failed");
+      if (revoke) { revoke(); return; }
       unsaved?.clear();
       router.push("/login");
       router.refresh();

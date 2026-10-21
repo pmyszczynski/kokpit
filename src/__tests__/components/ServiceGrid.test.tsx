@@ -5,8 +5,12 @@ import type { KokpitConfig, Service } from "@/config/schema";
 const getConfig = vi.fn();
 
 vi.mock("@/config/server", () => ({
-  getConfig: () => getConfig(),
+  getConfigSnapshot: () => ({ state: "ready", config: getConfig(), source: "test-source" }),
+  getPublishedConfigSnapshot: () => ({ state: "ready", config: getConfig(), source: "test-source" }),
 }));
+
+vi.mock("@/auth/apiAuth", () => ({ isRequestAuthenticated: async () => true }));
+vi.mock("@/config/revision", () => ({ configRevision: () => "revision" }));
 
 import ServiceGrid from "@/components/ServiceGrid";
 import "@/integrations";
@@ -68,7 +72,7 @@ describe("ServiceGrid", () => {
     getConfig.mockReturnValue(makeConfig());
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(container.innerHTML).toBe("");
   });
@@ -84,7 +88,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(screen.getByText("Jellyfin")).toBeInTheDocument();
     expect(screen.getByText("Portainer")).toBeInTheDocument();
@@ -106,7 +110,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
 
     expect(sectionHeaders(container)).toEqual(["Alpha", "Zeta"]);
@@ -132,7 +136,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(sectionHeaders(container)).toEqual(["Zeta", "Alpha"]);
   });
@@ -150,7 +154,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(sectionHeaders(container)).toEqual(["Media", "Alpha", "Zeta"]);
   });
@@ -164,7 +168,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(sectionHeaders(container)).toEqual(["Media"]);
   });
@@ -180,7 +184,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     const children = Array.from(container.children);
     expect(children[0].classList.contains("service-group")).toBe(true);
@@ -200,7 +204,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     const children = Array.from(container.children);
     expect(children[0].classList.contains("dashboard-tile-grid")).toBe(true);
@@ -217,7 +221,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     const grid = container.querySelector<HTMLElement>(
       ".service-group .dashboard-tile-grid"
@@ -234,7 +238,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     const section = container.querySelector(".service-group");
     expect(section?.classList.contains("service-group--collapsed")).toBe(true);
@@ -250,7 +254,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(container.querySelector(".service-tile--normal")).not.toBeNull();
     });
@@ -261,7 +265,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(container.querySelector(".service-tile--large")).not.toBeNull();
     });
@@ -276,7 +280,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(container.querySelector(".service-tile--large")).not.toBeNull();
     });
@@ -291,7 +295,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(container.querySelector(".service-tile--normal")).not.toBeNull();
       expect(container.querySelector(".service-tile--large")).toBeNull();
@@ -300,7 +304,7 @@ describe("ServiceGrid", () => {
     it("uses the compact default for a new Plex tile", async () => {
       getConfig.mockReturnValue(makeConfig({ services: [makeService({ name: "Plex", widget: { type: "plex", config: { size_defaults: true } } })] }));
       let container!: HTMLElement;
-      await act(async () => { ({ container } = render(<ServiceGrid />)); });
+      await act(async () => { ({ container } = render(await ServiceGrid())); });
       expect(container.querySelector(".service-tile--normal")).not.toBeNull();
     });
   });
@@ -321,7 +325,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(sectionHeaders(container)).toEqual(["Media"]);
       const grid = container.querySelector(".service-group .dashboard-tile-grid");
@@ -346,7 +350,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(sectionHeaders(container)).toEqual(["Reading"]);
       expect(
@@ -372,7 +376,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(sectionHeaders(container)).toEqual(["Media", "Bookmarks"]);
       // Last section is the implicit Bookmarks group, even though the
@@ -397,7 +401,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(sectionHeaders(container)).toEqual(["Bookmarks"]);
       expect(container.querySelector(".bookmark-tile")).not.toBeNull();
@@ -421,7 +425,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(
         container.querySelector(".bookmark-tile--list.bookmark-tile--tall")
@@ -455,7 +459,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(
       container.querySelector('.service-tile__widget[data-widget-type="plex"]')
@@ -478,7 +482,7 @@ describe("ServiceGrid", () => {
       );
       let container!: HTMLElement;
       await act(async () => {
-        ({ container } = render(<ServiceGrid />));
+        ({ container } = render(await ServiceGrid()));
       });
       expect(screen.getByText("Svc")).toBeInTheDocument();
       if (emptyConfigValid) {
@@ -521,7 +525,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(screen.getByText("Plex")).toBeInTheDocument();
     // Widget area is suppressed, and this is NOT the "unknown widget type"
@@ -566,7 +570,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
     expect(container.querySelector(".widget-error")).not.toBeNull();
     expect(screen.getByText(/unknown widget type/i)).toBeInTheDocument();
@@ -583,7 +587,7 @@ describe("ServiceGrid", () => {
     );
     let container!: HTMLElement;
     await act(async () => {
-      ({ container } = render(<ServiceGrid />));
+      ({ container } = render(await ServiceGrid()));
     });
 
     expect(container.querySelectorAll(".service-group")).toHaveLength(1);

@@ -1,25 +1,24 @@
-import { getConfigSnapshot } from "@/config/server";
+import { redirect } from "next/navigation";
+import { getAuthorizedRenderSnapshot } from "@/config/authorizedRender";
 import { configRevision } from "@/config/revision";
+import { ConfigurationSnapshotBoundary } from "@/components/ConfigurationSyncProvider";
 import SettingsPanel from "@/components/SettingsPanel";
 import { toClientSafeSettings } from "@/widgets/configSecrets";
 
 export const dynamic = 'force-dynamic';
 
-export default function SettingsPage() {
-  const snapshot = getConfigSnapshot();
-  if (snapshot.state === "dirty" || !snapshot.config || !snapshot.source) {
-    return (
-      <div className="settings-page">
-        <h1 className="settings-page__title">Settings</h1>
-        <p role="alert">settings.yaml is being updated. Reload to try again.</p>
-        <a href="/settings">Reload settings</a>
-      </div>
-    );
+export default async function SettingsPage() {
+  const access = await getAuthorizedRenderSnapshot();
+  if (access.state === "denied") redirect("/login");
+  if (access.state !== "allowed") {
+    return <ConfigurationSnapshotBoundary revision={null}>{null}</ConfigurationSnapshotBoundary>;
   }
+  const { snapshot } = access;
   const config = toClientSafeSettings(snapshot.config);
   const showSessionManager = config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
 
   return (
+    <ConfigurationSnapshotBoundary revision={configRevision(snapshot.source)}>
     <div className="settings-page">
       <h1 className="settings-page__title">Settings</h1>
       <SettingsPanel
@@ -28,5 +27,6 @@ export default function SettingsPage() {
         initialRevision={configRevision(snapshot.source)}
       />
     </div>
+    </ConfigurationSnapshotBoundary>
   );
 }

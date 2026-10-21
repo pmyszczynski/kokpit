@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfigurationSync } from "./ConfigurationSyncProvider";
+
 import { useEffect, useRef, useState } from "react";
 import type { BookmarkGroup, BookmarkLink, Size } from "@/config/schema";
 import { serviceNameUniquenessKey } from "@/config";
@@ -74,6 +76,7 @@ export default function BookmarkGroupForm({
 }: BookmarkGroupFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const unsaved = useUnsavedChanges();
+  const sync = useConfigurationSync();
   const initialFields = {
     name: bookmark?.name ?? "", accent: bookmark?.accent ?? "",
     placementGroup: bookmark?.placement?.group ?? initialGroup ?? "",
@@ -97,6 +100,8 @@ export default function BookmarkGroupForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [recoveryConflict, setRecoveryConflict] = useState(false);
+  const sourceRevision = useRef(baselineRevision);
+  const syncBlocked = Boolean(sync && (!sync.available || !sync.editable || sync.stale(sourceRevision.current)));
   const sourceId = recoveryId ?? `${draftScope}:bookmark-form:${bookmark?.name ?? `new:${initialGroup ?? ""}`}`;
   const version = canonicalJSONString({
     name: name.trim(), accent: accent.trim(), style, placementGroup: placementGroup.trim(), placementSize,
@@ -142,7 +147,7 @@ export default function BookmarkGroupForm({
     label: "Bookmark group form", dirty, saving: submitting, scope: draftScope, version,
     priority: 0,
     discard: () => { setBaseline(version); closeWithoutWarning(); },
-    save: recoveryConflict || recovery.validating || recovery.conflict ? undefined : submit,
+    save: syncBlocked || recoveryConflict || recovery.validating || recovery.conflict ? undefined : submit,
   });
 
   useEffect(() => {
@@ -188,7 +193,7 @@ export default function BookmarkGroupForm({
   }
 
   async function submit(): Promise<boolean> {
-    if (submitting || unsaved?.saving || recoveryConflict || recovery.validating || recovery.conflict) return false;
+    if (submitting || syncBlocked || unsaved?.saving || recoveryConflict || recovery.validating || recovery.conflict) return false;
     const trimmedName = name.trim();
     if (trimmedName === "") {
       setError("Name is required.");
@@ -270,9 +275,11 @@ export default function BookmarkGroupForm({
       </div>
       <form onSubmit={handleSubmit} className="service-form">
         {recovery.recovered && <p className="settings-hint" role="status">Recovered unsaved bookmark fields. URL query/fragment values may need re-entry; review before saving.</p>}
-        {(recoveryConflict || recovery.conflict) && <p className="settings-hint" role="alert">Settings changed or could not be verified. Close and reopen this form after reloading the configuration.</p>}
+        {(syncBlocked || recoveryConflict || recovery.conflict) && <p className="settings-hint" role="alert">{sync?.available && !sync.editable
+          ? "Settings are read-only because settings.yaml requires migration. Update the file to schema version 2, then reopen this form once settings can be edited."
+          : "Settings changed or could not be verified. Close and reopen this form after reloading the configuration."}</p>}
         {!recovery.available && <p className="settings-hint" role="alert">This draft is too large for navigation recovery. Save before using browser Back or Forward.</p>}
-        <div className="service-form__body"><fieldset className="service-form__fields settings-fieldset" disabled={submitting || unsaved?.saving}>
+        <div className="service-form__body"><fieldset className="service-form__fields settings-fieldset" disabled={submitting || unsaved?.saving || syncBlocked}>
           <div className="settings-form-row">
             <label htmlFor="bf-name">Name *</label>
             <input
@@ -462,7 +469,7 @@ export default function BookmarkGroupForm({
           <button type="button" className="settings-btn" onClick={handleClose}>
             Cancel
           </button>
-          <button type="submit" className="settings-save-btn" disabled={submitting || unsaved?.saving || recovery.validating || recovery.conflict || recoveryConflict}>
+          <button type="submit" className="settings-save-btn" disabled={syncBlocked || submitting || unsaved?.saving || recovery.validating || recovery.conflict || recoveryConflict}>
             Save
           </button>
         </div>
