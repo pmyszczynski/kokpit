@@ -15,6 +15,8 @@ test.beforeEach(async ({ request }) => {
 
 test("settings conflict preserves the other editor's services and reloads a fresh draft", async ({ page, request }) => {
   await page.goto("/settings");
+  const localCss = ":root { --conflict-draft: 1; }";
+  await page.getByLabel("Custom CSS").fill(localCss);
   await page.getByRole("button", { name: "Services", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: first.name })).toBeVisible();
 
@@ -26,18 +28,22 @@ test("settings conflict preserves the other editor's services and reloads a fres
   await page.getByRole("row").filter({ hasText: first.name }).getByRole("button", { name: "Delete", exact: true }).click();
   expect((await rejectedSave).status()).toBe(409);
   await expect(page.getByRole("alert").filter({ hasText: "settings.yaml changed on disk" })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: first.name })).toBeVisible();
   expect((await (await request.get("/api/settings")).json()).services.map((service: { name: string }) => service.name))
     .toEqual([first.name, "Added elsewhere"]);
 
   await expect(page.getByRole("button", { name: "+ Add Service", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Appearance", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await expect(page.getByLabel("Custom CSS")).toHaveValue(localCss);
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
 
+  await page.getByRole("button", { name: "Reload settings" }).click();
   await Promise.all([
     page.waitForEvent("load"),
-    page.getByRole("button", { name: "Reload settings" }).click(),
+    page.getByRole("dialog", { name: "Unsaved changes" }).getByRole("button", { name: "Discard and continue" }).click(),
   ]);
+  await expect(page.getByLabel("Custom CSS")).toHaveValue("");
   await page.getByRole("button", { name: "Services", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: "Added elsewhere" })).toBeVisible();
 });

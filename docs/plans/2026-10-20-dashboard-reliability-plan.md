@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: Planned — selected for the roadmap; no application changes implemented
+Status: IMP-17 implemented for v0.30.10; IMP-13–16 remain planned.
 
 Scope: IMP-13, IMP-14, IMP-15, IMP-16 and IMP-17 from the project review
 
@@ -199,9 +199,17 @@ A usable empty installation displays clear guidance and one direct route into th
 
 ## IMP-17 — Protect unsaved edits at the places they can be lost
 
+Status: **implemented for v0.30.10**.
+
+Dashboard drafts, settings sections and open service/bookmark forms now register their own unsaved work. Supported app exits offer Stay, Discard and continue, and Save & continue when a valid save exists; failed saves retain work and in-flight or later edits are not silently marked saved. Native reload/close protection is installed only while work is dirty or saving, subject to browser support, and confirmation dialogs preserve keyboard focus.
+
+Same-document Back/Forward uses bounded non-secret recovery projections in protected-layout memory rather than universal history interception. Recovery rechecks the authorized server revision before saving, excludes credentials and unsafe URL/CSS material, and clears on explicit discard/save, sign-out, session loss or layout teardown. CSS recovery uses a limited profile and omits a field containing quoted strings, escapes, slashes, `?`, `#`, `@`, `url()` or custom-property declarations, including arbitrary unquoted URL/data payloads. Numeric/keyword declarations, variable references and color functions within that profile remain recoverable; hex colors within CSS, ID selectors, at-rules and other omitted syntax need re-entry. Separate color settings retain hex values, and production CSS rendering is unchanged. Up to 32 drafts of 256 KiB are retained; oversized drafts warn that recovery is unavailable. Component and browser regressions cover nested forms, save races, navigation, reload and revision conflicts. Integrated validation is recorded separately.
+
 Priority: P1. Warn at destructive exits and preserve recoverable drafts through supported client navigation.
 
 ### Evidence and qualification
+
+The pre-v0.30.10 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
 - [EditModeProvider](../../src/components/edit/EditModeProvider.tsx#L167) already derives dirty configuration against a baseline and retains drafts after save/conflict errors. [EditBar](../../src/components/edit/EditBar.tsx#L36) exposes Discard and conflict Reload; the provider also toggles out of edit mode via Mod+E without a dirty-exit confirmation.
 - The provider sits in [the protected layout](../../src/app/(protected)/layout.tsx#L55), so its staged dashboard draft can survive navigation between protected routes. It is incorrect to assume every Settings link necessarily discards that provider's draft.
@@ -219,7 +227,7 @@ Register `beforeunload` only while there is actual unsaved work or a pending wri
 
 Native dialog protection happens before dismissal: use `onCancel` to prevent dirty Escape closure, and route close/cancel buttons through the same confirmation before calling `.close()`. Keep focus in the original dialog if Stay is selected. On successful submit, transfer the fields to the parent draft/write pipeline first, then unregister the form and close without a duplicate warning. Do not add a guard to the picker, which contains no editable draft. Detect dirty fields even when the parent dashboard itself is still clean.
 
-Because Next's Link guard does not intercept browser same-document Back/Forward, retain non-secret settings and open-form draft recovery state in the long-lived protected client provider, keyed by editor identity and baseline revision. Restore it on return with a visible unsaved/recovery notice; do not automatically write it. Keep existing dashboard state in its current provider. Clear retained state on confirmed discard, successful save, logout or expiry of the protected layout/session. No localStorage, sessionStorage or disk persistence is needed. Do not retain passwords, API keys, TOTP/recovery material or secret-bearing raw config in recovery snapshots; normal live form memory is separate. If a returned draft's baseline no longer matches the current revision, keep conflict safeguards and offer review/reload rather than silently merging or saving it.
+Because Next's Link guard does not intercept browser same-document Back/Forward, retain non-secret settings and open-form draft recovery state in the long-lived protected client provider, keyed by editor identity and baseline revision. Restore it on return with a visible unsaved/recovery notice; do not automatically write it. Keep existing dashboard state in its current provider. Clear retained state on confirmed discard, successful save, logout or expiry of the protected layout/session. No localStorage, sessionStorage or disk persistence is needed. Do not retain passwords, API keys, TOTP/recovery material or secret-bearing raw config in recovery snapshots; normal live form memory is separate. Track edited sections and fields before sanitization: untouched values come from the authorized server baseline, while explicit edits retain their sanitized projections, including intentional URL query removal or clearing. Bookmark row provenance survives reordering without caching original URL values. If a returned draft's baseline no longer matches the current revision, keep conflict safeguards and offer review/reload rather than silently merging or saving it.
 
 Full-document Back/Forward can use native `beforeunload`; same-document traversal has the documented recovery behavior rather than a fabricated cancellable `popstate` guarantee. Secret fields on browser-driven traversal may require re-entry. Treat this as an explicit browser limitation. Investigate an additional supported navigation-cancellation API only if the project's browser matrix and Next version support it; do not make this work depend on monkeypatching browser internals.
 

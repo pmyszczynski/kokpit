@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
 import SessionRenewal from "@/components/SessionRenewal";
 import PasswordReplacementNotice from "@/components/PasswordReplacementNotice";
+import { UnsavedChangesProvider } from "@/components/unsaved/UnsavedChangesProvider";
 
 export const dynamic = 'force-dynamic';
 
@@ -53,17 +54,19 @@ export default async function ProtectedLayout({
 
   return (
     <div className="shell">
-      <EditModeProvider
-        canEdit={canEdit}
-        connectionTestingEnabled={authEnabled}
-      >
-        <Navbar showLogout={showLogout} canEdit={canEdit} />
-        {showLogout && <SessionRenewal />}
-        <main className="shell-main">
-          {passwordReplacementRecommended && <PasswordReplacementNotice />}
-          {children}
-        </main>
-      </EditModeProvider>
+      <UnsavedChangesProvider>
+        <EditModeProvider
+          canEdit={canEdit}
+          connectionTestingEnabled={authEnabled}
+        >
+          <Navbar showLogout={showLogout} canEdit={canEdit} />
+          {showLogout && <SessionRenewal />}
+          <main className="shell-main">
+            {passwordReplacementRecommended && <PasswordReplacementNotice />}
+            {children}
+          </main>
+        </EditModeProvider>
+      </UnsavedChangesProvider>
     </div>
   );
 }

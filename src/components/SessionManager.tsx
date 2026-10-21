@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUnsavedChanges, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 
 type Session = {
   id: string;
@@ -22,12 +23,17 @@ function formatDate(time: number) {
 
 export default function SessionManager() {
   const router = useRouter();
+  const unsaved = useUnsavedChanges();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  useUnsavedSource("session-manager", {
+    label: "Signed-in device confirmation", dirty: Boolean(password), saving: submitting,
+    version: password, discard: () => { setPassword(""); setPendingAction(null); },
+  });
 
   async function loadSessions() {
     setLoading(true);
@@ -62,9 +68,12 @@ export default function SessionManager() {
 
   async function submit() {
     if (!pendingAction || submitting || (needsPassword(pendingAction) && !password)) return;
+    const action = pendingAction;
+    if ((action.action === "revoke-all" || (action.action === "revoke" && action.session.current))
+      && unsaved && !(await unsaved.confirm({ excludeIds: ["session-manager"], deferDiscard: true }))) return;
     setSubmitting(true);
     setError(null);
-    const action = pendingAction;
+    const finishWrite = unsaved?.beginWrite();
     const body = action.action === "revoke"
       ? { action: "revoke", sessionId: action.session.id, ...(needsPassword(action) ? { password } : {}) }
       : { action: action.action, password };
@@ -82,6 +91,7 @@ export default function SessionManager() {
       setPassword("");
       setPendingAction(null);
       if (action.action === "revoke-all" || (action.action === "revoke" && action.session.current)) {
+        unsaved?.clear();
         router.push("/login");
         router.refresh();
       } else {
@@ -91,6 +101,7 @@ export default function SessionManager() {
       setError("Could not update signed-in devices.");
     } finally {
       setSubmitting(false);
+      finishWrite?.();
     }
   }
 
@@ -126,7 +137,7 @@ export default function SessionManager() {
           {needsPassword(pendingAction) && (
             <div className="settings-form-row flex-wrap">
               <label htmlFor="session-manager-password">Current password</label>
-              <input id="session-manager-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="settings-input" autoComplete="current-password" />
+              <input id="session-manager-password" type="password" value={password} disabled={submitting} onChange={(event) => { if (!submitting) setPassword(event.target.value); }} className="settings-input" autoComplete="current-password" />
             </div>
           )}
           <div className="settings-form-row flex-wrap">

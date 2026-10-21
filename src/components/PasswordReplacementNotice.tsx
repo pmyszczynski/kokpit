@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "./unsaved/GuardedLink";
 import "./PasswordReplacementNotice.css";
 
 /** Shown only for a fully authenticated session that used a legacy long input. */

@@ -251,6 +251,35 @@ service_tiles:
 - Anything else (a `http(s)://` URL or an uploaded path) is used as-is. When no icon resolves, tiles fall back to the site favicon, then a letter abbreviation.
 - In the service editor, **Browse icons** searches these sets, and **Upload icon** stores a custom image (PNG/JPG/WebP/SVG, up to 2 MB; SVGs are sanitized) in the persisted `data/uploads/` volume.
 
+**Unsaved changes and navigation:**
+
+The dashboard, settings sections, and service/bookmark forms track unsaved changes.
+App-owned exits offer **Stay**, **Discard and continue**, and **Save & continue**
+when a valid save is available. A failed save keeps the draft. Settings tabs retain
+their work, and a dashboard draft remains available while navigating within the app.
+Reloading or closing a page with unsaved work uses the browser's generic warning;
+user activation and platform support determine whether it appears.
+
+Same-document browser Back/Forward cannot be universally cancelled by Next.js.
+Kokpit instead retains non-secret draft projections in memory for the lifetime of
+the protected layout, shows a recovery notice, and rechecks the authorized server
+revision before recovered settings can be saved. Recovery stores at most 32 drafts
+of 256 KiB each; oversized drafts show a warning. Save before using history when
+that warning appears. Passwords, API keys, raw connection/widget configuration,
+TOTP/recovery material and URL credentials/query/fragment values are not retained;
+re-enter those edits. Untouched sections and form fields use their saved server
+values, so recovering another edit does not strip existing URL parameters.
+Explicit URL edits retain only their sanitized values. CSS recovery uses a limited
+profile and omits a field if it contains quoted strings, escapes, slashes, `?`,
+`#`, `@`, `url()` or custom-property
+declarations. Numeric/keyword declarations, variable references and color
+functions within that profile remain recoverable; hex colors within CSS, ID
+selectors, at-rules and other omitted syntax need re-entry. Separate color
+settings retain hex values. Recovery uses no localStorage, sessionStorage, or disk
+and is cleared by discard, successful save, sign-out, session loss, or
+protected-layout teardown. Full reload, browser/app
+termination, or memory eviction can still lose unsaved work.
+
 **Change the theme:**
 
 ```yaml

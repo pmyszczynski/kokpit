@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "./unsaved/GuardedLink";
 import KokpitLogo from "./KokpitLogo";
 import LogoutButton from "./LogoutButton";
 import EditToggleButton from "./edit/EditToggleButton";

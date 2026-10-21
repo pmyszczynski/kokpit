@@ -1349,6 +1349,22 @@ button:not(:where(.widget-ui button)) {
   overflow-y: auto;
 }
 
+/* Fieldsets cannot scroll their anonymous content box in Chromium. Keep the
+   scrolling div outside while fieldset semantics disable its actual controls. */
+@layer settings-ui {
+  .service-form__body {
+    min-inline-size: 0;
+  }
+
+  .service-form__fields {
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: 1rem;
+    min-inline-size: 0;
+  }
+}
+
 @media (max-width: 480px) {
   .service-form-dialog {
     border-radius: var(--radius);

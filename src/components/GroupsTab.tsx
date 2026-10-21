@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { Group } from "@/config/schema";
+import { useDraftRecovery, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -20,10 +21,12 @@ interface GroupsTabProps {
   onUngroupedChange: (value: "first" | "last") => void;
   onSave: () => void;
   disabled?: boolean;
+  baselineRevision?: string | null;
 }
 
 function GroupRow({
   group,
+  groupNames,
   index,
   isFirst,
   isLast,
@@ -31,8 +34,10 @@ function GroupRow({
   onRename,
   onToggleCollapsed,
   onDelete,
+  baselineRevision,
 }: {
   group: Group;
+  groupNames: string[];
   index: number;
   isFirst: boolean;
   isLast: boolean;
@@ -40,17 +45,42 @@ function GroupRow({
   onRename: (oldName: string, newName: string) => void;
   onToggleCollapsed: (index: number) => void;
   onDelete: (index: number) => void;
+  baselineRevision?: string | null;
 }) {
   const [nameDraft, setNameDraft] = useState(group.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const nameErrorId = useId();
+  const [recoveryConflict, setRecoveryConflict] = useState(false);
+  const sourceId = `settings:group-name:${group.name}`;
+  const dirty = nameDraft.trim() !== group.name.trim();
+  const recovery = useDraftRecovery(sourceId, baselineRevision ?? null, nameDraft, dirty,
+    (saved, changed) => { setNameDraft(saved); setRecoveryConflict(changed); });
+  useUnsavedSource(sourceId, {
+    label: "Group name", dirty, scope: "settings", version: nameDraft.trim(),
+    priority: 1,
+    discard: () => { setNameDraft(group.name); setNameError(null); setRecoveryConflict(false); recovery.dismiss(); },
+    save: recoveryConflict || recovery.validating || recovery.conflict || !nameDraft.trim() ? undefined : async () => commitRename(),
+  });
 
-  function commitRename() {
+  function commitRename(): boolean {
+    if (recoveryConflict || recovery.validating || recovery.conflict) return false;
     const trimmed = nameDraft.trim();
-    if (trimmed === "" || trimmed === group.name) {
+    if (trimmed === "" || trimmed === group.name.trim()) {
       setNameDraft(group.name);
-      return;
+      setNameError(null);
+      return trimmed !== "";
+    }
+    const key = trimmed.toLowerCase();
+    if (key !== group.name.trim().toLowerCase()
+      && groupNames.some((name) => name.trim().toLowerCase() === key)) {
+      setNameError("A group with this name already exists.");
+      return false;
     }
     onRename(group.name, trimmed);
+    setNameError(null);
+    recovery.dismiss();
+    return true;
   }
 
   return (
@@ -81,7 +111,9 @@ function GroupRow({
         className="settings-input"
         aria-label={`Group name for ${group.name}`}
         value={nameDraft}
-        onChange={(e) => setNameDraft(e.target.value)}
+        aria-invalid={nameError ? true : undefined}
+        aria-describedby={nameError ? nameErrorId : undefined}
+        onChange={(e) => { setNameDraft(e.target.value); setNameError(null); }}
         onBlur={commitRename}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -90,6 +122,10 @@ function GroupRow({
           }
         }}
       />
+      {nameError && <span id={nameErrorId} role="alert" className="settings-hint">{nameError}</span>}
+      {(recoveryConflict || recovery.conflict) && <span role="alert">Settings changed. <button type="button" className="settings-btn" onClick={() => {
+        setNameDraft(group.name); setNameError(null); setRecoveryConflict(false); recovery.dismiss();
+      }}>Discard recovered name</button></span>}
 
       <label className="groups-row__collapsed">
         <input
@@ -144,19 +180,40 @@ export default function GroupsTab({
   onUngroupedChange,
   onSave,
   disabled = false,
+  baselineRevision = null,
 }: GroupsTabProps) {
   const [newGroup, setNewGroup] = useState("");
+  const [entryError, setEntryError] = useState<string | null>(null);
+  const recovery = useDraftRecovery("settings:group-entry", baselineRevision, newGroup, Boolean(newGroup.trim()),
+    (saved) => setNewGroup(saved));
+  useUnsavedSource("settings:group-entry", {
+    label: "New group name", dirty: Boolean(newGroup.trim()), scope: "settings", version: newGroup.trim(),
+    priority: 1,
+    discard: () => { setNewGroup(""); recovery.dismiss(); },
+    save: recovery.validating || recovery.conflict ? undefined : async () => handleAdd(),
+  });
 
   function handleAdd() {
+    if (recovery.validating || recovery.conflict) return false;
     const trimmed = newGroup.trim();
-    if (trimmed === "") return;
+    if (trimmed === "") return false;
+    if (groups.some((group) => group.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+      setEntryError("A group with this name already exists."); return false;
+    }
     onAdd(trimmed);
     setNewGroup("");
+    recovery.dismiss(); setEntryError(null);
+    return true;
   }
 
   return (
     <section className="settings-section">
       <h2 className="settings-section__title">Groups</h2>
+      {recovery.recovered && <p role="status" className="settings-hint">Recovered an unsaved group name. Review before adding.</p>}
+      {recovery.conflict && <p role="alert" className="settings-hint">Settings changed or could not be verified. <button type="button" className="settings-btn" onClick={() => {
+        setNewGroup(""); recovery.dismiss();
+      }}>Discard recovered group name</button></p>}
+      {entryError && <p role="alert" className="settings-hint">{entryError}</p>}
 
       <fieldset className="settings-section settings-fieldset" disabled={disabled}>
       {groups.length === 0 ? (
@@ -167,6 +224,7 @@ export default function GroupsTab({
             <GroupRow
               key={g.name}
               group={g}
+              groupNames={groups.map((group) => group.name)}
               index={i}
               isFirst={i === 0}
               isLast={i === groups.length - 1}
@@ -174,6 +232,7 @@ export default function GroupsTab({
               onRename={onRename}
               onToggleCollapsed={onToggleCollapsed}
               onDelete={onDelete}
+              baselineRevision={baselineRevision}
             />
           ))}
         </div>
@@ -207,7 +266,7 @@ export default function GroupsTab({
           aria-label="New group name"
           placeholder="New group name"
           value={newGroup}
-          onChange={(e) => setNewGroup(e.target.value)}
+          onChange={(e) => { setNewGroup(e.target.value); setEntryError(null); }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();

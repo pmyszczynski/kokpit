@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useUnsavedChanges } from "./unsaved/UnsavedChangesProvider";
 
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 15 * 1000;
@@ -9,6 +10,7 @@ const REQUEST_TIMEOUT_MS = 15 * 1000;
 /** Keeps the persistent session cookie alive without exposing its token to JS. */
 export default function SessionRenewal() {
   const router = useRouter();
+  const clearUnsaved = useUnsavedChanges()?.clear;
 
   useEffect(() => {
     let disposed = false;
@@ -34,6 +36,7 @@ export default function SessionRenewal() {
         });
         if (disposed) return;
         if (response.status === 401) {
+          clearUnsaved?.();
           router.push("/login");
           router.refresh();
           return;
@@ -64,7 +67,7 @@ export default function SessionRenewal() {
       window.clearTimeout(nextRefresh);
       activeController?.abort();
     };
-  }, [router]);
+  }, [router, clearUnsaved]);
 
   return null;
 }

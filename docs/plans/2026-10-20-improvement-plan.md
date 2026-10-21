@@ -1,6 +1,6 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 7 planned, 11 implemented; completed rows record
+Date: 2026-10-20. Status: 6 planned, 12 implemented; completed rows record
 their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
@@ -34,7 +34,7 @@ entries are future work.
 | IMP-14 | P1 | Equivalent widget requests share bounded upstream work and cached results. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-14) |
 | IMP-15 | P1 | Service indicators distinguish reachability, HTTP failures, and probe errors. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-15) |
 | IMP-16 | P2 | An empty dashboard offers an accessible first-service action. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-16) |
-| IMP-17 | P1 | Navigation cannot silently discard staged changes where the browser permits protection. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-17) |
+| IMP-17 | P1 | **Implemented for v0.30.10:** Independent draft baselines, guarded app exits and native unload/modal protection preserve work with bounded non-secret history recovery. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-17) |
 | IMP-18 | P1 | **Implemented, PR #132:** standalone tracing packages the emergency reset command and runtime dependencies. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-18) |
 | IMP-19 | P1 | Operators can distinguish liveness from readiness and identify the deployed version. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-19) |
 | IMP-20 | P1 | **Implemented for v0.30.5:** PR, release and exact-tag publication workflows type-check production and tests. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-20) |
@@ -45,6 +45,9 @@ batching and onboarding coach-mark ideas remain separately scoped within those
 existing entries.
 
 ## Suggested delivery order
+
+This is the original delivery sequence, including items already implemented.
+The Selected work table above records current implementation status.
 
 1. **Close inexpensive security and validation gaps:** IMP-20, IMP-01, IMP-04
    and IMP-05. IMP-20 can ship independently; preserve the existing IMP-02 auth

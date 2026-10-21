@@ -616,6 +616,31 @@ describe("SettingsPanel - services tab", () => {
     );
   });
 
+  it("retains a failed new-service form and retries without adding a duplicate", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ error: "Unavailable" }, false))
+      .mockResolvedValueOnce(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Services" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Service" }));
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "StubSave" })); });
+    expect(screen.getByTestId("service-form-stub")).toBeInTheDocument();
+    expect(screen.queryByText("NewSvc")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "StubSave" })); });
+    expect(screen.queryByTestId("service-form-stub")).not.toBeInTheDocument();
+    expect(screen.getAllByText("NewSvc")).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchMock.mock.calls) {
+      const payload = JSON.parse((init as RequestInit).body as string);
+      expect(payload.services).toHaveLength(3);
+      expect(payload.services.filter((service: { name: string }) => service.name === "NewSvc")).toHaveLength(1);
+      expect(payload.service_tiles).toHaveLength(3);
+    }
+  });
+
   it("uses the server's refreshed credential reference after a service rename", async () => {
     const oldReference = "widget-secret-ref.old-name";
     const refreshedReference = "widget-secret-ref.renamed-service";
@@ -663,9 +688,9 @@ describe("SettingsPanel - services tab", () => {
       fireEvent.click(screen.getByRole("button", { name: "StubRename" }));
     });
 
-    const renamedRow = screen.getByText("RenamedSvc").closest("tr")!;
-    expect(within(renamedRow).getByRole("button", { name: "Edit" })).toBeDisabled();
-    expect(within(renamedRow).getByRole("button", { name: "Delete" })).toBeDisabled();
+    const pendingRow = screen.getByText("Jellyfin").closest("tr")!;
+    expect(within(pendingRow).getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(within(pendingRow).getByRole("button", { name: "Delete" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "+ Add Service" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Groups" })).toBeDisabled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1226,6 +1251,32 @@ describe("SettingsPanel - bookmarks tab", () => {
       name: "GitHub",
       url: "https://github.com",
     });
+  });
+
+  it("retains a failed bookmark addition and retries the same name without duplication", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ error: "Unavailable" }, false))
+      .mockResolvedValueOnce(jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPanel config={makeConfig({ bookmarks: [] })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bookmarks" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add bookmark group" }));
+    fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Dev" } });
+    fireEvent.change(screen.getByLabelText("Link 1 name"), { target: { value: "GitHub" } });
+    fireEvent.change(screen.getByLabelText("Link 1 URL"), { target: { value: "https://github.com" } });
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(screen.getByLabelText("Name *")).toHaveValue("Dev");
+    expect(screen.queryByText("Dev")).not.toBeInTheDocument();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(screen.queryByLabelText("Name *")).not.toBeInTheDocument();
+    expect(screen.getByText("Dev")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchMock.mock.calls) {
+      const payload = JSON.parse((init as RequestInit).body as string);
+      expect(payload.bookmarks).toHaveLength(1);
+      expect(payload.bookmarks[0].name).toBe("Dev");
+    }
   });
 
   it("deletes a bookmark group after confirming and saves via PATCH", async () => {

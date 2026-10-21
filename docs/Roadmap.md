@@ -59,8 +59,8 @@ are reassessed separately and are not part of this work.
 - [ ] `P1` **IMP-14 — Share and cache equivalent widget requests**
   - Bound cache/in-flight state, isolate credentials and render inputs, invalidate on config changes, and keep one consumer's abort from canceling others.
   - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-14)
-- [ ] `P1` **IMP-17 — Protect unsaved changes during navigation**
-  - Coordinate settings, dashboard, and open-form drafts; use supported navigation hooks and browser unload protection with explicit restoration limits.
+- [x] `P1` **IMP-17 — Protect unsaved changes during navigation**
+  - Implemented for v0.30.10: Independent draft baselines, guarded app exits and native unload/modal protection preserve work with bounded non-secret history recovery.
   - [Dashboard-reliability plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-17)
 - [x] `P1` **IMP-18 — Package and verify emergency password recovery in Docker**
   - Implemented in PR #132 / v0.27.1: standalone tracing includes the reset utility and bcrypt runtime; the production standalone smoke verifies utility/dependency loading.

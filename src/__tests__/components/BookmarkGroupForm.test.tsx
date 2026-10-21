@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { useRef } from "react";
 import BookmarkGroupForm from "@/components/BookmarkGroupForm";
+import { UnsavedChangesProvider, useUnsavedChanges } from "@/components/unsaved/UnsavedChangesProvider";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 beforeEach(() => {
   // jsdom doesn't implement dialog methods. showModal must set `open` so the
@@ -20,6 +24,33 @@ beforeEach(() => {
 });
 
 const noop = vi.fn();
+function ProtectedWriteControls() {
+  const unsaved = useUnsavedChanges()!;
+  const finish = useRef<(() => void) | null>(null);
+  return <>
+    <button onClick={() => { finish.current = unsaved.beginWrite(); }}>Begin protected write</button>
+    <button onClick={() => finish.current?.()}>End protected write</button>
+  </>;
+}
+
+it("blocks bookmark submission during another protected write and permits guarded save afterward", async () => {
+  const onSave = vi.fn();
+  const onClose = vi.fn();
+  render(<UnsavedChangesProvider><ProtectedWriteControls /><BookmarkGroupForm bookmark={null} knownGroups={[]} onSave={onSave} onClose={onClose} /></UnsavedChangesProvider>);
+  fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Links" } });
+  fireEvent.change(screen.getByLabelText("Link 1 name"), { target: { value: "Documentation" } });
+  fireEvent.change(screen.getByLabelText("Link 1 URL"), { target: { value: "https://example.com" } });
+  fireEvent.click(screen.getByRole("button", { name: "Begin protected write" }));
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  fireEvent.submit(screen.getByLabelText("Name *").closest("form")!);
+  expect(onSave).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "End protected write" }));
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save & continue" }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+});
 
 describe("BookmarkGroupForm – rendering", () => {
   it('shows "Add Bookmark Group" for a new group', () => {

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { useRef } from "react";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
+import { UnsavedChangesProvider, useUnsavedChanges } from "@/components/unsaved/UnsavedChangesProvider";
 import ServiceForm from "@/components/ServiceForm";
 import "@/integrations";
 import { getWidget, getWidgetsWithServiceEditorPreset } from "@/widgets";
@@ -36,6 +38,14 @@ beforeEach(() => {
 });
 
 const noop = vi.fn();
+function ProtectedWriteControls() {
+  const unsaved = useUnsavedChanges()!;
+  const finish = useRef<(() => void) | null>(null);
+  return <>
+    <button onClick={() => { finish.current = unsaved.beginWrite(); }}>Begin protected write</button>
+    <button onClick={() => finish.current?.()}>End protected write</button>
+  </>;
+}
 const SAVED_TAUTULLI_SECRET_TOKEN =
   `${WIDGET_SECRET_REFERENCE_PREFIX}["Tautulli","tautulli-activity","api_key"]`;
 const SAVED_TAUTULLI_SECRET = {
@@ -286,6 +296,69 @@ describe("ServiceForm – rendering", () => {
 });
 
 describe("ServiceForm – submission", () => {
+  it("shows a rejected save as a submit error while retaining fields and keeping diagnostics value-free", async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) { this.open = true; });
+    const onSave = vi.fn().mockRejectedValueOnce(new Error("sensitive callback detail")).mockResolvedValueOnce(true);
+    const onClose = vi.fn();
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      render(<ServiceForm service={null} existingGroups={[]} onSave={onSave} onClose={onClose} />);
+      fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Retained service" } });
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Retained description" } });
+      fireEvent.click(screen.getByText("Save"));
+      const error = await screen.findByRole("alert");
+      expect(error).toHaveTextContent("Could not save this service. Please try again.");
+      expect(error.closest("fieldset")).toBeNull();
+      expect(screen.getByLabelText("Name *")).not.toHaveAttribute("aria-invalid");
+      expect(screen.getByLabelText("Name *")).toHaveValue("Retained service");
+      expect(screen.getByLabelText("Description")).toHaveValue("Retained description");
+      expect(onClose).not.toHaveBeenCalled();
+      expect(errorLog).toHaveBeenCalledExactlyOnceWith("[ServiceForm] Service save failed");
+      fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "" } });
+      fireEvent.click(screen.getByText("Save"));
+      expect(screen.getByText("Name is required.")).toBeInTheDocument();
+      expect(screen.queryByText("Could not save this service. Please try again.")).not.toBeInTheDocument();
+      expect(onSave).toHaveBeenCalledOnce();
+      fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Retained service" } });
+      fireEvent.click(screen.getByText("Save"));
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByText("Could not save this service. Please try again.")).not.toBeInTheDocument());
+    } finally { errorLog.mockRestore(); }
+  });
+
+  it("blocks button and programmatic submission during an icon upload, then saves the uploaded icon", async () => {
+    let finishUpload!: (response: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { finishUpload = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const onSave = vi.fn();
+      const { container } = render(<ServiceForm service={{ name: "Server", icon: "/icons/before.png" }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+      const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+      fireEvent.change(fileInput, { target: { files: [new File(["image"], "icon.png", { type: "image/png" })] } });
+      expect(screen.getByText("Save")).toBeDisabled();
+      fireEvent.submit(screen.getByLabelText("Name *").closest("form")!);
+      expect(onSave).not.toHaveBeenCalled();
+      await act(async () => { finishUpload(new Response(JSON.stringify({ path: "/icons/after.png" }))); });
+      expect(screen.getByLabelText("Icon URL")).toHaveValue("/icons/after.png");
+      expect(screen.getByText("Save")).toBeEnabled();
+      fireEvent.click(screen.getByText("Save"));
+      expect(onSave).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ icon: "/icons/after.png" }));
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("blocks service submission while another protected write is pending", async () => {
+    const onSave = vi.fn();
+    render(<UnsavedChangesProvider><ProtectedWriteControls /><ServiceForm service={{ name: "Server" }} existingGroups={[]} onSave={onSave} onClose={noop} /></UnsavedChangesProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Begin protected write" }));
+    expect(screen.getByText("Save")).toBeDisabled();
+    fireEvent.submit(screen.getByLabelText("Name *").closest("form")!);
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "End protected write" }));
+    expect(screen.getByText("Save")).toBeEnabled();
+    await act(async () => { fireEvent.click(screen.getByText("Save")); });
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
   it("calls onSave with the entered name", () => {
     const onSave = vi.fn();
     render(
