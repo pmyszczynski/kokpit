@@ -60,7 +60,7 @@ jobs:
         run: npm ci
 
       - name: Type-check
-        run: npx tsc --noEmit
+        run: npm run type-check
 
   unit-tests:
     name: Unit tests

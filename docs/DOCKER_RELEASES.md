@@ -19,12 +19,21 @@ The normal release process is driven by two workflows and a `workflow_dispatch` 
    - Tags `vX.Y.Z` and creates the GitHub Release (`gh release create --generate-notes`)
    - Calls `publish.yml` as a dependent reusable workflow for that tag
 3. **`publish.yml` builds and pushes the Docker image:**
+   - Checks out the requested release tag, installs its locked dependencies, and runs `npm run type-check` for production and test code before publication
    - Builds the Docker image (using the `runner` stage)
    - Pushes to GHCR with appropriate tags
    - Creates metadata labels (version, source, docs)
    - Verifies every expected GHCR image manifest before it completes
 
 Releases created by `release.yml` are authored by `GITHUB_TOKEN`, and GitHub suppresses the `release: published` event for token-authored releases (loop prevention). Instead of dispatching a detached run, `release.yml` calls `publish.yml` as a reusable workflow and waits for it. A release made by an actual human through the GitHub UI still triggers `publish.yml` through the normal `release: published` event and receives the same manifest verification.
+
+PR/main CI and release validation both use the complete `npm run type-check`
+script, including `tsconfig.test.json`. Direct UI-release and manual recovery
+publication run that same type-check on the exact release tag; they do not run
+the full release test gate. An older tag with invalid test types must be fixed
+through a new reviewed release rather than bypassing the publication preflight.
+The snapshot-generation workflow remains an artifact generator; its success is
+not a replacement for CI or release validation.
 
 ## Versioning Strategy
 
@@ -114,16 +123,17 @@ A release created directly through the GitHub UI (rather than via `release.yml`)
 **Trigger:** `release` event (published), `workflow_call` with a `tag` input (used by `release.yml`), or `workflow_dispatch` with a `tag` input (for recovery).
 
 **Steps:**
-1. Checkout code
-2. Setup Docker Buildx (for efficient building)
-3. Log in to GHCR (using GitHub's token, no credentials needed)
-4. Extract metadata and tags:
+1. Checkout the requested release tag
+2. Set up Node 22, install locked dependencies with `npm ci`, and run `npm run type-check`
+3. Setup Docker Buildx (for efficient building)
+4. Log in to GHCR (using GitHub's token, no credentials needed)
+5. Extract metadata and tags:
    - `type=semver` → `0.2.0`, `0.2`, etc., using the release tag for both release events and manual dispatches
    - `type=raw` → the exact release tag (for example, `v0.2.0`)
    - `type=raw,value=latest` → only if not a pre-release
-5. Build and push only the `runner` stage (minimal production image)
-6. Verify each expected GHCR manifest with bounded retries, allowing for registry propagation
-7. Cache build layers in GitHub Actions cache (faster next build)
+6. Build and push only the `runner` stage (minimal production image)
+7. Verify each expected GHCR manifest with bounded retries, allowing for registry propagation
+8. Cache build layers in GitHub Actions cache (faster next build)
 
 **Output tags for `v0.2.0` (stable):**
 ```

@@ -1,6 +1,6 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 12 planned, six implemented; completed rows record
+Date: 2026-10-20. Status: 11 planned, 7 implemented; completed rows record
 their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
@@ -37,7 +37,7 @@ entries are future work.
 | IMP-17 | P1 | Navigation cannot silently discard staged changes where the browser permits protection. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-17) |
 | IMP-18 | P1 | **Implemented, PR #132:** standalone tracing packages the emergency reset command and runtime dependencies. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-18) |
 | IMP-19 | P1 | Operators can distinguish liveness from readiness and identify the deployed version. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-19) |
-| IMP-20 | P1 | PR and release gates type-check both production code and test code. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-20) |
+| IMP-20 | P1 | **Implemented for v0.30.5:** PR, release and exact-tag publication workflows type-check production and tests. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-20) |
 
 IMP-15 and IMP-16 refine the existing Phase 3 status-indicator and onboarding
 roadmap tasks; they are not additional copies of those tasks. The broader status
