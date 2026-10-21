@@ -24,8 +24,8 @@ test("status probes use a saved service and update its tile", async ({ page, req
     data: { serviceId: fixtures.services[0].id },
   });
   expect(status.status()).toBe(200);
-  expect(await status.json()).toMatchObject({ ok: true });
+  expect(await status.json()).toMatchObject({ ok: true, reachable: true, status: 404, assessment: "http-error" });
 
   await page.goto("/");
-  await expect(page.getByLabel("Online", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Reachable; HTTP error; application health unknown; HTTP 404;/ })).toBeVisible();
 });

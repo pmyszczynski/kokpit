@@ -41,7 +41,7 @@ test("hidden and offline dashboards retain data, pause requests and recover once
   await page.goto("/");
   const tile = page.locator(".service-tile").filter({ hasText: "Polling lifecycle" });
   await expect(tile.getByRole("searchbox")).toBeVisible();
-  await expect(tile.locator(".status-dot")).toHaveAttribute("title", "Online");
+  await expect(tile.locator(".status-dot")).toHaveAttribute("title", /^Reachable; HTTP 200/);
   const initial = { widget: widgetRequests, ping: pingRequests };
   await setVisible(page, false);
   await page.clock.runFor(60_000);
@@ -51,7 +51,7 @@ test("hidden and offline dashboards retain data, pause requests and recover once
   await expect(page.locator(".protected-surface")).toBeHidden();
   await expect(page.locator(".protected-surface")).toHaveAttribute("inert", "");
   await expect(tile.getByRole("searchbox", { includeHidden: true })).toBeAttached();
-  await expect(tile.locator(".status-dot")).toHaveAttribute("title", "Online");
+  await expect(tile.locator(".status-dot")).toHaveAttribute("title", /^Reachable; HTTP 200/);
 
   await context.setOffline(true);
   await setVisible(page, true);

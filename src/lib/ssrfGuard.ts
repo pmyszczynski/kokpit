@@ -5,8 +5,11 @@ import ipaddr from "ipaddr.js";
 const MAX_REDIRECTS = 5;
 
 export class SsrfBlockedError extends Error {
-  constructor(hostname: string) {
-    super(`Blocked outbound request to "${hostname}": resolves to a non-public address`);
+  constructor(hostname: string, public readonly reason: "blocked" | "dns-failed" | "dns-unavailable" = "blocked") {
+    const detail = reason === "dns-failed" ? "DNS lookup found no address"
+      : reason === "dns-unavailable" ? "DNS lookup could not be completed"
+      : "resolves to a non-public address";
+    super(`Blocked outbound request to "${hostname}": ${detail}`);
     this.name = "SsrfBlockedError";
   }
 }
@@ -45,11 +48,13 @@ async function resolveValidatedAddresses(
   let resolved: { address: string; family: number }[];
   try {
     resolved = await dnsLookup(unbracket(hostname), { all: true, verbatim: true });
-  } catch {
-    throw new SsrfBlockedError(hostname);
+  } catch (error) {
+    const code = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+    throw new SsrfBlockedError(hostname,
+      code === "ENOTFOUND" || code === "ENODATA" ? "dns-failed" : "dns-unavailable");
   }
   if (resolved.length === 0) {
-    throw new SsrfBlockedError(hostname);
+    throw new SsrfBlockedError(hostname, "dns-failed");
   }
 
   const allowed = resolved.filter((r) => {

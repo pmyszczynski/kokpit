@@ -203,9 +203,11 @@ are reassessed separately and are not part of this work.
   - [x] Brightness + opacity overlay (configurable in UI and YAML)
 
 - [ ] `P1` **Status indicator upgrades** *(part of UX redesign Phase C)*
-  - [ ] **IMP-15 — Distinguish service reachability, HTTP failures, and probe errors**; show HTTP status and response time without treating login-required services as offline. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-15)
-  - Hover tooltip with response time + HTTP status; optional `statusStyle: dot | badge`
-  - Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
+  - [x] **IMP-15 — Distinguish service reachability, HTTP failures, and probe errors**; show HTTP status and response time without treating login-required services as offline. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-15)
+    - Implemented for v0.31.2: Saved-service HEAD observations distinguish HTTP health, transport failures and checker unavailability, with measured latency and accessible protected tooltips.
+  - [x] Hover tooltip with response time + HTTP status (v0.31.2)
+  - [ ] Optional `statusStyle: dot | badge`
+  - [ ] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
 
 - [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
   - [ ] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)

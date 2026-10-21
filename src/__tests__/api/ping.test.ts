@@ -12,6 +12,7 @@ const ssrfSafeFetchMock = vi.fn();
 vi.mock("@/lib/ssrfGuard", () => ({ ssrfSafeFetch: (...args: unknown[]) => ssrfSafeFetchMock(...args) }));
 
 import { existsSync, readFileSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 
 const SERVICE_ID = "10000000-0000-4000-8000-000000000001";
 const LAN_SERVICE_ID = "10000000-0000-4000-8000-000000000002";
@@ -106,15 +107,15 @@ describe("POST /api/ping", () => {
     ssrfSafeFetchMock.mockResolvedValue(upstreamResponse(200));
     const { POST } = await import("../../app/api/ping/route");
     const res = await POST(post({ serviceId: SERVICE_ID, url: "http://169.254.169.254/latest/meta-data/" }));
-    expect(await res.json()).toEqual({ ok: true, status: 200 });
+    expect(await res.json()).toMatchObject({ ok: true, status: 200 });
     expect(ssrfSafeFetchMock).toHaveBeenCalledWith("https://public.example/status", expect.objectContaining({ method: "HEAD", allowPrivateNetworks: true, followRedirects: false }));
   });
 
   it("reports any HTTP response as reachable and permits saved LAN services", async () => {
     ssrfSafeFetchMock.mockResolvedValueOnce(upstreamResponse(404)).mockResolvedValueOnce(upstreamResponse(503));
     const { POST } = await import("../../app/api/ping/route");
-    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: true, status: 404 });
-    expect(await (await POST(post({ serviceId: LAN_SERVICE_ID }))).json()).toEqual({ ok: true, status: 503 });
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ ok: true, status: 404 });
+    expect(await (await POST(post({ serviceId: LAN_SERVICE_ID }))).json()).toMatchObject({ ok: true, status: 503 });
     expect(ssrfSafeFetchMock.mock.calls.map(([url]) => url)).toEqual(["https://public.example/status", "http://192.168.1.10:8080/"]);
   });
 
@@ -132,7 +133,7 @@ describe("POST /api/ping", () => {
     const headCancel = vi.fn().mockResolvedValue(undefined);
     ssrfSafeFetchMock.mockResolvedValueOnce(upstreamResponse(405, headCancel));
     const { POST } = await import("../../app/api/ping/route");
-    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: true, status: 405 });
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ ok: true, status: 405 });
     expect(ssrfSafeFetchMock.mock.calls.map(([, options]) => options.method)).toEqual(["HEAD"]);
     expect(headCancel).toHaveBeenCalledTimes(1);
   });
@@ -145,9 +146,9 @@ describe("POST /api/ping", () => {
     const second = POST(post({ serviceId: SERVICE_ID }));
     await vi.waitFor(() => expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1));
     resolveUpstream(upstreamResponse(200));
-    expect(await (await first).json()).toEqual({ ok: true, status: 200 });
-    expect(await (await second).json()).toEqual({ ok: true, status: 200 });
-    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: true, status: 200 });
+    expect(await (await first).json()).toMatchObject({ ok: true, status: 200 });
+    expect(await (await second).json()).toMatchObject({ ok: true, status: 200 });
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ ok: true, status: 200 });
     expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -155,9 +156,9 @@ describe("POST /api/ping", () => {
     vi.useFakeTimers();
     ssrfSafeFetchMock.mockResolvedValueOnce(upstreamResponse(200)).mockResolvedValueOnce(upstreamResponse(204));
     const { POST } = await import("../../app/api/ping/route");
-    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: true, status: 200 });
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ ok: true, status: 200 });
     await vi.advanceTimersByTimeAsync(3_001);
-    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: true, status: 204 });
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ ok: true, status: 204 });
     expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -176,22 +177,185 @@ describe("POST /api/ping", () => {
     const repeatedOldest = POST(post({ serviceId: ids[0] }));
     await Promise.resolve();
     expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(100);
-    expect(await (await POST(post({ serviceId: ids[100] }))).json()).toEqual({ ok: false });
+    expect(await (await POST(post({ serviceId: ids[100] }))).json()).toMatchObject({ ok: false, reachable: null, assessment: "unavailable", reason: "capacity", responseTimeMs: null });
     expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(100);
 
     resolvers[0](upstreamResponse(200));
-    expect(await (await pending[0]).json()).toEqual({ ok: true, status: 200 });
-    expect(await (await repeatedOldest).json()).toEqual({ ok: true, status: 200 });
+    expect(await (await pending[0]).json()).toMatchObject({ ok: true, status: 200 });
+    expect(await (await repeatedOldest).json()).toMatchObject({ ok: true, status: 200 });
     const next = POST(post({ serviceId: ids[100] }));
     await vi.waitFor(() => expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(101));
     resolvers[100](upstreamResponse(200));
-    expect(await (await next).json()).toEqual({ ok: true, status: 200 });
+    expect(await (await next).json()).toMatchObject({ ok: true, status: 200 });
   });
 
   it("returns a bounded failure when the guarded request fails", async () => {
     ssrfSafeFetchMock.mockRejectedValue(new Error("upstream secret details"));
     const { POST } = await import("../../app/api/ping/route");
-    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toEqual({ ok: false });
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    [200, "reachable"], [204, "reachable"], [302, "redirect"], [401, "authentication-required"],
+    [403, "access-restricted"], [404, "http-error"], [405, "method-unsupported"],
+    [500, "degraded"], [501, "method-unsupported"], [503, "degraded"],
+  ])("classifies observed HTTP %i as %s without redirect following, credentials, or GET fallback", async (status, assessment) => {
+    ssrfSafeFetchMock.mockResolvedValue(upstreamResponse(status as number));
+    const { POST } = await import("../../app/api/ping/route");
+    const result = await (await POST(post({ serviceId: SERVICE_ID }))).json();
+    expect(result).toMatchObject({ ok: true, reachable: true, status, assessment, checkedAt: expect.any(Number), responseTimeMs: expect.any(Number) });
+    expect(result.responseTimeMs).toBeGreaterThanOrEqual(0);
+    expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1);
+    const options = ssrfSafeFetchMock.mock.calls[0][1];
+    expect(options).toMatchObject({ method: "HEAD", followRedirects: false, allowPrivateNetworks: true });
+    expect(options.headers).toBeUndefined();
+    expect(options.body).toBeUndefined();
+  });
+
+  it("retains the original monotonic header latency and observation timestamp when reusing a probe", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
+    const clock = vi.spyOn(performance, "now").mockReturnValue(100);
+    let resolveUpstream!: (response: Response) => void;
+    ssrfSafeFetchMock.mockReturnValue(new Promise<Response>(resolve => { resolveUpstream = resolve; }));
+    const { POST } = await import("../../app/api/ping/route");
+    const first = POST(post({ serviceId: SERVICE_ID }));
+    await vi.waitFor(() => expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1));
+    clock.mockReturnValue(142.25);
+    resolveUpstream(upstreamResponse(200));
+    const result = await (await first).json();
+    expect(result.responseTimeMs).toBe(42.3);
+    await vi.advanceTimersByTimeAsync(1000);
+    const reused = await (await POST(post({ serviceId: SERVICE_ID }))).json();
+    expect(reused).toEqual(result);
+    expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an observed response even if discarded-body cancellation never settles", async () => {
+    const cancel = vi.fn(() => new Promise<void>(() => {}));
+    ssrfSafeFetchMock.mockResolvedValue(upstreamResponse(405, cancel));
+    const { POST } = await import("../../app/api/ping/route");
+    const result = await (await POST(post({ serviceId: SERVICE_ID }))).json();
+    expect(result).toMatchObject({ ok: true, reachable: true, status: 405, assessment: "method-unsupported" });
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [Object.assign(new Error("sensitive URL or token"), { code: "ECONNREFUSED" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive socket details"), { code: "EPIPE" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive socket details"), { code: "ECONNABORTED" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive network details"), { code: "ENETDOWN" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive network details"), { code: "ENETRESET" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive host details"), { code: "EHOSTDOWN" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive socket details"), { code: "ERR_SOCKET_CLOSED" }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive socket details"), { code: "ERR_SOCKET_CONNECTION_TIMEOUT" }), "unreachable", "connection-failed"],
+    [new TypeError("sensitive request details", { cause: new Error("sensitive wrapper", { cause: { code: "EPIPE" } }) }), "unreachable", "connection-failed"],
+    [new TypeError("sensitive TLS details", { cause: { code: "CERT_HAS_EXPIRED" } }), "unreachable", "connection-failed"],
+    [Object.assign(new Error("sensitive host"), { name: "SsrfBlockedError", reason: "dns-failed" }), "unreachable", "dns-failed"],
+    [Object.assign(new Error("sensitive resolver details"), { name: "SsrfBlockedError", reason: "dns-unavailable", code: "ECONNREFUSED" }), "unavailable", "checker-failed"],
+    [Object.assign(new Error("sensitive host"), { name: "SsrfBlockedError", reason: "blocked" }), "unavailable", "probe-blocked"],
+    [Object.assign(new Error("sensitive resolver details"), { code: "EAI_AGAIN" }), "unavailable", "checker-failed"],
+    [new TypeError("sensitive programming details", { cause: { code: "ERR_INVALID_ARG_TYPE" } }), "unavailable", "checker-failed"],
+    [Object.assign(new RangeError("sensitive bad port"), { code: "ERR_SOCKET_BAD_PORT" }), "unavailable", "checker-failed"],
+    [new Error("sensitive internal details"), "unavailable", "checker-failed"],
+  ])("separates transport observations from local checker failures without exposing raw errors %#", async (error, assessment, reason) => {
+    ssrfSafeFetchMock.mockRejectedValue(error);
+    const { POST } = await import("../../app/api/ping/route");
+    const result = await (await POST(post({ serviceId: SERVICE_ID }))).json();
+    expect(result).toMatchObject({ ok: false, assessment, reason, reachable: assessment === "unreachable" ? false : null });
+    expect(JSON.stringify(result)).not.toContain("sensitive");
+  });
+
+  it("bounds cyclic error causes and keeps programming failures neutral", async () => {
+    const error = new TypeError("sensitive programming failure");
+    error.cause = error;
+    ssrfSafeFetchMock.mockRejectedValue(error);
+    const { POST } = await import("../../app/api/ping/route");
+    const result = await (await POST(post({ serviceId: SERVICE_ID }))).json();
+    expect(result).toMatchObject({ ok: false, reachable: null, assessment: "unavailable", reason: "checker-failed" });
+    expect(JSON.stringify(result)).not.toContain("sensitive");
+  });
+
+  it("bounds a non-cooperative probe timeout and cancels its own upstream signal", async () => {
+    vi.useFakeTimers();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(100);
+    ssrfSafeFetchMock.mockReturnValue(new Promise(() => {}));
+    const { POST } = await import("../../app/api/ping/route");
+    const pending = POST(post({ serviceId: SERVICE_ID }));
+    await vi.waitFor(() => expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1));
+    clock.mockReturnValue(5100);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await (await pending).json()).toMatchObject({ ok: false, reachable: false, assessment: "unreachable", reason: "timeout", responseTimeMs: 5000 });
+    expect(ssrfSafeFetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+  });
+
+  it("does not start a previous destination when initial authorization yields across a source change", async () => {
+    vi.doMock("@/auth", () => ({
+      isRequestAuthenticated: vi.fn(async () => {
+        vi.mocked(readFileSync).mockReturnValue(BASE_YAML.replace("https://public.example/status", "https://replacement.example/health"));
+        return true;
+      }),
+    }));
+    try {
+      const { POST } = await import("../../app/api/ping/route");
+      expect((await POST(post({ serviceId: SERVICE_ID }))).status).toBe(409);
+      expect(ssrfSafeFetchMock).not.toHaveBeenCalled();
+    } finally { vi.doUnmock("@/auth"); }
+  });
+
+  it("does not return a previous destination after configuration changes during a probe", async () => {
+    let resolveOld!: (response: Response) => void;
+    ssrfSafeFetchMock.mockReturnValueOnce(new Promise<Response>(resolve => { resolveOld = resolve; }))
+      .mockResolvedValueOnce(upstreamResponse(204));
+    const { POST } = await import("../../app/api/ping/route");
+    const old = POST(post({ serviceId: SERVICE_ID }));
+    await vi.waitFor(() => expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1));
+    vi.mocked(readFileSync).mockReturnValue(BASE_YAML.replace("https://public.example/status", "https://replacement.example/health"));
+    const { refreshConfigCache } = await import("@/config/server");
+    refreshConfigCache(); refreshConfigCache();
+    resolveOld(upstreamResponse(200));
+    expect((await old).status).toBe(409);
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ status: 204 });
+    expect(ssrfSafeFetchMock.mock.calls.map(([url]) => url)).toEqual(["https://public.example/status", "https://replacement.example/health"]);
+  });
+
+  it("scopes cached observations to the confirmed config generation even when the URL stays the same", async () => {
+    ssrfSafeFetchMock.mockResolvedValueOnce(upstreamResponse(200)).mockResolvedValueOnce(upstreamResponse(503));
+    const { POST } = await import("../../app/api/ping/route");
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ status: 200 });
+    vi.mocked(readFileSync).mockReturnValue(`${BASE_YAML}\n# new confirmed generation`);
+    const { refreshConfigCache } = await import("@/config/server");
+    refreshConfigCache(); refreshConfigCache();
+    expect(await (await POST(post({ serviceId: SERVICE_ID }))).json()).toMatchObject({ status: 503, assessment: "degraded" });
+    expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a publication that wins while the final authorization check is awaiting", async () => {
+    let releaseAuthorization!: () => void;
+    const authorization = new Promise<void>(resolve => { releaseAuthorization = resolve; });
+    let signalFinalAuthorization!: () => void;
+    const finalStarted = new Promise<void>(resolve => { signalFinalAuthorization = resolve; });
+    let checks = 0;
+    vi.doMock("@/auth", async importOriginal => ({
+      ...(await importOriginal<typeof import("@/auth")>()),
+      isRequestAuthenticated: async () => {
+        if (++checks === 2) { signalFinalAuthorization(); await authorization; }
+        return true;
+      },
+    }));
+    try {
+      ssrfSafeFetchMock.mockResolvedValue(upstreamResponse(200));
+      const { POST } = await import("../../app/api/ping/route");
+      const pending = POST(post({ serviceId: SERVICE_ID }));
+      await finalStarted;
+      vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML.replace("https://public.example/status", "https://replacement.example/health"));
+      const { refreshConfigCache } = await import("@/config/server");
+      refreshConfigCache(); refreshConfigCache();
+      releaseAuthorization();
+      const response = await pending;
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: "Configuration changed during the status check" });
+    } finally { releaseAuthorization(); vi.doUnmock("@/auth"); }
   });
 });
 
@@ -211,6 +375,20 @@ describe("POST /api/ping auth and config state", () => {
     const { POST } = await import("../../app/api/ping/route");
     expect((await POST(post({ serviceId: SERVICE_ID }))).status).toBe(401);
     expect(ssrfSafeFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not publish a public probe after authentication becomes required in flight", async () => {
+    vi.mocked(readFileSync).mockReturnValue(BASE_YAML);
+    let resolveUpstream!: (response: Response) => void;
+    ssrfSafeFetchMock.mockReturnValue(new Promise<Response>(resolve => { resolveUpstream = resolve; }));
+    const { POST } = await import("../../app/api/ping/route");
+    const pending = POST(post({ serviceId: SERVICE_ID }));
+    await vi.waitFor(() => expect(ssrfSafeFetchMock).toHaveBeenCalledTimes(1));
+    vi.mocked(readFileSync).mockReturnValue(AUTH_ENABLED_YAML);
+    resolveUpstream(upstreamResponse(200));
+    const response = await pending;
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Unauthorized" });
   });
 
   it("fails closed while the config source is dirty", async () => {
@@ -233,6 +411,6 @@ describe("POST /api/ping auth and config state", () => {
     const snapshot = getConfigSnapshot();
     ssrfSafeFetchMock.mockResolvedValue(upstreamResponse(200));
     const { POST } = await import("../../app/api/ping/route");
-    expect(await (await POST(post({ serviceId: snapshot.config!.services[0].id }))).json()).toEqual({ ok: true, status: 200 });
+    expect(await (await POST(post({ serviceId: snapshot.config!.services[0].id }))).json()).toMatchObject({ ok: true, status: 200 });
   });
 });
