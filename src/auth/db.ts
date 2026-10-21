@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "fs";
 import { dirname } from "path";
+import { recordDatabaseClosed, recordDatabaseInitialized, recordDatabaseInitializing, recordDatabaseUnavailable } from "./databaseReadiness";
 
 let db: Database.Database | null = null;
 
@@ -8,16 +9,19 @@ let db: Database.Database | null = null;
 export function getDb(): Database.Database {
   if (db) return db;
 
-  const path = process.env.KOKPIT_DB_PATH ?? "data/users.db";
-  mkdirSync(dirname(path), { recursive: true });
-  const provisionalDb = new Database(path);
+  recordDatabaseInitializing();
+  let provisionalDb: Database.Database | undefined;
   try {
-    provisionalDb.pragma("journal_mode = WAL");
+    const path = process.env.KOKPIT_DB_PATH ?? "data/users.db";
+    mkdirSync(dirname(path), { recursive: true });
+    const initializedDb = new Database(path);
+    provisionalDb = initializedDb;
+    initializedDb.pragma("journal_mode = WAL");
     // Take the writer lock before inspecting schema so cooperating processes
     // cannot both decide to add the same column. SQLite rolls back all schema
     // changes together if any initialization step fails.
-    provisionalDb.transaction(() => {
-      provisionalDb.exec(`
+    initializedDb.transaction(() => {
+      initializedDb.exec(`
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
           username TEXT UNIQUE NOT NULL,
@@ -27,15 +31,15 @@ export function getDb(): Database.Database {
         )
       `);
 
-      const columns = provisionalDb.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+      const columns = initializedDb.prepare("PRAGMA table_info(users)").all() as { name: string }[];
       if (!columns.some((c) => c.name === "recovery_code_hash")) {
-        provisionalDb.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
+        initializedDb.exec("ALTER TABLE users ADD COLUMN recovery_code_hash TEXT");
       }
       if (!columns.some((c) => c.name === "session_version")) {
-        provisionalDb.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+        initializedDb.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
       }
 
-      provisionalDb.exec(`
+      initializedDb.exec(`
         CREATE TABLE IF NOT EXISTS sessions (
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -72,23 +76,27 @@ export function getDb(): Database.Database {
         CREATE INDEX IF NOT EXISTS totp_challenges_user_state_idx ON totp_challenges(user_id, state, expires_at);
       `);
       for (const table of ["sessions", "totp_challenges"]) {
-        const tableColumns = provisionalDb.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+        const tableColumns = initializedDb.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
         if (!tableColumns.some((column) => column.name === "password_replacement_recommended")) {
-          provisionalDb.exec(`ALTER TABLE ${table} ADD COLUMN password_replacement_recommended INTEGER NOT NULL DEFAULT 0 CHECK (password_replacement_recommended IN (0, 1))`);
+          initializedDb.exec(`ALTER TABLE ${table} ADD COLUMN password_replacement_recommended INTEGER NOT NULL DEFAULT 0 CHECK (password_replacement_recommended IN (0, 1))`);
         }
       }
-      provisionalDb.prepare("DELETE FROM totp_challenges WHERE expires_at <= ?").run(Math.floor(Date.now() / 1000));
+      initializedDb.prepare("DELETE FROM totp_challenges WHERE expires_at <= ?").run(Math.floor(Date.now() / 1000));
     }).immediate();
     // A failed provisional connection must never become the cached handle.
-    db = provisionalDb;
-    return db;
+    db = initializedDb;
+    recordDatabaseInitialized(initializedDb);
+    return initializedDb;
   } catch (error) {
-    provisionalDb.close();
+    try { provisionalDb?.close(); } catch { /* Preserve the original initialization failure. */ }
+    db = null;
+    recordDatabaseUnavailable();
     throw error;
   }
 }
 
 export function closeDb(): void {
+  if (db) recordDatabaseClosed(db);
   db?.close();
   db = null;
 }

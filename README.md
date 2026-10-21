@@ -122,6 +122,66 @@ The dev server starts at `http://localhost:3000` with hot reload enabled.
 docker compose up kokpit-dev
 ```
 
+### Liveness and readiness probes
+
+`GET /api/health` is public liveness: it returns 200 when the HTTP process can
+answer, with the artifact's build version and current timestamp. Docker and
+Compose keep using this endpoint by default. `GET /api/ready` is a separate,
+public, non-cacheable readiness check returning 200 or 503 with fixed state
+labels for configuration and SQLite. Neither endpoint exposes settings, paths,
+accounts, upstream URLs or error details, and neither depends on an external
+integration being online.
+
+Readiness requires the published configuration to still match disk exactly.
+Cold initialization and dirty, missing or unreadable YAML return 503. A stable
+legacy configuration needing migration reports `restart_required` and remains
+503 until deliberate restart/migration, even if some read-only pages still work.
+The application startup/watcher lifecycle owns initialization and recovery;
+probes do not create or migrate settings, acquire config write locks, open a
+database, or repair schema. SQLite is required only when authentication is
+enabled, consistently with the explicit `KOKPIT_AUTH_DISABLED=true` override.
+An empty first-run user table is ready once its schema is usable. Enabling auth
+initializes its database through the application lifecycle before readiness
+succeeds.
+
+An initialized database must be open, writable in connection policy, and able
+to complete a minimal schema-aware read. Each read waits at most 50ms for SQLite
+locks, then restores the application's previous busy timeout. This read probe
+cannot guarantee a later write succeeds if storage fills or filesystem
+permissions change. Initialization failures need repair through normal
+application startup/lifecycle activity; a readiness poll does not retry them.
+Both endpoints report the version compiled from `package.json`, including when
+the standalone server starts with `node server.js`; runtime npm environment
+variables cannot change that artifact identity.
+
+To make Compose health describe readiness explicitly, override only its probe:
+
+```yaml
+services:
+  kokpit:
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${PORT:-3000}/api/ready\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+```
+
+For an image-level override, the equivalent Dockerfile instruction is:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT:-3000}/api/ready" || exit 1
+```
+
+Readiness can delay dependent startup via `depends_on: condition:
+service_healthy`, or remove an instance from a separately configured load
+balancer. Docker/Compose marks failed checks `unhealthy`; `restart:
+unless-stopped` does not restart a still-running unhealthy container, and
+Compose does not provide dynamic load-balancer routing or automatic recovery
+after startup. Keep liveness and restart decisions separate from temporary
+configuration/database problems.
+
 ## Usage
 
 Configuration is stored in `settings.yaml`. Source and local development default

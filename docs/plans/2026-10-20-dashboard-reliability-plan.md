@@ -6,7 +6,9 @@ Status: IMP-13 implemented for v0.30.11; IMP-14 implemented for v0.31.1; IMP-15 
 
 Scope: IMP-13, IMP-14, IMP-15, IMP-16 and IMP-17 from the project review
 
-Follow the sequencing, cross-cutting constraints and full pre-PR validation gate in the [improvement programme](2026-10-20-improvement-plan.md). The focused tests below supplement that gate. Implement these as separately reviewable changes; do not bundle the remaining UX redesign into them.
+Follow the sequencing, cross-cutting constraints and full pre-PR validation gate in the [improvement programme](2026-10-20-improvement-plan.md). The focused tests below supplement that gate. These were implemented as separately reviewable changes; the remaining UX redesign stays outside their scope.
+
+All selected items in this document are implemented in the versions recorded below. Historical evidence describes the reviewed baseline; design and ordered task sections retain the accepted implementation scope. Separately scoped follow-ups are identified explicitly.
 
 <a id="imp-13"></a>
 
@@ -20,7 +22,7 @@ Automatic intervals retain their meaning, including interval zero's initial/manu
 
 Priority: P1. Reduce unused browser/server work and repeated failures while preserving fresh data when the dashboard is active.
 
-### Evidence and qualification
+### Pre-implementation evidence and qualification
 
 The pre-v0.30.11 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
@@ -247,7 +249,7 @@ Same-document Back/Forward uses bounded non-secret recovery projections in prote
 
 Priority: P1. Warn at destructive exits and preserve recoverable drafts through supported client navigation.
 
-### Evidence and qualification
+### Pre-implementation evidence and qualification
 
 The pre-v0.30.10 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 

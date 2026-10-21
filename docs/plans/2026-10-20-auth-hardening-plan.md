@@ -4,6 +4,8 @@ Date: 2026-10-20. Status: **implemented — IMP-01 for v0.30.2, IMP-06 for v0.30
 
 This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-07, rechecked against main `71ef878` (v0.27.1). The IDs retain the numbering of the original 20-item review. See the [implementation index](2026-10-20-improvement-plan.md) for sequencing across plans and the full required pre-PR validation gate. Focused tests below supplement that gate.
 
+All selected items in this document are implemented in the versions recorded below. Historical evidence describes the reviewed baseline; design and ordered task sections retain the accepted implementation scope. Separately scoped follow-ups are identified explicitly.
+
 <a id="imp-01"></a>
 
 ## IMP-01 — Make unknown-user password checks perform real bcrypt work
@@ -67,7 +69,7 @@ Upgrading an instance with an empty or timeout-only auth section now enables pro
 - Reviewed the current schema, access policy, protected layout, README, and PR #132 regression tests after refreshing main.
 - [Schema regression coverage](../../src/__tests__/config/schema.test.ts#L10) includes missing auth, an empty section, idle-timeout-only and legacy-TTL-only sections, plus explicit false.
 - [API policy tests](../../src/__tests__/auth/apiAuth.test.ts) cover enabled/disabled config, unauthenticated/authenticated access, and the environment override. Existing loader tests retain explicit opt-out and defaulted authentication coverage.
-- Acceptance is implemented: an omitted authentication flag consistently enables protection while explicit public-access choices remain supported. Preserve these regressions when implementing the remaining plans.
+- Acceptance is implemented: an omitted authentication flag consistently enables protection while explicit public-access choices remain supported. Preserve these regressions during future maintenance.
 - This is a source and coverage verification record; current full-gate results belong in the central implementation index/handoff.
 
 <a id="imp-03"></a>
@@ -101,7 +103,7 @@ No additional limiter implementation is scheduled. Any later performance tuning 
 - Reviewed the current limiter, database tables, login/TOTP callers, README policy, and PR #132 regression coverage after refreshing main.
 - [Limiter tests](../../src/__tests__/auth/loginRateLimit.test.ts) cover case-sharing, independent accounts, fixed-window expiry without extension, global username-rotation blocking and bounded insertion, rolling-minute boundaries, success release preserving failures/global history, stale-success safety, pruning, digested keys, and persistence across database reopen.
 - [Login route tests](../../src/__tests__/auth/login-route.test.ts) cover reserving concurrent attempts before bcrypt, rotating usernames/forwarding headers without bypass, retry metadata, and repeat successful logins.
-- [TOTP route tests](../../src/__tests__/auth/totp-verify-route.test.ts) cover shared failure allowance across fresh challenges and successful checks releasing their own reservations. This durable account budget must remain when IMP-06 adds durable per-challenge state.
+- [TOTP route tests](../../src/__tests__/auth/totp-verify-route.test.ts) cover shared failure allowance across fresh challenges and successful checks releasing their own reservations. IMP-06 retains this durable account budget alongside its implemented per-challenge state.
 - Acceptance is implemented: documented database-backed account/global budgets apply before expensive checks, survive reopen, and ignore spoofable IP identity. Retain these regressions; no new implementation is planned for IMP-03.
 - This section records inspected implementation and existing coverage; current full-gate results belong in the central implementation index/handoff.
 

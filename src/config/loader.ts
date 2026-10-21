@@ -22,6 +22,7 @@ import { configRevision } from "./revision";
 import { GENERIC_SERVICE_FOOTPRINT, isTileFootprint, legacyWidgetFootprint } from "@/layout/grid";
 import { resolveServiceSize } from "./resolve";
 import { reconcileSettingsDocument } from "./reconcileYaml";
+import { notifyConfigPublished } from "./publication";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const CONFIG_DISPLACED_PATH = `${CONFIG_PATH}.displaced`;
@@ -756,6 +757,7 @@ export function loadConfig(): KokpitConfig {
         cache.source = result.source;
         cache.pendingSource = null;
         cache.state = result.state;
+        if (result.state === "ready") notifyConfigPublished(result.config);
         return result.config;
       }
     }
@@ -785,6 +787,24 @@ export function getPublishedConfigSnapshot(): ConfigSnapshot {
   const current = configCache();
   verifyConfirmedSource(current);
   return { state: current.state, config: current.config, source: current.source };
+}
+
+/**
+ * Read-only readiness observation. A probe never bootstraps, migrates, marks
+ * dirty, schedules a refresh, or publishes configuration on its own.
+ */
+export function observeConfigReadiness(): Pick<ConfigSnapshot, "state" | "config"> {
+  const cache = configCache();
+  if (cache.state === "cold") return { state: "cold", config: null };
+  if (cache.state === "dirty" || !cache.config) return { state: "dirty", config: null };
+  try {
+    if (readFileSync(/* turbopackIgnore: true */ CONFIG_PATH, "utf-8") !== cache.source) {
+      return { state: "dirty", config: null };
+    }
+    return { state: cache.state, config: cache.config };
+  } catch {
+    return { state: "dirty", config: null };
+  }
 }
 
 /** Marks the cache dirty if a caller observes disk bytes different from the
@@ -898,6 +918,7 @@ export function refreshConfigCache(): ConfigCacheState {
     cache.pendingSource = null;
     cache.state = result.state;
     resetCacheRefresh(cache);
+    if (result.state === "ready") notifyConfigPublished(result.config);
     return cache.state;
   } catch {
     cache.state = "dirty";
@@ -989,6 +1010,7 @@ export function writeConfigSnapshot(
   cache.pendingSource = null;
   cache.state = "ready";
   resetCacheRefresh(cache);
+  notifyConfigPublished(persistedConfig!);
   return { config: persistedConfig!, source: persistedSource! };
 }
 

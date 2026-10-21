@@ -1,6 +1,7 @@
 import { defineConfig, configDefaults, Plugin } from "vitest/config";
 import { transformSync } from "esbuild";
 import path from "path";
+import { readFileSync } from "node:fs";
 
 function jsxPlugin(): Plugin {
   return {
@@ -24,6 +25,9 @@ function jsxPlugin(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    "process.env.KOKPIT_BUILD_VERSION": JSON.stringify((JSON.parse(readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as { version: string }).version),
+  },
   plugins: [jsxPlugin()],
   resolve: {
     alias: {

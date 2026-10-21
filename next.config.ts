@@ -36,7 +36,10 @@ function runtimePackageFiles(name: string): string[] {
   );
 }
 
+const appVersion = (JSON.parse(readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as { version: string }).version;
+
 const nextConfig: NextConfig = {
+  env: { KOKPIT_BUILD_VERSION: appVersion },
   output: "standalone",
   outputFileTracingIncludes: {
     // Keep aligned with the static Worker path in calendar/server.ts.
