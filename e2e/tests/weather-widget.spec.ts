@@ -175,6 +175,10 @@ test("Weather location denial keeps manual coordinates usable", async ({ page, r
   await page.getByLabel("Latitude *", { exact: true }).fill("0");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
+  const saved = page.waitForResponse(r => r.url().endsWith("/api/settings") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
+  const persisted = await (await request.get("/api/settings")).json();
+  expect(persisted.service_tiles[0].widget).toMatchObject({ type: "weather", config: { latitude: 0, longitude: -0.1278 } });
 });
 
 test("Weather attribution remains a valid independent link when the service has a launch URL", async ({ page, request, context }) => {

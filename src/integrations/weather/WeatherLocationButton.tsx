@@ -85,9 +85,11 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
     <p id="sf-weather-location-hint" className="settings-form-hint">
       Uses this device’s location once, with your permission. Approximate coordinates are saved for this tile and shared with Open-Meteo for weather after saving; all viewers see the same location.
     </p>
-    {current && <p role={current.error ? "alert" : "status"}
-      className={`settings-form-hint${current.error ? " settings-form-hint--error" : ""}`}>
-      {current.message}
-    </p>}
+    <div role="status" aria-atomic="true">
+      {current && !current.error && <p className="settings-form-hint">{current.message}</p>}
+    </div>
+    <div role="alert" aria-atomic="true">
+      {current?.error && <p className="settings-form-hint settings-form-hint--error">{current.message}</p>}
+    </div>
   </div>;
 }

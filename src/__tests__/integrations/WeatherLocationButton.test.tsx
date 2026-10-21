@@ -25,6 +25,8 @@ describe("WeatherLocationButton", () => {
   it("requests once only after a click, rounds coordinates and announces success", () => {
     const onDetect = vi.fn();
     const { rerender } = render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
+    const announcement = screen.getByRole("status");
+    expect(announcement).toBeEmptyDOMElement();
     expect(getCurrentPosition).not.toHaveBeenCalled();
     start();
     expect(screen.getByRole("button", { name: "Detecting location…" })).toBeDisabled();
@@ -39,14 +41,18 @@ describe("WeatherLocationButton", () => {
     });
     expect(onDetect).toHaveBeenCalledExactlyOnceWith({ latitude: 51.507, longitude: -0.128 });
     expect(screen.getByRole("status")).toHaveTextContent(/Review the coordinates/);
+    expect(screen.getByRole("status")).toBe(announcement);
     expect(screen.getByRole("button", { name: "Use my location" })).toBeEnabled();
   });
 
   it.each([[1, /permission was denied/], [2, /location is unavailable/], [3, /timed out/]])("keeps existing coordinates on error %s and supports retry", (code, message) => {
     const onDetect = vi.fn();
     render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
+    const announcement = screen.getByRole("alert");
+    expect(announcement).toBeEmptyDOMElement();
     start(); act(() => fail?.(error(code)));
     expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByRole("alert")).toBe(announcement);
     expect(screen.getByRole("alert")).not.toHaveTextContent(/Provider detail/);
     expect(onDetect).not.toHaveBeenCalled();
     start(); act(() => succeed(position({ latitude: 0, longitude: 0 })));
@@ -98,7 +104,7 @@ describe("WeatherLocationButton", () => {
     expect(screen.getByRole("button", { name: "Use my location" })).toBeEnabled();
     rerender(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
     expect(screen.getByRole("button", { name: "Use my location" })).toBeEnabled();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("ignores callbacks and clears its deadline when the form closes or widget changes", () => {
