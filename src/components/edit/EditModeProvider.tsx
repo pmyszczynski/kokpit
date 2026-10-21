@@ -14,6 +14,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
 } from "react";
 import { useRouter } from "next/navigation";
 import type {
@@ -27,6 +28,7 @@ import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
 import type { ClientSafeSettings } from "@/widgets/clientSafeSettings";
 import EditBar from "./EditBar";
 import { persistLegacyServices } from "./serviceFormProjection";
+import { useUnsavedChanges, useUnsavedSource } from "../unsaved/UnsavedChangesProvider";
 
 export type EditModeStatus =
   | "idle"
@@ -85,7 +87,7 @@ export type EditModeAction =
   | { type: "DISCARD" }
   | { type: "SET_DRAFT"; draft: ClientSafeSettings }
   | { type: "SAVE_START" }
-  | { type: "SAVE_SUCCESS"; revision: string | null }
+  | { type: "SAVE_SUCCESS"; revision: string | null; submitted?: ClientSafeSettings }
   | { type: "SAVE_ERROR"; error: string }
   | { type: "CONFLICT"; error: string }
   | { type: "RELOAD_SUCCESS"; config: ClientSafeSettings; revision: string | null }
@@ -123,6 +125,9 @@ export function editModeReducer(
     case "SAVE_START":
       return { ...state, status: "saving", error: null, conflict: false };
     case "SAVE_SUCCESS":
+      if (action.submitted && changedKeys(state.draft, action.submitted).length > 0) {
+        return { ...state, baseline: action.submitted, baseRevision: action.revision, status: "idle", error: null };
+      }
       // Committed → leave edit mode. baseRevision is advanced for completeness
       // even though the draft is dropped on exit.
       return {
@@ -147,6 +152,7 @@ export function editModeReducer(
     case "RELOAD_SUCCESS":
       return {
         ...state,
+        active: true,
         draft: action.config,
         baseline: action.config,
         baseRevision: action.revision,
@@ -185,6 +191,8 @@ export interface EditModeContextValue extends EditModeState {
   dirty: boolean;
   /** Number of changed top-level editable keys (edit-bar counter). */
   dirtyCount: number;
+  /** Changes after explicit discard/reload to close stale dashboard dialogs. */
+  recoveryResetVersion: number;
   /** Enter edit mode: fetch the config + revision into the draft. */
   enter: () => Promise<void>;
   /** Enter when in view mode, Discard when already editing. */
@@ -192,7 +200,7 @@ export interface EditModeContextValue extends EditModeState {
   /** Leave edit mode, dropping all staged changes. */
   discard: () => void;
   /** PATCH the changed keys with `If-Match`, then exit + refresh on success. */
-  save: () => Promise<void>;
+  save: () => Promise<boolean>;
   /** Re-fetch the draft + revision, discarding local changes (conflict path). */
   reload: () => Promise<void>;
   /** Replace the whole draft (low-level; prefer the typed setters below). */
@@ -234,7 +242,16 @@ export function EditModeProvider({
   children,
 }: EditModeProviderProps) {
   const router = useRouter();
+  const unsaved = useUnsavedChanges();
+  const removeRecoveryScope = unsaved?.removeRecoveryScope;
   const [state, dispatch] = useReducer(editModeReducer, initialEditModeState);
+  const [recoveryResetVersion, resetRecovery] = useReducer((version: number) => version + 1, 0);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const resetDashboardRecovery = useCallback(() => {
+    removeRecoveryScope?.("dashboard");
+    resetRecovery();
+  }, [removeRecoveryScope]);
 
   const enter = useCallback(async () => {
     if (!canEdit) return;
@@ -252,7 +269,10 @@ export function EditModeProvider({
     }
   }, [canEdit]);
 
-  const discard = useCallback(() => dispatch({ type: "DISCARD" }), []);
+  const discard = useCallback(() => {
+    resetDashboardRecovery();
+    dispatch({ type: "DISCARD" });
+  }, [resetDashboardRecovery]);
 
   const updateDraft = useCallback(
     (patch: Partial<ClientSafeSettings>) => {
@@ -287,17 +307,17 @@ export function EditModeProvider({
   );
 
   const save = useCallback(async () => {
-    if (!state.draft || !state.baseline) return;
+    if (!state.draft || !state.baseline || state.status === "saving") return false;
     // Refuse to save while conflicted: the draft is based on a now-stale
     // revision, so committing it would overwrite the external change. The user
     // must Reload (re-fetch) or Discard first.
-    if (state.conflict) return;
+    if (state.conflict) return false;
     const keys = changedKeys(state.draft, state.baseline);
     const draft = state.draft;
     // Nothing changed → just exit without a write.
     if (keys.length === 0) {
       dispatch({ type: "SAVE_SUCCESS", revision: state.baseRevision });
-      return;
+      return true;
     }
     const body: Partial<KokpitConfig> = {};
     for (const key of keys) {
@@ -329,7 +349,7 @@ export function EditModeProvider({
             && typeof payload.error === "string" ? payload.error : "Save temporarily unavailable";
           dispatch({ type: "SAVE_ERROR", error: detail });
         }
-        return;
+        return false;
       }
       if (!res.ok) {
         const payload: unknown = await res.json().catch(() => null);
@@ -337,22 +357,27 @@ export function EditModeProvider({
           && typeof payload.error === "string" ? payload.error : null;
         throw new Error(`Save failed (${res.status})${detail ? `: ${detail}` : ""}`);
       }
-      dispatch({ type: "SAVE_SUCCESS", revision: readRevision(res) });
+      const unchanged = changedKeys(stateRef.current.draft, draft).length === 0;
+      dispatch({ type: "SAVE_SUCCESS", revision: readRevision(res), submitted: draft });
       router.refresh();
+      return unchanged;
     } catch (err) {
       dispatch({
         type: "SAVE_ERROR",
         error: err instanceof Error ? err.message : "Save failed",
       });
+      return false;
     }
-  }, [state.draft, state.baseline, state.baseRevision, state.conflict, router]);
+  }, [state.draft, state.baseline, state.baseRevision, state.conflict, state.status, router]);
 
   const reload = useCallback(async () => {
+    if (unsaved && !(await unsaved.confirm({ scope: "dashboard" }))) return;
     dispatch({ type: "ENTER_START" });
     try {
       const res = await fetch("/api/settings");
       if (!res.ok) throw new Error(`Failed to reload settings (${res.status})`);
       const config = (await res.json()) as ClientSafeSettings;
+      resetDashboardRecovery();
       dispatch({
         type: "RELOAD_SUCCESS",
         config,
@@ -364,12 +389,15 @@ export function EditModeProvider({
         error: err instanceof Error ? err.message : "Failed to reload",
       });
     }
-  }, []);
+  }, [unsaved, resetDashboardRecovery]);
 
   const toggle = useCallback(() => {
-    if (state.active) discard();
+    if (state.active) {
+      if (unsaved) void unsaved.confirm({ scope: "dashboard" }).then((allowed) => { if (allowed) discard(); });
+      else discard();
+    }
     else void enter();
-  }, [state.active, discard, enter]);
+  }, [state.active, discard, enter, unsaved]);
 
   const requestServiceEdit = useCallback(
     (request: { serviceId?: string; tileId?: string; name: string } | string) => {
@@ -430,6 +458,17 @@ export function EditModeProvider({
     () => changedKeys(state.draft, state.baseline),
     [state.draft, state.baseline]
   );
+  const draftVersion = useMemo(() => canonicalJSONString(state.draft), [state.draft]);
+  useUnsavedSource("dashboard", {
+    label: "Dashboard layout", dirty: keys.length > 0, saving: state.status === "saving",
+    survivesNavigation: true,
+    scope: "dashboard",
+    writeRevision: state.baseRevision,
+    priority: 20,
+    version: draftVersion,
+    discard,
+    save: state.conflict ? undefined : save,
+  });
 
   const value = useMemo<EditModeContextValue>(
     () => ({
@@ -438,6 +477,7 @@ export function EditModeProvider({
       connectionTestingEnabled,
       dirty: keys.length > 0,
       dirtyCount: keys.length,
+      recoveryResetVersion,
       enter,
       toggle,
       discard,
@@ -455,6 +495,7 @@ export function EditModeProvider({
       canEdit,
       connectionTestingEnabled,
       keys,
+      recoveryResetVersion,
       enter,
       toggle,
       discard,

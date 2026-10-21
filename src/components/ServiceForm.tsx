@@ -28,6 +28,8 @@ import {
   type WidgetConfigIssue,
 } from "@/widgets/tileWidget";
 import { useEditModeOptional } from "@/components/edit/EditModeProvider";
+import { canonicalJSONString } from "@/config/canonicalJson";
+import { useDraftRecovery, useUnsavedChanges, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 
 interface ServiceFormProps {
   service: Service | null;
@@ -50,8 +52,10 @@ interface ServiceFormProps {
    * where the fix is needed instead of having to hunt for it.
    */
   focusWidget?: boolean;
-  onSave: (service: Service) => void;
+  onSave: (service: Service) => void | boolean | Promise<void | boolean>;
   onClose: () => void;
+  draftScope?: "dashboard" | "settings";
+  baselineRevision?: string | null;
 }
 
 function initFromService(service: Service | null): {
@@ -537,12 +541,15 @@ export default function ServiceForm({
   siblingIntegrationTypes = [],
   onSave,
   onClose,
+  draftScope = "dashboard",
+  baselineRevision,
 }: ServiceFormProps) {
   // ServiceForm is also rendered outside the dashboard edit provider (for
   // example on Settings and in focused unit tests). Those standalone uses
   // retain connection testing; the protected layout supplies the server's
   // capability when it is available.
   const editMode = useEditModeOptional();
+  const unsaved = useUnsavedChanges();
   const connectionTestingEnabled = editMode?.connectionTestingEnabled ?? true;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const widgetSectionRef = useRef<HTMLDivElement>(null);
@@ -552,11 +559,17 @@ export default function ServiceForm({
   const presetDef =
     !service && initialPreset ? getWidget(initialPreset) : undefined;
   const presetEditor = presetDef?.serviceEditorPreset;
-  const [name, setName] = useState(initial.name || presetEditor?.defaultName || "");
+  const initialFields = {
+    name: initial.name || presetEditor?.defaultName || "", url: initial.url,
+    icon: initial.icon || presetEditor?.defaultIconUrl || "",
+    description: initial.description, group: initial.group || initialGroup || "",
+  };
+  const [name, setName] = useState(initialFields.name);
   const [url, setUrl] = useState(initial.url);
   const [icon, setIcon] = useState(
     initial.icon || presetEditor?.defaultIconUrl || ""
   );
+  const [changedFields, setChangedFields] = useState({ name: false, url: false, icon: false, description: false, group: false });
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group || initialGroup || "");
   const [footprint, setFootprint] = useState(() => {
@@ -584,6 +597,7 @@ export default function ServiceForm({
     return resolved ? { columnSpan: resolved.columnSpan, rowSpan: resolved.rowSpan } : undefined;
   });
   const [nameError, setNameError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [footprintTouched, setFootprintTouched] = useState(false);
 
   const initialTileType = initial.tileType || (presetEditor ? initialPreset ?? "" : "");
@@ -621,6 +635,44 @@ export default function ServiceForm({
     initialIntegrationConfig
   );
   const [integrationTouched, setIntegrationTouched] = useState(false);
+  const [recoveryConflict, setRecoveryConflict] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const sourceId = `${draftScope}:service-form:${service?.tileId ?? service?.id ?? `new:${initialGroup ?? ""}:${initialPreset ?? ""}`}`;
+  const values = {
+    name: name.trim(), url: url.trim(), icon: icon.trim(), description: description.trim(), group: group.trim(),
+    footprint, tileType, orphanWidget, widgetConfig: cleanWidgetConfig(widgetConfig, tileType),
+    refreshInterval: refreshInterval === "" ? undefined : Number(refreshInterval),
+    integrationType, integrationConfig: cleanWidgetConfig(integrationConfig),
+  };
+  const version = canonicalJSONString(values);
+  const [baseline, setBaseline] = useState(version);
+  const dirty = version !== baseline;
+  const recovery = useDraftRecovery(sourceId, baselineRevision ?? editMode?.baseRevision ?? null,
+    { name: changedFields.name ? name : undefined, url: changedFields.url ? url : undefined,
+      icon: changedFields.icon ? icon : undefined, description: changedFields.description ? description : undefined,
+      group: changedFields.group ? group : undefined, changedFields, footprint, tileType, refreshInterval, integrationType }, dirty,
+    (saved, changedRevision) => {
+      // Untouched fields come from the authorized baseline, never its
+      // redacted recovery copy. URL-shaped prose is sanitized too.
+      setName(saved.changedFields.name ? saved.name ?? "" : initialFields.name);
+      setUrl(saved.changedFields.url ? saved.url ?? "" : initialFields.url);
+      setIcon(saved.changedFields.icon ? saved.icon ?? "" : initialFields.icon);
+      setDescription(saved.changedFields.description ? saved.description ?? "" : initialFields.description);
+      setGroup(saved.changedFields.group ? saved.group ?? "" : initialFields.group);
+      setChangedFields(saved.changedFields);
+      setFootprint(saved.footprint); setTileType(saved.tileType); setRefreshInterval(saved.refreshInterval);
+      if (saved.tileType !== tileType) {
+        setWidgetConfig(saved.tileType ? { ...getWidget(saved.tileType)?.serviceEditorPreset?.defaultConfig } : {});
+        setOrphanWidget(null);
+        setWidgetConfigTouched(true);
+      }
+      if (saved.integrationType !== integrationType) { setIntegrationType(saved.integrationType); setIntegrationConfig({}); setIntegrationTouched(true); }
+      setRecoveryConflict(changedRevision);
+    });
+  const closeWithoutWarning = () => { recovery.dismiss(); dialogRef.current?.close(); };
+  function markFieldChanged(field: keyof typeof initialFields, value: string) {
+    setChangedFields((previous) => ({ ...previous, [field]: value.trim() !== initialFields[field].trim() }));
+  }
   // The issues the RAW saved config (settings.yaml, pre-`cleanWidgetConfig`)
   // fails against its widget schema — i.e. exactly what made the tile show
   // its warning badge. Computed once on mount (not recomputed as the user
@@ -672,6 +724,12 @@ export default function ServiceForm({
   const [iconUploadStatus, setIconUploadStatus] = useState<IconUploadStatus>({ state: "idle" });
   const iconFileInputRef = useRef<HTMLInputElement>(null);
   const iconSearchRequestId = useRef(0);
+  useUnsavedSource(sourceId, {
+    label: "Service form", dirty, saving: submitting || iconUploadStatus.state === "uploading", scope: draftScope, version,
+    priority: 0,
+    discard: () => { setBaseline(version); closeWithoutWarning(); },
+    save: recoveryConflict || recovery.validating || recovery.conflict ? undefined : submit,
+  });
 
   const presetWidgets = getWidgetsWithServiceEditorPreset();
   const integrationWidgets = presetWidgets.filter(
@@ -920,7 +978,8 @@ export default function ServiceForm({
     setFootprintTouched(true);
     if (def?.serviceEditorPreset) {
       setName(def.serviceEditorPreset.defaultName);
-      setIcon(def.serviceEditorPreset.defaultIconUrl);
+      markFieldChanged("name", def.serviceEditorPreset.defaultName);
+      updateIcon(def.serviceEditorPreset.defaultIconUrl);
       setIconPreviewError(false);
       setIconDetectStatus({ state: "idle" });
       iconDetectRequestId.current++;
@@ -984,6 +1043,7 @@ export default function ServiceForm({
 
   function updateIcon(value: string) {
     setIcon(value);
+    markFieldChanged("icon", value);
     setIconPreviewError(false);
   }
 
@@ -1065,6 +1125,7 @@ export default function ServiceForm({
   }
 
   async function handleIconUpload(file: File) {
+    const finishWrite = unsaved?.beginWrite();
     setIconUploadStatus({ state: "uploading" });
     try {
       const body = new FormData();
@@ -1086,7 +1147,7 @@ export default function ServiceForm({
         state: "error",
         message: err instanceof Error ? err.message : "Upload failed",
       });
-    }
+    } finally { finishWrite?.(); }
   }
 
   useEffect(() => {
@@ -1123,18 +1184,18 @@ export default function ServiceForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
+  async function submit(): Promise<boolean> {
+    if (submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || recovery.validating || recovery.conflict) return false;
+    setSubmitError(null);
     const trimmedName = name.trim();
     if (trimmedName === "") {
       setNameError("Name is required.");
-      return;
+      return false;
     }
 
     setNameError(null);
 
-    if (savedCredentialsStale || integrationConflict) return;
+    if (savedCredentialsStale || integrationConflict || recoveryConflict) return false;
 
     let widget: ServiceWidget | undefined;
     if (tileType !== "") {
@@ -1169,7 +1230,9 @@ export default function ServiceForm({
           ? { command: "set" as const, type: integrationType, config: cleanedIntegrationConfig }
           : { command: "preserve" as const };
 
-    onSave({
+    setSubmitting(true);
+    try {
+    const accepted = await onSave({
       ...(service?.id ? { id: service.id } : {}),
       ...(service?.tileId ? { tileId: service.tileId } : {}),
       ...(service?.editorCatalogOnly ? { editorCatalogOnly: true } : {}),
@@ -1186,10 +1249,26 @@ export default function ServiceForm({
           : {}),
       widget,
     });
+    if (accepted === false) return false;
+    setBaseline(version); recovery.dismiss();
+    return true;
+    } catch {
+      // Callback errors can contain connection values; keep diagnostics value-free.
+      console.error("[ServiceForm] Service save failed");
+      setSubmitError("Could not save this service. Please try again.");
+      return false;
+    }
+    finally { setSubmitting(false); }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    void submit();
   }
 
   function handleClose() {
-    dialogRef.current?.close();
+    if (unsaved) void unsaved.confirm({ ids: [sourceId] }).then((allowed) => { if (allowed) closeWithoutWarning(); });
+    else closeWithoutWarning();
     // onClose is called via the dialog's native close event
   }
 
@@ -1197,7 +1276,8 @@ export default function ServiceForm({
   const iconPreviewUrl = resolveIconRef(icon).url;
 
   return (
-    <dialog ref={dialogRef} className="service-form-dialog" onClose={onClose}>
+    <dialog ref={dialogRef} className="service-form-dialog" onClose={onClose}
+      onCancel={(event) => { event.preventDefault(); handleClose(); }}>
       <div className="service-form-dialog__header">
         <h2>{service ? "Edit Service" : "Add Service"}</h2>
         <button
@@ -1210,7 +1290,10 @@ export default function ServiceForm({
         </button>
       </div>
       <form onSubmit={handleSubmit} className="service-form" noValidate>
-        <div className="service-form__body">
+        {recovery.recovered && <p className="settings-hint" role="status">Recovered basic service fields. Connection settings, widget options and URL query/fragment values were not retained; review before saving.</p>}
+        {(recoveryConflict || recovery.conflict) && <p className="settings-hint" role="alert">Settings changed or could not be verified. Close and reopen this form after reloading the configuration.</p>}
+        {!recovery.available && <p className="settings-hint" role="alert">This draft is too large for navigation recovery. Save before using browser Back or Forward.</p>}
+        <div className="service-form__body"><fieldset className="service-form__fields settings-fieldset" disabled={submitting || iconUploadStatus.state === "uploading" || unsaved?.saving}>
         <div className="settings-form-row">
           <label htmlFor="sf-tile-type">Tile type</label>
           <select
@@ -1328,6 +1411,7 @@ export default function ServiceForm({
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
+                markFieldChanged("name", e.target.value);
                 setNameError(null);
                 iconDetectRequestId.current++;
               }}
@@ -1356,6 +1440,7 @@ export default function ServiceForm({
             value={url}
             onChange={(e) => {
               setUrl(e.target.value);
+              markFieldChanged("url", e.target.value);
               iconDetectRequestId.current++;
             }}
             placeholder="https://jellyfin.example.com"
@@ -1494,7 +1579,7 @@ export default function ServiceForm({
             type="text"
             className="settings-input"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => { setDescription(e.target.value); markFieldChanged("description", e.target.value); }}
             placeholder="Media server"
           />
         </div>
@@ -1502,7 +1587,7 @@ export default function ServiceForm({
           <label htmlFor="sf-group">Group</label>
           <GroupCombobox
             value={group}
-            onChange={setGroup}
+            onChange={(value) => { setGroup(value); markFieldChanged("group", value); }}
             groups={existingGroups}
           />
         </div>
@@ -1731,8 +1816,9 @@ export default function ServiceForm({
             </div>}
           </>
         )}
-        </div>
+        </fieldset></div>
 
+        {submitError && <p className="settings-form-hint settings-form-hint--error" role="alert">{submitError}</p>}
         <div className="service-form__actions">
           <button type="button" className="settings-btn" onClick={handleClose}>
             Cancel
@@ -1740,7 +1826,7 @@ export default function ServiceForm({
           <button
             type="submit"
             className="settings-save-btn"
-            disabled={integrationConflict || savedCredentialsStale}
+            disabled={integrationConflict || savedCredentialsStale || submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || recovery.validating || recovery.conflict || recoveryConflict}
           >
             Save
           </button>

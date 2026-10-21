@@ -358,6 +358,7 @@ test.describe("edit mode", () => {
     await expect(page.locator(".edit-bar")).toBeVisible();
 
     await notice.getByRole("button", { name: "Reload" }).click();
+    await page.getByRole("dialog", { name: "Unsaved changes" }).getByRole("button", { name: "Discard and continue" }).click();
     await expect(page.locator(".edit-bar__notice")).toBeHidden();
     await expect(page.locator(".edit-bar__status")).toHaveText("No changes");
     // The reload pulled the out-of-band state, discarding the stale duplicate

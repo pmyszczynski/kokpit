@@ -19,7 +19,7 @@
 //  - Sensors: PointerSensor with an 8px activation distance (taps/scrolls on
 //    touch never start a drag) + KeyboardSensor (full keyboard DnD for free).
 import "@/integrations";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -81,6 +81,7 @@ import CollapsibleGroup, { migrateGroupCollapseKey } from "../CollapsibleGroup";
 import ServiceTile from "../ServiceTile";
 import ServiceForm from "../ServiceForm";
 import BookmarkGroupForm from "../BookmarkGroupForm";
+import { useDraftRecovery } from "../unsaved/UnsavedChangesProvider";
 import AddTilePicker, { type AddChoice } from "./AddTilePicker";
 import { BookmarkTileMenu, GroupKebab, ServiceTileMenu } from "./tileMenus";
 
@@ -360,6 +361,8 @@ export default function EditableServiceGrid({
     updateDraft,
     pendingEditService,
     clearPendingEditService,
+    baseRevision,
+    recoveryResetVersion,
   } = useEditMode();
   const services = useMemo(
     () => projectLegacyServices(config.services, config.service_tiles),
@@ -370,6 +373,15 @@ export default function EditableServiceGrid({
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<ActiveDialog>(null);
+  const recovery = useDraftRecovery("dashboard-dialog", baseRevision, dialog,
+    dialog !== null && dialog.kind !== "add-picker", (saved) => setDialog(saved), false);
+  const lastRecoveryReset = useRef(recoveryResetVersion);
+  useLayoutEffect(() => {
+    if (lastRecoveryReset.current === recoveryResetVersion) return;
+    lastRecoveryReset.current = recoveryResetVersion;
+    recovery.dismiss();
+    setDialog(null);
+  }, [recoveryResetVersion, recovery]);
 
   // A view-mode affordance (the broken-widget badge) can ask for a service's
   // edit dialog before this grid exists; the request waits in the provider
@@ -957,6 +969,8 @@ export default function EditableServiceGrid({
       return (
         <ServiceForm
           service={service}
+          draftScope="dashboard"
+          baselineRevision={baseRevision}
           existingGroups={knownGroupNames}
           focusWidget={dialog.focusWidget}
           siblingIntegrationTypes={services
@@ -976,6 +990,8 @@ export default function EditableServiceGrid({
       return (
         <ServiceForm
           service={null}
+          draftScope="dashboard"
+          baselineRevision={baseRevision}
           existingGroups={knownGroupNames}
           initialGroup={dialog.group ?? undefined}
           initialPreset={dialog.preset}
@@ -994,6 +1010,8 @@ export default function EditableServiceGrid({
       return (
         <BookmarkGroupForm
           bookmark={bookmark}
+          draftScope="dashboard"
+          baselineRevision={baseRevision}
           knownGroups={knownGroupNames}
           takenNames={bookmarks
             .filter((b) => !keyEq(b.name, dialog.name))
@@ -1011,6 +1029,8 @@ export default function EditableServiceGrid({
       return (
         <BookmarkGroupForm
           bookmark={null}
+          draftScope="dashboard"
+          baselineRevision={baseRevision}
           knownGroups={knownGroupNames}
           takenNames={bookmarks.map((b) => b.name)}
           initialGroup={dialog.group ?? undefined}

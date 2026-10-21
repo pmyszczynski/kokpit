@@ -28,6 +28,8 @@ import {
   normalizeServicesForForm,
 } from "./edit/serviceFormProjection";
 import { CONFIG_REVISION_HEADER } from "@/config/revisionHeader";
+import { canonicalJSONString } from "@/config/canonicalJson";
+import { useDraftRecovery, useUnsavedChanges, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 
 type Tab =
   | "appearance"
@@ -87,6 +89,7 @@ export default function SettingsPanel({
   initialRevision?: string;
 }) {
   const router = useRouter();
+  const unsaved = useUnsavedChanges();
   const [, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<Tab>("appearance");
 
@@ -137,6 +140,9 @@ export default function SettingsPanel({
   const [newRecoveryCode, setNewRecoveryCode] = useState<string | null>(null);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const [recoveryPending, setRecoveryPending] = useState(false);
+  const [totpPending, setTotpPending] = useState(false);
+  const [totpResetVersion, setTotpResetVersion] = useState(0);
+  const accountPendingRef = useRef(false);
 
   // Services
   const [initialServiceState] = useState(() =>
@@ -187,13 +193,225 @@ export default function SettingsPanel({
   // Independent drafts share this compare-and-swap token. A stale draft stays
   // blocked until the complete server snapshot is explicitly reloaded.
   const revisionRef = useRef(initialRevision);
+  const confirmedConfigRef = useRef(config);
   const writePendingRef = useRef(false);
   const conflictRef = useRef(false);
   const [writePending, setWritePending] = useState(false);
   const [conflict, setConflict] = useState(false);
-  const draftBlocked = writePending || conflict;
   const configurationMutationBlocked = () =>
-    writePendingRef.current || conflictRef.current;
+    writePendingRef.current || conflictRef.current || recovery.validating || recovery.conflict || Boolean(unsaved?.saving);
+  const appearancePayload = () => {
+    const blur = clampNumericField(cardBlur, 0, 40);
+    return { theme, custom_css: customCss || undefined, card_blur: blur !== undefined && blur > 0 ? blur : undefined, background: buildBackgroundPayload() };
+  };
+  const authPayload = () => {
+    const timeout = Number(sessionIdleTimeout);
+    return { enabled: config.auth.enabled, session_idle_timeout_hours: Number.isFinite(timeout) && timeout > 0 ? Math.min(8760, Math.max(1, Math.floor(timeout))) : 0 };
+  };
+  const groupsSnapshot = () => {
+    const tileCascade = applyServiceTileGroupCascades(serviceTiles, pendingGroupOps).serviceTiles;
+    const bookmarkCascade = applyGroupCascades(services, bookmarks, pendingGroupOps).bookmarks;
+    return {
+      groups: groups.map((group) => ({ name: group.name, ...(group.collapsed ? { collapsed: true } : {}) })),
+      layout: buildLayoutPayload(),
+      tileGroups: tileCascade.filter((tile, index) => tile.group !== serviceTiles[index]?.group).map(({ id, group }) => ({ id, group })),
+      bookmarkGroups: bookmarkCascade.filter((bookmark, index) => bookmark.placement?.group !== bookmarks[index]?.placement?.group)
+        .map(({ name, placement }) => ({ name, group: placement?.group })),
+    };
+  };
+  const drafts = {
+    appearance: appearancePayload(), auth: authPayload(), groups: groupsSnapshot(),
+    services: { services: persistedServices, service_tiles: serviceTiles }, bookmarks,
+  };
+  const [baselines, setBaselines] = useState<Record<keyof typeof drafts, unknown>>(() => drafts);
+  const dirtySections = Object.fromEntries(Object.entries(drafts).map(([key, value]) =>
+    [key, canonicalJSONString(value) !== canonicalJSONString(baselines[key as keyof typeof drafts])]
+  )) as Record<keyof typeof drafts, boolean>;
+  const accountFieldsDirty = [
+    authPassword,
+    totpCode,
+    totpPassword,
+    totpDisableCode,
+    recoveryPassword,
+    newRecoveryCode,
+  ].some(Boolean);
+  const confirmed = confirmedConfigRef.current;
+  const confirmedServices = useMemo(() => {
+    // Reuse the accepted normalized identities, including legacy synthetic IDs.
+    const accepted = baselines.services as Pick<KokpitConfig, "services" | "service_tiles">;
+    return projectCatalogServices(accepted.services, accepted.service_tiles ?? []);
+  }, [baselines.services]);
+  // Section presence and field flags describe edits before privacy filtering.
+  // Clean data stays in the authorized config, never a lossy recovery copy.
+  const recoveryValue = {
+    activeTab, showServiceForm, editingIndex, showBookmarkForm, editingBookmarkIndex,
+    appearance: dirtySections.appearance ? {
+      theme, customCss, cardBlur, bgColor, bgGradient, bgBlur, bgBrightness, bgOpacity,
+      bgImageChanged: bgImage !== (confirmed.appearance.background?.image ?? ""),
+      bgImage: bgImage !== (confirmed.appearance.background?.image ?? "") ? bgImage : undefined,
+    } : undefined,
+    auth: dirtySections.auth ? { sessionIdleTimeout } : undefined,
+    groups: dirtySections.groups ? {
+      groups: groups.map((group) => {
+        const originalIndex = (confirmed.groups ?? []).findIndex((original) => original.name === group.name);
+        return { ...group, originalIndex, name: originalIndex < 0 ? group.name : undefined };
+      }),
+      pendingGroupOps: pendingGroupOps.map((op) => {
+        const name = op.type === "rename" ? op.from : op.name;
+        const originalIndex = (confirmed.groups ?? []).findIndex((group) => group.name === name);
+        return { type: op.type, originalIndex, name: originalIndex < 0 ? name : undefined,
+          to: op.type === "rename" ? op.to : undefined };
+      }), ungrouped,
+    } : undefined,
+    bookmarks: dirtySections.bookmarks ? bookmarks.map((bookmark) => {
+      const originalIndex = (confirmed.bookmarks ?? []).findIndex((original) => original.name === bookmark.name);
+      const original = confirmed.bookmarks?.[originalIndex];
+      const nameChanged = bookmark.name !== original?.name;
+      const accentChanged = bookmark.accent !== original?.accent;
+      const groupChanged = bookmark.placement?.group !== original?.placement?.group;
+      return { ...bookmark, originalIndex, nameChanged, accentChanged, groupChanged,
+        name: nameChanged ? bookmark.name : undefined, accent: accentChanged ? bookmark.accent : undefined,
+        placement: bookmark.placement ? { ...bookmark.placement, group: groupChanged ? bookmark.placement.group : undefined } : undefined,
+        links: bookmark.links.map((link) => {
+        // Parent list edits only reorder/remove groups. Resolve an unchanged
+        // row before sanitization; unknown/new rows never inherit private URLs.
+        const originalIndex = original?.links.findIndex((candidate) => candidate === link
+          || canonicalJSONString(candidate) === canonicalJSONString(link)) ?? -1;
+        const originalLink = original?.links[originalIndex];
+        const nameChanged = link.name !== originalLink?.name;
+        const descriptionChanged = link.description !== originalLink?.description;
+        const abbrChanged = link.abbr !== originalLink?.abbr;
+        const urlChanged = link.url !== originalLink?.url;
+        const iconChanged = link.icon !== originalLink?.icon;
+        return { ...link, originalIndex, nameChanged, descriptionChanged, abbrChanged, urlChanged, iconChanged,
+          name: nameChanged ? link.name : undefined, description: descriptionChanged ? link.description : undefined,
+          abbr: abbrChanged ? link.abbr : undefined,
+          url: urlChanged ? link.url : undefined, icon: iconChanged ? link.icon : undefined };
+      }) };
+    }) : undefined,
+    // Connection/widget configs are deliberately excluded, including opaque references.
+    services: dirtySections.services ? services.map(({ id, tileId, name, url, icon, description, group, footprint, widget, editorCatalogOnly }) => {
+      const original = confirmedServices.find((service) => service.id === id && service.tileId === tileId);
+      const nameChanged = name !== original?.name;
+      const descriptionChanged = description !== original?.description;
+      const groupChanged = group !== original?.group;
+      const urlChanged = url !== original?.url;
+      const iconChanged = icon !== original?.icon;
+      return { id, tileId, nameChanged, descriptionChanged, groupChanged,
+        name: nameChanged ? name : undefined, description: descriptionChanged ? description : undefined,
+        group: groupChanged ? group : undefined, footprint, editorCatalogOnly,
+        urlChanged, iconChanged, url: urlChanged ? url : undefined, icon: iconChanged ? icon : undefined,
+        widget: widget ? { type: widget.type, fields: widget.fields, refresh_interval_ms: widget.refresh_interval_ms } : undefined };
+    }) : undefined,
+  };
+  const recovery = useDraftRecovery("settings", revisionRef.current, recoveryValue,
+    Object.values(dirtySections).some(Boolean) || showServiceForm || showBookmarkForm,
+    (saved, changedRevision) => {
+      setActiveTab(saved.activeTab);
+      if (saved.appearance) {
+        const appearance = saved.appearance;
+        setTheme(appearance.theme); setCardBlur(appearance.cardBlur);
+        if (typeof appearance.customCss === "string") setCustomCss(appearance.customCss);
+        if (typeof appearance.bgGradient === "string") setBgGradient(appearance.bgGradient);
+        setBgColor(appearance.bgColor); setBgBlur(appearance.bgBlur);
+        if (appearance.bgImageChanged) setBgImage(appearance.bgImage ?? "");
+        setBgBrightness(appearance.bgBrightness); setBgOpacity(appearance.bgOpacity);
+        document.documentElement.dataset.theme = appearance.theme;
+      }
+      if (saved.auth) setSessionIdleTimeout(saved.auth.sessionIdleTimeout);
+      if (saved.groups) {
+        setGroups(saved.groups.groups.map(({ originalIndex, ...group }) => ({ ...group,
+          name: originalIndex < 0 ? group.name ?? "" : confirmed.groups?.[originalIndex]?.name ?? "" })));
+        setPendingGroupOps(saved.groups.pendingGroupOps.map((op): GroupCascadeOp => {
+          const name = op.originalIndex < 0 ? op.name ?? "" : confirmed.groups?.[op.originalIndex]?.name ?? "";
+          return op.type === "rename" ? { type: "rename", from: name, to: op.to ?? "" } : { type: "delete", name };
+        }));
+        setUngrouped(saved.groups.ungrouped);
+      }
+      if (saved.bookmarks) setBookmarks(saved.bookmarks.map(({ originalIndex, links, nameChanged, accentChanged, groupChanged, ...bookmark }) => {
+        const original = confirmed.bookmarks?.[originalIndex];
+        return { ...bookmark, name: nameChanged ? bookmark.name ?? "" : original?.name ?? "",
+          accent: accentChanged ? bookmark.accent : original?.accent,
+          placement: bookmark.placement ? { ...bookmark.placement, group: groupChanged ? bookmark.placement.group : original?.placement?.group } : undefined,
+          links: links.map(({ originalIndex, nameChanged, descriptionChanged, abbrChanged, urlChanged, iconChanged, ...link }) => {
+          const originalLink = original?.links[originalIndex];
+          return { ...link, name: nameChanged ? link.name ?? "" : originalLink?.name ?? "", url: urlChanged ? link.url ?? "" : originalLink?.url ?? "",
+            description: descriptionChanged ? link.description : originalLink?.description,
+            abbr: abbrChanged ? link.abbr : originalLink?.abbr,
+            icon: iconChanged ? link.icon : originalLink?.icon };
+        }) };
+      }));
+      setShowServiceForm(saved.showServiceForm); setEditingIndex(saved.editingIndex);
+      setShowBookmarkForm(saved.showBookmarkForm); setEditingBookmarkIndex(saved.editingBookmarkIndex);
+      if (saved.services) {
+        const restoredServices = saved.services.map(({ nameChanged, descriptionChanged, groupChanged, urlChanged, iconChanged, ...savedService }) => {
+          const current = services.find((service) => service.id === savedService.id && service.tileId === savedService.tileId);
+          return { ...current, ...savedService,
+            name: nameChanged ? savedService.name ?? "" : current?.name ?? "",
+            description: descriptionChanged ? savedService.description : current?.description,
+            group: groupChanged ? savedService.group : current?.group,
+            url: urlChanged ? savedService.url : current?.url,
+            icon: iconChanged ? savedService.icon : current?.icon,
+            widget: savedService.widget ? {
+              ...(current?.widget?.type === savedService.widget.type ? current.widget : {}), ...savedService.widget,
+            } : undefined } as Service;
+        });
+        const projected = persistLegacyServices(restoredServices, persistedServices, serviceTiles);
+        setServices(restoredServices); setPersistedServices(projected.services); setServiceTiles(projected.service_tiles);
+      }
+      if (changedRevision) { conflictRef.current = true; setConflict(true); }
+    }, Object.values(dirtySections).some(Boolean));
+  const draftBlocked = writePending || conflict || recovery.validating || recovery.conflict || Boolean(unsaved?.saving);
+  useEffect(() => {
+    if (recovery.conflict) { conflictRef.current = true; setConflict(true); }
+  }, [recovery.conflict]);
+
+  function resetSecrets() {
+    setAuthPassword(""); setTotpCode(""); setTotpPassword(""); setTotpDisableCode(""); setRecoveryPassword(""); setNewRecoveryCode(null);
+    setTotp({ status: "loading" }); setShowDisableConfirm(false); setShowRecoveryConfirm(false);
+    totpFetchedRef.current = false; setTotpResetVersion((version) => version + 1);
+  }
+  function discardSettings() {
+    const confirmed = confirmedConfigRef.current;
+    setTheme(confirmed.appearance.theme); document.documentElement.dataset.theme = confirmed.appearance.theme;
+    setCustomCss(confirmed.appearance.custom_css ?? ""); setCardBlur(confirmed.appearance.card_blur?.toString() ?? "");
+    setBgColor(confirmed.appearance.background?.color ?? ""); setBgGradient(confirmed.appearance.background?.gradient ?? "");
+    setBgImage(confirmed.appearance.background?.image ?? ""); setBgBlur(confirmed.appearance.background?.blur?.toString() ?? "");
+    setBgBrightness(confirmed.appearance.background?.brightness?.toString() ?? ""); setBgOpacity(confirmed.appearance.background?.opacity?.toString() ?? "");
+    setSessionIdleTimeout(confirmed.auth.session_idle_timeout_hours ? String(confirmed.auth.session_idle_timeout_hours) : "");
+    setGroups(confirmed.groups ?? []); setBookmarks(confirmed.bookmarks ?? []); setPendingGroupOps([]);
+    setUngrouped(confirmed.layout.ungrouped ?? "last");
+    const restored = normalizeServicesForForm(confirmed.services, confirmed.service_tiles ?? []);
+    setServices(projectCatalogServices(restored.services, restored.service_tiles)); setPersistedServices(restored.services); setServiceTiles(restored.service_tiles);
+    setShowServiceForm(false); setShowBookmarkForm(false); resetSecrets(); recovery.dismiss();
+  }
+  function settingsSource(section: keyof typeof drafts) {
+    return {
+      label: `${section[0].toUpperCase()}${section.slice(1)} settings`, dirty: dirtySections[section],
+      saving: saveStatus[section] === "saving" || section === "appearance" && bgUploadStatus.state === "uploading",
+      scope: "settings" as const, writeRevision: revisionRef.current, version: canonicalJSONString(drafts[section]),
+      discard: discardSettings,
+      save: conflict ? undefined : async () => {
+        const result = section === "groups" ? await handleSaveGroups()
+          : section === "services" ? await saveServices(services)
+          : section === "auth" ? await handleSaveAuth()
+          : await save(section, drafts[section]);
+        return Boolean(result?.ok);
+      },
+    };
+  }
+  useUnsavedSource("settings:appearance", settingsSource("appearance"));
+  useUnsavedSource("settings:auth", settingsSource("auth"));
+  useUnsavedSource("settings:groups", settingsSource("groups"));
+  useUnsavedSource("settings:services", settingsSource("services"));
+  useUnsavedSource("settings:bookmarks", settingsSource("bookmarks"));
+  useUnsavedSource("settings:credentials", {
+    label: "Account security fields", dirty: accountFieldsDirty, saving: recoveryPending || totpPending, scope: "settings",
+    writeRevision: revisionRef.current,
+    version: [authPassword, totpCode, totpPassword, totpDisableCode, recoveryPassword].join("\0"), discard: resetSecrets,
+    save: authPassword && !totpCode && !totpPassword && !totpDisableCode && !recoveryPassword && !newRecoveryCode && !conflict
+      ? async () => Boolean((await handleSaveAuth()).ok) : undefined,
+  });
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
 
   async function fetchTotpStatus() {
@@ -220,10 +438,12 @@ export default function SettingsPanel({
     if (activeTab === "auth" && !totpFetchedRef.current) {
       fetchTotpStatus();
     }
-  }, [activeTab]);
+  }, [activeTab, totpResetVersion]);
 
   async function handleTotpEnable() {
-    if (totp.status !== "setup") return;
+    if (totp.status !== "setup" || accountPendingRef.current) return;
+    accountPendingRef.current = true; setTotpPending(true);
+    const finishWrite = unsaved?.beginWrite();
     setTotpMessage(null);
     try {
       const res = await fetch("/api/auth/totp/setup", {
@@ -242,10 +462,13 @@ export default function SettingsPanel({
       }
     } catch {
       setTotpMessage("Failed to enable 2FA");
-    }
+    } finally { accountPendingRef.current = false; setTotpPending(false); finishWrite?.(); }
   }
 
   async function handleTotpDisable() {
+    if (accountPendingRef.current) return;
+    accountPendingRef.current = true; setTotpPending(true);
+    const finishWrite = unsaved?.beginWrite();
     setTotpMessage(null);
     try {
       const res = await fetch("/api/auth/totp/setup", {
@@ -264,11 +487,13 @@ export default function SettingsPanel({
       }
     } catch {
       setTotpMessage("Failed to disable 2FA");
-    }
+    } finally { accountPendingRef.current = false; setTotpPending(false); finishWrite?.(); }
   }
 
   async function handleRegenerateRecoveryCode() {
-    if (recoveryPending) return;
+    if (accountPendingRef.current) return;
+    accountPendingRef.current = true;
+    const finishWrite = unsaved?.beginWrite();
     setRecoveryPending(true);
     setRecoveryMessage(null);
     try {
@@ -289,6 +514,7 @@ export default function SettingsPanel({
       setRecoveryMessage("Failed to generate recovery code");
     } finally {
       setRecoveryPending(false);
+      accountPendingRef.current = false; finishWrite?.();
     }
   }
 
@@ -297,6 +523,8 @@ export default function SettingsPanel({
     payload: Record<string, unknown>
   ): Promise<SaveResult> {
     if (configurationMutationBlocked()) return { ok: false };
+    const submittedRevision = revisionRef.current;
+    const finishWrite = unsaved?.beginWrite();
     writePendingRef.current = true;
     setWritePending(true);
     setSaveStatus((s) => ({ ...s, [section]: "saving" }));
@@ -306,7 +534,7 @@ export default function SettingsPanel({
         headers: {
           "Content-Type": "application/json",
           "X-Kokpit-Request": "1",
-          ...(revisionRef.current ? { "If-Match": revisionRef.current } : {}),
+          ...(submittedRevision ? { "If-Match": submittedRevision } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -326,7 +554,13 @@ export default function SettingsPanel({
         throw new Error("Save failed");
       }
       const nextRevision = res.headers?.get(CONFIG_REVISION_HEADER) ?? null;
-      if (nextRevision) revisionRef.current = nextRevision;
+      if (nextRevision) {
+        // Appearance/auth writes leave child group/catalog/bookmark projections
+        // unchanged. Group saves include cascades, so never advance their drafts.
+        const preservesChildren = Object.keys(payload).every((key) => ["appearance", "auth", "auth_password"].includes(key));
+        recovery.acknowledgeRevision(nextRevision, preservesChildren ? submittedRevision || undefined : undefined);
+        revisionRef.current = nextRevision;
+      }
       // A services response contains freshly redacted credential references.
       // Those references identify the service by name, so a rename must replace
       // the optimistic client state with this authoritative response before the
@@ -341,6 +575,24 @@ export default function SettingsPanel({
         // The API returns JSON, but a malformed success response must not turn
         // an already-persisted settings change into a client-side save failure.
       }
+      const acknowledged = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "auth_password"));
+      confirmedConfigRef.current = { ...confirmedConfigRef.current, ...acknowledged, ...updatedConfig } as ClientSafeSettings;
+      setBaselines((previous) => {
+        const next = { ...previous };
+        if (section === "appearance" || section === "auth" || section === "bookmarks") next[section] = payload[section];
+        if (section === "services") next.services = {
+          services: updatedConfig?.services ?? payload.services,
+          service_tiles: updatedConfig?.service_tiles ?? payload.service_tiles,
+        };
+        if (section === "groups") {
+          next.groups = { groups: payload.groups, layout: payload.layout, tileGroups: [], bookmarkGroups: [] };
+          if (payload.bookmarks !== undefined) next.bookmarks = payload.bookmarks;
+          if (payload.service_tiles !== undefined) next.services = {
+            ...(previous.services as { services: unknown }), service_tiles: payload.service_tiles,
+          };
+        }
+        return next;
+      });
       setSaveStatus((s) => ({ ...s, [section]: "saved" }));
       startTransition(() => router.refresh());
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -352,6 +604,7 @@ export default function SettingsPanel({
     } finally {
       writePendingRef.current = false;
       setWritePending(false);
+      finishWrite?.();
     }
   }
 
@@ -392,7 +645,7 @@ export default function SettingsPanel({
     // Clamp to the documented 0–40 range; 0/blank still means "unset" (cards
     // stay opaque), matching the pre-clamp behavior.
     const cb = clampNumericField(cardBlur, 0, 40);
-    save("appearance", {
+    return save("appearance", {
       theme,
       custom_css: customCss || undefined,
       card_blur: cb !== undefined && cb > 0 ? cb : undefined,
@@ -402,6 +655,7 @@ export default function SettingsPanel({
 
   async function handleBackgroundUpload(file: File) {
     if (configurationMutationBlocked()) return;
+    const finishWrite = unsaved?.beginWrite();
     setBgUploadStatus({ state: "uploading" });
     try {
       const body = new FormData();
@@ -419,42 +673,40 @@ export default function SettingsPanel({
         state: "error",
         message: err instanceof Error ? err.message : "Upload failed",
       });
-    }
+    } finally { finishWrite?.(); }
   }
 
-  function handleSaveAuth() {
+  async function handleSaveAuth() {
     const submittedTimeout = sessionIdleTimeout;
     const timeout = Number(submittedTimeout);
     const canonicalTimeout = Number.isFinite(timeout) && timeout > 0
       ? Math.min(8760, Math.max(1, Math.floor(timeout)))
       : 0;
     setAuthPolicyMessage(null);
-    void saveRaw("auth", {
+    const result = await saveRaw("auth", {
       auth: {
         enabled: config.auth.enabled,
         session_idle_timeout_hours: canonicalTimeout,
       },
       auth_password: authPassword,
-    }).then((result) => {
-      if (!result.ok) return;
-      setAuthPassword("");
-      const savedTimeout = result.config?.auth?.session_idle_timeout_hours ?? canonicalTimeout;
-      setSessionIdleTimeout((current) => current === submittedTimeout
-        ? (savedTimeout > 0 ? savedTimeout.toString() : "")
-        : current);
     });
+    if (!result.ok) return result;
+    setAuthPassword("");
+    const savedTimeout = result.config?.auth?.session_idle_timeout_hours ?? canonicalTimeout;
+    setSessionIdleTimeout((current) => current === submittedTimeout
+      ? (savedTimeout > 0 ? savedTimeout.toString() : "")
+      : current);
+    return result;
   }
 
   async function saveServices(next: Service[]) {
-    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return { ok: false };
     const projected = persistLegacyServices(next, persistedServices, serviceTiles);
     servicesSavePendingRef.current = true;
     setServicesWritePending(true);
-    setServices(next);
-    setPersistedServices(projected.services);
-    setServiceTiles(projected.service_tiles);
     try {
       const result = await saveRaw("services", projected);
+      if (!result.ok) return result;
       if (Array.isArray(result.config?.services)) {
         const refreshed = normalizeServicesForForm(
           result.config.services,
@@ -463,24 +715,29 @@ export default function SettingsPanel({
         setServices(projectCatalogServices(refreshed.services, refreshed.service_tiles));
         setPersistedServices(refreshed.services);
         setServiceTiles(refreshed.service_tiles);
+      } else {
+        setServices(next);
+        setPersistedServices(projected.services);
+        setServiceTiles(projected.service_tiles);
       }
+      return result;
     } finally {
       servicesSavePendingRef.current = false;
       setServicesWritePending(false);
     }
   }
 
-  function handleServiceSave(service: Service) {
-    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
+  async function handleServiceSave(service: Service) {
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return false;
     const next = [...services];
     if (editingIndex !== null) {
       next[editingIndex] = service;
     } else {
       next.push(service);
     }
-    setShowServiceForm(false);
-    setEditingIndex(null);
-    void saveServices(next);
+    const result = await saveServices(next);
+    if (result.ok) { setShowServiceForm(false); setEditingIndex(null); }
+    return result.ok;
   }
 
   function handleServiceDelete(index: number) {
@@ -616,7 +873,7 @@ export default function SettingsPanel({
     // Group renames/deletes may cascade into the complete services array.
     // Never let that full-list write race a service save carrying older
     // credential references.
-    if (servicesSavePendingRef.current || configurationMutationBlocked()) return;
+    if (servicesSavePendingRef.current || configurationMutationBlocked()) return { ok: false };
     // Strip default values so omitted keys stay omitted in the YAML round-trip.
     const cleanGroups = groups.map((g) => ({
       name: g.name,
@@ -659,6 +916,7 @@ export default function SettingsPanel({
         if (cascade.bookmarksChanged) setBookmarks(cascade.bookmarks);
         setPendingGroupOps([]);
       }
+      return result;
     } finally {
       if (tileCascade.serviceTilesChanged) {
         servicesSavePendingRef.current = false;
@@ -698,18 +956,20 @@ export default function SettingsPanel({
     setShowBookmarkForm(true);
   }
 
-  function handleBookmarkSave(bookmark: BookmarkGroup) {
-    if (configurationMutationBlocked()) return;
+  async function handleBookmarkSave(bookmark: BookmarkGroup) {
+    if (configurationMutationBlocked()) return false;
     const next = [...bookmarks];
     if (editingBookmarkIndex !== null) {
       next[editingBookmarkIndex] = bookmark;
     } else {
       next.push(bookmark);
     }
-    setBookmarks(next);
-    setShowBookmarkForm(false);
-    setEditingBookmarkIndex(null);
-    save("bookmarks", next);
+    const result = await save("bookmarks", next);
+    if (result.ok) {
+      setBookmarks(result.config?.bookmarks ?? next);
+      setShowBookmarkForm(false); setEditingBookmarkIndex(null);
+    }
+    return result.ok;
   }
 
   function closeBookmarkForm() {
@@ -736,10 +996,16 @@ export default function SettingsPanel({
 
   return (
     <div className="settings-panel">
+      {recovery.recovered && <p className="settings-hint" role="status">Recovered unsaved settings from this tab. Review before saving; credentials and URL query/fragment values need re-entry. Some CSS edits may need re-entry.</p>}
+      {!recovery.available && <p className="settings-hint" role="alert">This draft is too large for navigation recovery. Save before using browser Back or Forward.</p>}
+      {Object.values(dirtySections).some(Boolean) && <p className="settings-hint" role="status">Unsaved settings changes.</p>}
       {conflict && (
         <div className="settings-form-hint settings-form-hint--error" role="alert">
           settings.yaml changed on disk. Reload to discard this draft and review the latest settings.
-          <button className="settings-btn" onClick={() => window.location.reload()}>
+          <button className="settings-btn" onClick={() => {
+            if (unsaved) void unsaved.confirm().then((allowed) => { if (allowed) window.location.reload(); });
+            else window.location.reload();
+          }}>
             Reload settings
           </button>
         </div>
@@ -948,6 +1214,7 @@ export default function SettingsPanel({
         {activeTab === "auth" && (
           <section className="settings-section">
             <h2 className="settings-section__title">Authentication</h2>
+            <fieldset className="settings-section settings-fieldset" disabled={writePending || recoveryPending || totpPending || Boolean(unsaved?.saving)}>
 
             <div className="settings-form-row settings-form-row--column">
               <label className="settings-form-row">
@@ -1164,12 +1431,14 @@ export default function SettingsPanel({
             )}
 
             {showSessionManager && <SessionManager />}
+            </fieldset>
           </section>
         )}
 
         {/* GROUPS */}
         {activeTab === "groups" && (
           <GroupsTab
+            baselineRevision={revisionRef.current}
             groups={groups}
             undeclaredGroups={undeclaredGroups}
             ungrouped={ungrouped}
@@ -1306,11 +1575,14 @@ export default function SettingsPanel({
           }
           onSave={handleServiceSave}
           onClose={closeServiceForm}
+          draftScope="settings"
+          baselineRevision={revisionRef.current}
         />
       )}
 
       {showBookmarkForm && (
         <BookmarkGroupForm
+          recoveryId={`settings:bookmark-form:${editingBookmarkIndex ?? "new"}`}
           bookmark={
             editingBookmarkIndex !== null ? bookmarks[editingBookmarkIndex] : null
           }
@@ -1320,6 +1592,8 @@ export default function SettingsPanel({
             .map((b) => b.name)}
           onSave={handleBookmarkSave}
           onClose={closeBookmarkForm}
+          draftScope="settings"
+          baselineRevision={revisionRef.current}
         />
       )}
     </div>

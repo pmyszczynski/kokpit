@@ -55,4 +55,13 @@ test("custom CSS can override settings fieldset resets", async ({ page, request 
   await expect(fieldset).toHaveCSS("padding-top", "13px");
   await expect(fieldset).toHaveCSS("display", "grid");
   await expect(fieldset).toHaveCSS("gap", "7px");
+
+  await page.getByRole("button", { name: "Bookmarks", exact: true }).click();
+  await page.getByRole("button", { name: "+ Add bookmark group", exact: true }).click();
+  const formFields = page.locator("dialog.service-form-dialog[open] fieldset.settings-fieldset");
+  await expect(formFields).toHaveCSS("border-top-width", "3px");
+  await expect(formFields).toHaveCSS("margin-top", "11px");
+  await expect(formFields).toHaveCSS("padding-top", "13px");
+  await expect(formFields).toHaveCSS("display", "grid");
+  await expect(formFields).toHaveCSS("gap", "7px");
 });
