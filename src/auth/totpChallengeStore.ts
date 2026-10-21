@@ -23,6 +23,7 @@ type ChallengeRow = {
   jti: string; user_id: string; session_version: number; issued_at: number; expires_at: number;
   attempts: number; state: "active" | "consumed" | "exhausted";
   username: string; totp_secret: string | null; current_version: number;
+  password_replacement_recommended: number;
 };
 
 export function isTotpChallengeClaims(value: unknown): value is TotpChallengeClaims {
@@ -50,7 +51,11 @@ function read(db: Database.Database, jti: string): ChallengeRow | undefined {
 }
 
 /** Register only server-issued challenges; submitted tokens never create rows. */
-export function registerTotpChallenge(claim: TotpChallengeClaims, db: Database.Database = getDb()): void {
+export function registerTotpChallenge(
+  claim: TotpChallengeClaims,
+  db: Database.Database = getDb(),
+  options: { passwordReplacementRecommended?: boolean } = {}
+): void {
   db.transaction(() => {
     const now = Math.floor(Date.now() / 1000);
     if (!isTotpChallengeClaims(claim) || claim.issuedAt > now || claim.expiresAt <= now) throw new SessionInvalidatedError();
@@ -68,9 +73,9 @@ export function registerTotpChallenge(claim: TotpChallengeClaims, db: Database.D
     const blockedUntil = Math.max(user.count >= MAX_ACTIVE_PER_USER ? user.expiry! : 0, total.count >= MAX_LIVE_CHALLENGES ? total.expiry! : 0);
     if (blockedUntil > now) throw new TotpChallengeCapacityError(blockedUntil - now);
     const inserted = db.prepare(`
-      INSERT INTO totp_challenges (jti, user_id, session_version, issued_at, expires_at)
-      SELECT ?, id, session_version, ?, ? FROM users WHERE id = ? AND session_version = ?
-    `).run(claim.jti, claim.issuedAt, claim.expiresAt, claim.userId, claim.sessionVersion);
+      INSERT INTO totp_challenges (jti, user_id, session_version, issued_at, expires_at, password_replacement_recommended)
+      SELECT ?, id, session_version, ?, ?, ? FROM users WHERE id = ? AND session_version = ?
+    `).run(claim.jti, claim.issuedAt, claim.expiresAt, options.passwordReplacementRecommended ? 1 : 0, claim.userId, claim.sessionVersion);
     if (inserted.changes !== 1) throw new SessionInvalidatedError();
   }).immediate();
 }
@@ -112,7 +117,11 @@ export function completeTotpChallenge(
     const claimed = db.prepare("UPDATE totp_challenges SET state = 'consumed' WHERE jti = ? AND state = 'active' AND attempts < ?")
       .run(claim.jti, MAX_ATTEMPTS);
     if (claimed.changes !== 1) return { status: "invalid" };
-    const created = createSessionInDatabase(db, claim.userId, { ...options, expectedSessionVersion: claim.sessionVersion });
+    const created = createSessionInDatabase(db, claim.userId, {
+      ...options,
+      expectedSessionVersion: claim.sessionVersion,
+      passwordReplacementRecommended: row.password_replacement_recommended === 1,
+    });
     releaseSuccessfulLoginAttempt(admission.attempt, db);
     return { status: "success", user: { id: claim.userId, username: row.username }, ...created };
   }).immediate();

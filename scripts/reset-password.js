@@ -15,6 +15,17 @@ const { mkdirSync } = require("fs");
 const { dirname } = require("path");
 
 const SALT_ROUNDS = 10;
+// Match src/auth/passwordPolicy.ts; bcrypt silently ignores bytes after this.
+const MAX_NEW_PASSWORD_BYTES = 72;
+
+/** Validate new input without normalizing, truncating or echoing its contents. */
+function passwordValidationError(password) {
+  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (Buffer.byteLength(password, "utf8") > MAX_NEW_PASSWORD_BYTES) {
+    return "New passwords must be at most 72 UTF-8 bytes.";
+  }
+  return null;
+}
 
 function openDb() {
   const path = process.env.KOKPIT_DB_PATH ?? "data/users.db";
@@ -77,6 +88,7 @@ async function askYesNo(rl, question) {
   return answer.trim().toLowerCase().startsWith("y");
 }
 
+/** Replace a selected account's credentials only after valid confirmed input. */
 async function main() {
   const db = openDb();
   const users = db.prepare("SELECT id, username FROM users").all();
@@ -119,9 +131,10 @@ async function main() {
 
   let password;
   for (;;) {
-    password = await askHidden(rl, "New password (min 8 characters): ");
-    if (password.length < 8) {
-      console.log("Password must be at least 8 characters.");
+    password = await askHidden(rl, "New password (min 8 characters, max 72 UTF-8 bytes): ");
+    const issue = passwordValidationError(password);
+    if (issue) {
+      console.log(issue);
       continue;
     }
     const confirm = await askHidden(rl, "Confirm new password: ");
@@ -156,7 +169,7 @@ async function main() {
   db.close();
 }
 
-module.exports = { openDb };
+module.exports = { openDb, passwordValidationError, MAX_NEW_PASSWORD_BYTES };
 
 if (require.main === module) {
   main().catch((err) => {

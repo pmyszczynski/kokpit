@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { newPasswordExceedsByteLimit, NEW_PASSWORD_BYTE_LIMIT_MESSAGE } from "@/auth/passwordPolicy";
 
+/** Redeem recovery proof only after validating the proposed new password. */
 export default function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ totpStillEnabled: boolean } | null>(null);
 
+  /** Reject local confirmation/byte errors without sending the recovery code. */
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -19,6 +22,11 @@ export default function ResetPasswordForm() {
 
     if (newPassword !== confirm) {
       setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
+    if (newPasswordExceedsByteLimit(newPassword)) {
+      setError(NEW_PASSWORD_BYTE_LIMIT_MESSAGE);
       setLoading(false);
       return;
     }
@@ -117,7 +125,11 @@ export default function ResetPasswordForm() {
             required
             autoComplete="new-password"
             minLength={8}
+            aria-describedby="reset-password-hint"
           />
+          <p id="reset-password-hint" className="auth-card__subtitle">
+            At most 72 UTF-8 bytes. Emoji and other characters can use multiple bytes.
+          </p>
         </div>
         <div className="auth-field">
           <label htmlFor="reset-confirm">Confirm new password</label>

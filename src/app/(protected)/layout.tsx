@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { getAuthUser, countUsers, SESSION_COOKIE_NAME } from "@/auth";
+import { getAuthSession, countUsers, SESSION_COOKIE_NAME } from "@/auth";
 import { getConfigSnapshot } from "@/config/server";
 import Navbar from "@/components/Navbar";
 import { EditModeProvider } from "@/components/edit/EditModeProvider";
 import SessionRenewal from "@/components/SessionRenewal";
+import PasswordReplacementNotice from "@/components/PasswordReplacementNotice";
 
 export const dynamic = 'force-dynamic';
 
+/** Authorize the shell before rendering session-specific account guidance. */
 export default async function ProtectedLayout({
   children,
 }: {
@@ -25,6 +27,7 @@ export default async function ProtectedLayout({
     config.auth.enabled && process.env.KOKPIT_AUTH_DISABLED !== "true";
 
   let showLogout = false;
+  let passwordReplacementRecommended = false;
 
   if (authEnabled) {
     if (countUsers() === 0) {
@@ -33,13 +36,14 @@ export default async function ProtectedLayout({
 
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    const user = await getAuthUser(token);
+    const auth = await getAuthSession(token);
 
-    if (!user) {
+    if (!auth) {
       redirect("/login");
     }
 
     showLogout = true;
+    passwordReplacementRecommended = auth.session.passwordReplacementRecommended === true;
   }
 
   // Reaching this render means the viewer is allowed (unauthed users are
@@ -55,7 +59,10 @@ export default async function ProtectedLayout({
       >
         <Navbar showLogout={showLogout} canEdit={canEdit} />
         {showLogout && <SessionRenewal />}
-        <main className="shell-main">{children}</main>
+        <main className="shell-main">
+          {passwordReplacementRecommended && <PasswordReplacementNotice />}
+          {children}
+        </main>
       </EditModeProvider>
     </div>
   );

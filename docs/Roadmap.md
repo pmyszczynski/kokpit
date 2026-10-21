@@ -41,8 +41,8 @@ are reassessed separately and are not part of this work.
 - [x] `P1` **IMP-06 — Give TOTP challenges durable, atomic lifecycle state**
   - Implemented for v0.30.7: Distinct five-minute challenges retain bounded attempts and single-use state in SQLite; code verification, admission and session creation commit atomically across processes.
   - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-06)
-- [ ] `P1` **IMP-07 — Prevent silent truncation of new bcrypt passwords**
-  - Enforce the 72-byte UTF-8 boundary when setting passwords; preserve legacy login compatibility and explain password replacement requirements.
+- [x] `P1` **IMP-07 — Prevent silent truncation of new bcrypt passwords**
+  - Implemented for v0.30.8: New and replacement passwords reject values beyond 72 UTF-8 bytes while legacy verification remains compatible and authenticated guidance stays server-side until login completes.
   - [Authentication plan](plans/2026-10-20-auth-hardening-plan.md#imp-07)
 - [x] `P1` **IMP-08 — Validate and bound JSON request bodies**
   - Implemented for v0.30.6: Actual streamed request bytes are bounded before parsing, with JSON-object validation and fresh authorization.

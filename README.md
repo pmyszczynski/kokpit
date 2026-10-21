@@ -416,6 +416,28 @@ settings.
 
 Kokpit doesn't collect an email address or phone number, so password recovery works differently than most apps.
 
+**Password length and upgrades.** Newly created or replacement passwords keep the
+existing minimum-length policy and have a maximum of **72 UTF-8
+bytes**, matching bcrypt's full-input boundary. The setup form, recovery reset,
+shared hashing policy and emergency reset utility enforce the same maximum.
+Emoji and other non-ASCII characters may occupy multiple bytes; passwords are
+never normalized or silently truncated by the new-password flows.
+
+Existing bcrypt passwords still use legacy comparison during login and current
+password confirmation, so an old password longer than 72 UTF-8 bytes continues
+to work within the auth request-body limit. That comparison checks only its
+first 72 bytes: different suffixes can still match until the password is
+deliberately replaced. Kokpit does not infer the original suffix or rehash an
+accepted candidate automatically. After a successful login using an overlong
+candidate, the authenticated dashboard recommends replacement through your saved
+recovery code or the emergency host reset below. With 2FA, this recommendation
+becomes available only after the second factor succeeds; its boolean hint stays
+in server-side challenge/session metadata rather than readable JWT claims.
+
+The separate auth JSON transport limit is 16 KiB for the entire encoded request;
+it does not redefine the 72-byte new-password rule. An exceptional preexisting
+password that cannot fit that request must be replaced using the host reset.
+
 **Recovery code (self-service).** When you complete the setup wizard, Kokpit shows you a one-time recovery code (`xxxxxxxx-xxxxxxxx-xxxxxxxx-xxxxxxxx`). Save it in a password manager — it's shown exactly once and is the only way to reset your password from the web UI. If you forget your password:
 
 1. Click **Forgot password?** on the login page.

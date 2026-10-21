@@ -1,6 +1,6 @@
 # Authentication hardening implementation plan
 
-Date: 2026-10-20. Status: **mixed — IMP-01 implemented for v0.30.2; IMP-02 and IMP-03 completed upstream in PR #132; IMP-06 implemented for v0.30.7; IMP-07 planned**.
+Date: 2026-10-20. Status: **implemented — IMP-01 for v0.30.2, IMP-06 for v0.30.7 and IMP-07 for v0.30.8; IMP-02 and IMP-03 completed upstream in PR #132**.
 
 This plan records selected review items IMP-01, IMP-02, IMP-03, IMP-06, and IMP-07, rechecked against main `71ef878` (v0.27.1). The IDs retain the numbering of the original 20-item review. See the [implementation index](2026-10-20-improvement-plan.md) for sequencing across plans and the full required pre-PR validation gate. Focused tests below supplement that gate.
 
@@ -165,17 +165,23 @@ Do not confuse challenge replay with reuse of a time-step code across *distinct*
 
 ## IMP-07 — Stop silently truncating newly chosen bcrypt passwords
 
-Status: **planned**.
+Status: **implemented for v0.30.8**.
 
-### Evidence and scope
+New or replacement passwords now reject values exceeding exactly 72 UTF-8 bytes before bcrypt work, without normalization or truncation. The shared hash helper, setup/recovery APIs, browser feedback and emergency CLI use that boundary while retaining the existing minimum. Legacy login and current-password confirmation continue to accept their previous bcrypt semantics within the separate auth transport limit; rejected replacements do not consume recovery proof or revoke credentials.
 
-[Password hashing](../../src/auth/passwords.ts#L5) uses bcrypt without length validation. [Setup](../../src/app/api/setup/route.ts#L43), [recovery reset](../../src/app/api/auth/reset-password/route.ts#L76), and [the emergency script](../../scripts/reset-password.js#L120) enforce a minimum using JavaScript string length but no bcrypt byte ceiling.
+A successful overlong legacy candidate produces authenticated replacement guidance. Its boolean hint stays in durable server-side challenge/session metadata, transfers atomically after TOTP and never appears in readable pre-authentication JWT claims. Additive database initialization now runs under one IMMEDIATE transaction, publishes only a fully initialized handle and closes failed provisional handles. Regression coverage includes Unicode boundaries, CLI reprompting, MFA disclosure, preserved opaque sessions, two-process schema startup and failed-initialization retry. Integrated validation is recorded separately.
 
-Installed bcryptjs accepted two different passwords with the same first 72 UTF-8 bytes. The same occurred with an 18-emoji prefix: 36 JavaScript code units already occupied 72 UTF-8 bytes. Thus this is a byte limit, not a 72-character limit. It is a real input-contract defect and weakens the expected distinction between long passphrases. It is not evidence that ordinary shorter passwords are broken or that bcrypt hashing should be replaced immediately.
+### Original evidence and scope
 
-### Proposed design and compatibility
+The pre-v0.30.8 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
-Use the small, compatible fix now: enforce a maximum of 72 UTF-8 bytes whenever a password is **created or replaced**. Measure the exact bytes hashed with `Buffer.byteLength(password, "utf8")` on the server; apply equivalent `TextEncoder` feedback in browser forms. Do not normalize or truncate passwords. Keep the existing minimum policy unchanged in this work so an unrelated minimum-length redefinition is not slipped into the fix. Apply the maximum in the shared hashing policy as well as route validation, and match it in the standalone CommonJS emergency script.
+Before v0.30.8, [password hashing](../../src/auth/passwords.ts) used bcrypt without length validation. [Setup](../../src/app/api/setup/route.ts), [recovery reset](../../src/app/api/auth/reset-password/route.ts), and [the emergency script](../../scripts/reset-password.js) enforced a minimum using JavaScript string length but no bcrypt byte ceiling. Each password-setting path now enforces the UTF-8 byte ceiling before hashing or credential mutation.
+
+Installed bcryptjs accepted two different passwords with the same first 72 UTF-8 bytes. The same occurred with an 18-emoji prefix: 36 JavaScript code units already occupied 72 UTF-8 bytes. This confirmed a defect in the previous password-setting contract: the relevant boundary is bytes, not characters. Legacy verification retains that ambiguity until explicit password replacement; ordinary shorter passwords remain compatible.
+
+### Accepted design and compatibility
+
+Enforce a maximum of 72 UTF-8 bytes whenever a password is **created or replaced**. Measure the exact bytes hashed with `Buffer.byteLength(password, "utf8")` on the server; apply equivalent `TextEncoder` feedback in browser forms. Do not normalize or truncate passwords. Keep the existing minimum policy unchanged. Apply the maximum in the shared hashing policy as well as route validation, and match it in the standalone CommonJS emergency script. The following design and acceptance criteria record the implemented contract; full integrated validation is recorded separately.
 
 Preserve legacy password verification for login and session password confirmation. A bcrypt hash does not reveal the original password length, so imposing the same maximum on all login requests would lock out existing users who supplied longer passwords during setup. On successful legacy login with a candidate exceeding 72 UTF-8 bytes, show a recommendation to replace the password via the existing recovery reset or emergency host reset flow. Complete TOTP before showing authenticated account guidance; do not add account-existence signals to a failed login. Do not auto-change the stored hash or silently bind the full submitted candidate: an arbitrary suffix may have been accepted under the old truncation semantics.
 

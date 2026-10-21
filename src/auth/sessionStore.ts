@@ -14,6 +14,7 @@ export type AuthSession = {
   createdAt: number;
   lastSeenAt: number;
   idleTimeoutHours: number;
+  passwordReplacementRecommended?: true;
 };
 
 type SessionRow = {
@@ -23,6 +24,7 @@ type SessionRow = {
   created_at: number;
   last_seen_at: number;
   idle_timeout_hours: number;
+  password_replacement_recommended: number;
 };
 
 function hashToken(token: string): string {
@@ -37,6 +39,7 @@ function rowToSession(row: SessionRow): AuthSession {
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
     idleTimeoutHours: row.idle_timeout_hours,
+    ...(row.password_replacement_recommended === 1 ? { passwordReplacementRecommended: true as const } : {}),
   };
 }
 
@@ -61,7 +64,12 @@ function safeDeviceLabel(userAgent?: string): string {
   return browser && platform ? `${browser} on ${platform}` : browser ?? platform ?? "Unknown browser";
 }
 
-type CreateSessionOptions = { userAgent?: string; idleTimeoutHours?: number; expectedSessionVersion?: number };
+type CreateSessionOptions = {
+  userAgent?: string;
+  idleTimeoutHours?: number;
+  expectedSessionVersion?: number;
+  passwordReplacementRecommended?: boolean;
+};
 
 export function createSession(userId: string, options: CreateSessionOptions = {}): { token: string; session: AuthSession } {
   return createSessionInDatabase(getDb(), userId, options);
@@ -86,13 +94,16 @@ export function createSessionInDatabase(
   if (expectedVersion === undefined) throw new SessionInvalidatedError();
 
   const result = db.prepare(`
-    INSERT INTO sessions (id, user_id, token_hash, device, created_at, last_seen_at, idle_timeout_hours)
-    SELECT ?, id, ?, ?, ?, ?, ?
+    INSERT INTO sessions (id, user_id, token_hash, device, created_at, last_seen_at, idle_timeout_hours, password_replacement_recommended)
+    SELECT ?, id, ?, ?, ?, ?, ?, ?
     FROM users WHERE id = ? AND session_version = ?
-  `).run(id, hashToken(token), safeDeviceLabel(options.userAgent), now, now, idleTimeoutHours, userId, expectedVersion);
+  `).run(id, hashToken(token), safeDeviceLabel(options.userAgent), now, now, idleTimeoutHours, options.passwordReplacementRecommended ? 1 : 0, userId, expectedVersion);
   if (result.changes !== 1) throw new SessionInvalidatedError();
 
-  return { token, session: { id, userId, device: safeDeviceLabel(options.userAgent), createdAt: now, lastSeenAt: now, idleTimeoutHours } };
+  return { token, session: {
+    id, userId, device: safeDeviceLabel(options.userAgent), createdAt: now, lastSeenAt: now, idleTimeoutHours,
+    ...(options.passwordReplacementRecommended ? { passwordReplacementRecommended: true as const } : {}),
+  } };
 }
 
 export async function getAuthSession(
@@ -102,7 +113,7 @@ export async function getAuthSession(
   if (!token || !OPAQUE_TOKEN_PATTERN.test(token)) return null;
   const db = getDb();
   const row = db.prepare(`
-    SELECT id, user_id, device, created_at, last_seen_at, idle_timeout_hours
+    SELECT id, user_id, device, created_at, last_seen_at, idle_timeout_hours, password_replacement_recommended
     FROM sessions WHERE token_hash = ?
   `).get(hashToken(token)) as SessionRow | undefined;
   if (!row) return null;
@@ -144,7 +155,7 @@ export function listSessions(userId: string): AuthSession[] {
   const now = Date.now();
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, user_id, device, created_at, last_seen_at, idle_timeout_hours
+    SELECT id, user_id, device, created_at, last_seen_at, idle_timeout_hours, password_replacement_recommended
     FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC
   `).all(userId) as SessionRow[];
   const sessions = rows.map(rowToSession);

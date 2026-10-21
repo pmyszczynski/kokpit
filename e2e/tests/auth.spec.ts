@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "path";
+import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 import { chunkedRequest } from "../helpers/chunked-request";
 
@@ -103,6 +105,32 @@ test.describe.serial("authentication flow", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("navigation")).toBeVisible();
+  });
+
+  test("legacy long-password login shows authenticated replacement guidance", async ({ page }) => {
+    const database = new Database(path.resolve("e2e/fixtures/auth-test-users.db"));
+    const userId = randomUUID();
+    const prefix = "😀".repeat(18);
+    try {
+      database.prepare("INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)")
+        .run(userId, "legacy-byte-policy", await bcrypt.hash(prefix + "old suffix", 10), Date.now());
+      await goto(page, "/login");
+      await page.getByPlaceholder("Username").fill("legacy-byte-policy");
+      await page.getByPlaceholder("Password").fill(prefix + "different suffix");
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      await expect(page).toHaveURL("/");
+      await expect(page.getByRole("status").filter({ hasText: "Only the first 72 UTF-8 bytes" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Use your saved recovery code to replace this password." }))
+        .toHaveAttribute("href", "/reset-password");
+      expect(await (await page.request.get("/api/auth/me")).json()).toMatchObject({ passwordReplacementRecommended: true });
+      await page.getByRole("link", { name: "Use your saved recovery code to replace this password." }).click();
+      await expect(page.getByRole("heading", { name: "Reset your password", exact: true })).toBeVisible();
+    } finally {
+      database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+      database.prepare("DELETE FROM totp_challenges WHERE user_id = ?").run(userId);
+      database.prepare("DELETE FROM users WHERE id = ?").run(userId);
+      database.close();
+    }
   });
 
   test("authenticated editor loads settings from the production runtime", async ({ page }) => {

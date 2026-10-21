@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { newPasswordExceedsByteLimit, NEW_PASSWORD_BYTE_LIMIT_MESSAGE } from "@/auth/passwordPolicy";
 
+/** Create the first account with byte-aware new-password feedback. */
 export default function SetupForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -10,6 +12,7 @@ export default function SetupForm() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  /** Validate the complete password before submitting account creation. */
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -21,6 +24,11 @@ export default function SetupForm() {
 
     if (password !== confirm) {
       setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
+    if (newPasswordExceedsByteLimit(password)) {
+      setError(NEW_PASSWORD_BYTE_LIMIT_MESSAGE);
       setLoading(false);
       return;
     }
@@ -127,7 +135,11 @@ export default function SetupForm() {
             required
             autoComplete="new-password"
             minLength={8}
+            aria-describedby="setup-password-hint"
           />
+          <p id="setup-password-hint" className="auth-card__subtitle">
+            At most 72 UTF-8 bytes. Emoji and other characters can use multiple bytes.
+          </p>
         </div>
         <div className="auth-field">
           <label htmlFor="setup-confirm">Confirm password</label>

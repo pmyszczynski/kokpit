@@ -1,5 +1,7 @@
 import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/requestBody";
 import { NextResponse } from "next/server";
+import { passwordExceedsBcryptLimit } from "@/auth/passwords";
+import { NEW_PASSWORD_BYTE_LIMIT_MESSAGE } from "@/auth/passwordPolicy";
 import {
   countUsers,
   createUser,
@@ -45,6 +47,12 @@ export async function POST(req: Request) {
   if (password.length < 8) {
     return NextResponse.json(
       { error: "password must be at least 8 characters" },
+      { status: 400 }
+    );
+  }
+  if (passwordExceedsBcryptLimit(password)) {
+    return NextResponse.json(
+      { error: NEW_PASSWORD_BYTE_LIMIT_MESSAGE, code: "password_too_long" },
       { status: 400 }
     );
   }

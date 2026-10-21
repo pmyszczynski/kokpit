@@ -1,7 +1,42 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import bcrypt from "bcryptjs";
-import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "../../auth/passwords";
+import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword, NewPasswordTooLongError } from "../../auth/passwords";
+import { newPasswordExceedsByteLimit } from "@/auth/passwordPolicy";
+
+describe("new-password byte policy", () => {
+  it.each(["a".repeat(71), "a".repeat(72), "😀".repeat(18), "e\u0301".repeat(24)])(
+    "accepts a complete password within the UTF-8 byte boundary", async password => {
+      expect(newPasswordExceedsByteLimit(password)).toBe(false);
+      const hash = await hashPassword(password);
+      expect(await verifyPassword(password, hash)).toBe(true);
+    }
+  );
+
+  it.each(["a".repeat(73), "😀".repeat(18) + "a", "😀".repeat(19), "e\u0301".repeat(24) + "é"])(
+    "rejects byte overflow before bcrypt without truncation", async password => {
+      const hash = vi.spyOn(bcrypt, "hash");
+      try {
+        expect(newPasswordExceedsByteLimit(password)).toBe(true);
+        await expect(hashPassword(password)).rejects.toBeInstanceOf(NewPasswordTooLongError);
+        expect(hash).not.toHaveBeenCalled();
+      } finally { hash.mockRestore(); }
+    }
+  );
+
+  it("does not normalize combining characters while hashing", async () => {
+    const password = "e\u0301".repeat(24);
+    const hash = await hashPassword(password);
+    expect(await verifyPassword(password.normalize("NFC"), hash)).toBe(false);
+  });
+
+  it("preserves legacy comparison of overlong candidates without rehashing an accepted suffix", async () => {
+    const prefix = "x".repeat(72);
+    const legacyHash = await bcrypt.hash(prefix + "original suffix", 10);
+    expect(await verifyPassword(prefix + "different suffix", legacyHash)).toBe(true);
+    expect(await verifyPassword("different prefix", legacyHash)).toBe(false);
+  });
+});
 
 describe("unknown-user dummy hash", () => {
   it("is a complete working bcrypt hash at the same cost as new passwords", async () => {

@@ -39,6 +39,17 @@ describe("ResetPasswordForm", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects matching multibyte overflow before submitting the recovery code", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ResetPasswordForm />);
+    const password = "e\u0301".repeat(24) + "é";
+    await act(async () => { fillAndSubmit("admin", "saved-code", password, password); });
+    expect(screen.getByRole("alert")).toHaveTextContent("at most 72 UTF-8 bytes");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("New password")).not.toHaveAttribute("maxlength");
+  });
+
   it("submits to /api/auth/reset-password and shows a success screen", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
