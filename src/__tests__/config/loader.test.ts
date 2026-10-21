@@ -329,6 +329,45 @@ services: []
 });
 
 describe("writeConfig", () => {
+  it("preserves nested comments through normal UI-style replacements without restoring omitted fields", async () => {
+    writeFileSync(configPath, `# operator document
+schema_version: 2
+auth: { enabled: false }
+appearance:
+  # theme explanation
+  theme: dark # selected theme
+  custom_css: |
+    .tile { color: red; }
+  background:
+    color: black # removed annotation
+layout: {}
+services: []
+service_tiles: []
+operator_extension: { keep: yes } # untouched extension
+`, "utf-8");
+    const { loadConfig, getConfig, writeConfigSnapshot } = await freshLoader();
+    loadConfig();
+    const written = writeConfigSnapshot({ appearance: { theme: "light", custom_css: ".tile { color: blue; }\n" } });
+    expect(written.source).toBe(readFileSync(configPath, "utf-8"));
+    expect(written.source).toContain("# theme explanation");
+    expect(written.source).toContain("theme: light # selected theme");
+    expect(written.source).toContain("# operator document");
+    expect(written.source).toContain("# untouched extension");
+    expect(written.source).not.toContain("removed annotation");
+    expect(written.config.appearance.background).toBeUndefined();
+    expect(getConfig()).toEqual(written.config);
+  });
+
+  it("rejects a shared-anchor change before writing and leaves the published config intact", async () => {
+    const source = "schema_version: 2\nappearance: &shared { theme: dark }\noperator_extension: *shared\nservices: []\nservice_tiles: []\n";
+    writeFileSync(configPath, source, "utf-8");
+    const { loadConfig, getConfig, writeConfig } = await freshLoader();
+    loadConfig();
+    expect(() => writeConfig({ appearance: { theme: "light" } })).toThrow(/expand shared aliases/);
+    expect(readFileSync(configPath, "utf-8")).toBe(source);
+    expect(getConfig().appearance.theme).toBe("dark");
+  });
+
   it("rejects a revision-equivalent source that was not the authorized snapshot", async () => {
     const { ConfigRevisionMismatchError, getConfigSnapshot, loadConfig, writeConfig } = await freshLoader();
     loadConfig();

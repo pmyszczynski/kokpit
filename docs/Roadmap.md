@@ -47,8 +47,8 @@ are reassessed separately and are not part of this work.
 - [x] `P1` **IMP-08 — Validate and bound JSON request bodies**
   - Implemented for v0.30.6: Actual streamed request bytes are bounded before parsing, with JSON-object validation and fresh authorization.
   - [Request-boundary plan](plans/2026-10-20-request-boundaries-plan.md#imp-08)
-- [ ] `P1` **IMP-10 — Preserve nested YAML comments on UI writes**
-  - Update retained AST nodes using record identity rather than replacing complete sections; cover reorder, edits, and deliberate deletion.
+- [x] `P1` **IMP-10 — Preserve nested YAML comments on UI writes**
+  - Implemented for v0.30.9: UI writes reconcile retained YAML nodes and identities, preserve supported comments/styles, and reject unsafe alias edits before persistence.
   - [Configuration-sync plan](plans/2026-10-20-config-sync-plan.md#imp-10)
 - [ ] `P1` **IMP-11 — Synchronize stable configuration changes into open browsers**
   - Refresh layout and appearance after external YAML edits or another browser's save; protect dirty drafts and handle authentication changes safely.

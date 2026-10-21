@@ -21,6 +21,7 @@ import { canonicalJSONString } from "./canonicalJson";
 import { configRevision } from "./revision";
 import { GENERIC_SERVICE_FOOTPRINT, isTileFootprint, legacyWidgetFootprint } from "@/layout/grid";
 import { resolveServiceSize } from "./resolve";
+import { reconcileSettingsDocument } from "./reconcileYaml";
 
 const CONFIG_PATH = process.env.KOKPIT_CONFIG_PATH ?? path.join(process.cwd(), "settings.yaml");
 const CONFIG_DISPLACED_PATH = `${CONFIG_PATH}.displaced`;
@@ -963,10 +964,10 @@ export function writeConfigSnapshot(
     }
     KokpitConfigSchema.parse({ ...current, ...fixedGridUpdates });
     const temp = `${CONFIG_PATH}.tmp-${process.pid}-${randomUUID()}`;
-    for (const [key, value] of Object.entries(fixedGridUpdates)) doc.setIn([key], value);
-    // Parse the exact document that will be persisted, not just the in-memory merge.
-    persistedConfig = KokpitConfigSchema.parse(doc.toJS());
-    persistedSource = doc.toString();
+    persistedSource = reconcileSettingsDocument(doc, fixedGridUpdates);
+    // Reparse the exact serialized bytes, including alias/formatting semantics,
+    // rather than validating only the in-memory candidate document.
+    persistedConfig = KokpitConfigSchema.parse(parseSettingsDocument(persistedSource).toJS());
     let mode = 0o600;
     try {
       if (existsSync(/* turbopackIgnore: true */ CONFIG_PATH)) mode = statSync(/* turbopackIgnore: true */ CONFIG_PATH).mode & 0o777;

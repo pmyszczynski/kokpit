@@ -134,6 +134,13 @@ Appearance, Layout, Groups, Services, Bookmarks, and Authentication tabs. It
 reads from and writes back to the same file, and changes take effect without a
 restart. You can also edit the YAML directly.
 
+UI saves preserve comments on surviving settings and records, including nested
+fields and UUID-identified services/tiles. Comments belonging only to deleted
+values are removed. Serialization may normalize indentation or quoting. Ambiguous
+changed arrays do not inherit another item's annotations; alias edits that cannot
+keep safe ownership are rejected with guidance to edit YAML directly or expand
+the aliases before retrying.
+
 The Docker image also defaults `KOKPIT_DB_PATH` to `/data/users.db` and
 `KOKPIT_UPLOADS_PATH` to `/data/uploads`; override these only when you need a
 different persistent layout. `auth.session_idle_timeout_hours` controls the

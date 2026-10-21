@@ -1,6 +1,6 @@
 # Configuration preservation and browser synchronization
 
-Date: 2026-10-20. Status: **planned; implementation has not started**.
+Date: 2026-10-20. Status: **IMP-10 implemented for v0.30.9; IMP-11 remains planned**.
 
 Selected improvements: **IMP-10** and **IMP-11** from the [improvement delivery plan](2026-10-20-improvement-plan.md). That plan owns sequencing and the required validation gate; this document supplies implementation details. The existing [architecture](../ARCHITECTURE.md#configuration-and-persistence) and [AGENTS.md](../../AGENTS.md) remain applicable.
 
@@ -8,11 +8,19 @@ Selected improvements: **IMP-10** and **IMP-11** from the [improvement delivery 
 
 ## IMP-10 — Preserve nested YAML comments during UI saves
 
+Status: **implemented for v0.30.9**.
+
+UI saves now reconcile YAML document nodes recursively instead of replacing submitted top-level sections. Surviving nested fields retain their comments and supported styles; services and tiles retain ownership by UUID, named groups by unambiguous normalized name, and bookmark links by exact or unambiguous one-field identity. Removed values lose their annotations, while unrelated sections remain intact; ambiguous changed arrays do not inherit another item's comments.
+
+Referenced aliases or graph edits that cannot preserve safe ownership fail with a controlled 400 `unsupported_yaml_update` before persistence, with guidance to edit YAML directly or expand aliases. The exact serialized result is reparsed and schema-validated within the existing locked atomic-write path. Repeated-save, reorder, rename, nested edit, deletion, scalar-style, alias and real loader/API regressions cover preservation and unchanged bytes on rejection. Integrated validation is recorded separately.
+
 ### Evidence and qualification
 
-[writeConfigSnapshot](../../src/config/loader.ts) parses a YAML document, then applies each submitted top-level section with `doc.setIn([key], value)`. Replacing the section creates new descendant nodes. A local reproduction using the installed `yaml` package retained a document-level comment but lost both a leading comment on `appearance.theme` and its inline comment when replacing `appearance`.
+The pre-v0.30.9 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 
-The issue is confirmed, but it is narrower than “all comments are lost”: untouched section nodes remain in the document, and [migration helpers](../../src/config/loader.ts) already preserve selected comments when restructuring legacy services. Existing [loader tests](../../src/__tests__/config/loader.test.ts) cover migration comment preservation, not normal UI updates of nested fields. The fix should reuse that knowledge without treating a migration-specific copy routine as a complete sequence reconciler.
+Before IMP-10, [writeConfigSnapshot](../../src/config/loader.ts) parsed a YAML document, then applied each submitted top-level section with `doc.setIn([key], value)`. Replacing the section creates new descendant nodes. A local reproduction using the installed `yaml` package retained a document-level comment but lost both a leading comment on `appearance.theme` and its inline comment when replacing `appearance`.
+
+The issue is confirmed, but it is narrower than “all comments are lost”: untouched section nodes remain in the document, and [migration helpers](../../src/config/loader.ts) already preserve selected comments when restructuring legacy services. The original [loader tests](../../src/__tests__/config/loader.test.ts) covered migration comment preservation, not normal UI updates of nested fields. The fix should reuse that knowledge without treating a migration-specific copy routine as a complete sequence reconciler.
 
 The goal is preservation of comments attached to surviving logical fields and items. It is **not byte-perfect formatting preservation**: YAML serialization can normalize indentation, quoting, and whitespace. Comments attached solely to deleted data should be deleted with that data, rather than silently moved onto an unrelated service or field.
 

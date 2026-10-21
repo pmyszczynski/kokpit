@@ -1,6 +1,6 @@
 {
   "name": "kokpit",
-  "version": "0.30.8",
+  "version": "0.30.9",
   "private": true,
   "engines": {
     "node": ">=22.19.0"

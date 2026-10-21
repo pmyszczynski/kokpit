@@ -1,6 +1,6 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 8 planned, 10 implemented; completed rows record
+Date: 2026-10-20. Status: 7 planned, 11 implemented; completed rows record
 their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
@@ -28,7 +28,7 @@ entries are future work.
 | IMP-06 | P1 | **Implemented for v0.30.7:** Distinct five-minute challenges retain bounded attempts and single-use state in SQLite; code verification, admission and session creation commit atomically across processes. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-06) |
 | IMP-07 | P1 | **Implemented for v0.30.8:** New and replacement passwords reject values beyond 72 UTF-8 bytes while legacy verification remains compatible and authenticated guidance stays server-side until login completes. | [Authentication](2026-10-20-auth-hardening-plan.md#imp-07) |
 | IMP-08 | P1 | **Implemented for v0.30.6:** Actual streamed request bytes are bounded before parsing, with JSON-object validation and fresh authorization. | [Request boundaries](2026-10-20-request-boundaries-plan.md#imp-08) |
-| IMP-10 | P1 | UI writes preserve comments on retained YAML settings and records. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-10) |
+| IMP-10 | P1 | **Implemented for v0.30.9:** UI writes reconcile retained YAML nodes and identities, preserve supported comments/styles, and reject unsafe alias edits before persistence. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-10) |
 | IMP-11 | P1 | Open browsers observe stable configuration changes without silently losing drafts. | [Configuration sync](2026-10-20-config-sync-plan.md#imp-11) |
 | IMP-13 | P1 | Visible, online consumers poll without overlap and use bounded failure backoff. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-13) |
 | IMP-14 | P1 | Equivalent widget requests share bounded upstream work and cached results. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-14) |
