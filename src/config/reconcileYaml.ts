@@ -179,24 +179,24 @@ export function reconcileSettingsDocument(document: Document, updates: Record<st
     if (pair) pair.value = update(isNode(pair.value) ? pair.value : null, value, [key]);
     else document.contents.items.push(document.createPair(key, value));
   }
-  // yaml prints an item's commentBefore above its dash. If that item becomes
-  // first, reparsing attaches the comment to the whole sequence instead. Keep
-  // map-item comments inside the dash so subsequent saves retain their owner.
+  // yaml prints the first block item's commentBefore above its dash, changing
+  // its owner to the sequence even on an unrelated save. Stabilize only that
+  // item; later block items and flow items already retain leading comments.
   visit(document, {
     Seq(_key, sequence) {
-      for (const item of sequence.items) {
-        if (!isNode(item) || !item.commentBefore) continue;
-        if (isMap(item) && item.items.length && isNode(item.items[0].key)) {
-          const key = item.items[0].key;
-          key.commentBefore = [item.commentBefore, key.commentBefore].filter(Boolean).join("\n");
-        } else {
-          // Primitive options have no mapping key; inline comments have stable
-          // item ownership even when a value moves to the first position.
-          item.comment = [item.commentBefore, item.comment].filter(Boolean).join("\n");
-          if (isSeq(item) || isMap(item)) item.flow = true;
-        }
-        item.commentBefore = undefined;
+      if (sequence.flow) return;
+      const item = sequence.items[0];
+      if (!isNode(item) || !item.commentBefore) return;
+      if (isMap(item) && item.items.length && isNode(item.items[0].key)) {
+        const key = item.items[0].key;
+        key.commentBefore = [item.commentBefore, key.commentBefore].filter(Boolean).join("\n");
+      } else {
+        // Primitive options have no mapping key. Single-line and indented
+        // multiline trailing comments both retain their item owner.
+        item.comment = [item.commentBefore, item.comment].filter(Boolean).join("\n");
+        if (isSeq(item) || isMap(item)) item.flow = true;
       }
+      item.commentBefore = undefined;
     },
   });
   let source: string;

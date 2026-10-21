@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { isMap, isScalar, isSeq, parseDocument } from "yaml";
+import { isMap, isNode, isScalar, isSeq, parseDocument } from "yaml";
 import { reconcileSettingsDocument, UnsupportedYamlUpdateError } from "@/config/reconcileYaml";
 
 function reconcile(source: string, updates: Record<string, unknown>) {
@@ -203,6 +203,134 @@ bookmarks:
     expect(second.source).toContain("owner A");
     expect(second.source).not.toContain("owner B");
   });
+
+  it("leaves non-first comments and block styles in untouched sequences alone", () => {
+    const source = `appearance: { theme: dark }
+services:
+  - id: a
+  # owner B
+  - id: b
+extension:
+  primitive:
+    - a
+    # leading B
+    # second B
+    - b # inline B
+    - c
+  nested:
+    - zero
+    # nested owner
+    - - a # child owner
+      - b
+`;
+    const before = parseDocument(source);
+    let current = source;
+    for (const theme of ["light", "dark"]) {
+      current = reconcile(current, { appearance: { theme } }).source;
+      const document = parseDocument(current);
+      for (const path of [["services"], ["extension", "primitive"], ["extension", "nested"]]) {
+        const original = before.getIn(path, true);
+        const sequence = document.getIn(path, true);
+        if (!isSeq(original) || !isSeq(sequence)) throw new Error("Expected sequence");
+        const item = sequence.items[1];
+        const originalItem = original.items[1];
+        if (!isNode(item) || !isNode(originalItem)) throw new Error("Expected item");
+        expect(item.commentBefore).toBe(originalItem.commentBefore);
+        expect(item.comment).toBe(originalItem.comment);
+        if (isSeq(item)) expect(item.flow).not.toBe(true);
+      }
+    }
+  });
+
+  it("preserves the first map owner's comment through same-order edits, unrelated saves and deletion", () => {
+    let source = `services:
+  - # owner A
+    id: a
+    name: A
+  - id: b
+    name: B
+`;
+    for (const updates of [
+      { services: [{ id: "a", name: "Renamed A" }, { id: "b", name: "B" }] },
+      { appearance: { theme: "light" } },
+      { services: [{ id: "a", name: "Renamed again" }, { id: "b", name: "B" }] },
+    ]) {
+      source = reconcile(source, updates).source;
+      expect(itemComment(source, "services", "a")).toContain("owner A");
+      expect(itemComment(source, "services", "b")).not.toContain("owner A");
+    }
+    source = reconcile(source, { services: [{ id: "b", name: "B" }] }).source;
+    expect(source).not.toContain("owner A");
+  });
+
+  it.each([
+    { leading: "  # leading B\n  # second B\n", inline: "" },
+    { leading: "  # leading B\n", inline: " # inline B" },
+    { leading: "  # leading B\n  # second B\n", inline: " # inline B" },
+  ])("retains multiline and combined primitive comments on their owner: %j", ({ leading, inline }) => {
+    let source = `extension:\n  - a\n${leading}  - b${inline}\n  - c\n`;
+    for (const extension of [["b", "a", "c"], ["c", "b", "a"], ["b", "c"]]) {
+      source = reconcile(source, { extension }).source;
+      const sequence = parseDocument(source).get("extension", true);
+      if (!isSeq(sequence)) throw new Error("Expected sequence");
+      for (const item of sequence.items) {
+        if (!isScalar(item)) throw new Error("Expected scalar");
+        const comments = `${item.commentBefore ?? ""}\n${item.comment ?? ""}`;
+        if (item.value === "b") {
+          expect(comments).toContain("leading B");
+          if (leading.includes("second B")) expect(comments).toContain("second B");
+          if (inline) expect(comments).toContain("inline B");
+        } else expect(comments).not.toMatch(/leading B|second B|inline B/);
+      }
+    }
+    source = reconcile(source, { extension: ["c"] }).source;
+    expect(source).not.toMatch(/leading B|second B|inline B/);
+  });
+
+  it("leaves flow-sequence leading and inline comments on their original nodes", () => {
+    const source = `extension: [
+  # leading A
+  a, # inline A
+  # leading B
+  b
+]
+`;
+    const original = parseDocument(source).get("extension", true);
+    if (!isSeq(original)) throw new Error("Expected sequence");
+    let current = source;
+    for (const theme of ["light", "dark"]) {
+      current = reconcile(current, { appearance: { theme } }).source;
+      const sequence = parseDocument(current).get("extension", true);
+      if (!isSeq(sequence)) throw new Error("Expected sequence");
+      expect(sequence.flow).toBe(true);
+      sequence.items.forEach((item, index) => {
+        const originalItem = original.items[index];
+        if (!isNode(item) || !isNode(originalItem)) throw new Error("Expected item");
+        expect(item.commentBefore).toBe(originalItem.commentBefore);
+        expect(item.comment).toBe(originalItem.comment);
+      });
+    }
+  });
+
+  it.each(["[]", "{}", "- a # child owner\n    - b"])(
+    "keeps the first collection item's annotation separate from the containing sequence: %s", (item) => {
+      let source = `extension: # sequence owner\n  - # item owner\n    ${item}\n  - tail\n`;
+      for (const theme of ["light", "dark"]) {
+        source = reconcile(source, { appearance: { theme } }).source;
+        const sequence = parseDocument(source).get("extension", true);
+        if (!isSeq(sequence)) throw new Error("Expected sequence");
+        const first = sequence.items[0];
+        const second = sequence.items[1];
+        if (!isNode(first) || !isNode(second)) throw new Error("Expected item");
+        expect(sequence.commentBefore).toContain("sequence owner");
+        expect(`${first.commentBefore ?? ""}${first.comment ?? ""}`).toContain("item owner");
+        expect(`${second.commentBefore ?? ""}${second.comment ?? ""}`).not.toContain("item owner");
+      }
+      source = reconcile(source, { extension: [] }).source;
+      expect(source).toContain("sequence owner");
+      expect(source).not.toMatch(/item owner|child owner/);
+    }
+  );
 
   it("retains only field comments on scalar/map/sequence type replacements", () => {
     const result = reconcile(`extension:
