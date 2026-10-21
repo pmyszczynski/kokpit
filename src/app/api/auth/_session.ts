@@ -32,10 +32,12 @@ export async function prepareSessionCookie(): Promise<(token: string) => void> {
   return (token) => writeSessionCookie(cookieStore, token);
 }
 
+/** Persist session metadata and write its cookie, revoking on cookie failure. */
 export async function createSessionCookie(
   userId: string,
   req?: Request,
-  expectedSessionVersion?: number
+  expectedSessionVersion?: number,
+  options: { passwordReplacementRecommended?: boolean } = {}
 ): Promise<void> {
   const config = getConfig();
   const idleTimeoutHours = config.auth.session_idle_timeout_hours ?? 0;
@@ -46,6 +48,7 @@ export async function createSessionCookie(
     userAgent: req?.headers.get("user-agent") ?? undefined,
     idleTimeoutHours,
     expectedSessionVersion,
+    passwordReplacementRecommended: options.passwordReplacementRecommended,
   });
   try {
     writeSessionCookie(cookieStore, token);

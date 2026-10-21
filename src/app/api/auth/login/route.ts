@@ -11,6 +11,7 @@ import { createSessionCookie } from "../_session";
 import { isTrustedMutation } from "@/auth/requestGuard";
 import { SessionInvalidatedError, TotpChallengeCapacityError } from "@/auth/errors";
 import { reserveLoginAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
+import { passwordExceedsBcryptLimit } from "@/auth/passwords";
 
 export async function POST(req: Request) {
   if (!isTrustedMutation(req)) {
@@ -66,12 +67,19 @@ export async function POST(req: Request) {
   }
 
   try {
+    const passwordReplacementRecommended = passwordExceedsBcryptLimit(password);
     if (currentUser.totpSecret) {
-      const challengeToken = await signTotpChallenge(currentUser.id, currentUser.sessionVersion);
+      const challengeToken = passwordReplacementRecommended
+        ? await signTotpChallenge(currentUser.id, currentUser.sessionVersion, { passwordReplacementRecommended: true })
+        : await signTotpChallenge(currentUser.id, currentUser.sessionVersion);
       releaseSuccessfulLoginAttempt(reservation.attempt);
       return NextResponse.json({ requiresTotp: true, challengeToken });
     }
-    await createSessionCookie(currentUser.id, req, currentUser.sessionVersion);
+    if (passwordReplacementRecommended) {
+      await createSessionCookie(currentUser.id, req, currentUser.sessionVersion, { passwordReplacementRecommended: true });
+    } else {
+      await createSessionCookie(currentUser.id, req, currentUser.sessionVersion);
+    }
   } catch (error) {
     // The account changed while bcrypt was running (for example, its password
     // was reset), so do not issue a session for the stale credential check.

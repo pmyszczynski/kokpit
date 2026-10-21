@@ -8,6 +8,36 @@ import Database from "better-sqlite3";
 process.env.KOKPIT_DB_PATH = ":memory:";
 
 describe("getDb()", () => {
+  it("adds legacy-password guidance metadata without changing existing sessions or challenges", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kokpit-password-hint-migration-"));
+    process.env.KOKPIT_DB_PATH = join(dir, "users.db");
+    vi.resetModules();
+    const { getDb, closeDb } = await import("../../auth/db");
+    try {
+      const database = getDb();
+      const now = Math.floor(Date.now() / 1000);
+      database.prepare("INSERT INTO users (id, username, password_hash, created_at) VALUES ('user', 'legacy', 'original-hash', ?)").run(Date.now());
+      database.prepare("INSERT INTO sessions (id, user_id, token_hash, device, created_at, last_seen_at) VALUES ('session', 'user', 'token-hash', 'Browser', ?, ?)")
+        .run(Date.now(), Date.now());
+      database.prepare("INSERT INTO totp_challenges (jti, user_id, session_version, issued_at, expires_at) VALUES ('challenge', 'user', 0, ?, ?)")
+        .run(now, now + 300);
+      // Model the exact preceding schema while retaining live data.
+      database.exec("ALTER TABLE sessions DROP COLUMN password_replacement_recommended");
+      database.exec("ALTER TABLE totp_challenges DROP COLUMN password_replacement_recommended");
+      closeDb();
+      const migrated = getDb();
+      expect(migrated.prepare("SELECT password_replacement_recommended FROM sessions WHERE id = 'session'").get())
+        .toEqual({ password_replacement_recommended: 0 });
+      expect(migrated.prepare("SELECT password_replacement_recommended FROM totp_challenges WHERE jti = 'challenge'").get())
+        .toEqual({ password_replacement_recommended: 0 });
+      expect(migrated.prepare("SELECT password_hash FROM users WHERE id = 'user'").get()).toEqual({ password_hash: "original-hash" });
+    } finally {
+      closeDb();
+      process.env.KOKPIT_DB_PATH = ":memory:";
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("creates the users table on first call", async () => {
     vi.resetModules();
     const { getDb } = await import("../../auth/db");

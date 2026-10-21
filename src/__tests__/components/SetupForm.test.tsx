@@ -51,6 +51,17 @@ describe("SetupForm", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a matching password over 72 UTF-8 bytes without making a request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SetupForm />);
+    const password = "😀".repeat(18) + "a";
+    await act(async () => { fillAndSubmit("admin", password, password); });
+    expect(screen.getByRole("alert")).toHaveTextContent("at most 72 UTF-8 bytes");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Password")).not.toHaveAttribute("maxlength");
+  });
+
   it("submits to /api/setup and shows the recovery code screen on success", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

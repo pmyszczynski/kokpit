@@ -8,7 +8,12 @@ import {
   registerTotpChallenge, type TotpChallengeClaims,
 } from "./totpChallengeStore";
 
-export async function signTotpChallenge(userId: string, expectedSessionVersion: number): Promise<string> {
+/** Register a unique challenge, keeping password guidance in server-only state. */
+export async function signTotpChallenge(
+  userId: string,
+  expectedSessionVersion: number,
+  options: { passwordReplacementRecommended?: boolean } = {}
+): Promise<string> {
   const user = getUserById(userId);
   if (!user || user.sessionVersion !== expectedSessionVersion) {
     throw new SessionInvalidatedError();
@@ -26,7 +31,9 @@ export async function signTotpChallenge(userId: string, expectedSessionVersion: 
     .sign(getServerSecret());
   // Signing yielded: conditionally register against the same credential
   // generation. Never publish a token for stale proof or without a live row.
-  registerTotpChallenge(challenge);
+  // The legacy-password hint stays in server-side metadata, never JWT claims
+  // that the browser could read before completing the second factor.
+  registerTotpChallenge(challenge, undefined, options);
   return token;
 }
 
