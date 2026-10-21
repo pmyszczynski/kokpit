@@ -92,6 +92,8 @@
 }
 
 /* Shared widget UI opts into a layered reset so custom CSS can override it.
+   Settings fieldsets and password notices also own their spacing in layers;
+   exempt them so the unlayered reset cannot erase that spacing.
    Keep the existing reset precedence for widgets that have not migrated. */
 *:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *)),
 *:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *))::before,

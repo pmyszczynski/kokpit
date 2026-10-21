@@ -14,8 +14,9 @@ export default async function ResetPasswordPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const auth = await getAuthSession(token);
-  // A fully authenticated legacy-password notice links here so its owner can
-  // replace the password using the existing recovery proof without logging out.
+  // An authenticated owner with a legacy-password notice can reach this form
+  // and provide recovery proof. A successful reset revokes every session and
+  // requires signing in again.
   if (auth && !auth.session.passwordReplacementRecommended) {
     redirect("/");
   }
