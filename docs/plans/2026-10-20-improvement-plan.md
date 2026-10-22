@@ -1,6 +1,6 @@
 # Selected project improvements — implementation index
 
-Date: 2026-10-20. Status: 1 planned, 17 implemented; completed rows record
+Date: 2026-10-20. Status: 0 planned, 18 implemented; completed rows record
 their release or upstream PR.
 
 The owner selected original review items **1–8, 10, 11 and 13–20**.
@@ -9,12 +9,14 @@ completion checkboxes; this index connects the 18 selected items to their design
 dependencies, and validation. Each linked document contains a separate subplan
 for every listed item, including implementation steps and acceptance criteria.
 
-Baseline reconciled to `main` at `71ef878` (v0.27.1). PR #132 / commit `1097384`
-already implements IMP-02, IMP-03 and IMP-18. Those entries are completed in the
-roadmap, with implementation evidence in their linked sections; their historical
-findings are not claims about the current code. IMP-01 is now implemented for
-v0.30.2; IMP-06's per-challenge replay state is implemented for v0.30.7. The other uncompleted
-entries are future work.
+The original review baseline was `main` at `71ef878` (v0.27.1). PR #132 /
+commit `1097384` already implemented IMP-02, IMP-03 and IMP-18. All 18 selected
+items are now implemented through the final v0.31.4 integration, with individual
+versions and upstream evidence recorded below. IMP-06 includes durable
+per-challenge replay and attempt state; no selected implementation remains open.
+Historical findings describe their reviewed baseline. Final validation, CI,
+review, merge and release verification remain required and are recorded
+separately from implementation status.
 
 ## Selected work
 
@@ -36,7 +38,7 @@ entries are future work.
 | IMP-16 | P2 | **Implemented for v0.31.3:** Authorized empty dashboards offer the existing staged tile/service flow, preserve saved catalog records and retain unsaved-navigation guards. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-16) |
 | IMP-17 | P1 | **Implemented for v0.30.10:** Independent draft baselines, guarded app exits and native unload/modal protection preserve work with bounded non-secret history recovery. | [Dashboard reliability](2026-10-20-dashboard-reliability-plan.md#imp-17) |
 | IMP-18 | P1 | **Implemented, PR #132:** standalone tracing packages the emergency reset command and runtime dependencies. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-18) |
-| IMP-19 | P1 | Operators can distinguish liveness from readiness and identify the deployed version. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-19) |
+| IMP-19 | P1 | **Implemented for v0.31.4:** Read-only dependency readiness and compiled artifact version reporting preserve bounded schema checks and normal initialization lifecycle. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-19) |
 | IMP-20 | P1 | **Implemented for v0.30.5:** PR, release and exact-tag publication workflows type-check production and tests. | [Operations and validation](2026-10-20-operations-validation-plan.md#imp-20) |
 
 IMP-15 and IMP-16 refine the existing Phase 3 status-indicator and onboarding
@@ -44,10 +46,13 @@ roadmap tasks; they are not additional copies of those tasks. The broader status
 batching and onboarding coach-mark ideas remain separately scoped within those
 existing entries.
 
-## Suggested delivery order
+<a id="suggested-delivery-order"></a>
 
-This is the original delivery sequence, including items already implemented.
-The Selected work table above records current implementation status.
+## Historical suggested delivery order
+
+The original sequencing below records the accepted dependencies and review
+boundaries. All listed implementation items are complete; separately scoped
+follow-ups and final validation/release gates retain their own status.
 
 1. **Close inexpensive security and validation gaps:** IMP-20, IMP-01, IMP-04
    and IMP-05. IMP-20 can ship independently; preserve the existing IMP-02 auth
@@ -66,16 +71,16 @@ The Selected work table above records current implementation status.
    probes is a separate decision from sharing widget data requests. IMP-13
    controls browser work, while IMP-14 shares server work; both must preserve
    fresh-on-return behavior and the documented session-activity policy.
-5. **Finish operational visibility and navigation protection:** IMP-19 and the
-   remaining IMP-17 navigation cases. Readiness can ship independently of the UI
+5. **Finish operational visibility and navigation protection:** IMP-19 and
+   IMP-17 navigation protection. Readiness can ship independently of the UI
    work. Its configuration observations should reuse the same server state as
    IMP-11, without adding filesystem mutations to probes. Preserve IMP-18's
    existing traced packaging and production smoke test; coordinate future
    recovery tests with IMP-07's byte policy so the utility follows that contract.
 
-These are suggested PR boundaries and dependencies, not authorization to start
-implementation in this documentation task. No release/version bump, API contract
-break, or unrelated widget migration is included.
+These were the proposed PR boundaries and dependencies. The completion table
+records their resulting implementations; unrelated widget migrations and
+separately scoped roadmap work remain outside this selection.
 
 ## Compatibility decisions to retain
 
@@ -89,12 +94,12 @@ break, or unrelated widget migration is included.
   the UTF-8 byte bound when passwords are created or replaced, and document the
   residual legacy ambiguity until replacement; do not silently bind an arbitrary
   accepted suffix to a new hash.
-- TOTP improvements preserve session-version invalidation and existing
-  same-process concurrency protection while moving challenge state into SQLite.
+- TOTP improvements preserve session-version invalidation and concurrency
+  protection with challenge state retained in SQLite.
 - HTTP 401/403, redirects to login, and HEAD 405/501 can all come from a reachable
   service. A failed Kokpit authorization/configuration request is not evidence
   that the monitored service is offline.
-- Keep `/api/health` as liveness. Add readiness separately and document which
+- Keep `/api/health` as liveness and `/api/ready` as readiness; document which
   probe Docker and other consumers should use; do not change orchestration
   semantics merely by renaming a route.
 - Automatic configuration updates must respect unsaved settings, layout, and
@@ -129,11 +134,11 @@ complete. Add targeted image checks when an implementation changes packaging or
 runtime metadata; normal development-server tests do not establish standalone
 or container behavior.
 
-This planning change requires documentation checks: all 18 IDs appear in the
+Completion records require documentation checks: all 18 IDs appear in the
 roadmap, each has exactly one implementation subplan, relative file/anchor links
 resolve, existing completion state remains intact, and `git diff --check` passes.
 The prior review's 164 passing focused tests describe that reviewed code; they
-are not evidence that any planned fix has been implemented or tested.
+are historical baseline evidence, not validation of the final integrated implementations.
 
 ## Findings outside this selection
 

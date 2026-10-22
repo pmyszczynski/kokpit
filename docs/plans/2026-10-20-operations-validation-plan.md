@@ -2,11 +2,13 @@
 
 **Date:** 2026-10-20
 
-**Status:** IMP-18 completed upstream in PR #132 (included in v0.27.1); IMP-20 implemented for v0.30.5; IMP-19 remains planned.
+**Status:** IMP-18 completed upstream in PR #132 (included in v0.27.1); IMP-20 implemented for v0.30.5; IMP-19 implemented for v0.31.4.
 
 **Selected audit items:** IMP-18, IMP-19 and IMP-20.
 
 **Parent plan:** [Selected project improvements](2026-10-20-improvement-plan.md).
+
+All selected items in this document are implemented in the versions recorded below. Historical evidence describes the reviewed baseline; design and ordered task sections retain the accepted implementation scope. Separately scoped follow-ups are identified explicitly.
 
 <a id="imp-18"></a>
 
@@ -25,24 +27,32 @@
 - The isolated standalone smoke proves packaging and database/dependency loading; it does not exercise an interactive account reset, each TOTP/recovery choice, Alpine final-image execution, or UID/GID ownership. A future disposable-container PTY test could strengthen that coverage, using only a disposable volume and fixture account, without passwords, hashes, seeds, codes or tokens in command arguments/logs. It should verify old-password rejection, new-password login, session/challenge revocation, optional factor preservation/clearing, and that unrelated accounts remain unchanged.
 - The Dockerfile has no final `USER` instruction. The [entrypoint](../../docker-entrypoint.sh#L28) drops privileges for the server, but a new `docker compose exec` process bypasses it and defaults to root. Operators can explicitly use `docker compose exec --user nextjs:nodejs kokpit node /app/scripts/reset-password.js` to preserve runtime-user ownership. The current standalone smoke does not assert this Docker execution identity.
 - [`openDb()`](../../scripts/reset-password.js#L19) still creates a missing directory/database. Failing on a nonexistent configured database rather than creating one could prevent confusion after a mistyped `KOKPIT_DB_PATH`, but is a separate behavior change requiring updates to the intentional schema-initialization test. Do not treat it as missing packaging or silently expand the completed task to require it.
-- The CLI's new-password validation remains part of the already selected [IMP-07 password-byte-limit work](2026-10-20-auth-hardening-plan.md#imp-07); align it there rather than reopening packaging. Preserve the existing atomic reset and credential-generation protections when IMP-06 changes challenge storage.
+- The CLI's new-password validation was implemented in the selected [IMP-07 password-byte-limit work](2026-10-20-auth-hardening-plan.md#imp-07). The IMP-06 challenge-storage integration preserves atomic reset and credential-generation protections; neither change reopens the completed packaging task.
 
 <a id="imp-19"></a>
 
 ## IMP-19 — Separate readiness from liveness and report the built version
 
-### Verified problem and qualification
+Status: **implemented for v0.31.4**.
 
-- [`/api/health`](../../src/app/api/health/route.ts#L4) returns `200`, `status: "ok"`, a timestamp, and `process.env.npm_package_version ?? "unknown"`. A successful response proves the HTTP process can answer. That is valid **liveness** behavior; unconditional `200` is not itself a defect in a liveness endpoint.
-- Both the [image healthcheck](../../Dockerfile#L85) and [Compose override](../../docker-compose.yml#L45) use that endpoint. They therefore cannot distinguish a responsive process from an application unable to serve its dashboard or authenticate users.
-- [Startup instrumentation](../../src/instrumentation.node.ts#L4) already loads and validates configuration. Malformed startup configuration can stop startup; the missing feature is an explicit readiness contract for initialization and later failures, not an absence of all startup validation.
-- The [configuration loader](../../src/config/loader.ts#L762) fails closed on dirty state, while its [watcher refresh](../../src/config/loader.ts#L850) retains last-known-good data internally. Existing [`getConfigSnapshot()`](../../src/config/loader.ts#L771) may call `loadConfig()` when cold, so a readiness handler must not reuse that method blindly: [cold loading](../../src/config/loader.ts#L726) can create, migrate, or repair YAML files.
-- [`getDb()`](../../src/auth/db.ts#L7) lazily creates directories, opens SQLite, and applies schema changes. Calling it for the first time from an unauthenticated probe would turn a read probe into application initialization. The [protected layout](../../src/app/(protected)/layout.tsx#L24) normally requires the database when authentication is enabled; readiness must reflect that dependency without requiring a database for an explicitly public dashboard.
-- The production image starts [`node server.js`](../../Dockerfile#L89), rather than an npm lifecycle command. The version fallback can therefore be `"unknown"`; the [existing test](../../src/__tests__/api/health.test.ts#L6) only checks that version is a string and does not catch this.
+Public `/api/health` remains 200 liveness and reports the version compiled into the artifact, including direct standalone startup. New `/api/ready` returns fixed non-cacheable 200/503 dependency states without settings, paths, account or upstream details. Readiness requires the published source to match disk exactly: cold, dirty, missing or unreadable configuration fails, and stable migration-required configuration reports restart_required until deliberate migration/restart.
+
+Normal startup/configuration lifecycle owns initialization; probes do not create or migrate YAML, acquire its write lock, open SQLite or repair schema. Authentication-disabled instances do not require a database. An initialized auth database must be open and writable in connection policy and complete a schema-aware read with a 50 ms lock wait, restoring its prior timeout. Regression coverage includes real files, cold/no-write behavior, database failures/locks, lifecycle changes, public envelopes and compiled-version identity. Docker defaults retain liveness; documented readiness overrides do not promise automatic restarts or recovery orchestration. Integrated artifact validation is recorded separately.
+
+### Pre-implementation problem and qualification
+
+The evidence below is pinned to pre-feature revision `ab5469305429bcf97062fc72661fef1e96297ee2`, before v0.31.4; the accepted design and implementation notes describe the completed code change. Final-source validation remains separate below.
+
+- [`/api/health`](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/app/api/health/route.ts#L4-L9) returned `200`, `status: "ok"`, a timestamp, and `process.env.npm_package_version ?? "unknown"`. A successful response proves the HTTP process can answer. That is valid **liveness** behavior; unconditional `200` is not itself a defect in a liveness endpoint.
+- Both the [image healthcheck](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/Dockerfile#L85-L86) and [Compose override](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/docker-compose.yml#L49-L54) use that endpoint. They therefore cannot distinguish a responsive process from an application unable to serve its dashboard or authenticate users.
+- [Startup instrumentation](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/instrumentation.node.ts#L9-L10) already loads and validates configuration. Malformed startup configuration can stop startup; the missing feature is an explicit readiness contract for initialization and later failures, not an absence of all startup validation.
+- The [configuration loader](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/config/loader.ts#L766-L772) fails closed on dirty state, while its [watcher refresh](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/config/loader.ts#L867) retains last-known-good data internally. Existing [`getConfigSnapshot()`](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/config/loader.ts#L775-L780) may call `loadConfig()` when cold, so a readiness handler must not reuse that method blindly: [cold loading](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/config/loader.ts#L730-L764) can create, migrate, or repair YAML files.
+- [`getDb()`](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/auth/db.ts#L8-L19) lazily creates directories, opens SQLite, and applies schema changes. Calling it for the first time from an unauthenticated probe would turn a read probe into application initialization. The [protected layout](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/app/(protected)/layout.tsx#L45-L46) normally requires the database when authentication is enabled; readiness must reflect that dependency without requiring a database for an explicitly public dashboard.
+- The production image starts [`node server.js`](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/Dockerfile#L89), rather than an npm lifecycle command. The version fallback can therefore be `"unknown"`; the [existing test](https://github.com/pmyszczynski/kokpit/blob/ab5469305429bcf97062fc72661fef1e96297ee2/src/__tests__/api/health.test.ts#L6-L12) only checks that version is a string and does not catch this.
 
 This remains worthwhile as operational visibility and trustworthy version identification. It should not be represented as fixing an incorrect liveness status code.
 
-### Scoped design
+### Accepted design
 
 1. Preserve unauthenticated `GET /api/health` as lightweight liveness, including its existing successful response fields. Do not make liveness depend on configuration, SQLite, upstream integrations, or login state. Send `Cache-Control: no-store` so monitors receive a current result.
 2. Add unauthenticated `GET /api/ready` using the Node runtime. Return `200` when required local application dependencies are usable and `503` otherwise, with a small response such as `{ status: "ready" | "not_ready", version, timestamp, checks: { config, database } }`. Use a fixed vocabulary for check states; never include YAML, configured URLs, account counts, credentials, file paths, SQL text, exception messages, or stack traces. Mark responses `no-store` and ensure the route executes per request under the installed Next.js version.
@@ -55,15 +65,21 @@ This remains worthwhile as operational visibility and trustworthy version identi
 
 **Deployment semantics:** Liveness is suitable for a restart decision when the process stops responding. Readiness is suitable for removing an instance from a load balancer or postponing a dependent service until initialization succeeds. Docker/Compose marks a failed healthcheck `unhealthy`; `restart: unless-stopped` does not restart a still-running unhealthy container by itself, and Compose does not supply dynamic load-balancer routing. A readiness healthcheck can help `depends_on: condition: service_healthy` startup ordering, but does not promise recovery orchestration after startup. Do not wire bad YAML or a transient SQLite problem into an automatic restart loop. External integration outages do not make the dashboard itself unready.
 
-### Ordered implementation tasks
+### Completed implementation tasks
 
-1. Read installed Next.js route-handler, environment/configuration, and instrumentation documentation; confirm runtime and caching declarations for this project version.
-2. Define the sanitized readiness response and state policy above. Add configuration observation and database lifecycle helpers with no YAML or schema mutations at probe time; coordinate any shared cache-state changes with IMP-11.
-3. Add the build-version helper and update liveness to use it while preserving the existing successful contract.
-4. Implement `/api/ready`, required-dependency selection, short query timeout, and fixed error mapping. Keep probe errors out of public responses and avoid logging the same failure on every poll.
-5. Add API and lifecycle tests covering the state transitions below. Extend the existing healthcheck tests only where needed to preserve endpoint/loopback/port behavior.
-6. Add production standalone/container smoke verification and document both probe configurations and their deployment meaning in the deployment documentation.
-7. Run focused checks and the complete [parent-plan validation gate](2026-10-20-improvement-plan.md) before any implementation commit/PR.
+- [x] Read the installed Next.js route-handler, environment/configuration and instrumentation documentation, confirming runtime and caching declarations for this project version.
+- [x] Defined the sanitized readiness response and state policy, adding configuration observation and database lifecycle helpers without YAML or schema mutations at probe time and coordinating shared cache-state changes with IMP-11.
+- [x] Added the build-version helper and updated liveness to use it while preserving the successful response contract.
+- [x] Implemented `/api/ready`, required-dependency selection, a short query timeout and fixed error mapping, keeping probe errors out of public responses and repeated logs.
+- [x] Added API and lifecycle regressions for the state transitions below, retaining endpoint/loopback/port coverage.
+- [x] Prepared production standalone/container verification and documented both probe configurations and their deployment meaning.
+
+### Final-source validation requirements
+
+- After final edits and before the implementation commit/PR, run appropriate focused checks and all five commands in the [parent-plan validation gate](2026-10-20-improvement-plan.md) sequentially: `CI=true npm run lint`, `CI=true npm run type-check`, `CI=true npm run test:coverage`, `CI=true npm run test:e2e:nonvisual` and `CI=true npm run test:e2e:auth`.
+- After that gate, rebuild the final runner image and pass fresh 25-case Docker verification on the same exact source before marking the change ready to commit, including nondefault-port liveness/readiness healthchecks. Historical container results do not replace this final proof.
+
+Record actual validation and delivery evidence in the PR and release records.
 
 ### Verification and acceptance criteria
 

@@ -6,6 +6,8 @@ This document records the owner-selected findings IMP-04, IMP-05 and IMP-08 from
 
 Source links are relative to this document and point to the inspected repository state. Recheck them and the installed Next.js documentation before implementation.
 
+All selected items in this document are implemented in the versions recorded below. Historical evidence describes the reviewed baseline; design and ordered task sections retain the accepted implementation scope. Separately scoped follow-ups are identified explicitly.
+
 <a id="imp-04"></a>
 
 ## IMP-04 — Keep integration credentials within the configured origin
@@ -26,7 +28,7 @@ single-server POST test across all supported redirect statuses and mocked
 integration tests, alongside chain, loop and abort regressions. The following
 evidence and design describe the pre-fix gap and accepted contract.
 
-### Evidence and scope
+### Pre-implementation evidence and scope
 
 Before v0.30.3, [`fetchWithApiKey`](../../src/integrations/shared/http.ts) sent `X-Api-Key` using the default fetch redirect policy. Its callers include Radarr, Sonarr, Seerr and Immich. The helper also accepted an arbitrary absolute HTTP(S) request URL, and its [tests](../../src/__tests__/integrations/shared-http.test.ts) explicitly permitted sending the configured key to another origin; that case is now a rejection regression.
 
@@ -97,7 +99,7 @@ process after instrumentation rejection, as with other startup errors, but
 cannot serve healthy requests or publish configuration; Docker does not mark it
 healthy. The original evidence and accepted design follow.
 
-### Evidence and correction
+### Pre-implementation evidence and correction
 
 Before v0.30.4, both services in [`docker-compose.yml`](../../docker-compose.yml) forced the public value `change-this-to-a-random-32-char-secret-before-use`. [`getServerSecret`](../../src/auth/serverSecret.ts) already supported an omitted override: it generates 32 random bytes, persists a hexadecimal secret beside the SQLite database with mode `0600`, handles a competing creator with an exclusive write, and reuses the persisted value. Accepted explicit nonempty environment overrides retain precedence.
 
@@ -144,7 +146,7 @@ Mutation handlers now bound actual streamed bytes before JSON or multipart parsi
 
 Protected handlers authorize before parsing, and settings writes and connection tests recheck access after the awaited read. The auth transport ceiling remains separate from the new-password policy; exceptional legacy inputs exceeding it require host recovery. Regression coverage includes chunked/incorrect-length bodies, arrays/primitives, upload overhead, authorization changes, unchanged persistence on rejection, and calibrated large dashboards and registered-widget configurations. Browser regressions are prepared; integrated validation is recorded separately.
 
-### Evidence and scope
+### Pre-implementation evidence and scope
 
 The pre-v0.30.6 issue descriptions below are historical evidence. The following design, task list and acceptance criteria preserve the accepted implementation plan; the implementation record above describes the delivered behavior.
 

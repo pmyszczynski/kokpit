@@ -4,6 +4,8 @@ Date: 2026-10-20. Status: **IMP-10 implemented for v0.30.9; IMP-11 implemented f
 
 Selected improvements: **IMP-10** and **IMP-11** from the [improvement delivery plan](2026-10-20-improvement-plan.md). That plan owns sequencing and the required validation gate; this document supplies implementation details. The existing [architecture](../ARCHITECTURE.md#configuration-and-persistence) and [AGENTS.md](../../AGENTS.md) remain applicable.
 
+All selected items in this document are implemented in the versions recorded below. Historical evidence describes the reviewed baseline; design and ordered task sections retain the accepted implementation scope. Separately scoped follow-ups are identified explicitly.
+
 <a id="imp-10"></a>
 
 ## IMP-10 — Preserve nested YAML comments during UI saves
