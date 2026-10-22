@@ -12,7 +12,6 @@ interface Props {
 /** One explicit browser lookup; only the reviewed coordinates enter tile config. */
 export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) {
   const request = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [result, setResult] = useState<{
     latitude: unknown; longitude: unknown; pending: boolean; error: boolean; message: string;
   } | null>(null);
@@ -20,7 +19,6 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
   // delivery. Geolocation itself has no cancellation API.
   useEffect(() => () => {
     request.current++;
-    clearTimeout(timer.current);
   }, [latitude, longitude]);
 
   const current = result?.latitude === latitude && result?.longitude === longitude ? result : null;
@@ -30,11 +28,9 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
 
   function detect() {
     const id = ++request.current;
-    clearTimeout(timer.current);
     function fail(message: string) {
       if (id !== request.current) return;
       request.current++;
-      clearTimeout(timer.current);
       setResult({ latitude, longitude, pending: false, error: true, message });
     }
     if (!window.isSecureContext) {
@@ -45,10 +41,10 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
       fail("This browser does not support location detection. Enter coordinates manually.");
       return;
     }
-    setResult({ latitude, longitude, pending: true, error: false, message: "Waiting for your browser’s location permission and position…" });
-    // The browser's timeout excludes time spent waiting for permission. Bound
-    // the entire interaction too, and ignore callbacks from expired attempts.
-    timer.current = setTimeout(() => fail("Location detection timed out. Try again or enter coordinates manually."), 15_000);
+    setResult({ latitude, longitude, pending: true, error: false, message: "Allow location permission in your browser and device settings. Finding your location can take up to a minute after permission is granted." });
+    // Let the browser start its acquisition timeout after permission and
+    // visibility checks. A wall-clock deadline also counts Windows' separate
+    // system prompt and can discard a valid result just after permission.
     try {
       navigator.geolocation.getCurrentPosition(({ coords }) => {
         if (id !== request.current) return;
@@ -58,7 +54,6 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
           return;
         }
         request.current++;
-        clearTimeout(timer.current);
         // Roughly 100 m is ample for weather; avoid persisting precise GPS data.
         const coordinates = {
           latitude: Number(coords.latitude.toFixed(3)),
@@ -67,20 +62,25 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
         setResult({ ...coordinates, pending: false, error: false, message: "Location detected. Review the coordinates, then save the tile." });
         onDetect(coordinates);
       }, (error) => fail(error.code === 1
-        ? "Location permission was denied. Allow location in your browser’s site settings to retry, or enter coordinates manually."
+        ? "Location permission was denied. Allow location in your browser’s site settings and your device’s Location Services to retry, or enter coordinates manually."
         : error.code === 3
-          ? "Location detection timed out. Try again or enter coordinates manually."
-          : "Your location is unavailable. Try again or enter coordinates manually."),
-      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000 });
+          ? "Your browser could not determine your location within a minute. Check your device’s Location Services and allow location access for your browser, then retry or enter coordinates manually."
+          : "Your location is unavailable. Check your device’s Location Services and allow location access for your browser, then retry or enter coordinates manually."),
+      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 60_000 });
     } catch {
       fail("Location detection is unavailable. Check your browser’s site settings or enter coordinates manually.");
     }
   }
 
   return <div className="settings-form-row">
-    <button type="button" className="settings-btn" onClick={detect} disabled={current?.pending}
+    <button type="button" className="settings-btn" onClick={() => {
+      if (current?.pending) {
+        request.current++;
+        setResult(null);
+      } else detect();
+    }}
       aria-describedby="sf-weather-location-hint">
-      {current?.pending ? "Detecting location…" : "Use my location"}
+      {current?.pending ? "Cancel location detection" : "Use my location"}
     </button>
     <p id="sf-weather-location-hint" className="settings-form-hint">
       Uses this device’s location once, with your permission. Approximate coordinates are saved for this tile and shared with Open-Meteo for weather after saving; all viewers see the same location.

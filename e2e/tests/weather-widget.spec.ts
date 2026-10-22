@@ -181,6 +181,59 @@ test("Weather location denial keeps manual coordinates usable", async ({ page, r
   expect(persisted.service_tiles[0].widget).toMatchObject({ type: "weather", config: { latitude: 0, longitude: -0.1278 } });
 });
 
+async function delayBrowserLocation(page: Page) {
+  await page.addInitScript(() => {
+    navigator.geolocation.getCurrentPosition = success => {
+      setTimeout(() => success({
+        coords: { latitude: 52.2297123, longitude: 21.0122456, accuracy: 50,
+          altitude: null, altitudeAccuracy: null, heading: null, speed: null, toJSON: () => ({}) },
+        timestamp: Date.now(), toJSON: () => ({}),
+      }), 20_000);
+    };
+  });
+  await page.clock.install();
+}
+
+test("Weather accepts and saves a browser location that arrives after the old deadline", async ({ page, request }) => {
+  await configure(request); await mock(page); await delayBrowserLocation(page); await page.goto("/");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await tile(page).getByRole("button", { name: /options/i }).click();
+  await page.getByRole("menuitem", { name: /^Edit/ }).click();
+  await page.getByRole("button", { name: "Use my location" }).click();
+  await page.clock.fastForward(16_000);
+  await expect(page.getByRole("button", { name: "Cancel location detection" })).toBeVisible();
+  await page.clock.fastForward(4_000);
+  await expect(page.getByLabel("Latitude *", { exact: true })).toHaveValue("52.23");
+  await expect(page.getByLabel("Longitude *", { exact: true })).toHaveValue("21.012");
+  await expect(page.getByRole("status").filter({ hasText: "Location detected" })).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const saved = page.waitForResponse(r => r.url().endsWith("/api/settings") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
+  const persisted = await (await request.get("/api/settings")).json();
+  expect(persisted.service_tiles[0].widget).toMatchObject({ type: "weather", config: { latitude: 52.23, longitude: 21.012 } });
+});
+
+test("Weather can cancel a slow browser lookup and save manual coordinates without a late overwrite", async ({ page, request }) => {
+  await configure(request); await mock(page); await delayBrowserLocation(page); await page.goto("/");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await tile(page).getByRole("button", { name: /options/i }).click();
+  await page.getByRole("menuitem", { name: /^Edit/ }).click();
+  await page.getByRole("button", { name: "Use my location" }).click();
+  await page.getByRole("button", { name: "Cancel location detection" }).click();
+  await page.getByLabel("Latitude *", { exact: true }).fill("0");
+  await page.getByLabel("Longitude *", { exact: true }).fill("0");
+  await page.clock.fastForward(20_000);
+  await expect(page.getByLabel("Latitude *", { exact: true })).toHaveValue("0");
+  await expect(page.getByLabel("Longitude *", { exact: true })).toHaveValue("0");
+  await expect(page.getByRole("button", { name: "Use my location" })).toBeEnabled();
+  await expect(page.getByRole("status").filter({ hasText: "Location detected" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const saved = page.waitForResponse(r => r.url().endsWith("/api/settings") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
+  const persisted = await (await request.get("/api/settings")).json();
+  expect(persisted.service_tiles[0].widget).toMatchObject({ type: "weather", config: { latitude: 0, longitude: 0 } });
+});
+
 test("Weather attribution remains a valid independent link when the service has a launch URL", async ({ page, request, context }) => {
   const data = fixtures();
   const errors: string[] = [];
