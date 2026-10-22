@@ -97,3 +97,5 @@ Actual Budget's existing `Amount` and privacy behavior remain integration-owned;
 Before adding a new widget or changing a mapping, update both tables in the same change. If a newly discovered visual pattern needs another component, add its source evidence and intended consumers before implementing it.
 
 2026-10-21 Weather follow-up: the tile editor adds **Use my location**, a single permission-based browser lookup that fills editable coordinates rounded to three decimal places. Existing shared widget components and footprint mappings remain as listed above. [Behavior and verification scope](widget-consistency-plan.md#weather-location-detection--2026-10-21).
+
+2026-10-22 Weather timeout correction: allow sixty seconds for browser position acquisition, exclude permission prompts from that timeout, and offer explicit cancellation. Windows guidance distinguishes site permission from device Location Services. Shared widget components and footprint mappings remain unchanged. [Timeout investigation and regression scope](widget-consistency-plan.md#weather-location-detection--2026-10-21).

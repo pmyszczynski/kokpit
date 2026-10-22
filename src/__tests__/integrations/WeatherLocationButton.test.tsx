@@ -29,10 +29,10 @@ describe("WeatherLocationButton", () => {
     expect(announcement).toBeEmptyDOMElement();
     expect(getCurrentPosition).not.toHaveBeenCalled();
     start();
-    expect(screen.getByRole("button", { name: "Detecting location…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel location detection" })).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent(/permission/);
     expect(getCurrentPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), {
-      enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000,
+      enableHighAccuracy: false, maximumAge: 300_000, timeout: 60_000,
     });
     act(() => {
       succeed(position());
@@ -45,7 +45,7 @@ describe("WeatherLocationButton", () => {
     expect(screen.getByRole("button", { name: "Use my location" })).toBeEnabled();
   });
 
-  it.each([[1, /permission was denied/], [2, /location is unavailable/], [3, /timed out/]])("keeps existing coordinates on error %s and supports retry", (code, message) => {
+  it.each([[1, /permission was denied/], [2, /location is unavailable/], [3, /could not determine your location within a minute/]])("keeps existing coordinates on error %s and supports retry", (code, message) => {
     const onDetect = vi.fn();
     render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
     const announcement = screen.getByRole("alert");
@@ -53,6 +53,7 @@ describe("WeatherLocationButton", () => {
     start(); act(() => fail?.(error(code)));
     expect(screen.getByRole("alert")).toHaveTextContent(message);
     expect(screen.getByRole("alert")).toBe(announcement);
+    expect(screen.getByRole("alert")).toHaveTextContent(/Location Services/);
     expect(screen.getByRole("alert")).not.toHaveTextContent(/Provider detail/);
     expect(onDetect).not.toHaveBeenCalled();
     start(); act(() => succeed(position({ latitude: 0, longitude: 0 })));
@@ -79,17 +80,47 @@ describe("WeatherLocationButton", () => {
     expect(onDetect).not.toHaveBeenCalled();
   });
 
-  it("bounds permission waiting and ignores an expired result even after retry", () => {
+  it("accepts a slow result after the original 15-second deadline", () => {
     vi.useFakeTimers();
     const onDetect = vi.fn();
     render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
+    start();
+    act(() => vi.advanceTimersByTime(45_000));
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+    expect(screen.getByRole("button", { name: "Cancel location detection" })).toBeEnabled();
+    act(() => succeed(position()));
+    expect(onDetect).toHaveBeenCalledExactlyOnceWith({ latitude: 51.507, longitude: -0.128 });
+  });
+
+  it("allows cancellation while waiting for permission and ignores the old result after retry", () => {
+    const onDetect = vi.fn();
+    render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
     start(); const oldSuccess = succeed; const oldFailure = fail;
-    act(() => vi.advanceTimersByTime(15_000));
-    expect(screen.getByRole("alert")).toHaveTextContent(/timed out/);
+    const control = screen.getByRole("button", { name: "Cancel location detection" });
+    control.focus();
+    fireEvent.click(control);
+    expect(screen.getByRole("button", { name: "Use my location" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Use my location" })).toBe(control);
+    expect(control).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Cancel location detection" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
     start();
     act(() => { oldSuccess(position()); oldFailure?.(error(1)); });
     expect(onDetect).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Detecting location…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel location detection" })).toBeEnabled();
+    act(() => succeed(position()));
+    expect(onDetect).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a native timeout's late result after retry", () => {
+    const onDetect = vi.fn();
+    render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
+    start(); const oldSuccess = succeed; const oldFailure = fail;
+    act(() => fail?.(error(3)));
+    start();
+    act(() => { oldSuccess(position()); oldFailure?.(error(1)); });
+    expect(onDetect).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel location detection" })).toBeEnabled();
     act(() => succeed(position()));
     expect(onDetect).toHaveBeenCalledOnce();
   });
@@ -107,7 +138,7 @@ describe("WeatherLocationButton", () => {
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
-  it("ignores callbacks and clears its deadline when the form closes or widget changes", () => {
+  it("ignores callbacks when the form closes or widget changes", () => {
     vi.useFakeTimers();
     const onDetect = vi.fn();
     const { unmount } = render(<WeatherLocationButton latitude={1} longitude={2} onDetect={onDetect} />);
