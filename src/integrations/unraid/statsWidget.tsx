@@ -150,7 +150,7 @@ registerWidget<UnraidConfig, UnraidStats>({
       },
       {
         title: "Test, then save",
-        description: "Click Test connection. Once Connection OK appears, save the form. If testing is unavailable, save and check the widget on your dashboard.",
+        description: "If Test connection is enabled, click it and wait for Connection OK, then save. Otherwise, save the form and check the widget on your dashboard.",
       },
     ],
     troubleshooting: [
