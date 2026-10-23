@@ -1,6 +1,7 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { DockerConfigSchema, fetchDockerData } from "./api";
+import { dockerSetupGuide } from "./setupGuide";
 import type { DockerConfig, DockerData } from "./api";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetStatusDot, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import type { WidgetStatusDotTone } from "@/widgets/ui";
@@ -64,6 +65,8 @@ registerWidget<DockerConfig, DockerData>({
     error: "docker-widget__hint docker-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "Default (3×4) shows the whole Engine’s running/total summary above a scrolling list of running, paused and restarting containers. Rows are name-sorted and capped by Max rows; the summary is not capped. Refresh defaults to 15 seconds.",
+  setupGuide: dockerSetupGuide,
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Docker",
@@ -80,14 +83,14 @@ registerWidget<DockerConfig, DockerData>({
       type: "text",
       placeholder: "/var/run/docker.sock",
       description:
-        "Unix socket path inside the Kokpit container. Leave empty for the default.",
+        "Unix filesystem path inside Kokpit, without unix://. Empty uses KOKPIT_DOCKER_SOCKET, otherwise /var/run/docker.sock. This overrides that environment value for requests; it does not create a mount or configure startup permissions. For a custom container destination, follow the path/environment setup step.",
     },
     {
       key: "max_items",
       label: "Max rows",
       type: "number",
       placeholder: "10",
-      description: "Containers shown in the list (1–50).",
+      description: "Maximum list rows: whole numbers 1–50, default 10 when empty. Applied after filtering to running/paused/restarting and sorting by name. Does not limit the API request or the whole-Engine running/total summary.",
     },
   ],
 });
