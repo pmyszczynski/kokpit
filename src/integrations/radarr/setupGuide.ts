@@ -2,7 +2,7 @@ import type { WidgetSetupGuide } from "@/widgets";
 
 export const radarrSetupGuide: WidgetSetupGuide = {
   title: "Connect Radarr",
-  summary: "Use the same Radarr connection for movie library counts and download progress.",
+  summary: "Show movie library counts and download progress.",
   requirement: "Radarr must be reachable from the Kokpit server or container. Its API key grants application access, so keep it private.",
   steps: [
     {
@@ -15,7 +15,7 @@ export const radarrSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Enter the Radarr address",
-      description: "Set URL to Radarr’s base address, usually on port 7878. Include any URL Base from Settings → General → Host, with a final slash: https://example.com/radarr/. Kokpit adds /api/v3 automatically.",
+      description: "Set URL to Radarr’s base address, usually port 7878. Include any URL Base from Settings → General → Host, such as https://example.com/radarr/. A final slash is required for a path and optional at the root. Kokpit adds /api/v3.",
     },
     {
       title: "Choose the widget, test and save",
@@ -29,7 +29,7 @@ export const radarrSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "404 or an HTML login page",
-      description: "Remove /api/v3, /movie or /queue from URL. Include the configured URL Base and end it with a slash, such as /radarr/. Check that the reverse proxy forwards API requests to Radarr.",
+      description: "Remove /api/v3, /movie or /queue from URL. Include any URL Base path with a trailing slash, such as /radarr/. Root URLs work with or without a final slash. Check that the reverse proxy forwards API requests to Radarr.",
     },
     {
       title: "Cannot reach Radarr",
@@ -47,6 +47,6 @@ export const radarrSetupGuide: WidgetSetupGuide = {
   documentationUrl: "https://wiki.servarr.com/radarr/settings#general",
 };
 
-export const radarrUrlDescription = "Radarr’s base address, including http:// or https:// and its port (usually 7878). Include any URL Base and end it with a slash, e.g. https://example.com/radarr/. Do not append /api/v3. The address must work from Kokpit.";
+export const radarrUrlDescription = "Radarr’s base address, including http:// or https:// and its port (usually 7878). Include any URL Base path with a trailing slash, e.g. https://example.com/radarr/. A root URL works with or without a final slash. Do not append /api/v3. The address must work from Kokpit.";
 
 export const radarrApiKeyDescription = "Copy Radarr’s API Key from Settings → General → Security. Paste only the key. Leave a saved key unchanged to keep using it.";
