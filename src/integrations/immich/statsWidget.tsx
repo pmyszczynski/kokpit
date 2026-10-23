@@ -89,14 +89,14 @@ registerWidget<ImmichConfig, ImmichStats>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:2283/api",
-      description: "Immich API base address, including http:// or https:// and the published port (normally 2283). The server root or a single /api suffix works; Kokpit requests /api/server/statistics. Omit the full statistics route and query parameters. Use a domain or subdomain root, not an /immich subfolder; the address must be reachable from Kokpit.",
+      description: "Immich’s address, including http:// or https:// and the published port (normally 2283), reachable from Kokpit. Direct IP and hostname URLs work. Enter the root or a single /api suffix; Kokpit requests /api/server/statistics. For reverse proxies, use a domain/subdomain root, not /immich. Omit the full statistics route and query parameters.",
     },
     {
       key: "api_key",
       label: "API Key",
       type: "password",
       required: true,
-      description: "An administrator’s key from Account Settings → API Keys → New API Key, with only server.statistics selected. Copy the one-time secret shown after Create; omit Bearer and quotation marks. Kokpit sends it in the X-Api-Key header. An untouched saved field keeps the existing key.",
+      description: "An administrator’s key from Account Settings → API Keys → New API Key, with only server.statistics selected. Copy the one-time secret shown after Create; omit Bearer and quotation marks. Kokpit sends it in the X-Api-Key header. With the same connection URL, an untouched saved field keeps its key. Re-enter the key after changing the URL.",
     },
   ],
   serviceEditorPreset: {

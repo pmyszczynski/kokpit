@@ -15,7 +15,7 @@ export const immichSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Enter the API address",
-      description: "Use http://immich.local:2283/api or the server root, reachable from Kokpit. Omit /server/statistics and query parameters. Immich requires a domain or subdomain root, not a subfolder.",
+      description: "Use a reachable server root or /api base, e.g. http://immich.local:2283/api. Direct IP/hostname URLs work. For proxies, use a domain/subdomain root, not /immich. Omit /server/statistics and query parameters.",
     },
     {
       title: "Test, then save",
@@ -29,11 +29,11 @@ export const immichSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Lost, rotated or deleted key",
-      description: "The secret is shown only once. Create a replacement if you did not copy it. Rotating or deleting a key in Immich invalidates its old value; update Kokpit with the replacement and save. Leaving an existing saved credential untouched keeps it.",
+      description: "The secret is shown only once. Create a replacement if you did not copy it. Rotating or deleting a key in Immich invalidates its old value; update Kokpit with the replacement and save. An untouched saved key is retained only while the connection URL stays unchanged. Re-enter the key after changing that URL.",
     },
     {
       title: "404, invalid JSON or an HTML page",
-      description: "Use the server root or a single /api suffix, rather than /api/api or the full statistics route. A reverse proxy must forward API requests and the API-key header. Immich does not support a subfolder such as /immich; use a dedicated domain or subdomain.",
+      description: "Use the server root or a single /api suffix, rather than /api/api or the full statistics route. Direct IP/hostname URLs work too. A reverse proxy must forward API requests and the API-key header from a domain/subdomain root. Immich does not support a subfolder such as /immich.",
     },
     {
       title: "Cannot reach Immich",
