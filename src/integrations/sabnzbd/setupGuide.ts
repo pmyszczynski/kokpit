@@ -33,7 +33,7 @@ export const sabnzbdSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Access denied from outside the local network",
-      description: "If SABnzbd classifies Kokpit as external, check Config → General → Security → External internet access. The API (no config) level is sufficient for this widget’s queue request; configuration API access is not needed.",
+      description: "Prefer a private network connection. If external access is needed, use HTTPS and restrict access to trusted clients. In Config → General → Security → External internet access, API (no config) permits queue/history access and adding or removing jobs. Kokpit only reads the queue; this permission level also allows changes.",
     },
     {
       title: "Cannot reach SABnzbd",
@@ -44,5 +44,5 @@ export const sabnzbdSetupGuide: WidgetSetupGuide = {
       description: "Use the base address, retaining any reverse-proxy prefix, without /api or its query parameters. Check that the proxy forwards API requests; a separate browser login session is not sent by Kokpit.",
     },
   ],
-  documentationUrl: "https://sabnzbd.org/wiki/configuration/4.5/general",
+  documentationUrl: "https://sabnzbd.org/wiki/configuration/5.1/general",
 };

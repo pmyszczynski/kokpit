@@ -143,7 +143,7 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
-  footprintDescription: "Compact shows speed and queue count; Wide adds total queue size. Detailed adds remaining size, ETA and status. Missing optional details show —, and an empty queue has no ETA.",
+  footprintDescription: "Compact shows speed and queue count. Wide and Detailed add total queue size; Detailed also adds remaining size, ETA and status. Missing optional details show —, and an empty queue has no ETA.",
   serviceEditorPreset: {
     defaultName: "SABnzbd",
     defaultIconUrl: "https://cdn.simpleicons.org/sabnzbd",
