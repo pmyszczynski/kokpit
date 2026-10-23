@@ -1372,7 +1372,11 @@ Uses the same shared cards and size progression as the other migrated widgets:
 
 Download speed is green, positive queue counts amber (neutral when empty), and size/ETA values informational blue. Status uses the reported download state: active work green, paused/idle/stopped neutral, queued work amber, explicit errors red, and other reported states blue. An empty queue has no ETA. Refresh failures preserve the last data and show a separate warning without moving the cards.
 
-**Prerequisites:** An API key from SABnzbd → Config → General → Security.
+**Prerequisites:** A SABnzbd instance reachable from Kokpit and its full **API Key**. Open **Config → General → Security**, click the API Key field to select its text, then copy and paste that value into Kokpit. The separate **NZB Key** only adds jobs and cannot read queue data. Changing the API Key requires updating other connected apps too.
+
+The Add/Edit Service form includes a numbered guide, field help, troubleshooting and the common outdated-instructions/GitHub-issue link. Enter SABnzbd's base URL (usually port 8080), retaining any reverse-proxy prefix; omit `/api` and query parameters. Kokpit builds the queue request and adds the key automatically. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See [SABnzbd General settings](https://sabnzbd.org/wiki/configuration/5.1/general) and the [official API reference](https://sabnzbd.org/wiki/advanced/api).
+
+If SABnzbd refuses a custom hostname, its [hostname verification guide](https://sabnzbd.org/wiki/extra/hostname-check.html) explains adding the expected hostname to **Config → Special → host_whitelist**. Prefer a private network connection. If external access is needed, use HTTPS and restrict access to trusted clients. **External internet access → API (no config)** permits the queue request, history access, and adding/removing jobs; it is not a read-only permission. Kokpit sends the API key as a query parameter. This widget only reads the queue and does not need configuration API access.
 
 ```yaml
 services:
@@ -1383,7 +1387,7 @@ services:
     integration:
       type: sabnzbd
       config:
-        url: http://192.168.1.10:8080
+        url: http://192.168.1.10:8080/
         apikey: YOUR_API_KEY
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000029
@@ -1395,8 +1399,10 @@ service_tiles:
 
 | Field    | Required | Description                        |
 | -------- | -------- | ----------------------------------- |
-| `url`    | Yes      | Base URL of your SABnzbd instance   |
-| `apikey` | Yes      | API key from Config → General → Security |
+| `url`    | Yes      | Reachable SABnzbd base URL, including any reverse-proxy prefix; omit `/api` and query parameters |
+| `apikey` | Yes      | Full API Key from Config → General → Security; NZB Key cannot read the queue |
+
+The default refresh interval is 10 seconds; an editor override is in milliseconds (minimum 5,000). The widget makes one `mode=queue` request for every footprint and does not fetch download history.
 
 
 **Displayed stats:** download speed and queue item count; wide/detailed views add total queue size, and detailed adds remaining size, estimated time left and download status.
