@@ -4,6 +4,7 @@ import { fetchQueue, RadarrConfigSchema } from "./api";
 import type { RadarrConfig, RadarrQueueItem } from "./api";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { calcProgress } from "@/integrations/shared/queue";
+import { radarrSetupGuide, radarrUrlDescription, radarrApiKeyDescription } from "./setupGuide";
 
 export function RadarrQueueWidget({ data, loading, error }: WidgetProps<RadarrQueueItem[]>) {
   if (!data) {
@@ -49,6 +50,7 @@ registerWidget<RadarrConfig, RadarrQueueItem[]>({
     error: "radarr-queue-widget__hint radarr-queue-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "A scrolling list of up to 25 queue entries with download progress, status and ETA. Unknown movies are excluded. The Default footprint is 3 columns × 4 rows.",
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Radarr",
@@ -59,6 +61,7 @@ registerWidget<RadarrConfig, RadarrQueueItem[]>({
   refreshInterval: 15_000,
   component: RadarrQueueWidget,
   credentialScopeFields: ["url"],
+  setupGuide: radarrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -66,7 +69,8 @@ registerWidget<RadarrConfig, RadarrQueueItem[]>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:7878",
+      description: radarrUrlDescription,
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    { key: "api_key", label: "API Key", type: "password", required: true, description: radarrApiKeyDescription },
   ],
 });

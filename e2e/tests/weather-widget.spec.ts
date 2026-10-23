@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 import type { WeatherData } from "../../src/integrations/weather/api";
 
 const FOOTPRINTS = [{ columnSpan: 3, rowSpan: 2 }, { columnSpan: 6, rowSpan: 2 }, { columnSpan: 6, rowSpan: 4 }];
@@ -78,15 +79,19 @@ test("Weather stale refresh retains all data and geometry, then recovers after t
   // London crosses local midnight on the first failed refresh; browser TZ differs.
   await page.clock.install({ time: new Date("2026-10-16T22:59:00Z") });
   for (const footprint of FOOTPRINTS) {
-    fails = false; await configure(request, { footprints: [footprint] }); await page.goto("/");
+    fails = false; await configure(request, { footprints: [footprint] });
+    await withSettledConfigurationCheck(page, () => page.goto("/"));
     await expect(tile(page).locator(".widget-stat").first()).toHaveText(/18°C/);
     const bounds = await tile(page).locator(".widget-stat-grid").boundingBox();
-    fails = true; await page.clock.fastForward(600_000);
+    fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000));
     await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Provider unavailable");
     if (footprint.rowSpan === 4) await expect(tile(page).getByText("Precip · Fri, Oct 16")).toBeVisible();
     expect(await tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
     await expect(tile(page).locator(".widget-stat").first()).toHaveText(/18°C/);
-    fails = false; await page.clock.fastForward(600_000); await expect(tile(page).getByRole("alert")).toHaveCount(0);
+    // Settle the real revision check before another large clock jump can time
+    // it out and hide the dashboard during the widget recovery assertions.
+    fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000));
+    await expect(tile(page).getByRole("alert")).toHaveCount(0);
     expect(await tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
   }
 });

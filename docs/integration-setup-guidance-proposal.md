@@ -122,8 +122,8 @@ For each integration, verify the upstream sequence and permissions against offic
 | Integration | Delivery status | PR / release evidence |
 | --- | --- | --- |
 | Unraid | Released; CI and AI feedback cleared, Docker publication verified | [PR #160](https://github.com/pmyszczynski/kokpit/pull/160), [v0.32.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.0), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39890907906) |
-| Sonarr | Guide implemented for Calendar and Queue; validating | Targeting v0.32.1 |
-| Radarr | Planned | — |
+| Sonarr | Released; all three AI reviewers clear, CI and Docker verification passed | [PR #161](https://github.com/pmyszczynski/kokpit/pull/161), [v0.32.1](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.1), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39896440534) |
+| Radarr | Guide implemented for Stats and Queue; validating | Targeting v0.32.2 |
 | Prowlarr | Planned | — |
 | SABnzbd | Planned | — |
 | Seerr | Planned | — |
@@ -151,3 +151,13 @@ Checked 23 October 2026 against the [official Sonarr settings guide](https://wik
 - **API contract:** the upstream [OpenAPI definition](https://github.com/Sonarr/Sonarr/blob/develop/src/Sonarr.Api.V3/openapi.json) documents `X-Api-Key`, calendar `start`/`end`/`includeSeries`, and queue `pageSize`/`includeSeries`/`includeUnknownSeriesItems`. Its v3 API applies to Sonarr v3 and v4.
 - **Kokpit behavior:** checked `src/integrations/sonarr/api.ts`, both widget definitions/renderers, and `src/integrations/shared/http.ts`. Calendar starts at today's UTC midnight, accepts 1–30 days and defaults to 7. Queue requests one page of 25 with unknown series excluded. Both use a 3×4 scrolling layout; polling defaults are 60 seconds for Calendar and 15 for Queue.
 - The common outdated-instructions disclaimer and GitHub issue link apply to both widgets. Browser verification uses isolated test configuration and a dummy key; a live Sonarr deployment has not been tested.
+
+### Radarr documentation and implementation evidence
+
+Checked 23 October 2026 against the [official Radarr settings guide](https://wiki.servarr.com/radarr/settings#general), [API reference](https://radarr.video/docs/api/), upstream [Security settings UI](https://github.com/Radarr/Radarr/blob/develop/frontend/src/Settings/General/SecuritySettings.tsx), and [OpenAPI definition](https://github.com/Radarr/Radarr/blob/develop/src/Radarr.Api.V3/openapi.json).
+
+- **Getting the key:** General → Security has the existing API Key and copy/reset buttons. The guide explains copying the application key and the effect of resetting it. No separate read-only key creation is claimed.
+- **Address:** the official Host section documents URL Base for reverse proxies. Kokpit's shared HTTP helper preserves that path only when it ends with `/`, so the guide and URL help use `https://example.com/radarr/`. A root URL works with or without a final slash. The v3 API uses `X-Api-Key`; the user does not append `/api/v3`.
+- **Widget behavior:** checked `src/integrations/radarr/api.ts` and both widget definitions/renderers. Stats fetches movies plus the reported queue total. Missing means monitored, no file, and `isAvailable`; Wanted means monitored with no file; Available means `hasFile`; Upcoming means announced or in cinemas. Detailed and Wide show the same six metrics, with a 60-second default refresh.
+- Queue requests one page of 25, includes movie data and excludes unknown movie items. Its default footprint is a scrolling 3×4 list and its default refresh is 15 seconds. No queue limit/filter controls are claimed.
+- Both widgets inherit the shared outdated-instructions disclaimer and GitHub issue link. Preview screenshots use an isolated configuration and a dummy key; live Radarr connectivity has not been tested.

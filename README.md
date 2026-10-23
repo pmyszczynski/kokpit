@@ -1152,7 +1152,9 @@ The Default footprint is 3×4, with a scrolling queue. The default refresh inter
 
 Two widgets are available for Radarr: a stats overview and a download queue monitor.
 
-**Prerequisites:** An API key from Radarr → Settings → General → Security.
+**Prerequisites:** A Radarr instance reachable from Kokpit and its API key. Sign in to Radarr, open **Settings → General → Security**, and copy the existing **API Key**. Paste only the key into Kokpit; resetting it affects other apps that use it.
+
+Stats and Queue share the Add/Edit Service form's numbered setup guide, field help, troubleshooting, and outdated-instructions issue link. Enter the base URL (usually port 7878), including any configured URL Base. A path such as `https://example.com/radarr/` **requires a trailing slash**; a root URL such as `http://192.168.1.10:7878` works with or without one. Kokpit appends `/api/v3` and sends the key in `X-Api-Key`. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See the [official Radarr settings](https://wiki.servarr.com/radarr/settings#general) and [API reference](https://radarr.video/docs/api/).
 
 #### `radarr-stats`
 
@@ -1167,7 +1169,7 @@ services:
     integration:
       type: radarr
       config:
-        url: http://192.168.1.10:7878
+        url: http://192.168.1.10:7878/
         api_key: YOUR_API_KEY
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000024
@@ -1179,8 +1181,10 @@ service_tiles:
 
 | Field     | Required | Description                              |
 | --------- | -------- | ---------------------------------------- |
-| `url`     | Yes      | Base URL of your Radarr instance         |
-| `api_key` | Yes      | API key from Radarr → Settings → General |
+| `url`     | Yes      | Reachable Radarr base URL; include any URL Base path with a trailing `/` (optional at the root) |
+| `api_key` | Yes      | Existing API Key from Settings → General → Security |
+
+Detailed (3×4) shows the six metrics in two columns and three rows; Wide (6×2) shows the same metrics in one row. The default refresh interval is 60 seconds; an editor override is in milliseconds (minimum 5,000).
 
 
 **Displayed stats:**
@@ -1188,7 +1192,7 @@ service_tiles:
 
 | Stat      | Description                                               |
 | --------- | --------------------------------------------------------- |
-| Missing   | Monitored movies without a file that are already released |
+| Missing   | Monitored movies without a file that Radarr marks available (`isAvailable`) |
 | Upcoming  | Movies in "announced" or "in cinemas" status              |
 | Wanted    | All monitored movies without a file                       |
 | Queued    | Total items currently in the download queue               |
@@ -1198,7 +1202,7 @@ service_tiles:
 
 #### `radarr-queue`
 
-Shows active movie downloads with progress bars, status, and ETA.
+Shows the first page of up to 25 known-movie queue entries with progress bars, status, and ETA. Downloads without a known Radarr movie are excluded; there is no configurable queue limit. Stats uses Radarr's reported queue total, which can exceed the number of displayed entries.
 
 ```yaml
 services:
@@ -1209,7 +1213,7 @@ services:
     integration:
       type: radarr
       config:
-        url: http://192.168.1.10:7878
+        url: http://192.168.1.10:7878/
         api_key: YOUR_API_KEY
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000025
@@ -1221,8 +1225,10 @@ service_tiles:
 
 | Field     | Required | Description                              |
 | --------- | -------- | ---------------------------------------- |
-| `url`     | Yes      | Base URL of your Radarr instance         |
-| `api_key` | Yes      | API key from Radarr → Settings → General |
+| `url`     | Yes      | Reachable Radarr base URL; include any URL Base path with a trailing `/` (optional at the root) |
+| `api_key` | Yes      | Existing API Key from Settings → General → Security |
+
+The Default footprint is 3×4, with a scrolling queue. The default refresh interval is 15 seconds; an editor override is in milliseconds (minimum 5,000).
 
 
 ---
