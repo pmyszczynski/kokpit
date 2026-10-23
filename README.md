@@ -776,6 +776,15 @@ able to reach that listener from its own container; `localhost` refers to the
 Kokpit container. A reverse-proxy base path or Hermes `/p/<profile>` prefix is
 preserved. Use the listener root, rather than appending `/v1`.
 
+Add/Edit Service includes numbered instructions, field help, troubleshooting and the shared outdated-instructions/GitHub-issue notice. On the Hermes host, edit its `.env` (normally `~/.hermes/.env`) and enable the API. Reuse the effective existing `API_SERVER_KEY`, or the existing `gateway.api_server.key` in `config.yaml`; environment settings take precedence. If no key is configured, generate one locally with `openssl rand -hex 32` and save its output as `API_SERVER_KEY`. Current Hermes rejects placeholder keys and keys under 16 characters. Paste the bare value into Kokpit, without the variable name, `Bearer` or quotes. This is the Hermes API server key, not a model-provider credential. The key also permits agent actions, including terminal commands; keep it private and allow only trusted clients over HTTPS or a private network.
+
+The listener defaults to `API_SERVER_HOST=127.0.0.1` and `API_SERVER_PORT=8642`. If Kokpit runs elsewhere, configure a trusted private bind and any required container port publication before starting/restarting the gateway. Start with `hermes gateway`; for an installed service use `hermes gateway restart` after configuration changes. For multiplexed `/p/name` routes, configure and copy that profile's **own** `API_SERVER_KEY` from `~/.hermes/profiles/name/.env`; the default key cannot authenticate a named prefix. Unprefixed routes and `/p/default` use the default key. No CORS allowlist is needed for Kokpit's server-to-server requests. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See the official [API server guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server), [profile documentation](https://hermes-agent.nousresearch.com/docs/user-guide/profiles) and [OpenSSL random generator](https://docs.openssl.org/3.5/man1/openssl-rand/).
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `url` | Yes | Final HTTP(S) API listener root, normally port 8642, reachable from Kokpit; retain a real proxy/profile prefix, omit `/v1` and endpoint suffixes, credentials, queries and fragments |
+| `api_key` | Yes | Effective API server key for the selected listener/profile, sent as `Authorization: Bearer`; an untouched saved key is retained only while the connection URL stays unchanged |
+
 Default **3×4** and Wide **6×3** show readiness, active **API** runs, the next
 scheduled job and its last result, up to ten recent sessions, scheduled-job count
 and the number of jobs with failed results, blocked configuration or scheduling
@@ -788,8 +797,10 @@ data. Long titles retain their full normalized text in tooltips, and the activit
 list supports keyboard scrolling while the summary remains fixed. Wide arranges
 activity in two columns within the same scroll region.
 
+The default refresh is 30 seconds; editor overrides use milliseconds with a 5-second minimum. There are no configurable section or session-limit options. Recent sessions come from a fixed ten-item, top-level request; failure counts describe current job metadata rather than a lifetime total.
+
 Set the service **launch URL** to your Hermes web dashboard for the tile's open
-link; it is independent of the API connection URL. The first version is read-only.
+link; it is independent of the API connection URL. Kokpit only makes GET requests for metadata.
 Upcoming work includes enabled, scheduled jobs; running, paused and terminal jobs
 are excluded.
 Missing job/session endpoints are labeled unsupported; transient section errors
