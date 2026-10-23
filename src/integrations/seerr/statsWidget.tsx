@@ -4,6 +4,7 @@ import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice 
 import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchStats, SeerrConfigSchema } from "./api";
 import type { SeerrConfig, SeerrStats } from "./api";
+import { seerrSetupGuide } from "./setupGuide";
 
 export function SeerrStatsWidget({ data, loading, error, footprint }: WidgetProps<SeerrStats>) {
   if (!data) {
@@ -47,11 +48,13 @@ registerWidget<SeerrConfig, SeerrStats>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  footprintDescription: "Compact (3×2) shows Pending and Available. Wide (6×2) also shows Total; Detailed (3×4) shows all four counts, including Approved. These are request counts from the application’s API filters.",
   configSchema: SeerrConfigSchema,
   fetchData: fetchStats,
   refreshInterval: 60_000,
   component: SeerrStatsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: seerrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -59,9 +62,15 @@ registerWidget<SeerrConfig, SeerrStats>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:5055",
-      description: "Works with Seerr, Jellyseerr, and Overseerr",
+      description: "The base address of Seerr, Jellyseerr or Overseerr, including http:// or https:// and its port (usually 5055). Use the root address or a proxy subdomain reachable from Kokpit; do not append /api/v1. Seerr does not officially support subfolder base URLs.",
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    {
+      key: "api_key",
+      label: "API Key",
+      type: "password",
+      required: true,
+      description: "The application’s API Key from Settings → General. It grants administrator access, although Kokpit only reads data. Paste only the key; leave a saved key unchanged to keep using it.",
+    },
   ],
   serviceEditorPreset: {
     defaultName: "Seerr",
