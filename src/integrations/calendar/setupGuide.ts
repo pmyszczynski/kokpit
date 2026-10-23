@@ -10,8 +10,8 @@ export const calendarSetupGuide: WidgetSetupGuide = {
       description: "Use the calendar collection, rather than its discovery or ICS URL. For a calendar you own in Nextcloud: Calendar → … → Edit and share calendar → Internal link → … → Copy internal link. Other providers need their actual calendar collection address.",
     },
     {
-      title: "CalDAV — get an app password",
-      description: "Nextcloud: avatar → Personal settings → Security → Devices & sessions. Enter Kokpit under App name, choose Create new app password, then copy Login and Password immediately. Reuse an existing Kokpit app password if known; Nextcloud accounts with 2FA need an app password.",
+      title: "CalDAV — set credentials if required",
+      description: "For an already anonymous collection, skip password creation and leave both CalDAV fields blank. For Nextcloud: avatar → Personal settings → Security → Devices & sessions. Enter Kokpit as App name → Create new app password, then copy Login and Password immediately. Reuse known Kokpit credentials when available; 2FA needs an app password.",
     },
     {
       title: "Google — prepare an intended public calendar",
@@ -27,7 +27,7 @@ export const calendarSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Enter matching fields, test and save",
-      description: "CalDAV: enter its collection URL and username/password; clear Google API key. Google: enter Calendar ID and key; clear both CalDAV fields. Choose days, limit and time zone. Use Test connection when enabled, wait for Connection OK, then save; otherwise save and check the dashboard. Clear unused saved secrets when switching paths.",
+      description: "CalDAV: enter its collection URL and required username/password, or leave both blank for an already anonymous collection; clear Google API key. Google: enter Calendar ID and key; clear both CalDAV fields. Choose days, limit and time zone. Test when enabled, wait for Connection OK, then save; otherwise save and check the dashboard. Use Clear saved credential for unused saved secrets.",
     },
   ],
   troubleshooting: [
@@ -37,19 +37,19 @@ export const calendarSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Finding the right Nextcloud collection",
-      description: "For an owned calendar, open … → Edit and share calendar, then the action next to Internal link → Copy internal link. A typical result is https://cloud.example.com/remote.php/dav/calendars/me/personal/. Keep the exact path and final slash. Copy public link opens a sharing page; Copy subscription link/Export gives a feed or download. A general /remote.php/dav or account URL needs discovery, which Kokpit does not perform. Incoming shared/delegated calendars can hide the Internal link control: obtain that account’s actual collection URL through the provider’s CalDAV client/discovery tools instead of guessing a path.",
+      description: "Use the Internal link procedure in the CalDAV setup path for an owned calendar. A typical result is https://cloud.example.com/remote.php/dav/calendars/me/personal/. Keep the exact path and final slash. Copy public link opens a sharing page; Copy subscription link/Export gives a feed or download. A general /remote.php/dav or account URL needs discovery, which Kokpit does not perform. Incoming shared/delegated calendars can hide the Internal link control: obtain that account’s actual collection URL through the provider’s CalDAV client/discovery tools instead of guessing a path.",
     },
     {
       title: "Nextcloud app passwords or CalDAV 401/403",
-      description: "Create a dedicated Kokpit app password under personal Security → Devices & sessions, or reuse your known Kokpit value. Copy the dialog’s Login and Password immediately: the password is shown once. Use Login as CalDAV username, rather than a display name. With 2FA, the normal account password is rejected by CalDAV clients. Other providers have their own app-password/login procedure. Read access to the collection is required; these credentials can have broader provider permissions even though Kokpit only reads. If changing accounts, replace the password too; usernames cannot contain a colon.",
+      description: "Use the credential procedure in the CalDAV setup path, or reuse your known Kokpit app password. Copy the dialog’s Login and Password immediately: the password is shown once. Use Login as CalDAV username, rather than a display name. With 2FA, the normal account password is rejected by Nextcloud’s CalDAV clients. Other providers have their own app-password/login procedure. Read access to the collection is required; these credentials can have broader provider permissions even though Kokpit only reads. If changing accounts, replace the password too; usernames cannot contain a colon.",
     },
     {
       title: "Google 403/404 or private/missing event details",
-      description: "Check Calendar ID under that calendar’s Settings and sharing → Integrate calendar, not an event ID or URL. Verify intentional public sharing and the desired event-detail visibility. Google Workspace administrators can restrict public sharing. The API key identifies a Cloud project and quota; it does not sign in as a Google user or make a calendar private. A key cannot grant access to a private Google calendar. Confirm Google Calendar API is enabled in the same project as the key and allow time for permission/restriction changes to take effect.",
+      description: "Check the copied Calendar ID using the Google setup path, not an event ID or URL. Verify intentional public sharing and the desired event-detail visibility. Google Workspace administrators can restrict public sharing. The API key identifies a Cloud project and quota; it does not sign in as a Google user or make a calendar private. A key cannot grant access to a private Google calendar. Confirm Google Calendar API is enabled in the same project as the key and allow time for permission/restriction changes to take effect.",
     },
     {
       title: "Google key restrictions or quota errors",
-      description: "Use API restrictions → Restrict key → Google Calendar API. For application IP restrictions, enter the public outbound address Google sees for the Kokpit server, including applicable IPv4/IPv6 or VPN/NAT egress; your browser or Docker/LAN address is usually different. Website referrers and mobile-app restrictions do not match these server-side calls. Use a dedicated key instead of narrowing a key shared with unrelated APIs. Keep the key private and update IP restrictions if egress changes. For 429/quota errors, wait for the limit to clear and consider a longer refresh interval; the default is five minutes.",
+      description: "Confirm the Calendar API restriction described in the Google setup path. For application IP restrictions, enter the public outbound address Google sees for the Kokpit server, including applicable IPv4/IPv6 or VPN/NAT egress; your browser or Docker/LAN address is usually different. Website referrers and mobile-app restrictions do not match these server-side calls. Use a dedicated key instead of narrowing a key shared with unrelated APIs. Keep the key private and update IP restrictions if egress changes. For 429/quota errors, wait for the limit to clear and consider a longer refresh interval; the default is five minutes.",
     },
     {
       title: "Calendar works in a browser but not in Kokpit",
