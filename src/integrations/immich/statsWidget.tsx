@@ -3,6 +3,7 @@ import type { WidgetProps } from "@/widgets";
 import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchStats, ImmichConfigSchema } from "./api";
 import type { ImmichConfig, ImmichStats } from "./api";
+import { immichSetupGuide } from "./setupGuide";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1_000_000_000_000) {
@@ -74,11 +75,13 @@ registerWidget<ImmichConfig, ImmichStats>({
   supportedFootprints: [
     { label: "Default", columnSpan: 3, rowSpan: 2 },
   ],
+  footprintDescription: "Default (3×2) shows Storage and Items side by side. Storage is the instance-wide media usage reported by Immich; Items adds its photo and video counts. There are no per-user or metric-selection options.",
   configSchema: ImmichConfigSchema,
   fetchData: fetchStats,
   refreshInterval: 60_000,
   component: ImmichStatsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: immichSetupGuide,
   configFields: [
     {
       key: "url",
@@ -86,9 +89,15 @@ registerWidget<ImmichConfig, ImmichStats>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:2283/api",
-      description: "Immich API base URL, usually ending with /api",
+      description: "Immich API base address, including http:// or https:// and the published port (normally 2283). The server root or a single /api suffix works; Kokpit requests /api/server/statistics. Omit the full statistics route and query parameters. Use a domain or subdomain root, not an /immich subfolder; the address must be reachable from Kokpit.",
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    {
+      key: "api_key",
+      label: "API Key",
+      type: "password",
+      required: true,
+      description: "An administrator’s key from Account Settings → API Keys → New API Key, with only server.statistics selected. Copy the one-time secret shown after Create; omit Bearer and quotation marks. Kokpit sends it in the X-Api-Key header. An untouched saved field keeps the existing key.",
+    },
   ],
   serviceEditorPreset: {
     defaultName: "Immich",
