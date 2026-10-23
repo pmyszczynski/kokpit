@@ -4,6 +4,7 @@ import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice 
 import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchStats, RadarrConfigSchema } from "./api";
 import type { RadarrConfig, RadarrStats } from "./api";
+import { radarrSetupGuide, radarrUrlDescription, radarrApiKeyDescription } from "./setupGuide";
 
 export function RadarrStatsWidget({
   data,
@@ -67,6 +68,7 @@ registerWidget<RadarrConfig, RadarrStats>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  footprintDescription: "Both footprints show Missing, Upcoming, Wanted, Queued, Available and Total. Detailed (3×4) uses two columns and three rows; Wide (6×2) shows all six in one row.",
   serviceEditorPreset: {
     defaultName: "Radarr",
     defaultIconUrl: "https://cdn.simpleicons.org/radarr/ffc230",
@@ -76,6 +78,7 @@ registerWidget<RadarrConfig, RadarrStats>({
   refreshInterval: 60_000,
   component: RadarrStatsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: radarrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -83,7 +86,8 @@ registerWidget<RadarrConfig, RadarrStats>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:7878",
+      description: radarrUrlDescription,
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    { key: "api_key", label: "API Key", type: "password", required: true, description: radarrApiKeyDescription },
   ],
 });

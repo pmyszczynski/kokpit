@@ -86,8 +86,13 @@ test("Weather stale refresh retains all data and geometry, then recovers after t
     if (footprint.rowSpan === 4) await expect(tile(page).getByText("Precip · Fri, Oct 16")).toBeVisible();
     expect(await tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
     await expect(tile(page).locator(".widget-stat").first()).toHaveText(/18°C/);
-    fails = false; await page.clock.fastForward(600_000); await expect(tile(page).getByRole("alert")).toHaveCount(0);
-    expect(await tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
+    fails = false; await page.clock.fastForward(600_000);
+    // The clock jump can time out a configuration probe and temporarily hide
+    // the dashboard. A hidden dashboard also has no accessible alert, so wait
+    // for its retained weather content before asserting refresh recovery.
+    await expect(tile(page).locator(".widget-stat-grid")).toBeVisible();
+    await expect(tile(page).getByRole("alert")).toHaveCount(0);
+    await expect.poll(() => tile(page).locator(".widget-stat-grid").boundingBox()).toEqual(bounds);
   }
 });
 
