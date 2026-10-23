@@ -1543,8 +1543,8 @@ describe("ServiceForm – Tautulli defaults", () => {
     const apiKey = screen.getByLabelText(/^API Key \*$/);
     const alert = screen.getByText(/saved for a different connection/i);
     expect(apiKey).toHaveAttribute("aria-invalid", "true");
-    expect(apiKey).toHaveAttribute("aria-describedby", alert.id);
-    expect(alert).toHaveTextContent(/saved for a different connection/i);
+    expect(apiKey.getAttribute("aria-describedby")?.split(/\s+/)).toContain(alert.id);
+    expect(apiKey).toHaveAccessibleDescription(/saved for a different connection/i);
   });
 
   it("keeps a saved credential valid when its canonical destination is restored or unrelated fields change", () => {

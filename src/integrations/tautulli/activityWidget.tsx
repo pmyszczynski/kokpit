@@ -7,6 +7,7 @@ import {
   TautulliConfigSchema,
 } from "./api";
 import type { TautulliActivityData, TautulliConfig } from "./api";
+import { tautulliSetupGuide } from "./setupGuide";
 
 const TAUTULLI_SECTIONS_FIELD = {
   key: "sections",
@@ -18,7 +19,7 @@ const TAUTULLI_SECTIONS_FIELD = {
     { value: "summary", label: "Summary" },
     { value: "sessions", label: "Active sessions" },
   ],
-  description: "Select at least one section.",
+  description: "Both sections are selected by default; keep at least one. Summary shows active stream counts, Direct Play, Direct Stream, Transcoding and total streaming bandwidth. Active sessions shows each user’s playback and progress. Select one to hide the other.",
 } satisfies WidgetConfigField;
 
 function formatLabel(value: string): string {
@@ -89,6 +90,7 @@ registerWidget<TautulliConfig, TautulliActivityData>({
   refreshInterval: 10_000,
   preferredSize: "tall",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }, { label: "Expanded", columnSpan: 6, rowSpan: 4 }],
+  footprintDescription: "Both sizes retain your selected sections and every returned session. Default (3×4) uses three summary columns; Expanded (6×4) puts all five summary measurements in one row and gives sessions more width. The session list scrolls below the fixed summary.",
   minSize: "tall",
   component: TautulliActivityWidget,
   compactHeader: true,
@@ -100,10 +102,24 @@ registerWidget<TautulliConfig, TautulliActivityData>({
       "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main/svg/tautulli.svg",
   },
   credentialScopeFields: ["url"],
+  setupGuide: tautulliSetupGuide,
   optionFields: [TAUTULLI_SECTIONS_FIELD],
   configFields: [
-    { key: "url", label: "URL", type: "url", required: true, placeholder: "http://192.168.1.x:8181" },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    {
+      key: "url",
+      label: "URL",
+      type: "url",
+      required: true,
+      placeholder: "http://192.168.1.x:8181",
+      description: "Tautulli’s base address, including http:// or https:// and its port (usually 8181). Keep any configured HTTP Root, e.g. https://example.com/tautulli/. Kokpit adds /api/v2 and the activity query; enter neither here. The address must work from Kokpit.",
+    },
+    {
+      key: "api_key",
+      label: "API Key",
+      type: "password",
+      required: true,
+      description: "Tautulli’s application API key from Settings → Web Interface, used to read current Plex activity. Paste only the key, not a Plex token or full API URL. Leave a saved key unchanged to keep using it.",
+    },
     TAUTULLI_SECTIONS_FIELD,
   ],
 });

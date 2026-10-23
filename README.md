@@ -1015,7 +1015,11 @@ identifiers and media file paths are not returned to the browser.
 
 Displays current Plex activity from Tautulli.
 
-**Prerequisites:** Enable Tautulli's API and copy the generated API key.
+**Prerequisites:** Connect Tautulli to Plex first. Sign in as an administrator and open **Settings → Web Interface → Enable API**. Enable it if needed, reveal **API key** with the eye icon, then click the field to select and copy its value. If empty, click **Generate**. Save Tautulli's settings before using the key in Kokpit; a replacement affects other connected apps.
+
+Add/Edit Service includes a numbered guide, field help, troubleshooting and the shared outdated-instructions/GitHub-issue notice. Enter Tautulli's base URL (usually port 8181), retaining any **HTTP Root** from **Show Advanced → Web Interface**. Kokpit normalizes a final slash, appends `/api/v2`, and requests `get_activity`; omit the endpoint and query string from the field. Use **Test connection** when enabled, then save; otherwise save and check the dashboard.
+
+The key also permits commands that change data, although this widget only reads activity. Prefer a private connection; for remote access use HTTPS and enable Tautulli authentication. Kokpit currently sends `apikey` as a query parameter, so keep full request URLs private. The official [API reference](https://github.com/Tautulli/Tautulli/wiki/Tautulli-API-Reference) documents that method and the header alternative available in Tautulli 2.18.0+. See the official [FAQ](https://github.com/Tautulli/Tautulli/wiki/Frequently-Asked-Questions) for network and proxy setup.
 
 **YAML example:**
 
@@ -1044,9 +1048,9 @@ service_tiles:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `url` | Yes | Base URL of the Tautulli instance, including any HTTP root |
-| `api_key` | Yes | Tautulli API key; used only by Kokpit's server |
-| `sections` | No | Non-empty list containing `summary`, `sessions`, or both; defaults to both |
+| `url` | Yes | Tautulli base URL including protocol, port and any HTTP Root, reachable from Kokpit; omit `/api/v2` and query parameters |
+| `api_key` | Yes | Application API key from Settings → Web Interface, rather than a Plex or mobile-device token; leave a saved value unchanged to retain it |
+| `sections` | No | `summary` shows the five aggregate activity measurements; `sessions` shows per-user playback/progress. Defaults to both; at least one is required |
 
 **Summary:**
 
@@ -1068,7 +1072,7 @@ selections remain supported. Expanded arranges the summary
 in one row to leave more space for session details. The summary stays fixed
 while the session list scrolls by mouse or keyboard. Playing uses green,
 buffering amber, failures red, and paused/unknown states neutral shared tones.
-The existing `sections` selection and 10-second polling are preserved.
+The default refresh is 10 seconds. Editor overrides use milliseconds with a 5-second minimum. This is current activity, not watch history; an empty session list is normal when nobody is streaming.
 
 
 ---
