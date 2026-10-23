@@ -8,8 +8,8 @@ import { daysUntil, formatInTimeZone } from "./format";
 // `url` is the actual-http-api sidecar, never the Actual Budget server itself:
 // Actual has no read API, it speaks an encrypted CRDT sync stream. `api_key` is
 // the sidecar's own key, and `encryption_password` is only needed for
-// end-to-end-encrypted budgets. The API carries no currency information, so
-// `currency`/`locale` are config rather than anything we can discover.
+// end-to-end-encrypted budgets. Kokpit does not read currency or formatting
+// preferences from the API, so `currency`/`locale` are explicit config.
 //
 // `timezone` is an optional IANA name (e.g. "Europe/Warsaw") used to resolve
 // "current month" and "days until" boundaries. No Dockerfile or compose file
@@ -103,28 +103,28 @@ export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
     required: true,
     placeholder: "http://actual-http-api:5007",
     description:
-      "URL of your actual-http-api sidecar, not your Actual Budget server.",
+      "Final HTTP(S) root of the jhonderson/actual-http-api bridge reachable from Kokpit, normally port 5007. Direct IP/hostname URLs work; retain any real proxy mount. Do not append endpoint or documentation paths: Kokpit builds the v1/budgets routes. Keep credentials, queries and fragments out of the URL. The optional service URL opens Actual’s WebUI separately.",
   },
   {
     key: "api_key",
     label: "API Key",
     type: "password",
     required: true,
-    description: "The sidecar's own API_KEY, not your Actual server password.",
+    description: "Reuse API_KEY from the bridge deployment, or the value in its API_KEY_PATH secret file. For a new bridge, generate a long random value with openssl rand -hex 32 and configure it there first. This is not the Actual server login or encryption password. A saved key is retained for the same normalized URL and exact Budget Sync ID; changing either requires re-entry.",
   },
   {
     key: "budget_sync_id",
     label: "Budget Sync ID",
     type: "text",
     required: true,
-    description: "Actual → Settings → Show advanced settings → Sync ID.",
+    description: "Open the synced budget in Actual → Settings → Show advanced settings → Sync ID. Copy the Sync ID, not the local Budget ID or an account/category ID. Resetting sync creates a new one. Changing this value requires re-entering the saved API key and applicable encryption password.",
   },
   {
     key: "encryption_password",
     label: "Encryption Password",
     type: "password",
     required: false,
-    description: "Only needed for end-to-end-encrypted budgets.",
+    description: "The budget’s existing end-to-end encryption password, separate from the Actual server login. Required only when that budget is encrypted; leave unconfigured for an unencrypted budget. Kokpit sends it to the bridge in a header. A saved value is retained for the same normalized URL and exact Budget Sync ID; changing either requires re-entry.",
   },
   {
     key: "currency",
@@ -132,7 +132,7 @@ export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
     type: "text",
     required: false,
     placeholder: "USD",
-    description: "3-letter ISO currency code, e.g. USD, EUR, GBP.",
+    description: "Three-letter ISO currency code for this budget, e.g. USD, EUR or GBP; default USD. Controls amount formatting only: Kokpit does not detect the budget’s currency or perform currency conversion.",
   },
   {
     key: "locale",
@@ -140,7 +140,7 @@ export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
     type: "text",
     required: false,
     placeholder: "en-US",
-    description: "BCP 47 locale for number formatting, e.g. en-US, de-DE.",
+    description: "Optional BCP 47 locale for number/currency formatting, e.g. en-US, en-GB or de-DE. Leave blank for automatic formatting; set it explicitly for a consistent format. This does not change the budget’s currency or timezone.",
   },
   {
     key: "privacy_mode",
@@ -148,7 +148,7 @@ export const BASE_CONFIG_FIELDS: WidgetConfigField[] = [
     type: "boolean",
     required: false,
     defaultValue: true,
-    description: "Blurs monetary amounts on the tile until you hover over it.",
+    description: "Enabled by default. Blurs monetary amounts until the tile is hovered or focused; turn off to show them continuously. This is visual privacy: the values remain accessible and it does not restrict dashboard access.",
   },
 ];
 
@@ -170,7 +170,7 @@ export const TIMEZONE_CONFIG_FIELD: WidgetConfigField = {
   required: false,
   placeholder: "Europe/Warsaw",
   description:
-    "Optional IANA timezone name (e.g. Europe/Warsaw). Resolves the current budget month (summary, categories) or due-date status — \"today\"/\"overdue\" (schedules). Defaults to the server's timezone.",
+    "Optional IANA timezone, e.g. Europe/Warsaw or America/New_York. Resolves the current budget month in Summary/Categories and today/overdue in Schedules. Blank or invalid values use Kokpit’s server timezone, normally UTC in Docker. Accounts has no timezone control because balances are not date-based.",
 };
 
 // ── Widget-facing shapes ─────────────────────────────────────────────────────

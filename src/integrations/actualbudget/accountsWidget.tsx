@@ -4,6 +4,7 @@ import { WidgetBody, WidgetList, WidgetListItem, WidgetState, WidgetStaleNotice,
 import { fetchAccounts, ActualAccountsConfigSchema, BASE_CONFIG_FIELDS } from "./api";
 import type { ActualAccountsConfig, ActualAccount } from "./api";
 import { Amount } from "./Amount";
+import { actualBudgetSetupGuide } from "./setupGuide";
 
 // See summaryWidget.tsx: WidgetProps carries no config, so this file's own
 // fetchData wrapper folds the display settings the component needs
@@ -77,6 +78,8 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
     error: "actualbudget-accounts-widget__hint actualbudget-accounts-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  setupGuide: actualBudgetSetupGuide,
+  footprintDescription: "Default (3×4) scrolls all accounts returned after the two filters, keeping the bridge’s order. Rows show the account name, working balance (cleared plus uncleared) and an Off-budget marker when applicable. Net worth sums the displayed accounts; both filters affect that total. There is no account-ID selector or item-limit control, and no timezone setting.",
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:
@@ -98,7 +101,7 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
       required: false,
       defaultValue: true,
       description:
-        "Leaves closed accounts out of the list and out of the net worth total.",
+        "Enabled by default. Excludes closed accounts from both the list and its Net worth footer. Turn off to include their returned balances too.",
     },
     {
       key: "exclude_offbudget",
@@ -107,7 +110,7 @@ registerWidget<ActualAccountsConfig, ActualAccountsData>({
       required: false,
       defaultValue: false,
       description:
-        "Leaves off-budget accounts out of the list and out of the net worth total.",
+        "Off by default, so off-budget accounts are included and marked. Enable to exclude them from both the list and its Net worth footer. This does not change Summary’s separate Net Worth calculation.",
     },
   ],
 });

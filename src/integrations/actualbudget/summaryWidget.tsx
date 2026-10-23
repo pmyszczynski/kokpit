@@ -12,6 +12,7 @@ import {
 } from "./api";
 import type { ActualSummaryConfig, ActualSummary } from "./api";
 import { Amount } from "./Amount";
+import { actualBudgetSetupGuide } from "./setupGuide";
 
 // WidgetProps only carries { data, loading, error, refresh } — the component
 // never sees the resolved config. currency/locale/privacy_mode are config, so
@@ -98,6 +99,8 @@ registerWidget<ActualSummaryDisplayConfig, ActualSummaryData>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  setupGuide: actualBudgetSetupGuide,
+  footprintDescription: "With Choose stats by tile size enabled, Compact (3×2) shows To Assign and Remaining; Wide (6×2) adds Spent in three columns; Detailed (3×4) shows all six in two columns. Turn it off to keep all six at every size, scrolling when needed. The other figures are Budgeted, Overspent (non-hidden categories with negative balances), and Net Worth (open account balances, including off-budget accounts). Net Worth shows — if its optional lookup fails.",
   serviceEditorPreset: {
     defaultConfig: { size_defaults: true },
     defaultName: "Actual Budget",
@@ -114,7 +117,7 @@ registerWidget<ActualSummaryDisplayConfig, ActualSummaryData>({
     label: "Choose stats by tile size",
     type: "boolean",
     defaultValue: false,
-    description: "Show 2/3/6 stats in Compact/Wide/Detailed. Turn off to keep all six figures at every size.",
+    description: "Show 2/3/6 figures in Compact/Wide/Detailed: To Assign + Remaining; add Spent; then all six. New editor presets enable this. Existing/YAML configs default to off, keeping all six figures at every size. This toggle is the only measurement-selection option.",
   }],
   credentialScopeFields: ["url", "budget_sync_id"],
 });

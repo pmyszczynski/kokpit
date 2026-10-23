@@ -1808,7 +1808,7 @@ Displays budget summary, category spending, account balances, and upcoming bills
 ```yaml
 services:
   actual-http-api:
-    image: jhonderson/actual-http-api:26.7.0
+    image: jhonderson/actual-http-api:26.10.0
     environment:
       # Your Actual Budget server connection (the sidecar only; Kokpit never sees this)
       ACTUAL_SERVER_URL: http://actual-server:5006
@@ -1824,17 +1824,17 @@ services:
     restart: unless-stopped
 ```
 
-Then pin the sidecar's image tag to match your Actual server's version line (e.g. both `26.7.0`). A mismatch causes cryptic sync errors.
+Pin a published bridge image compatible with your Actual release. The current example is `26.10.0`, whose package uses `@actual-app/api` `^26.10.0`; check both projects’ release notes when upgrading. An outdated API client can cause sync/update-required errors. Ensure the bridge can reach Actual and Kokpit can reach the bridge; Docker service names resolve only between containers sharing a network. Apply the example with `docker compose up -d actual-http-api`.
 
 **Three distinct secrets — do not confuse them:**
 
-1. **Actual server password** — your budget's login password. Goes in the sidecar's `ACTUAL_SERVER_PASSWORD` env var. Kokpit never sees it.
-2. **Sidecar `API_KEY`** — generate a long random string (use `openssl rand -hex 32` or similar). This is what goes in Kokpit's `api_key` widget config field.
+1. **Actual server password** — the password used to sign into your Actual server. Goes in the sidecar's `ACTUAL_SERVER_PASSWORD` env var. Kokpit never sees it.
+2. **Sidecar `API_KEY`** — reuse the active deployment’s key (`API_KEY`, or the contents of `API_KEY_PATH`). Generate a long random string with `openssl rand -hex 32` only for a new bridge or deliberate rotation, updating its other clients too. This is Kokpit’s `api_key`.
 3. **Budget encryption password** *(optional)* — only needed if your budget is end-to-end encrypted. If you have one, put it in the widget's `encryption_password` field.
 
-**Find your Sync ID:** In Actual Budget, go to Settings → Show advanced settings → Sync ID. Copy that value into the widget's `budget_sync_id` field.
+**Find your Sync ID:** Open the intended synced budget in Actual Budget, then **Settings → Show advanced settings → Sync ID**. Copy that value into `budget_sync_id`, rather than the local Budget ID or an account/category ID. Resetting sync creates a new Sync ID; do not reset it just to look up the value. Enter the existing budget encryption password only when end-to-end encryption is enabled.
 
-**Privacy mode (default on):** Amounts are blurred by default and reveal on hover or focus. Set `privacy_mode: false` in the widget config to always show amounts.
+**Privacy mode (default on):** Amounts are blurred and reveal on tile hover or focus. Set `privacy_mode: false` to always show them. This is visual privacy: the values remain accessible, and the blur does not restrict dashboard access.
 
 **Two different URLs, on purpose**, and they are resolved by different things:
 
@@ -1842,6 +1842,12 @@ Then pin the sidecar's image tag to match your Actual server's version line (e.g
 - `service.integration.config.url` is fetched **server-side by Kokpit**, so it can use Docker DNS (`http://actual-http-api:5007`) and should point at the sidecar, never at Actual Budget itself.
 
 Pointing both at the sidecar gives you a tile that opens raw JSON instead of your budget.
+
+Add/Edit Service now includes five numbered steps for bridge deployment, key reuse/generation, Sync ID lookup, the Kokpit connection and test/save. Every field and footprint has help, with troubleshooting and the shared outdated-instructions/GitHub-issue notice. The [bridge README](https://github.com/jhonderson/actual-http-api) documents its image, environment variables, secret-file alternatives and `/api-docs/` UI. Actual’s official [API guide](https://actualbudget.org/docs/api/) confirms the server-password/Sync-ID/encryption-password flow; its [sync guide](https://actualbudget.org/docs/getting-started/sync/) explains encryption and changing Sync IDs.
+
+Use the final bridge HTTP(S) root or real reverse-proxy prefix, without appending `/v1`, `/api-docs/` or budget paths. Kokpit appends the budget routes and sends `x-api-key` plus `budget-encryption-password` when configured. GETs follow up to five same-origin redirects; use the final address for a different scheme, host or port. Keep `NODE_ENV=production` so the bridge enforces key authentication. Direct secret variables take precedence over their `_PATH` files when both are set. If a deployed bridge uses `ALLOWED_BUDGET_SYNC_IDS`, include the current budget’s Sync ID.
+
+Untouched saved API/encryption secrets remain while the normalized bridge URL and exact Sync ID stay unchanged. Equivalent root trailing slashes retain them; fragments are ignored for this comparison. Normalized scheme/host/port/path/query changes or a new Sync ID require re-entering the applicable secrets. Update Kokpit after key/encryption-password rotation. All four widgets refresh every five minutes by default; overrides use milliseconds with the shared five-second minimum. Kokpit does not initiate bank sync: sync data in Actual first.
 
 #### `actualbudget-summary`
 
@@ -1867,7 +1873,7 @@ service_tiles:
       type: actualbudget-summary
       config:
         # currency: USD               # optional; ISO 4217 code (default: USD)
-        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (automatic formatting when omitted)
         # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
 ```
@@ -1899,7 +1905,7 @@ service_tiles:
         # hide_income: true           # optional; exclude income categories (default: true)
         # hide_empty: true            # optional; exclude categories with no budget/spend (default: true)
         # currency: USD               # optional; ISO 4217 code (default: USD)
-        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (automatic formatting when omitted)
         # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
 ```
@@ -1932,7 +1938,7 @@ service_tiles:
         # exclude_closed: true        # optional; hide closed accounts (default: true)
         # exclude_offbudget: false    # optional; hide off-budget accounts (default: false)
         # currency: USD               # optional; ISO 4217 code (default: USD)
-        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (automatic formatting when omitted)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
 ```
 
@@ -1962,7 +1968,7 @@ service_tiles:
         # limit: 6                    # optional; top N schedules (1–50, default: 6)
         # days_ahead: 30              # optional; schedules due within N days (1–365, default: 30)
         # currency: USD               # optional; ISO 4217 code (default: USD)
-        # locale: en-US               # optional; e.g. en-GB, de-DE (defaults to server locale)
+        # locale: en-US               # optional; e.g. en-GB, de-DE (automatic formatting when omitted)
         # timezone: Europe/Warsaw     # optional; IANA name (defaults to the server's timezone)
         # privacy_mode: true          # optional; blur amounts until hover (default: true)
 ```
@@ -1972,11 +1978,11 @@ service_tiles:
 | Field | Required | Description |
 |---|---|---|
 | `url` | Yes | Base URL of your actual-http-api sidecar (e.g. `http://actual-http-api:5007`). **Not** your Actual Budget server URL. |
-| `api_key` | Yes | The sidecar's `API_KEY` environment variable. |
+| `api_key` | Yes | The bridge’s active `API_KEY` value, or contents of `API_KEY_PATH`; reuse it or deliberately rotate it with every client updated. |
 | `budget_sync_id` | Yes | Your budget's Sync ID from Actual → Settings → Show advanced settings. |
-| `encryption_password` | No | Only required for end-to-end-encrypted budgets. |
-| `currency` | No | ISO 4217 code (default: `USD`). Controls amount formatting. |
-| `locale` | No | Locale identifier (e.g. `en-GB`, `de-DE`; default: server locale). |
+| `encryption_password` | No | The existing budget encryption password, required only for end-to-end-encrypted budgets; distinct from the server login. |
+| `currency` | No | ISO currency code (default: `USD`). Controls formatting; Kokpit does not detect the budget’s currency or convert amounts. |
+| `locale` | No | BCP 47 locale (e.g. `en-GB`, `de-DE`); blank uses automatic formatting. Set explicitly for a consistent format. |
 | `privacy_mode` | No | When `true` (default), amounts are blurred and reveal on hover/focus. Set to `false` to always show them. |
 
 **`timezone` (summary, categories, schedules only — not accounts):**
@@ -1990,24 +1996,24 @@ service_tiles:
 | Widget | Field | Type | Description |
 |---|---|---|---|
 | `actualbudget-summary` | `size_defaults` | bool | Show 2/3/6 figures by tile size (new editor presets: `true`; existing/YAML configurations: `false`). |
-| `actualbudget-categories` | `limit` | int | Top N categories by spend, 1–50 (default: 8). |
+| `actualbudget-categories` | `limit` | int | Top N categories by percent spent descending after filters, 1–50 (default: 8). |
 | `actualbudget-categories` | `hide_income` | bool | Exclude income categories (default: `true`). |
-| `actualbudget-categories` | `hide_empty` | bool | Exclude categories with no budget or spending (default: `true`). |
+| `actualbudget-categories` | `hide_empty` | bool | Exclude categories with both current-month budgeted and spent amounts zero, even with carryover (default: `true`). |
 | `actualbudget-accounts` | `exclude_closed` | bool | Hide closed accounts (default: `true`). |
 | `actualbudget-accounts` | `exclude_offbudget` | bool | Hide off-budget accounts (default: `false`). |
 | `actualbudget-schedules` | `limit` | int | Top N schedules, 1–50 (default: 6). |
-| `actualbudget-schedules` | `days_ahead` | int | Schedules due within N days, 1–365 (default: 30). |
+| `actualbudget-schedules` | `days_ahead` | int | Future horizon, 1–365 days (default: 30); includes today and all returned overdue schedules with a next date, excluding completed ones. |
 
 **Displayed stats / information:**
 
 | Widget | Shows |
 |---|---|
-| `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of all account balances). |
+| `actualbudget-summary` | To Assign (ready to budget), Total Budgeted, Total Spent (abs), Remaining balance, count of overspent categories, Net Worth (sum of open account balances, including off-budget accounts; — if the optional accounts lookup fails). |
 | `actualbudget-categories` | Category name/group, Spent / Available amounts with usage bar, colour status — mutually exclusive: green under 85% spent, yellow 85–100% spent, red when the category is overspent (balance below zero, which takes priority over the percentage). Sorted by % spent descending. |
 | `actualbudget-accounts` | Account name, off-budget marker, current balance. Footer shows Net worth total. |
 | `actualbudget-schedules` | Payee name, amount, relative due date. Footer shows count due within `min(7, days_ahead)` days or overdue (e.g. "Due within 3 days or overdue" when `days_ahead: 3`). |
 
-**Read-only:** This integration never modifies your budget — it only reads data from the sidecar.
+**Access:** Kokpit requests data with GETs and provides no budget-editing actions. The bridge’s API key also authorizes write operations, so it is not a read-only permission scope. The bridge downloads a local budget cache; protect its data volume and use HTTPS or a trusted private network.
 
 ---
 
