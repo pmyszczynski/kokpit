@@ -2082,22 +2082,38 @@ service_tiles:
 
 ### Docker
 
-Lists the containers running on the Docker host: a colored state dot, container name, image, and uptime per row, plus a "running / total" summary.
+Shows one Docker Engine’s running/total container counts and a scrolling, name-sorted list with state, name, image and Docker’s status text. Add/Edit Service includes the numbered socket setup guide, field/footprint/refresh help, troubleshooting and the shared outdated-instructions/GitHub-issue notice. **No API key, Docker Hub account or registry login is needed.**
 
-**Prerequisites:** Kokpit needs read access to the Docker socket. Mount it read-only into the container:
+**Access model:** this widget connects to a Unix socket. Access to an unrestricted **rootful** Docker daemon can grant root-level host control. Mounting the socket with `:ro` does **not** restrict Engine API methods to reads; it protects the mounted filesystem entry. Grant access only to a trusted Kokpit deployment. Kokpit itself issues only GET requests. Docker documents the [daemon attack surface](https://docs.docker.com/engine/security/#docker-daemon-attack-surface) and [socket/group privileges](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
+
+**Setup:**
+
+1. On the **Docker daemon host**, locate the running Engine’s actual Unix socket. Standard Linux installations normally use `/var/run/docker.sock`. [Rootless Docker](https://docs.docker.com/engine/security/rootless/tips/) normally uses `$XDG_RUNTIME_DIR/docker.sock`, often `/run/user/1000/docker.sock`; use the actual daemon user’s path. Verify it is a socket, not a directory. `docker context inspect` can show a CLI context’s endpoint, but Kokpit does not read CLI contexts or `DOCKER_HOST`.
+2. Add a bind mount to the existing Kokpit Compose service, keeping its image, ports, environment and data/config mounts. **Source is on the daemon host; target is inside Kokpit.** This example keeps the default target and rejects a missing source instead of creating a directory:
 
 ```yaml
 services:
   kokpit:
-    # ...
+    # Keep the rest of your existing Kokpit service configuration.
     volumes:
       - ./data:/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: false
 ```
 
-The image's entrypoint automatically grants its non-root runtime user membership in the socket's owning group, so no extra `group_add` configuration is needed.
+For a different host socket, change only `source` when keeping the default target. The equivalent short mount is `/var/run/docker.sock:/var/run/docker.sock:ro`, but a missing source can become a directory. See Docker’s [bind-mount guide](https://docs.docker.com/engine/storage/bind-mounts/) and [Compose volume syntax](https://docs.docker.com/reference/compose-file/services/#volumes).
 
-**YAML example:**
+3. From the Compose project directory, apply the change with `docker compose up -d kokpit`, using your actual service name and usual Compose file/profile options. [`compose up`](https://docs.docker.com/reference/cli/docker/compose/up/) recreates services whose configuration changed. A plain restart does not add a new mount. A source installation instead needs its runtime user to have appropriate access to the local socket.
+4. In Add/Edit Service, select **Docker**. Leave **Socket path** blank to use `KOKPIT_DOCKER_SOCKET` when configured, otherwise `/var/run/docker.sock`. An explicit field overrides the environment. For a custom **container target**, enter its filesystem path without `unix://`; also configure the published image’s `KOKPIT_DOCKER_SOCKET` to that target **before recreating the service**, so startup permission setup examines the same socket. Changing this field alone creates neither the mount nor its permissions.
+5. Set **Max rows** to a whole number 1–50, or leave it blank for 10. **Test connection** when enabled, wait for **Connection OK**, then **Save**; otherwise save and verify the tile. Default polling is **15,000 ms (15 seconds)**, with the editor’s **5,000 ms** minimum override. The optional service URL is a separate browser link, such as your management UI, and is not the socket connection.
+
+**Production image permissions:** the [entrypoint](docker-entrypoint.sh) starts with permission to prepare the runtime, checks the environment-selected/default socket and then runs the app as `nextjs`. For a socket owned by a **nonzero GID**, it adds `nextjs` to the matching group. That group must still have permission to connect. It deliberately skips GID 0; custom images, user/entrypoint overrides, rootless/user-namespace mappings and host security policies can need administrator-specific setup. Use a dedicated permitted group or restricted socket service; do not make the socket world-writable or add privileged mode to bypass a permission error. Automatic setup reads the environment/default, not a widget’s explicit path. Use a valid nonempty environment path, or unset it for the default.
+
+**YAML example:** connection configuration belongs to the service; the row limit belongs to the tile.
 
 ```yaml
 services:
@@ -2112,31 +2128,20 @@ service_tiles:
     service_id: 10000000-0000-4000-8000-000000000050
     widget:
       type: docker
-      config: {}
+      config:
+        max_items: 10
 ```
 
-**Config fields:**
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `socket_path` | No | Unix socket filesystem path visible inside Kokpit. Explicit field → `KOKPIT_DOCKER_SOCKET` → `/var/run/docker.sock`. No URI prefix, TCP/HTTP/SSH address or Windows named pipe. |
+| `max_items` | No | List row cap, whole numbers 1–50/default 10. Applied after state filtering and name sorting; does not limit the API request or summary counts. |
 
+**What appears:** the unchanged Default **3×4** footprint shows all-Engine counts above the list. Total includes every returned container, including stopped containers and Kokpit itself when present. Running counts only state `running`. Rows include `running`, `paused` and `restarting`, sorted by name before the cap; paused/restarting are amber and do not count as running. Running rows are green. Status text comes from Docker and can include uptime or restart state. When no listed states remain, the empty-list message is No running containers; stopped containers can still make Total positive. There are no project/name/health/image filters, per-container CPU/RAM stats or cross-node Swarm inventory. A failed refresh retains previous data with a warning.
 
-| Field         | Required | Description                                                                                             |
-| ------------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| `socket_path` | No       | Unix socket path inside the Kokpit container (default: `KOKPIT_DOCKER_SOCKET` env, then `/var/run/docker.sock`) |
-| `max_items`   | No       | Containers shown in the list, 1–50 (default: 10)                                                        |
+**Troubleshooting and restricted access:** check the mount source/target and socket type for missing-path errors, and inspect the app’s runtime permissions for `EACCES` rather than assuming that a CLI command run as root proves app access. Kokpit requests `GET /_ping`, reads its `Api-Version` header and then requests `GET /v<version>/containers/json?all=1`. It caches the negotiated version per socket and clears it after a non-200 list response so a subsequent refresh can renegotiate. If the daemon does not supply a usable version header, fallback API 1.44 must be supported. Each socket request has a three-second timeout. Docker’s [API reference](https://docs.docker.com/reference/api/engine/) and upstream [API contract](https://github.com/moby/moby/blob/master/api/swagger.yaml) document ping/version headers and the all-containers list.
 
-
-Stopped containers count toward the total but are not listed. Paused and restarting containers appear with a yellow dot.
-
-**Security note:** The Docker socket is a powerful interface — even read-only access exposes details about everything running on the host, and write access is root-equivalent. Kokpit only ever issues read-only calls (`GET /_ping` to negotiate the API version, then `GET /containers/json`) and never sends raw Docker API data to the browser. The widget talks to Docker over a **unix socket only** — TCP endpoints such as [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)'s default `:2375` listener can't be used as `socket_path` directly. For a hardened setup, bridge a filtered proxy (with only `CONTAINERS=1` enabled) back to a unix socket and point `socket_path` at the bridge, e.g. with a socat sidecar:
-
-```yaml
-  docker-proxy-bridge:
-    image: alpine/socat
-    command: UNIX-LISTEN:/sockets/docker.sock,fork,mode=666 TCP:docker-socket-proxy:2375
-    volumes:
-      - sockets:/sockets
-```
-
-Native TCP Docker host support is on the backlog.
+Kokpit does not directly support TCP, TLS, SSH, Docker CLI contexts or Windows named pipes. A [Tecnativa socket proxy](https://github.com/Tecnativa/docker-socket-proxy) is an optional separate component, and its default TCP `:2375` listener cannot be entered as `socket_path`. To enforce an API policy, an administrator must configure the necessary ping/container-list read routes, keep mutation routes blocked, preserve `Api-Version`, and expose an appropriately permission-restricted **private Unix bridge** to Kokpit. Keep the proxy network private and do not publish an unauthenticated Docker listener. Follow that project’s deployment/security documentation; a raw-socket `:ro` mount is not a substitute for API filtering.
 
 ---
 

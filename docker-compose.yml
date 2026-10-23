@@ -26,7 +26,7 @@ services:
       - /app/node_modules
       - /app/.next
       - ./data:/data
-      # Uncomment to enable the Docker widget (read-only socket; see README):
+      # Uncomment for the Docker widget (:ro does not restrict API calls; see README):
       # - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
@@ -43,7 +43,7 @@ services:
     #   KOKPIT_SESSION_SECRET: <your-generated-random-value>
     volumes:
       - ./data:/data
-      # Uncomment to enable the Docker widget (read-only socket; see README):
+      # Uncomment for the Docker widget (:ro does not restrict API calls; see README):
       # - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
     healthcheck:
