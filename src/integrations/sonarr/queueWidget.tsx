@@ -4,6 +4,7 @@ import { fetchQueue, SonarrConfigSchema } from "./api";
 import type { SonarrConfig, SonarrQueueItem } from "./api";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { calcProgress } from "@/integrations/shared/queue";
+import { sonarrSetupGuide, sonarrUrlDescription, sonarrApiKeyDescription } from "./setupGuide";
 
 export function SonarrQueueWidget({ data, loading, error }: WidgetProps<SonarrQueueItem[]>) {
   if (!data) {
@@ -49,6 +50,7 @@ registerWidget<SonarrConfig, SonarrQueueItem[]>({
     error: "sonarr-queue-widget__hint sonarr-queue-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "A scrolling list of up to 25 queue entries with download progress, status and ETA. Unknown series are excluded. The Default footprint is 3 columns × 4 rows.",
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Sonarr",
@@ -59,6 +61,7 @@ registerWidget<SonarrConfig, SonarrQueueItem[]>({
   refreshInterval: 15_000,
   component: SonarrQueueWidget,
   credentialScopeFields: ["url"],
+  setupGuide: sonarrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -66,7 +69,8 @@ registerWidget<SonarrConfig, SonarrQueueItem[]>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:8989",
+      description: sonarrUrlDescription,
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    { key: "api_key", label: "API Key", type: "password", required: true, description: sonarrApiKeyDescription },
   ],
 });
