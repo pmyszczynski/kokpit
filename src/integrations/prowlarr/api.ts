@@ -56,7 +56,8 @@ export async function fetchStats(
     fetchWithAuth(config, "api/v1/indexerstatus", signal),
     fetchWithAuth(
       config,
-      "api/v1/history?pageSize=1&sortKey=date&sortDirection=descending",
+      // Prowlarr's ReleaseGrabbed event is 1; other history includes queries.
+      "api/v1/history?pageSize=1&sortKey=date&sortDirection=descending&eventType=1",
       signal
     ),
   ]);

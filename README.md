@@ -1235,9 +1235,11 @@ The Default footprint is 3×4, with a scrolling queue. The default refresh inter
 
 ### Prowlarr
 
-Displays indexer health and lifetime grab statistics from Prowlarr.
+Displays indexer health, protocol counts and retained grab-history totals from Prowlarr.
 
-**Prerequisites:** An API key from Prowlarr → Settings → General → Security.
+**Prerequisites:** A Prowlarr instance reachable from Kokpit and its application API key. Open **Settings → General → Security**, copy the existing **API Key**, and paste only that key into Kokpit. An indexer provider's key or a Sonarr/Radarr key will not work. Resetting Prowlarr's key affects other connected apps too.
+
+The Add/Edit Service form includes numbered instructions, field help, troubleshooting and the shared outdated-instructions/GitHub-issue link. Enter Prowlarr's base URL (usually port 9696). Include any configured URL Base path **with a trailing slash**, such as `https://example.com/prowlarr/`; a root URL works with or without one. Kokpit adds `/api/v1` and sends the key in `X-Api-Key`. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See the [official settings documentation](https://wiki.servarr.com/prowlarr/settings#general) and [API reference](https://prowlarr.com/docs/api/).
 
 #### `prowlarr-stats`
 
@@ -1252,7 +1254,7 @@ services:
     integration:
       type: prowlarr
       config:
-        url: http://192.168.1.10:9696
+        url: http://192.168.1.10:9696/
         api_key: YOUR_API_KEY
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000026
@@ -1264,8 +1266,10 @@ service_tiles:
 
 | Field     | Required | Description                                |
 | --------- | -------- | ------------------------------------------ |
-| `url`     | Yes      | Base URL of your Prowlarr instance         |
-| `api_key` | Yes      | API key from Prowlarr → Settings → General |
+| `url`     | Yes      | Reachable Prowlarr base URL; include any URL Base path with a trailing `/` (optional at the root) |
+| `api_key` | Yes      | Prowlarr's own API Key from Settings → General → Security |
+
+The Default footprint is 3×4, with two columns and three rows of stats. The default refresh interval is 60 seconds; an editor override is in milliseconds (minimum 5,000).
 
 
 **Displayed stats:**
@@ -1276,7 +1280,7 @@ service_tiles:
 | Enabled     | Indexers currently enabled                                   |
 | Failing     | Indexers with an active error status (shown in red when > 0) |
 | Indexers    | Total number of configured indexers                          |
-| Total Grabs | Cumulative grab count across all indexers and history        |
+| Total Grabs | Retained release-grab history events (`eventType=1`); excludes query/authentication events and is not a permanent lifetime total |
 | Usenet      | Configured Usenet indexers, including disabled indexers       |
 | Torrent     | Configured Torrent indexers, including disabled indexers      |
 
