@@ -123,26 +123,33 @@ describe("POST /api/auth/totp/setup", () => {
   });
 
   it("requires the current password and revokes other sessions when enabling 2FA", async () => {
-    const { createSession, createUser, getAuthSession, hashPassword, generateTotpSecret } = await import("@/auth");
-    const user = await createUser("two-factor-revoke", await hashPassword("correct-password"));
-    const current = createSession(user.id).token;
-    const other = createSession(user.id).token;
-    mockCookieGet.mockReturnValue({ value: current });
-    const secret = generateTotpSecret();
-    const code = generateSync({ secret });
-    const { POST } = await import("../../app/api/auth/totp/setup/route");
+    // Password checks must not carry this valid code across a TOTP time boundary.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T12:00:10Z"));
+    try {
+      const { createSession, createUser, getAuthSession, hashPassword, generateTotpSecret } = await import("@/auth");
+      const user = await createUser("two-factor-revoke", await hashPassword("correct-password"));
+      const current = createSession(user.id).token;
+      const other = createSession(user.id).token;
+      mockCookieGet.mockReturnValue({ value: current });
+      const secret = generateTotpSecret();
+      const code = generateSync({ secret });
+      const { POST } = await import("../../app/api/auth/totp/setup/route");
 
-    const wrongPassword = await POST(trustedRequest("http://localhost", {
-      method: "POST", body: JSON.stringify({ secret, code, password: "wrong-password" }),
-    }));
-    expect(wrongPassword.status).toBe(401);
+      const wrongPassword = await POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ secret, code, password: "wrong-password" }),
+      }));
+      expect(wrongPassword.status).toBe(401);
 
-    const valid = await POST(trustedRequest("http://localhost", {
-      method: "POST", body: JSON.stringify({ secret, code, password: "correct-password" }),
-    }));
-    expect(valid.status).toBe(200);
-    expect(await getAuthSession(current)).not.toBeNull();
-    expect(await getAuthSession(other)).toBeNull();
+      const valid = await POST(trustedRequest("http://localhost", {
+        method: "POST", body: JSON.stringify({ secret, code, password: "correct-password" }),
+      }));
+      expect(valid.status).toBe(200);
+      expect(await getAuthSession(current)).not.toBeNull();
+      expect(await getAuthSession(other)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns 409 when TOTP is already enabled", async () => {
