@@ -1313,7 +1313,15 @@ The Default footprint is 3×4, with two columns and three rows of stats. The def
 
 Two widgets are available for qBittorrent: a transfer stats overview and a live torrent list.
 
-**Prerequisites:** WebUI enabled (Options → Web UI) with a username and password — the widget authenticates via qBittorrent's `auth/login` endpoint, so "Bypass authentication for clients on localhost" alone is not enough.
+**Prerequisites:** Enable qBittorrent's **Web User Interface (Remote control)** in **Tools → Options → Web UI** on a desktop installation, or open the configured WebUI of a headless installation. Check that its IP address and WebUI port (normally 8080, or the configured published port) are reachable from Kokpit.
+
+Under **Web UI → Authentication**, use the actual **Username** and a known **Password**. `admin` is a common initial username, rather than an automatic Kokpit default. For a new headless installation without a saved password, qBittorrent-nox 4.6.1+ prints a temporary password in its startup console; check service/container startup output when applicable. Sign in, set a strong password and save it. Desktop Options uses **Apply/OK**; WebUI preferences uses **Save**. A masked/empty password field does not reveal the existing password. Reuse a known value or deliberately change it and update other clients using that login. The guide also describes the official stopped-client password recovery procedure for modern headless installations.
+
+These widgets use WebUI username/password login and a session cookie. Although qBittorrent **5.2+ supports API keys**, Kokpit's current connection fields do not accept one in place of the password. Both fields are required, and localhost/subnet authentication bypass is not a substitute for this setup. The login grants qBittorrent control; keep it private and use HTTPS or a trusted private network. Kokpit reads transfer/torrent data after its login POST.
+
+Enter the final HTTP(S) WebUI root, retaining any real reverse-proxy prefix. Kokpit adds `/api/v2` routes and a final slash when needed; do not append endpoint paths or supply credentials, query strings or fragments in the URL. Direct IP/hostname addresses work. The optional launch URL opens the WebUI independently. A saved password remains while the normalized WebUI URL and exact username are unchanged; equivalent root trailing slashes retain it, while normalized scheme/host/port/path/query or username changes require re-entry. Fragments are ignored for this comparison. Use **Test connection** when enabled, then save; otherwise save and check the dashboard.
+
+Add/Edit Service includes numbered instructions, shared field help, widget-specific footprint help, troubleshooting and the common outdated-instructions/GitHub-issue notice. See the official [options overview](https://github.com/qbittorrent/qBittorrent/wiki/Explanation-of-Options-in-qBittorrent), [WebAPI authentication and metrics](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-%28qBittorrent-5.0%29), [API-key support and limitations](https://github.com/qbittorrent/qBittorrent/wiki/API-Key-Authentication-%28%E2%89%A5v5.2.0%29), [temporary password/recovery guide](https://github.com/qbittorrent/qBittorrent/wiki/Web-UI-password-locked-on-qBittorrent-NO-X-%28qbittorrent-nox%29) and [canonical NGINX configuration](https://github.com/qbittorrent/qBittorrent/wiki/NGINX-Reverse-Proxy-for-Web-UI). For host/port/proxy errors, configure the expected server domains and consistent upstream/forwarded headers; keep authentication, host validation and CSRF protection enabled.
 
 #### `qbittorrent-stats`
 
@@ -1346,22 +1354,22 @@ service_tiles:
 
 | Field      | Required | Description                     |
 | ---------- | -------- | -------------------------------- |
-| `url`      | Yes      | Base URL of your qBittorrent WebUI |
-| `username` | Yes      | WebUI username                   |
-| `password` | Yes      | WebUI password                   |
+| `url`      | Yes      | Final reachable HTTP(S) WebUI root, normally port 8080; retain real proxy mounts without appending API routes |
+| `username` | Yes      | Exact configured WebUI username; changing it requires re-entering a saved password |
+| `password` | Yes      | Current WebUI login password, rather than an API key; retained only for the same normalized URL and username |
 
 
 **Displayed stats:** download speed and upload speed at every size; total downloaded
-and total uploaded at 3×4 and 6×2. At 3×4, Inactive counts queued and stopped
+and total uploaded at 3×4 and 6×2. These totals are payload bytes in the current qBittorrent session, not lifetime totals. Speeds use decimal KB/s or MB/s; totals use decimal MB or GB. At 3×4, Inactive counts queued and stopped
 torrents (including the older `pausedDL`/`pausedUP` names); Active counts all other
 torrents returned by qBittorrent, including stalled, checking, error, and missing-file states.
 These are dashboard categories; qBittorrent's own "inactive" filter means zero current transfer speed.
 If activity cannot be fetched, the transfer values
-remain visible and the tile says "Activity unavailable."
+remain visible and the tile says "Activity unavailable." Missing optional counts are shown as —, rather than zero. The default refresh is 10 seconds; there are no measurement-selection options.
 
 #### `qbittorrent-torrents`
 
-Shows a scrollable list of all torrents with a progress bar and per-torrent download/upload speed.
+Shows a scrollable list of all returned torrents with a rounded whole-percent progress bar and per-torrent download/upload speed. The sole Default footprint is 3×4. The request supplies no filter, sort or item limit, and Kokpit preserves the server-returned order. There are no filter/limit/sorting controls; refresh defaults to 15 seconds.
 
 ```yaml
 services:
@@ -1380,7 +1388,7 @@ service_tiles:
       type: qbittorrent-torrents
 ```
 
-Takes the same `url` / `username` / `password` fields as `qbittorrent-stats`.
+Takes the same `url` / `username` / `password` fields and setup guide as `qbittorrent-stats`. Both can use the same integration. Refresh overrides use milliseconds, with the shared 5-second minimum.
 
 ---
 
