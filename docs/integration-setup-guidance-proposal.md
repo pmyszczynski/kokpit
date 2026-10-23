@@ -123,8 +123,8 @@ For each integration, verify the upstream sequence and permissions against offic
 | --- | --- | --- |
 | Unraid | Released; CI and AI feedback cleared, Docker publication verified | [PR #160](https://github.com/pmyszczynski/kokpit/pull/160), [v0.32.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.0), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39890907906) |
 | Sonarr | Released; all three AI reviewers clear, CI and Docker verification passed | [PR #161](https://github.com/pmyszczynski/kokpit/pull/161), [v0.32.1](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.1), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39896440534) |
-| Radarr | Guide implemented for Stats and Queue; validating | Targeting v0.32.2 |
-| Prowlarr | Planned | — |
+| Radarr | Released; CI, Cubic/CodeRabbit and Docker verified; Codex request remained pending at release | [PR #162](https://github.com/pmyszczynski/kokpit/pull/162), [v0.32.2](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.2), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39905413094) |
+| Prowlarr | Guide implemented; validating documented grab-history filtering | Targeting v0.32.3 |
 | SABnzbd | Planned | — |
 | Seerr | Planned | — |
 | Tautulli | Planned | — |
@@ -161,3 +161,13 @@ Checked 23 October 2026 against the [official Radarr settings guide](https://wik
 - **Widget behavior:** checked `src/integrations/radarr/api.ts` and both widget definitions/renderers. Stats fetches movies plus the reported queue total. Missing means monitored, no file, and `isAvailable`; Wanted means monitored with no file; Available means `hasFile`; Upcoming means announced or in cinemas. Detailed and Wide show the same six metrics, with a 60-second default refresh.
 - Queue requests one page of 25, includes movie data and excludes unknown movie items. Its default footprint is a scrolling 3×4 list and its default refresh is 15 seconds. No queue limit/filter controls are claimed.
 - Both widgets inherit the shared outdated-instructions disclaimer and GitHub issue link. Preview screenshots use an isolated configuration and a dummy key; live Radarr connectivity has not been tested.
+
+### Prowlarr documentation and implementation evidence
+
+Checked 23 October 2026 against the [official settings guide](https://wiki.servarr.com/prowlarr/settings#general), [API reference](https://prowlarr.com/docs/api/), upstream [Security UI](https://github.com/Prowlarr/Prowlarr/blob/develop/frontend/src/Settings/General/SecuritySettings.js), and [OpenAPI contract](https://github.com/Prowlarr/Prowlarr/blob/develop/src/Prowlarr.Api.V1/openapi.json).
+
+- **Getting the key:** General → Security exposes the application API Key with a copy button. This is separate from indexer-provider keys. The guide explains copying it and the effect of resetting it, without inventing a scoped-key creation flow.
+- **Address:** General → Host documents BaseUrl and default port 9696. Kokpit uses the shared HTTP helper: URL Base paths need a final slash, while root URLs accept either form. `/api/v1` is appended automatically and the key is sent in `X-Api-Key`.
+- **Widget behavior:** checked the Prowlarr schema, fetcher and renderer. The 3×4 footprint shows six fixed stats; Usenet/Torrent include disabled indexers. Polling defaults to 60 seconds. There are no per-indexer or history-window controls in the editor.
+- **Grab count correction:** the fetcher previously used unfiltered history totals, counting queries and authentication events as grabs. The [History controller](https://github.com/Prowlarr/Prowlarr/blob/develop/src/Prowlarr.Api.V1/History/HistoryController.cs) documents the filter behavior, and [HistoryEventType](https://github.com/Prowlarr/Prowlarr/blob/develop/src/NzbDrone.Core/History/History.cs) defines `ReleaseGrabbed = 1`. The request now filters `eventType=1`. Help describes retained grab history, rather than a lifetime total; a regression test models mixed history and verifies the filtered count.
+- The shared outdated-instructions disclaimer and issue link apply. Preview uses a dummy key in an isolated configuration; live Prowlarr connectivity has not been tested.

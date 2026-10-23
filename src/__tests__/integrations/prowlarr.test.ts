@@ -74,6 +74,26 @@ describe("fetchStats", () => {
     expect(result).toMatchObject({ totalIndexers: 4, enabledIndexers: 2, usenetIndexers: 2, torrentIndexers: 1 });
   });
 
+  it("counts retained grab events rather than all query and authentication history", async () => {
+    const mockFetch = vi.fn(async (input: string) => {
+      const url = new URL(input);
+      if (url.pathname === "/api/v1/indexer") return makeJsonResponse(MOCK_INDEXERS);
+      if (url.pathname === "/api/v1/indexerstatus") return makeJsonResponse(MOCK_STATUSES);
+      if (url.pathname === "/api/v1/history") {
+        // Match the upstream contract: an unfiltered history includes query,
+        // RSS and authentication events in addition to release grabs.
+        const grabsOnly = url.searchParams.getAll("eventType").join(",") === "1";
+        return makeJsonResponse({ totalRecords: grabsOnly ? 7 : 157, records: [] });
+      }
+      throw new Error(`Unexpected endpoint: ${url.pathname}`);
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await fetchStats(BASE_CONFIG);
+    expect(result.totalGrabs).toBe(7);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
   it("returns zero protocol counts for an empty indexer list", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(makeJsonResponse([]))
@@ -105,7 +125,8 @@ describe("fetchStats", () => {
           u.includes("api/v1/history") &&
           u.includes("pageSize=1") &&
           u.includes("sortKey=date") &&
-          u.includes("sortDirection=descending")
+          u.includes("sortDirection=descending") &&
+          u.includes("eventType=1")
       )
     ).toBe(true);
   });

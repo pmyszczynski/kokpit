@@ -3,6 +3,7 @@ import type { WidgetProps } from "@/widgets";
 import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchStats, ProwlarrConfigSchema } from "./api";
 import type { ProwlarrConfig, ProwlarrStats } from "./api";
+import { prowlarrSetupGuide } from "./setupGuide";
 
 export function ProwlarrStatsWidget({
   data,
@@ -88,6 +89,7 @@ registerWidget<ProwlarrConfig, ProwlarrStats>({
   compactHeader: true,
   sharedUI: true,
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "Default (3×4) shows Enabled, Failing, Indexers, Total Grabs, Usenet and Torrent in two columns and three rows. Protocol totals include disabled indexers; grabs come from retained grab history.",
   serviceEditorPreset: {
     defaultName: "Prowlarr",
     defaultIconUrl: "https://cdn.simpleicons.org/prowlarr",
@@ -97,6 +99,7 @@ registerWidget<ProwlarrConfig, ProwlarrStats>({
   refreshInterval: 60_000,
   component: ProwlarrStatsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: prowlarrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -104,12 +107,14 @@ registerWidget<ProwlarrConfig, ProwlarrStats>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:9696",
+      description: "Prowlarr’s base address, including http:// or https:// and its port (usually 9696). Include any URL Base path with a final slash, e.g. https://example.com/prowlarr/. A slash is optional at the root. Do not append /api/v1. The address must work from Kokpit.",
     },
     {
       key: "api_key",
       label: "API Key",
       type: "password",
       required: true,
+      description: "Prowlarr’s own API Key from Settings → General → Security, used to read indexer status and history. Paste only the key. Leave a saved key unchanged to keep using it.",
     },
   ],
 });
