@@ -1,3 +1,9 @@
+import {
+  netdataSetupGuide,
+  netdataUrlDescription,
+  netdataTokenDescription,
+  netdataHistoryDescription,
+} from "./setupGuide";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import {
@@ -85,6 +91,8 @@ registerWidget<NetdataBaseConfig, RamData>({
   name: "Netdata RAM",
   preferredSize: "normal",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
+  footprintDescription: "Default (3×2) shows used/total RAM and, when available, a history sparkline. Used includes cache and buffers. Refresh defaults to 10 seconds.",
+  setupGuide: netdataSetupGuide,
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchRamData,
   refreshInterval: 10_000,
@@ -97,14 +105,16 @@ registerWidget<NetdataBaseConfig, RamData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:19999",
+      description: netdataUrlDescription,
     },
-    { key: "api_token", label: "API Token", type: "password", required: false },
+    { key: "api_token", label: "API Token", type: "password", required: false, description: netdataTokenDescription },
     {
       key: "history_minutes",
       label: "History (minutes)",
       type: "number",
       placeholder: "10",
       required: false,
+      description: netdataHistoryDescription,
     },
   ],
   serviceEditorPreset: {

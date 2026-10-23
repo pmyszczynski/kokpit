@@ -1,3 +1,8 @@
+import {
+  netdataSetupGuide,
+  netdataUrlDescription,
+  netdataTokenDescription,
+} from "./setupGuide";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { NetdataBaseConfigSchema, fetchAllMetrics, extractLoad } from "./api";
@@ -68,6 +73,8 @@ registerWidget<NetdataBaseConfig, LoadData>({
   name: "Netdata Load",
   preferredSize: "normal",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
+  footprintDescription: "Default (3×2) shows the 1-, 5- and 15-minute system.load averages, not CPU percentages. There is no sparkline or history control. Refresh defaults to 10 seconds.",
+  setupGuide: netdataSetupGuide,
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchLoadData,
   refreshInterval: 10_000,
@@ -80,8 +87,9 @@ registerWidget<NetdataBaseConfig, LoadData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:19999",
+      description: netdataUrlDescription,
     },
-    { key: "api_token", label: "API Token", type: "password", required: false },
+    { key: "api_token", label: "API Token", type: "password", required: false, description: netdataTokenDescription },
   ],
   serviceEditorPreset: {
     defaultName: "Load Average",

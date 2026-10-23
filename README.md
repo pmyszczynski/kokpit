@@ -1600,29 +1600,49 @@ The default refresh is 60 seconds; editor overrides use milliseconds with a 5-se
 
 ### Netdata
 
-Seven composable widgets showing live system metrics from a [Netdata](https://www.netdata.cloud/) agent. Each is a separate tile, so pick the ones you want. All share the same underlying `allmetrics` fetch per Netdata instance (cached briefly server-side), so adding several doesn't multiply requests to Netdata.
+Seven composable tiles read metrics from a local [Netdata Agent](https://www.netdata.cloud/). Each tile has the same numbered connection guide in Add/Edit Service, with its own option, footprint and refresh help. The guide also appears when selecting the Netdata integration for a link tile.
 
-**Prerequisites:** A running Netdata agent (default port `19999`), reachable from the Kokpit container. If the agent is secured, generate an API token in Netdata's `netdata.conf`.
+**Prerequisites:** A reachable Agent HTTP(S) API, normally on port `19999`, and the charts needed by the chosen widget. Use private connectivity and HTTPS or a trusted encrypted tunnel for credentials. An already unauthenticated private Agent needs neither a token nor a Cloud account. Kokpit currently reads local legacy `/api/v1/allmetrics` and `/api/v1/data`; it does not query the Netdata Cloud API or sign in to Cloud.
 
-**Common config fields** (all seven widgets):
+**Setup:**
 
+1. Open the Agent’s local dashboard, normally `http://SERVER:19999`, and copy its root address. Keep a real proxy mount, such as `https://metrics.example.com/netdata/`, without appending a dashboard page or API route. The address must work from Kokpit’s container; its `localhost` is the container itself. `app.netdata.cloud` is a different service.
+2. For an already unauthenticated private Agent, skip steps 3–4 and leave **API Token** empty. Do not disable authentication to connect. Native bearer protection requires an Agent claimed and connected to Netdata Cloud, plus an account with access to its Space. Check [Netdata’s Agent security guide](https://learn.netdata.cloud/docs/netdata-agent/configuration/securing-agents) and [bearer protection documentation](https://github.com/netdata/netdata/blob/v2.12.2/docs/netdata-agent/configuration/secure-your-netdata-agent-with-bearer-token.md).
+3. For a protected Agent, open its **local dashboard**, complete Netdata Cloud sign-in and confirm that metrics appear. Open the browser’s **Developer Tools → Network**, select **Fetch/XHR**, reload and wait for metrics. Select a successful `/api/` metrics request whose **Request URL points to the local Agent**.
+4. Under **Headers → Request Headers**, find `X-Netdata-Auth: Bearer …` and copy only the value after `Bearer` into Kokpit’s **API Token**. Some UI versions use `Authorization` instead. This is an operator recipe using [Netdata’s supported Agent header](https://github.com/netdata/netdata/blob/v2.12.2/src/web/api/http_header.c#L208-L218) and [browser request-header inspection](https://developer.chrome.com/docs/devtools/network/reference#details); it is not a Netdata “export key” button. Do not share headers or HAR exports. If no direct authenticated request appears, use the upstream [direct-agent authentication/minting reference](https://github.com/netdata/netdata/blob/v2.12.2/docs/netdata-ai/skills/query-netdata-agents/authentication.md) instead. A Cloud API token, claim token, streaming key or MCP key is not the per-agent bearer expected here; tokens are not generated in `netdata.conf`.
+5. Enter **Netdata URL**, the applicable token and the desired tile options. Sparkline history defaults to ten minutes. Disk Space optionally selects a disk-space chart; Sensor requires an exact chart ID and optionally a label. Use chart discovery below for actual IDs on that host.
+6. **Test** when available, wait for **Connection OK**, then **Save**; otherwise save and check the dashboard. Newly issued native bearer tokens have a 24-hour lifetime, and a copied/reused token can have less time left. Kokpit stores a static value and cannot inherit browser renewal: repeat the protected-Agent steps and replace it after expiry or revocation. The [token implementation](https://github.com/netdata/netdata/blob/v2.12.2/src/web/api/http_auth.c#L208-L236) can reuse an unexpired token rather than issue a fresh full lifetime.
 
-| Field             | Required | Description                                                              |
-| ----------------- | -------- | -------------------------------------------------------------------------- |
-| `url`             | Yes      | Base URL of your Netdata agent, e.g. `http://192.168.1.10:19999`         |
-| `api_token`       | No       | Bearer token, if the agent requires auth                                 |
-| `history_minutes` | No       | Sparkline lookback window, 1–60 (default: 10) — CPU, RAM, Network, Disk I/O, and Sensor only |
+The standard Netdata integration **Test connection** uses the CPU representative and requires `system.cpu`; it does not validate a selected Sensor/Disk Space chart or every other fixed metric. **Always verify the saved tile and its chart after Connection OK.** A missing `system.cpu` can make that test fail even when another chart is available. Legacy direct-widget forms instead test their selected widget.
 
+Kokpit sends `X-Netdata-Auth: Bearer <api_token>` when a token is present. It makes only GET requests, but the token can have broader permissions inherited from the Cloud account. A reverse proxy must forward that header; this form does not supply Basic credentials, SSO cookies or arbitrary headers. Check the Agent/proxy IP rules for Kokpit’s source address. Native missing authorization can return `412`, and insufficient permissions can return `403`; expired tokens need replacement. The local web server must be enabled. Credential-bearing requests follow at most five redirects within the configured scheme/host/port; use the final address for cross-origin moves.
 
-| Widget type          | Name              | Shows                                                        |
-| --------------------- | ----------------- | ------------------------------------------------------------- |
-| `netdata-cpu`         | Netdata CPU       | Total CPU utilization, with a sparkline                       |
-| `netdata-ram`         | Netdata RAM       | Used / total RAM, with a sparkline                            |
-| `netdata-net`         | Netdata Network   | Inbound and outbound throughput, each with a sparkline        |
-| `netdata-disk-io`     | Netdata Disk I/O  | Read and write throughput, each with a sparkline              |
-| `netdata-disk-space`  | Netdata Disk Space | Used / total space for a mount point (no sparkline)          |
-| `netdata-load`        | Netdata Load      | 1/5/15-minute load averages (no sparkline)                    |
-| `netdata-sensor`      | Netdata Sensor    | A single sensor chart's average value, with a sparkline       |
+A blank saved token input retains its saved value for an unchanged normalized URL. Root URLs with and without `/` are equivalent; a changed path, scheme, host, port or query requires re-entry. Changing tile options preserves the connection. Use **Clear saved credential** to remove a saved token when moving to an already unauthenticated path.
+
+**Fields and defaults:**
+
+| Field | Used by | Meaning |
+| --- | --- | --- |
+| `url` | All seven; required | Local Agent root/proxy prefix reachable from Kokpit. |
+| `api_token` | All seven; optional | Per-agent bearer value, without the `Bearer` prefix. Empty for an already unauthenticated private Agent. |
+| `history_minutes` | CPU, RAM, Network, Disk I/O, Sensor | Whole-minute lookback, 1–60; default 10. Requests up to 60 grouped points, not a refresh frequency or retention setting. |
+| `chart_id` | Disk Space | Optional exact `disk_space.*` chart key; empty uses `disk_space._` for root only if that chart exists. |
+| `chart_id` | Sensor; required | Exact chart key from this Agent; there is no universal sensor default. All finite current dimensions are averaged. |
+| `label` | Sensor | Optional heading inside the tile; empty uses the part of Chart ID after its last dot. Does not select a dimension or convert units. |
+
+All seven retain their **Default 3×2** footprint. Refresh defaults to **10,000 ms (10 seconds)**, except Disk Space at **60,000 ms (60 seconds)**; the editor minimum is **5,000 ms**. Current `allmetrics` snapshots are cached for nine seconds per exact URL/token pair. History fetches are separate, and simultaneous cache misses can still cause multiple current-data requests. A failed history request can leave a current value without a sparkline; at least two points are needed. Failed refreshes retain previous data with a warning.
+
+| Widget type | Shows |
+| --- | --- |
+| `netdata-cpu` | `100 − idle` from `system.cpu`, plus a history sparkline; no per-core selector. |
+| `netdata-ram` | Used/total from `system.ram`, plus history. Used is everything except free, including cache/buffers; it differs from “available memory.” |
+| `netdata-net` | `system.net` inbound/outbound throughput in bytes/s, with **one combined** sparkline; no interface selector. |
+| `netdata-disk-io` | `system.io` read/write throughput in bytes/s, with **one combined** sparkline; no per-disk selector. |
+| `netdata-disk-space` | One mount’s used/total and used percentage, without history. Total includes available + used + reserved-for-root; used excludes reserved. |
+| `netdata-load` | `system.load` 1/5/15-minute averages, without history. These are load values, not CPU percentages. |
+| `netdata-sensor` | Mean of all finite current dimensions in the selected chart, plus history. Uses reported units; Celsius/Fahrenheit change the suffix, without conversion. |
+
+These fixed chart IDs must exist on the chosen Agent. Platform/collector differences can make them unavailable; Kokpit does not discover replacements. A missing chart is different from a history request failure.
 
 ```yaml
 services:
@@ -1671,7 +1691,7 @@ service_tiles:
         chart_id: disk_space._mnt_storage
 ```
 
-`netdata-sensor` requires a `chart_id` (no default — sensors vary per host) and accepts an optional `label` to override the tile's display name:
+`netdata-sensor` requires a `chart_id` (no default — sensors vary per host) and accepts an optional `label` to override the measurement heading inside the tile:
 
 ```yaml
 services:
@@ -1692,7 +1712,27 @@ service_tiles:
         label: CPU Temp
 ```
 
-Find available chart IDs at `<netdata-url>/api/v1/charts` — look for `disk_space.*` mount points or `sensors.*` charts with units like Celsius, Fahrenheit, or RPM.
+**Find chart IDs:** query the Agent’s `allmetrics` JSON and copy a complete key under `charts`, not its `family` or a context name. For Disk Space, choose the intended `disk_space.*` mount. For Sensor, check units such as Celsius or RPM. Sensor IDs vary by host; the YAML example is illustrative. Netdata’s older `/api/v1/charts` catalog is deprecated.
+
+For example, with Bash, curl and jq installed, replace this example URL with your Agent’s root/prefix plus the shown API path. Enter the per-agent bearer privately at the prompt, or press Enter for an already unauthenticated private Agent. The header is passed through stdin so its value is not a curl command-line argument. A subshell with pipeline failure propagation reports failed requests and clears the temporary token on exit:
+
+```bash
+(
+set -euo pipefail
+trap 'unset NETDATA_AGENT_BEARER' EXIT
+read -r -s -p 'Agent bearer (empty if not required): ' NETDATA_AGENT_BEARER
+printf '\n'
+{
+  if [ -n "$NETDATA_AGENT_BEARER" ]; then
+    printf 'X-Netdata-Auth: Bearer %s\n' "$NETDATA_AGENT_BEARER"
+  fi
+} | curl --fail --silent --show-error --header @- \
+    'https://metrics.example.com/netdata/api/v1/allmetrics?format=json&help=no' \
+  | jq '.charts | to_entries[] | {id: .key, family: .value.family, units: .value.units}'
+)
+```
+
+The [API reference](https://learn.netdata.cloud/api) and [query reference](https://learn.netdata.cloud/docs/developer-and-contributor-corner/rest-api/queries) document the legacy metrics endpoints and lookback/grouping behavior. This guide covers Kokpit’s current Agent integration; it does not migrate it to the Cloud or v3 API.
 
 ---
 
