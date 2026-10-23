@@ -1,3 +1,9 @@
+import {
+  netdataSetupGuide,
+  netdataUrlDescription,
+  netdataTokenDescription,
+  netdataHistoryDescription,
+} from "./setupGuide";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import {
@@ -88,6 +94,8 @@ registerWidget<NetdataBaseConfig, DiskIoData>({
   name: "Netdata Disk I/O",
   preferredSize: "normal",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
+  footprintDescription: "Default (3×2) shows read/write system.io throughput in bytes per second and one combined sparkline. There is no per-disk selector. Refresh defaults to 10 seconds.",
+  setupGuide: netdataSetupGuide,
   configSchema: NetdataBaseConfigSchema,
   fetchData: fetchDiskIoData,
   refreshInterval: 10_000,
@@ -100,14 +108,16 @@ registerWidget<NetdataBaseConfig, DiskIoData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:19999",
+      description: netdataUrlDescription,
     },
-    { key: "api_token", label: "API Token", type: "password", required: false },
+    { key: "api_token", label: "API Token", type: "password", required: false, description: netdataTokenDescription },
     {
       key: "history_minutes",
       label: "History (minutes)",
       type: "number",
       placeholder: "10",
       required: false,
+      description: netdataHistoryDescription,
     },
   ],
   serviceEditorPreset: {

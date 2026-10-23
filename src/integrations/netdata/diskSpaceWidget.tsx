@@ -1,3 +1,8 @@
+import {
+  netdataSetupGuide,
+  netdataUrlDescription,
+  netdataTokenDescription,
+} from "./setupGuide";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { z } from "zod";
@@ -76,6 +81,8 @@ registerWidget<DiskSpaceConfig, DiskSpaceData>({
   name: "Netdata Disk Space",
   preferredSize: "normal",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
+  footprintDescription: "Default (3×2) shows used/total space and used percentage for one chart. Total includes reserved-for-root space; used does not. There is no sparkline. Refresh defaults to 60 seconds.",
+  setupGuide: netdataSetupGuide,
   configSchema: DiskSpaceConfigSchema,
   fetchData: fetchDiskSpaceData,
   refreshInterval: 60_000,
@@ -88,6 +95,7 @@ registerWidget<DiskSpaceConfig, DiskSpaceData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:19999",
+      description: netdataUrlDescription,
     },
     {
       key: "chart_id",
@@ -96,9 +104,9 @@ registerWidget<DiskSpaceConfig, DiskSpaceData>({
       required: false,
       placeholder: "disk_space._",
       description:
-        'Netdata disk_space chart ID. Default "disk_space._" monitors root (/). Find others at <netdata-url>/api/v1/charts.',
+        'Exact disk_space.* key from the Agent’s allmetrics charts map. Empty uses disk_space._ for root (/) if that chart exists. Select another mount with its actual chart ID; see chart discovery in the guide.',
     },
-    { key: "api_token", label: "API Token", type: "password", required: false },
+    { key: "api_token", label: "API Token", type: "password", required: false, description: netdataTokenDescription },
   ],
   serviceEditorPreset: {
     defaultName: "Disk Space",

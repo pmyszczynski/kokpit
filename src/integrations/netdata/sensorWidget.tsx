@@ -1,3 +1,9 @@
+import {
+  netdataSetupGuide,
+  netdataUrlDescription,
+  netdataTokenDescription,
+  netdataHistoryDescription,
+} from "./setupGuide";
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { z } from "zod";
@@ -98,6 +104,8 @@ registerWidget<SensorConfig, SensorData>({
   name: "Netdata Sensor",
   preferredSize: "normal",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 2 }],
+  footprintDescription: "Default (3×2) shows the mean of the selected chart’s finite current dimensions in its reported units and, when available, one history sparkline. Refresh defaults to 10 seconds.",
+  setupGuide: netdataSetupGuide,
   configSchema: SensorConfigSchema,
   fetchData: fetchSensorData,
   refreshInterval: 10_000,
@@ -110,6 +118,7 @@ registerWidget<SensorConfig, SensorData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:19999",
+      description: netdataUrlDescription,
     },
     {
       key: "chart_id",
@@ -118,7 +127,7 @@ registerWidget<SensorConfig, SensorData>({
       required: true,
       placeholder: "sensors.coretemp_isa_0000",
       description:
-        "Netdata chart ID. Find available charts at <netdata-url>/api/v1/charts — look for charts with units Celsius, Fahrenheit, RPM, etc.",
+        "Required exact key from the Agent’s allmetrics charts map; see chart discovery in the guide. No default. All finite current dimensions are averaged, so choose a chart whose dimensions should be combined. Uses the chart’s units, such as Celsius or RPM.",
     },
     {
       key: "label",
@@ -126,15 +135,16 @@ registerWidget<SensorConfig, SensorData>({
       type: "text",
       required: false,
       placeholder: "CPU Temp",
-      description: "Display name shown on the tile",
+      description: "Optional heading inside the tile. Empty uses the part of Chart ID after its final dot. This does not rename the service, select a sensor dimension or change units.",
     },
-    { key: "api_token", label: "API Token", type: "password", required: false },
+    { key: "api_token", label: "API Token", type: "password", required: false, description: netdataTokenDescription },
     {
       key: "history_minutes",
       label: "History (minutes)",
       type: "number",
       placeholder: "10",
       required: false,
+      description: netdataHistoryDescription,
     },
   ],
   serviceEditorPreset: {
