@@ -9,6 +9,7 @@ import {
 } from "./api";
 import type { ActualSchedulesConfig, ActualSchedule } from "./api";
 import { Amount } from "./Amount";
+import { actualBudgetSetupGuide } from "./setupGuide";
 
 // See summaryWidget.tsx: WidgetProps carries no config, so this file's own
 // fetchData wrapper folds the display settings the component needs
@@ -125,6 +126,8 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
     error: "actualbudget-schedules-widget__hint actualbudget-schedules-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  setupGuide: actualBudgetSetupGuide,
+  footprintDescription: "Default (3×4) scrolls incomplete schedules with a next date, earliest first, including overdue items. Each row shows a payee (falling back to the schedule name), an amount or amount range, and today/overdue/days remaining. The footer counts the full filtered list due within min(7, Days ahead) days or overdue, before the display limit; it can exceed the number of shown rows. Only the next occurrence of each returned schedule is shown.",
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:
@@ -145,7 +148,7 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
       type: "number",
       required: false,
       placeholder: "6",
-      description: "Maximum number of upcoming schedules to display.",
+      description: "Maximum displayed schedules, 1–50; default 6. Applied after the due-date filter and earliest-first sort, including overdue items. The due-soon footer is counted before this limit and can exceed the displayed row count.",
     },
     {
       key: "days_ahead",
@@ -153,7 +156,7 @@ registerWidget<ActualSchedulesConfig, ActualSchedulesData>({
       type: "number",
       required: false,
       placeholder: "30",
-      description: "Only show schedules due within this many days.",
+      description: "Future horizon, 1–365 days; default 30. Includes today and every returned overdue schedule with a next date. Completed schedules are excluded. The footer uses the smaller of 7 and this setting, plus overdue items; Timezone determines today.",
     },
   ],
 });

@@ -916,9 +916,7 @@ describe("ServiceForm – boolean widget config fields", () => {
     const checkbox = screen.getByLabelText("Hide closed accounts");
     const hintId = checkbox.getAttribute("aria-describedby");
     expect(hintId).toBe("sf-widget-exclude_closed-hint");
-    expect(document.getElementById(hintId!)).toHaveTextContent(
-      "Leaves closed accounts out of the list and out of the net worth total."
-    );
+    expect(checkbox).toHaveAccessibleDescription(/closed accounts.*list.*Net worth/i);
   });
 
   it("renders an absent key using the field's defaultValue, not unchecked", () => {

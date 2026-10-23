@@ -10,6 +10,7 @@ import {
 } from "./api";
 import type { ActualCategoriesConfig, ActualBudgetMonth, ActualCategory } from "./api";
 import { Amount } from "./Amount";
+import { actualBudgetSetupGuide } from "./setupGuide";
 
 // See summaryWidget.tsx for why display settings ride along on the fetched
 // data: WidgetProps never carries config, so this file's own fetchData
@@ -153,6 +154,8 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
     error: "actualbudget-categories-widget__hint actualbudget-categories-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  setupGuide: actualBudgetSetupGuide,
+  footprintDescription: "Default (3×4) scrolls categories for the current month, highest percent spent first. Rows show spent / available, where available includes carryover (balance + absolute spending). Usage is capped at 100%; negative balances are Overspent, otherwise 85% or more is Almost spent. Hidden categories/groups are always excluded; the filters run before the category limit. There is no category-ID selector.",
   serviceEditorPreset: {
     defaultName: "Actual Budget",
     defaultIconUrl:
@@ -173,7 +176,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
       type: "number",
       required: false,
       placeholder: "8",
-      description: "Maximum number of categories to display, sorted by percent spent.",
+      description: "Maximum displayed categories, 1–50; default 8. Applied after filters and sorting by percent spent descending, rather than by the amount spent. Rows scroll within the fixed footprint.",
     },
     {
       key: "hide_income",
@@ -181,7 +184,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
       type: "boolean",
       required: false,
       defaultValue: true,
-      description: "Leaves income categories out of the list.",
+      description: "Enabled by default. Excludes categories marked as income themselves or through their group. Turn off to include income; hidden categories/groups are always excluded.",
     },
     {
       key: "hide_empty",
@@ -189,7 +192,7 @@ registerWidget<ActualCategoriesConfig, ActualCategoriesData>({
       type: "boolean",
       required: false,
       defaultValue: true,
-      description: "Leaves out categories with nothing budgeted and nothing spent.",
+      description: "Enabled by default. Excludes categories where both this month’s budgeted and spent amounts are zero, even if a carryover balance exists. Turn off to include those untouched categories.",
     },
   ],
 });
