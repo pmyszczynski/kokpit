@@ -4,6 +4,7 @@ import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice 
 import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchTdarrStats, TdarrConfigSchema } from "./api";
 import type { TdarrConfig, TdarrStats } from "./api";
+import { tdarrSetupGuide } from "./setupGuide";
 
 // Space saved is a storage metric that commonly reaches TB on a busy Tdarr
 // install, so we use a TB-aware decimal formatter (matching the Immich stats
@@ -101,6 +102,7 @@ registerWidget<TdarrConfig, TdarrStats>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  footprintDescription: "Compact (3×2) shows Transcode Queue and Workers. Wide (6×2) also shows Space Saved. Detailed (3×4) shows those three plus Health Checks, Errored and FPS. Missing counters or unavailable node data can appear as zero.",
   serviceEditorPreset: {
     defaultName: "Tdarr",
     defaultIconUrl: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/tdarr.svg",
@@ -110,19 +112,22 @@ registerWidget<TdarrConfig, TdarrStats>({
   refreshInterval: 10_000,
   component: TdarrStatsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: tdarrSetupGuide,
   configFields: [
     {
       key: "url",
       label: "URL",
       type: "url",
       required: true,
-      placeholder: "http://192.168.1.x:8265",
+      placeholder: "http://192.168.1.x:8266",
+      description: "Tdarr Server’s API base address, including http:// or https:// and the Server port (normally 8266). The WebUI normally uses 8265 and belongs in the optional tile URL. Keep any proxy prefix; Kokpit appends /api/v2 routes. The API address must work from Kokpit.",
     },
     {
       key: "apikey",
       label: "API Key (optional)",
       type: "password",
       required: false,
+      description: "Required when Tdarr Server authentication is enabled, including new v3 installs. Create it under Tools → API Keys and paste only its full value. Blank is for an already unauthenticated Server; an existing saved key is retained until you replace it or use Clear saved credential.",
     },
   ],
 });

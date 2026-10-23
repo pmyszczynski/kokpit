@@ -1707,7 +1707,9 @@ service_tiles:
 
 Displays transcoding queue status, worker activity, and storage savings from Tdarr.
 
-**Prerequisites:** Access to the Tdarr Server API. No API key is required by default on a local network; the optional `apikey` is only needed if you have enabled it in Tdarr settings.
+**Prerequisites:** A reachable Tdarr Server API. New Tdarr v3 installations enable authentication by default. Open the WebUI (normally port 8265), complete initial account setup if prompted and sign in as an administrator when authentication is enabled. Open **Tools → API Keys**, create a key for Kokpit and copy its full value, including any `tapi_` prefix. The `apikey` field is required when Server authentication is enabled; omit it only for a Server that already has authentication disabled. Keep keys private and use private networking or HTTPS.
+
+Add/Edit Service includes a numbered guide, field help, troubleshooting and the shared outdated-instructions/GitHub-issue notice. Use the **Server API** address, normally port **8266**, in the integration URL; the optional tile launch URL can open the WebUI on **8265**. Kokpit retains any proxy prefix, normalizes a final slash and appends its `/api/v2` routes. Do not enter an API suffix or query string. It sends the key in `x-api-key`. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See the official [authentication guide](https://docs.tdarr.io/docs/other/authentication/), [API documentation](https://docs.tdarr.io/docs/api/) and [configuration variables](https://docs.tdarr.io/docs/installation/variables/).
 
 #### `tdarr-stats`
 
@@ -1732,8 +1734,8 @@ services:
     integration:
       type: tdarr
       config:
-        url: http://192.168.1.10:8265
-        apikey: YOUR_API_KEY_IF_ENABLED
+        url: http://192.168.1.10:8266
+        apikey: tapi_YOUR_API_KEY
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000034
     service_id: 10000000-0000-4000-8000-000000000034
@@ -1744,8 +1746,8 @@ service_tiles:
 
 | Field    | Required | Description                                                      |
 | -------- | -------- | ---------------------------------------------------------------- |
-| `url`    | Yes      | Base URL of your Tdarr Server (default port 8265)                |
-| `apikey` | No       | API key from Tdarr, if enabled; omit if no auth is configured    |
+| `url`    | Yes      | Tdarr Server API base URL, including protocol and Server port (normally 8266), reachable from Kokpit; retain any proxy prefix and omit `/api/v2` |
+| `apikey` | When Server auth is enabled | Full API key from Tools → API Keys. New v3 installs need it. A saved value is retained until replaced or explicitly removed with Clear saved credential |
 
 
 **Displayed stats:**
@@ -1757,8 +1759,10 @@ service_tiles:
 | Health Checks       | Number of items in the health checks queue              |
 | Errored             | Number of items that encountered errors                 |
 | Space Saved         | Total storage saved through transcoding, reported in GB and formatted for display |
-| Workers (active)    | Number of active transcode workers currently running    |
-| FPS                 | Current frames per second across all active transcoders |
+| Workers             | Number of worker records returned by the nodes API; unavailable node data shows zero |
+| FPS                 | Sum of reported worker FPS, rounded to one decimal; unavailable node data shows zero |
+
+The default refresh is 10 seconds; editor overrides use milliseconds with a 5-second minimum. Queue/statistics data comes from the API v2 statistics document; missing counters default to zero. The nodes request is independent and best-effort. Check **Tools → API Docs** for your installed version if values differ; configuring Kokpit's key does not configure authentication on Tdarr Nodes.
 
 
 ---
