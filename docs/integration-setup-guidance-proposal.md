@@ -97,7 +97,7 @@ Each row is a separate rollout item. Connection fields inherit the corresponding
 | Netdata Load (`netdata-load`) | `url`, optional `api_token`; explain 1/5/15-minute load averages and the difference from CPU utilization. No history control is exposed here. |
 | Netdata Sensor (`netdata-sensor`) | `url`, optional `api_token`; `chart_id`: discover in `/api/v1/charts`, checking units; `label`: optional tile measurement name; `history_minutes`: graph window/default/range. |
 | Docker (`docker`) | `socket_path`: Unix socket inside Kokpit; empty uses the default. `max_items`: 1–50 containers and effective default. Include a concise explanation of socket access privileges. |
-| Tautulli Activity (`tautulli-activity`) | `url`, `api_key`: shared Tautulli setup. `sections`: summary and sessions, defaults, minimum one section, and how tile size affects visibility. |
+| Tautulli Activity (`tautulli-activity`) | `url`, `api_key`: shared Tautulli setup. Selected `sections` determine which content appears: summary, sessions, or both. Explain defaults, the minimum of one section, summary-only and sessions-only configurations, and how tile size affects visibility. |
 | Actual Budget Summary (`actualbudget-summary`) | Shared `url`, `api_key`, `budget_sync_id`, optional `encryption_password`. `currency`: ISO code; `locale`: number formatting; `privacy_mode`: hover-reveal blur; `timezone`: budget month boundary; `size_defaults`: 2/3/6 stats versus all six. |
 | Actual Budget Categories (`actualbudget-categories`) | Same connection/currency/locale/privacy/time-zone help. `limit`: count and spending-based order; `hide_income`: exclude income; `hide_empty`: exclude unbudgeted/unspent categories. Advanced category IDs are documented outside the current editor. |
 | Actual Budget Accounts (`actualbudget-accounts`) | Same connection/currency/locale/privacy help. `exclude_closed` and `exclude_offbudget`: affect both list and net-worth total. Do not add time-zone help to this widget; it has no time-zone control. Advanced account IDs are documented separately. |
@@ -121,7 +121,7 @@ For each integration, verify the upstream sequence and permissions against offic
 
 | Integration | Delivery status | PR / release evidence |
 | --- | --- | --- |
-| Unraid | Accepted design; full pre-PR validation in progress | Target v0.32.0 |
+| Unraid | Accepted design; addressing AI review feedback after the full local gate passed | [PR #160](https://github.com/pmyszczynski/kokpit/pull/160), targeting v0.32.0 |
 | Sonarr | Planned next | — |
 | Radarr | Planned | — |
 | Prowlarr | Planned | — |

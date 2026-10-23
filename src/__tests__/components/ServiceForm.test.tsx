@@ -2262,6 +2262,8 @@ describe("ServiceForm – footprint", () => {
     render(<ServiceForm service={{ name: "Unraid", widget: { type: "unraid-stats", config: { url: "http://unraid.local", api_key: "secret" } } }}
       existingGroups={[]} onSave={noop} onClose={noop} />);
     expect(screen.getByLabelText("Footprint")).toHaveValue("6x4");
+    expect(screen.queryByLabelText("Integration", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("URL", { exact: true })).toHaveAccessibleDescription(/Widget section below/);
   });
 
   it("does not revive a legacy position or size through the editor", () => {

@@ -1458,7 +1458,7 @@ export default function ServiceForm({
             }}
             placeholder="https://jellyfin.example.com"
           />
-          {setupGuide && <p id="sf-url-hint" className="settings-form-hint">Optional address opened when you click the tile. Set the API connection address in the Integration section above.</p>}
+          {setupGuide && <p id="sf-url-hint" className="settings-form-hint">Optional address opened when you click the tile. {legacyDirectConfig ? "Enter the API connection address in the Widget section below." : "Set the API connection address in the Integration section above."}</p>}
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>

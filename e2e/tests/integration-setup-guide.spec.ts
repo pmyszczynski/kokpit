@@ -1,4 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { parse } from "yaml";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 
 const FIXTURE = schemaV2Fixtures([{
@@ -29,6 +31,7 @@ test("Unraid setup guide fits alongside its fields in every theme", async ({ pag
     const guide = dialog.getByRole("complementary", { name: "Connect Unraid" });
     await expect(guide.getByRole("listitem")).toHaveCount(4);
     await expect(dialog.getByLabel("URL *", { exact: true })).toHaveAccessibleDescription(/adds \/graphql automatically/);
+    await expect(dialog.getByLabel("URL", { exact: true })).toHaveAccessibleDescription(/Integration section above/);
     await expect(dialog.getByLabel("API Key *", { exact: true })).toHaveAccessibleDescription(/Paste only the key/);
     await expect(dialog.getByLabel("API Key *", { exact: true })).toHaveValue("");
     await expect(dialog.getByLabel("Tile type", { exact: true })).toHaveCSS("background-repeat", "no-repeat");
@@ -63,7 +66,13 @@ test("guide follows the integration and editing guidance preserves the saved key
   await expect(dialog).toBeHidden();
   const settings = await (await request.get("/api/settings")).json();
   expect(settings.services[0].name).toBe("Storage server");
-  expect(settings.services[0].integration.config.api_key).toEqual(expect.any(Object));
+  expect(settings.services[0].integration.config.api_key).toEqual({
+    __kokpit_widget_secret_reference__: expect.stringMatching(/^__KOKPIT_WIDGET_SECRET_REF__:/),
+  });
+  const runtimeConfigPath = process.env.KOKPIT_E2E_RUNTIME_CONFIG_PATH;
+  if (!runtimeConfigPath) throw new Error("Missing isolated E2E runtime configuration");
+  const persisted = parse(await readFile(runtimeConfigPath, "utf8"));
+  expect(persisted.services[0].integration.config.api_key).toBe("preview-only-key");
   // Reopening still recognizes the retained credential, without revealing it.
   await page.locator(".service-table tbody tr").filter({ hasText: "Storage server" }).getByRole("button", { name: "Edit", exact: true }).click();
   await expect(dialog.getByLabel("API Key *", { exact: true })).toHaveAttribute("placeholder", /saved/i);
