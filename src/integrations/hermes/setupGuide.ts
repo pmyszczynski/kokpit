@@ -7,7 +7,7 @@ export const hermesSetupGuide: WidgetSetupGuide = {
   steps: [
     {
       title: "Enable the API and find its key",
-      description: "Edit Hermes’s .env (normally ~/.hermes/.env) and set API_SERVER_ENABLED=true. Reuse its API_SERVER_KEY or YAML key; if none exists, run openssl rand -hex 32 and set API_SERVER_KEY to the result.",
+      description: "Set API_SERVER_ENABLED=true in Hermes’s .env (normally ~/.hermes/.env). Find its existing key first (see key lookup below). Only if unconfigured, run openssl rand -hex 32 and set API_SERVER_KEY to the result.",
     },
     {
       title: "Make the listener reachable and restart",
@@ -15,7 +15,7 @@ export const hermesSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Enter the final API address",
-      description: "Use the listener root, normally http://hermes:8642, keeping any proxy prefix. Omit /v1 and endpoint paths. For a multiplexed profile, add /p/name and use that profile’s own API_SERVER_KEY.",
+      description: "Use the listener root, normally http://hermes:8642, keeping any real proxy prefix. Do not append /v1 or endpoint paths. For a multiplexed profile, add /p/name and use that profile’s own API_SERVER_KEY.",
     },
     {
       title: "Paste the key, test and save",
@@ -25,7 +25,11 @@ export const hermesSetupGuide: WidgetSetupGuide = {
   troubleshooting: [
     {
       title: "Which key should I copy?",
-      description: "Use the API server key, not an OpenAI, Anthropic or other model-provider key. For the default listener, read API_SERVER_KEY from Hermes’s .env or gateway.api_server.key from config.yaml; environment settings take precedence. Paste the value without API_SERVER_KEY=, Bearer or surrounding quotes. Changing this upstream key affects its other API clients too.",
+      description: "Use the API server key, not a model-provider key. In the selected gateway’s actual Hermes home, check API_SERVER_KEY in .env and config.yaml key values under gateway.api_server, gateway.platforms.api_server or platforms.api_server. Environment settings take precedence. Reuse the effective compatible key; generate one only if all are unset. Paste the value without API_SERVER_KEY=, Bearer or quotes. Changing it affects other API clients too.",
+    },
+    {
+      title: "An existing key is rejected when saving",
+      description: "Kokpit trims surrounding whitespace, then accepts only visible ASCII characters without spaces, up to 4,096 characters. Hermes can accept some keys that Kokpit cannot, such as keys with embedded spaces or Unicode. Do not remove characters from the key: plan a deliberate rotation in Hermes and update its other clients, or keep the current key and leave this widget unconfigured. A new openssl rand -hex 32 key fits Kokpit’s format.",
     },
     {
       title: "The listener will not start or cannot be reached",
@@ -33,11 +37,11 @@ export const hermesSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "401 or 403 for a profile",
-      description: "A /p/name route requires that named profile’s own API_SERVER_KEY from ~/.hermes/profiles/name/.env. The default profile’s key is rejected there; unprefixed routes and /p/default use the default key. After changing settings, restart the gateway that owns the listener. With the same connection URL, an untouched saved key is retained; URL edits require re-entering it.",
+      description: "On the default multiplexing listener, /p/name requires that profile’s own API_SERVER_KEY, normally in ~/.hermes/profiles/name/.env; unprefixed routes and /p/default use the default key. A standalone named-profile listener on its own port uses that profile’s effective key even without /p/name. Restart the gateway that owns the listener after changes. A saved key is retained only while the URL stays unchanged; URL edits require re-entry.",
     },
     {
       title: "404, HTML or a redirect error",
-      description: "Use the final API listener address, including its configured API_SERVER_PORT and any real proxy/profile prefix. Remove /v1, /health and /api suffixes, query strings and fragments. Kokpit does not follow redirects, including proxy sign-in pages or HTTP-to-HTTPS redirects. Requests are server-to-server, so Kokpit does not need a CORS allowlist.",
+      description: "Use the final API listener address, its configured port and any real proxy/profile prefix. Omit appended endpoint paths such as /v1 or /health, but keep a configured proxy mount, including /api if that is the mount. For example, a base of https://host/api/ requests https://host/api/health/detailed. Omit queries and fragments. Redirects are not followed, including sign-in pages or HTTP-to-HTTPS redirects. Server-to-server requests need no CORS allowlist.",
     },
     {
       title: "Online, Degraded or unsupported sections",
