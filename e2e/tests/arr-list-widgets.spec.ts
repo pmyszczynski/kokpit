@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext, type Locator } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const TYPES = ["sonarr-calendar", "sonarr-queue", "radarr-queue"] as const;
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
@@ -188,7 +189,7 @@ for (const empty of [false, true]) test(`Arr saved ${empty ? "empty" : "populate
   });
   await page.clock.install();
   for (const theme of THEMES) {
-    fails = false; await configure(request, theme); await page.goto("/");
+    fails = false; await configure(request, theme); await withSettledConfigurationCheck(page, () => page.goto("/"));
     for (const type of TYPES) {
       const widget = tile(page, type);
       await expect(widget.locator(empty ? ".widget-state--empty" : ".widget-list-item")).toHaveCount(empty ? 1 : 15);
@@ -202,14 +203,14 @@ for (const empty of [false, true]) test(`Arr saved ${empty ? "empty" : "populate
       else expect(await scrolls()).toEqual(offsets);
     };
     await expectScrollContract();
-    fails = true; await page.clock.fastForward(15000);
+    fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(15000));
     for (const type of TYPES.slice(1)) await expect(tile(page, type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
     await expect(tile(page, TYPES[0]).getByRole("alert")).toHaveCount(0);
-    await page.clock.fastForward(45000);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(45000));
     for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
     expect(await bounds()).toEqual(healthy); await expectScrollContract();
     if (!empty && theme === "dark") await testInfo.attach("Arr stale", { body: await page.locator(".dashboard-tile-grid").screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
-    fails = false; await page.clock.fastForward(300_001);
+    fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(healthy); await expectScrollContract();
   }

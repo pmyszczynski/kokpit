@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 /** Locate Search independently of its configurable service and engine names. */
 const tile = (page: Page) => page.locator('.service-tile').filter({ has: page.locator('[data-widget-type="search"]') });
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
@@ -39,12 +40,12 @@ test("Search blocks blank queries and performs no background polling or engine r
   let widgetRequests = 0; let engineRequests = 0;
   page.on("request", request => { if (request.url().includes("/api/widget?")) widgetRequests++; });
   await context.route("https://search.example/**", route => { engineRequests++; return route.abort(); });
-  await page.clock.install(); await page.goto("/"); await expect(tile(page).getByRole("searchbox")).toBeVisible();
+  await page.clock.install(); await withSettledConfigurationCheck(page, () => page.goto("/")); await expect(tile(page).getByRole("searchbox")).toBeVisible();
   await tile(page).getByRole("searchbox").fill("   "); await tile(page).getByRole("button", { name: "Search", exact: true }).click();
   expect(await tile(page).getByRole("searchbox").evaluate((input: HTMLInputElement) => input.validationMessage)).toBe("Enter a search query.");
   await tile(page).getByRole("searchbox").fill("ready"); expect(await tile(page).getByRole("searchbox").evaluate((input: HTMLInputElement) => input.validity.valid)).toBe(true);
   const initialRequests = widgetRequests; expect(initialRequests).toBeGreaterThan(0);
-  await page.clock.fastForward(600_000); expect(widgetRequests).toBe(initialRequests); expect(engineRequests).toBe(0);
+  await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000)); expect(widgetRequests).toBe(initialRequests); expect(engineRequests).toBe(0);
 });
 
 for (const footprint of FOOTPRINTS) test(`Search fits its ${footprint.columnSpan}x2 tile with visible controls, keyboard focus and contrast in four themes`, async ({ page, request }) => {
@@ -97,11 +98,11 @@ for (const footprint of FOOTPRINTS) test(`Search ${footprint.columnSpan}x2 retai
   const response = await (await request.get("/api/widget?tile_id=20000000-0000-4000-8000-000000000001&widget_type=search")).json();
   let fail = false;
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(fail ? { ok: false, error: "Options unavailable" } : response) }));
-  await page.clock.install(); await page.goto("/"); const input = tile(page).getByRole("searchbox");
+  await page.clock.install(); await withSettledConfigurationCheck(page, () => page.goto("/")); const input = tile(page).getByRole("searchbox");
   await input.fill("keep my search"); await input.focus(); const bounds = await input.boundingBox();
-  fail = true; await page.clock.fastForward(5000); await expect(tile(page).getByRole("alert")).toHaveAttribute("title", "Options unavailable");
+  fail = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(5000)); await expect(tile(page).getByRole("alert")).toHaveAttribute("title", "Options unavailable");
   await expect(input).toHaveValue("keep my search"); await expect(input).toBeFocused(); expect(await input.boundingBox()).toEqual(bounds);
-  fail = false; await page.clock.fastForward(300_001); await expect(tile(page).getByRole("alert")).toHaveCount(0); expect(await input.boundingBox()).toEqual(bounds);
+  fail = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001)); await expect(tile(page).getByRole("alert")).toHaveCount(0); expect(await input.boundingBox()).toEqual(bounds);
 });
 
 test("Search controls remain independent of a linked service header", async ({ page, request }) => {

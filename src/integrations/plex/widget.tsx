@@ -204,7 +204,7 @@ registerWidget<PlexWidgetConfig, PlexData>({
       type: "password",
       required: true,
       placeholder: "X-Plex-Token",
-      description: "As the server owner, open a local item in Plex Web → … → Get Info → View XML, then copy only X-Plex-Token’s value from the address bar. This is not a password or PLEX_CLAIM token. It may expire; Kokpit does not renew it. A saved token is retained only while the server URL stays unchanged; re-enter it after a URL edit.",
+      description: "As the server owner, open a local item in Plex Web → … → Get Info → View XML, then copy only X-Plex-Token’s value from the address bar. This is not a password or PLEX_CLAIM token. It may expire; Kokpit does not renew it. A saved token is kept while the normalized server address stays unchanged; adding a root trailing slash is equivalent. Changes to its scheme, host, port, path or query require re-entry.",
     },
     ...PLEX_OPTION_FIELDS,
   ],

@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { createServer } from "node:http";
 import type { HermesData } from "../../src/integrations/hermes/api";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const FOOTPRINTS = [{ columnSpan: 3, rowSpan: 4 }, { columnSpan: 6, rowSpan: 3 }];
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
@@ -45,13 +46,13 @@ test("Hermes fits 3×4 and 6×3 in all themes with a fixed summary and keyboard-
 test("Hermes refresh failure retains metadata, scroll position and geometry before recovery", async ({ page, request }) => {
   let fails = false;
   await page.route("**/api/widget?*", route => route.fulfill({ json: fails ? { ok: false, error: "Hermes unavailable" } : { ok: true, data: DATA } }));
-  await page.clock.install({ time: new Date("2026-10-20T12:00:00Z") }); await configure(request); await page.goto("/");
+  await page.clock.install({ time: new Date("2026-10-20T12:00:00Z") }); await configure(request); await withSettledConfigurationCheck(page, () => page.goto("/"));
   const list = tile(page).getByRole("list", { name: "Hermes activity" }); await expect(list.getByRole("listitem")).toHaveCount(11);
   await list.focus(); await list.press("End"); await expect.poll(() => list.evaluate(el => el.scrollTop > 0 && Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) < 2)).toBe(true);
   const bounds = await list.boundingBox(); const scroll = await list.evaluate(el => el.scrollTop);
-  fails = true; await page.clock.fastForward(30_000); await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Hermes unavailable");
+  fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(30_000)); await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Hermes unavailable");
   expect(await list.boundingBox()).toEqual(bounds); expect(await list.evaluate(el => el.scrollTop)).toBe(scroll);
-  fails = false; await page.clock.fastForward(300_001); await expect(tile(page).getByRole("alert")).toHaveCount(0);
+  fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001)); await expect(tile(page).getByRole("alert")).toHaveCount(0);
 });
 
 test("Hermes shows empty, unsupported and unavailable data explicitly", async ({ page, request }) => {

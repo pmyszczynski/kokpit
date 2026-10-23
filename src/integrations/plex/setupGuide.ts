@@ -29,7 +29,7 @@ export const plexSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Which token, and how long does it last?",
-      description: "Use the X-Plex-Token value, without the full URL, parameter name, Bearer or quotes. Do not use your password or a PLEX_CLAIM setup token. Plex describes the XML method as temporary; its newer JWT tokens expire after seven days. Kokpit does not renew the pasted token automatically. Replace it after expiry or revocation. A saved token is retained only while the server URL stays unchanged; URL edits require re-entry. Upstream requests use a token query parameter, so keep proxy logs private too.",
+      description: "Use the X-Plex-Token value, without the full URL, parameter name, Bearer or quotes. Do not use your password or a PLEX_CLAIM setup token. Plex describes the XML method as temporary; its newer JWT tokens expire after seven days. Kokpit does not renew the pasted token automatically. Replace it after expiry or revocation. A saved token is kept while the normalized server address stays unchanged. Equivalent root URLs such as http://plex:32400 and http://plex:32400/ keep it, and fragments are ignored for this comparison. A different scheme, host, port, path or query requires re-entry. Upstream requests use a token query parameter, so keep proxy logs private too.",
     },
     {
       title: "401, 403 or an expired-token error",
@@ -45,7 +45,7 @@ export const plexSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Library totals or displayed fields differ",
-      description: "Movies, Shows and Episodes count matching items across accessible libraries; Music counts albums, not artists or tracks. Failed individual count requests can leave partial or zero totals. Custom Display selections override the size-default checkbox. Use Use default fields to restore defaults instead of unchecking every field. Only Detailed (3×4) has a playback list; Expanded (6×4) is a measurements grid. Refresh defaults to ten seconds and does not renew the token.",
+      description: "Movies, Shows and Episodes count matching items across accessible libraries; Music counts albums, not artists or tracks. Failed individual count requests can leave partial or zero totals. Custom Display selections override the size-default checkbox. Click Use default fields to restore defaults instead of unchecking every field. Only Detailed (3×4) has a playback list; Expanded (6×4) is a measurements grid. Refresh defaults to ten seconds and does not renew the token.",
     },
   ],
   documentationUrl: "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",

@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext, type Locator } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const FIXTURES = schemaV2Fixtures([
@@ -149,19 +150,19 @@ for (const empty of [false, true]) test(`qBittorrent saved ${empty ? "empty" : "
   });
   await page.clock.install();
   for (const theme of THEMES) {
-    fails = false; await configure(request, theme); await page.goto("/");
+    fails = false; await configure(request, theme); await withSettledConfigurationCheck(page, () => page.goto("/"));
     const widget = tile(page);
     await expect(widget.locator(empty ? ".widget-state--empty" : ".widget-list-item")).toHaveCount(empty ? 1 : 15);
     if (!empty) await widget.getByRole("list").evaluate(node => { node.scrollTop = 45; });
     const bounds = () => widget.locator(".widget-list,.widget-body__notice").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
     const scrolls = () => widget.locator(".widget-list__scroll").evaluateAll(nodes => nodes.map(node => node.scrollTop));
     const healthy = await bounds(), offsets = await scrolls();
-    fails = true; await page.clock.fastForward(15000);
+    fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(15000));
     await expect(widget.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
     expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
     if (empty) await expect(widget.getByRole("list")).toHaveCount(0);
     if (!empty && theme === "dark") await testInfo.attach("qBittorrent stale", { body: await widget.screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
-    fails = false; await page.clock.fastForward(300_001); await expect(widget.getByRole("alert")).toHaveCount(0);
+    fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001)); await expect(widget.getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
     if (empty) await expect(widget.getByRole("list")).toHaveCount(0);
   }
