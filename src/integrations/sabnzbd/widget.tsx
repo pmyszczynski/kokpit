@@ -4,6 +4,7 @@ import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetState, WidgetStaleNotice 
 import type { WidgetStatTone } from "@/widgets/ui";
 import { fetchQueueData, SabnzbdConfigSchema } from "./api";
 import type { SabnzbdConfig, SabnzbdQueueData } from "./api";
+import { sabnzbdSetupGuide } from "./setupGuide";
 
 function formatSpeed(bytesPerSec: number): string {
   if (bytesPerSec >= 1_000_000) {
@@ -142,6 +143,7 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  footprintDescription: "Compact shows speed and queue count; Wide adds total queue size. Detailed adds remaining size, ETA and status. Missing optional details show —, and an empty queue has no ETA.",
   serviceEditorPreset: {
     defaultName: "SABnzbd",
     defaultIconUrl: "https://cdn.simpleicons.org/sabnzbd",
@@ -151,6 +153,7 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
   refreshInterval: 10_000,
   component: SabnzbdWidget,
   credentialScopeFields: ["url"],
+  setupGuide: sabnzbdSetupGuide,
   configFields: [
     {
       key: "url",
@@ -158,12 +161,14 @@ registerWidget<SabnzbdConfig, SabnzbdQueueData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:8080",
+      description: "SABnzbd’s base address, including http:// or https:// and its port (usually 8080). Retain any reverse-proxy prefix. Kokpit adds /api and its queue request parameters; enter no API suffix or query string here.",
     },
     {
       key: "apikey",
       label: "API Key",
       type: "password",
       required: true,
+      description: "The full API Key from SABnzbd’s Config → General → Security, used to read the queue. Paste only its value; NZB Key only adds jobs. Leave a saved key unchanged to keep using it.",
     },
   ],
 });

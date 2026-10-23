@@ -84,7 +84,7 @@ Each row is a separate rollout item. Connection fields inherit the corresponding
 | Radarr Stats (`radarr-stats`) | `url`, `api_key`: shared Radarr setup. Explain that stats summarize the connected movie library, with footprint-specific content. |
 | Radarr Queue (`radarr-queue`) | Shared Radarr connection; describe active movie downloads. The fetcher requests a fixed page of up to 25 queue entries and excludes unknown movie items. |
 | Prowlarr Stats (`prowlarr-stats`) | `url`: Prowlarr application root. `api_key`: Prowlarr application key, not an indexer credential. Explain indexer totals versus grab statistics. |
-| SABnzbd (`sabnzbd`) | `url`: SABnzbd root, retaining any URL base. `apikey`: full API Key, not NZB Key. Describe queue/history data and default polling. |
+| SABnzbd (`sabnzbd`) | `url`: SABnzbd root, retaining any URL base. `apikey`: full API Key, not NZB Key. Describe queue data (no history request), the 10-second default polling, and the 2/3/6-stat footprints. |
 | Tdarr Stats (`tdarr-stats`) | `url`: server API address. `apikey`: optional when upstream authentication is disabled; explain when it becomes required. |
 | Seerr Stats (`seerr-stats`) | `url`: Seerr/Jellyseerr/Overseerr root. `api_key`: administrator-created application key. Explain request/media summary scope. |
 | Seerr Requests (`seerr-requests`) | Shared Seerr connection; explain the request list. The fetcher requests 15 entries with `sort=added` and `filter=all`; these values are fixed rather than configurable. |
@@ -124,8 +124,8 @@ For each integration, verify the upstream sequence and permissions against offic
 | Unraid | Released; CI and AI feedback cleared, Docker publication verified | [PR #160](https://github.com/pmyszczynski/kokpit/pull/160), [v0.32.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.0), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39890907906) |
 | Sonarr | Released; all three AI reviewers clear, CI and Docker verification passed | [PR #161](https://github.com/pmyszczynski/kokpit/pull/161), [v0.32.1](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.1), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39896440534) |
 | Radarr | Released; CI, Cubic/CodeRabbit and Docker verified; Codex request remained pending at release | [PR #162](https://github.com/pmyszczynski/kokpit/pull/162), [v0.32.2](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.2), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39905413094) |
-| Prowlarr | Guide implemented; validating documented grab-history filtering | Targeting v0.32.3 |
-| SABnzbd | Planned | — |
+| Prowlarr | Released; CI, Cubic/CodeRabbit and Docker verified; Codex request remained pending at release | [PR #163](https://github.com/pmyszczynski/kokpit/pull/163), [v0.32.3](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.3), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39910590845) |
+| SABnzbd | Guide implemented; validating | Targeting v0.32.4 |
 | Seerr | Planned | — |
 | Tautulli | Planned | — |
 | Tdarr | Planned | — |
@@ -171,3 +171,13 @@ Checked 23 October 2026 against the [official settings guide](https://wiki.serva
 - **Widget behavior:** checked the Prowlarr schema, fetcher and renderer. The 3×4 footprint shows six fixed stats; Usenet/Torrent include disabled indexers. Polling defaults to 60 seconds. There are no per-indexer or history-window controls in the editor.
 - **Grab count correction:** the fetcher previously used unfiltered history totals, counting queries and authentication events as grabs. The [History controller](https://github.com/Prowlarr/Prowlarr/blob/develop/src/Prowlarr.Api.V1/History/HistoryController.cs) documents the filter behavior, and [HistoryEventType](https://github.com/Prowlarr/Prowlarr/blob/develop/src/NzbDrone.Core/History/History.cs) defines `ReleaseGrabbed = 1`. The request now filters `eventType=1`. Help describes retained grab history, rather than a lifetime total; a regression test models mixed history and verifies the filtered count.
 - The shared outdated-instructions disclaimer and issue link apply. Preview uses a dummy key in an isolated configuration; live Prowlarr connectivity has not been tested.
+
+### SABnzbd documentation and implementation evidence
+
+Checked 23 October 2026 against the official [General settings](https://sabnzbd.org/wiki/configuration/4.5/general), [API reference](https://sabnzbd.org/wiki/advanced/api), [hostname verification guide](https://sabnzbd.org/wiki/extra/hostname-check.html), and upstream [General settings template](https://github.com/sabnzbd/sabnzbd/blob/develop/interfaces/Config/templates/config_general.tmpl).
+
+- **Getting the key:** Config → General → Security has separate API Key and NZB Key fields. The API reference and General documentation explicitly state that NZB Key only adds jobs and cannot monitor the queue. The template confirms clicking the read-only API Key field selects its text for copying; the guide does not invent a copy button.
+- **Address and access:** General settings documents default port 8080, Web server host binding, and local/external API access levels. If external-access policy applies, API (no config) permits the queue call without granting configuration API access. The hostname verification guide documents `host_whitelist` and hostname-only entries in Config → Special.
+- **Kokpit behavior:** checked `src/integrations/sabnzbd/api.ts` and `widget.tsx`. The fetcher normalizes a final slash, retains the configured base path, appends `api`, and sends `output=json`, `mode=queue` and `apikey`. Unlike the shared *arr helper, it does not require a final slash on a URL Base path. The YAML field is `apikey`, not `api_key`.
+- Compact shows speed/count, Wide adds total queue size, and Detailed adds remaining size/ETA/status. All use the same queue response and default 10-second polling. Missing optional details show “—”; an empty queue has no ETA. No history data or additional config controls are claimed.
+- Both connection fields, footprint and refresh behavior have editor help. The common outdated-instructions disclaimer and issue link apply. Previews use a dummy key in an isolated configuration; live SABnzbd connectivity has not been tested.
