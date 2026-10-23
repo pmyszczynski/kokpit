@@ -121,8 +121,8 @@ For each integration, verify the upstream sequence and permissions against offic
 
 | Integration | Delivery status | PR / release evidence |
 | --- | --- | --- |
-| Unraid | Accepted design; addressing AI review feedback after the full local gate passed | [PR #160](https://github.com/pmyszczynski/kokpit/pull/160), targeting v0.32.0 |
-| Sonarr | Planned next | — |
+| Unraid | Released; CI and AI feedback cleared, Docker publication verified | [PR #160](https://github.com/pmyszczynski/kokpit/pull/160), [v0.32.0](https://github.com/pmyszczynski/kokpit/releases/tag/v0.32.0), [verified release run](https://github.com/pmyszczynski/kokpit/actions/runs/39890907906) |
+| Sonarr | Guide implemented for Calendar and Queue; validating | Targeting v0.32.1 |
 | Radarr | Planned | — |
 | Prowlarr | Planned | — |
 | SABnzbd | Planned | — |
@@ -141,3 +141,13 @@ For each integration, verify the upstream sequence and permissions against offic
 | Weather | Planned | — |
 | RSS / Atom | Planned | — |
 | Search | Planned | — |
+
+### Sonarr documentation and implementation evidence
+
+Checked 23 October 2026 against the [official Sonarr settings guide](https://wiki.servarr.com/sonarr/settings#general), [API documentation](https://sonarr.tv/docs/api/), and upstream [Security settings UI](https://github.com/Sonarr/Sonarr/blob/develop/frontend/src/Settings/General/SecuritySettings.tsx).
+
+- **Getting the key:** General → Security contains the existing API Key and a copy button. The key grants application access. The guide tells users to copy it, explains the effect of resetting it, and does not invent a separate read-only key workflow.
+- **Address:** the official Host documentation describes URL Base for reverse proxies. Kokpit's current shared HTTP helper requires a trailing slash to retain a base path. Both fields and troubleshooting state this explicitly, with `/sonarr/` as an example; no API suffix is entered by the user.
+- **API contract:** the upstream [OpenAPI definition](https://github.com/Sonarr/Sonarr/blob/develop/src/Sonarr.Api.V3/openapi.json) documents `X-Api-Key`, calendar `start`/`end`/`includeSeries`, and queue `pageSize`/`includeSeries`/`includeUnknownSeriesItems`. Its v3 API applies to Sonarr v3 and v4.
+- **Kokpit behavior:** checked `src/integrations/sonarr/api.ts`, both widget definitions/renderers, and `src/integrations/shared/http.ts`. Calendar starts at today's UTC midnight, accepts 1–30 days and defaults to 7. Queue requests one page of 25 with unknown series excluded. Both use a 3×4 scrolling layout; polling defaults are 60 seconds for Calendar and 15 for Queue.
+- The common outdated-instructions disclaimer and GitHub issue link apply to both widgets. Browser verification uses isolated test configuration and a dummy key; a live Sonarr deployment has not been tested.

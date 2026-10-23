@@ -3,6 +3,7 @@ import type { WidgetProps } from "@/widgets";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchCalendar, SonarrConfigSchema } from "./api";
 import type { SonarrConfig, SonarrEpisode } from "./api";
+import { sonarrSetupGuide, sonarrUrlDescription, sonarrApiKeyDescription } from "./setupGuide";
 
 function formatAirDate(isoUtc: string): string {
   const d = new Date(isoUtc);
@@ -64,6 +65,7 @@ registerWidget<SonarrConfig, SonarrEpisode[]>({
     error: "sonarr-calendar-widget__hint sonarr-calendar-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "A scrolling list of episode air dates, titles and downloaded/upcoming status. The Default footprint is 3 columns × 4 rows.",
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "Sonarr",
@@ -74,6 +76,7 @@ registerWidget<SonarrConfig, SonarrEpisode[]>({
   refreshInterval: 60_000,
   component: SonarrCalendarWidget,
   credentialScopeFields: ["url"],
+  setupGuide: sonarrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -81,14 +84,15 @@ registerWidget<SonarrConfig, SonarrEpisode[]>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:8989",
+      description: sonarrUrlDescription,
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    { key: "api_key", label: "API Key", type: "password", required: true, description: sonarrApiKeyDescription },
     {
       key: "days",
       label: "Days ahead",
       type: "number",
       placeholder: "7",
-      description: "Number of days to show (1–30)",
+      description: "Calendar window in whole days (1–30), starting today at 00:00 UTC. Leave empty for 7 days. This option does not affect Queue.",
     },
   ],
 });

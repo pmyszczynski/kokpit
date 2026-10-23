@@ -1077,7 +1077,9 @@ The existing `sections` selection and 10-second polling are preserved.
 
 Two widgets are available for Sonarr: a calendar showing upcoming episodes and a download queue monitor.
 
-**Prerequisites:** An API key from Sonarr → Settings → General → Security.
+**Prerequisites:** A Sonarr instance reachable from Kokpit and its API key. Sign in to Sonarr, open **Settings → General → Security**, and copy the existing **API Key**. Paste only the key into Kokpit; resetting it affects other apps that use it.
+
+The Add/Edit Service form includes a shared step-by-step guide for Calendar and Queue, help under each field, troubleshooting, and an [official Sonarr settings reference](https://wiki.servarr.com/sonarr/settings#general). Enter the base URL (usually port 8989), including any configured URL Base **with a trailing slash**, for example `https://example.com/sonarr/`. Kokpit appends `/api/v3` and sends the key in `X-Api-Key`, as documented in the [Sonarr API](https://sonarr.tv/docs/api/). Use **Test connection** when enabled, then save; otherwise save and check the dashboard.
 
 #### `sonarr-calendar`
 
@@ -1106,14 +1108,16 @@ service_tiles:
 
 | Field     | Required | Description                              |
 | --------- | -------- | ---------------------------------------- |
-| `url`     | Yes      | Base URL of your Sonarr instance         |
-| `api_key` | Yes      | API key from Sonarr → Settings → General |
-| `days`    | No       | Days ahead to show (1–30, default: 7)    |
+| `url`     | Yes      | Reachable Sonarr base URL; include any URL Base and end it with `/` |
+| `api_key` | Yes      | Existing API Key from Settings → General → Security |
+| `days`    | No       | Whole days in the window starting today at 00:00 UTC (1–30, default: 7 when omitted/blank in the editor); Calendar only |
+
+The Default footprint is 3×4, with a scrolling episode list. The default refresh interval is 60 seconds; an editor override is in milliseconds (minimum 5,000).
 
 
 #### `sonarr-queue`
 
-Shows active downloads with progress bars, status, and ETA.
+Shows the first page of up to 25 queue entries with progress bars, status, and ETA. Downloads without a known Sonarr series are excluded. There is no configurable queue limit or Calendar date-window filter.
 
 ```yaml
 services:
@@ -1136,8 +1140,10 @@ service_tiles:
 
 | Field     | Required | Description                              |
 | --------- | -------- | ---------------------------------------- |
-| `url`     | Yes      | Base URL of your Sonarr instance         |
-| `api_key` | Yes      | API key from Sonarr → Settings → General |
+| `url`     | Yes      | Reachable Sonarr base URL; include any URL Base and end it with `/` |
+| `api_key` | Yes      | Existing API Key from Settings → General → Security |
+
+The Default footprint is 3×4, with a scrolling queue. The default refresh interval is 15 seconds; an editor override is in milliseconds (minimum 5,000).
 
 
 ---
