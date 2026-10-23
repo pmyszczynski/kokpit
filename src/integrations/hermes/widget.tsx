@@ -1,6 +1,7 @@
 import { registerIntegration, registerWidget, type WidgetConfigField, type WidgetProps } from "@/widgets";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchHermes, HermesConfigSchema, type HermesConfig, type HermesData, type HermesSectionState } from "./api";
+import { hermesSetupGuide } from "./setupGuide";
 import "./widget.css";
 
 function timestamp(value: string | null) {
@@ -28,8 +29,8 @@ export function HermesWidget({ data, loading, error, footprint }: WidgetProps<He
 }
 
 const FIELDS: WidgetConfigField[] = [
-  { key: "url", label: "API server URL", type: "url", required: true, placeholder: "http://hermes:8642", description: "Hermes API listener, including a reverse-proxy or /p/profile prefix if needed. Set the service launch URL separately to open the Hermes dashboard." },
-  { key: "api_key", label: "API server key", type: "password", required: true, description: "The API_SERVER_KEY configured in Hermes." },
+  { key: "url", label: "API server URL", type: "url", required: true, placeholder: "http://hermes:8642", description: "Final HTTP(S) API listener address reachable from Kokpit, normally port 8642. Direct IP and hostname URLs work. Keep any real proxy prefix or /p/profile route; do not append /v1 or endpoint paths. Omit credentials, query strings and fragments. Redirects are not followed. The optional service URL opens the dashboard separately." },
+  { key: "api_key", label: "API server key", type: "password", required: true, description: "Use the listener profile’s effective API_SERVER_KEY or YAML key (see key lookup). A multiplexed /p/name route needs that profile’s own .env key; a standalone profile listener uses its own key without that prefix. Paste the value alone; Kokpit adds Bearer. Only visible ASCII without spaces is accepted, up to 4,096 characters; incompatible existing keys need a planned rotation for all clients. A saved key is retained only while the URL is unchanged; re-enter it after a URL edit." },
 ];
 registerIntegration<HermesConfig>({ id: "hermes", connectionSchema: HermesConfigSchema, connectionFields: FIELDS, credentialScopeFields: ["url"] });
 registerWidget<HermesConfig, HermesData>({
@@ -37,5 +38,7 @@ registerWidget<HermesConfig, HermesData>({
   fetchData: fetchHermes, component: HermesWidget, refreshInterval: 30_000, preferredSize: "tall", minSize: "tall",
   compactHeader: true, sharedUI: true, hasLinks: true, configFields: FIELDS, optionFields: [], credentialScopeFields: ["url"],
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }, { label: "Wide", columnSpan: 6, rowSpan: 3 }],
+  footprintDescription: "Default (3×4) stacks activity in one column; Wide (6×3) uses two columns in the same scrolling area. Both keep health, active API runs and job totals fixed, with the next job and up to ten recent sessions when available. Times are UTC. There are no session-limit or section-selection settings.",
+  setupGuide: hermesSetupGuide,
   serviceEditorPreset: { defaultName: "Hermes", defaultIconUrl: "/icons/hermes.svg" },
 });
