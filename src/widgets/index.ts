@@ -62,6 +62,16 @@ export interface ServiceEditorPreset {
   defaultConfig?: Record<string, unknown>;
 }
 
+/** Static setup copy shown alongside the editor; never contains saved config. */
+export interface WidgetSetupGuide {
+  title: string;
+  summary: string;
+  requirement: string;
+  steps: Array<{ title: string; description: string }>;
+  troubleshooting: Array<{ title: string; description: string }>;
+  documentationUrl: string;
+}
+
 export interface IntegrationDefinition<TConnection = Record<string, unknown>> {
   id: string;
   connectionSchema: z.ZodType<TConnection>;
@@ -112,6 +122,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   component: React.ComponentType<WidgetProps<TData>>;
   /** Exact desktop canvases implemented by this widget. */
   supportedFootprints?: Array<TileFootprint & { label?: string }>;
+  /** Explains which information each supported editor footprint shows. */
+  footprintDescription?: string;
   /** Compact desktop tile chrome, with the service description beside the icon under its name. */
   compactHeader?: boolean;
   /** Use library feedback for initial states while unmigrated widgets retain their presentation. */
@@ -127,6 +139,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   };
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
+  /** Connection instructions shared by every tile using this integration. */
+  setupGuide?: WidgetSetupGuide;
   /** Schema-supported non-secret fields kept on save but not shown in the editor. */
   preservedConfigFields?: WidgetPreservedConfigField[];
   /**

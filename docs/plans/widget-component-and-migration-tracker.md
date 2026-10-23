@@ -14,6 +14,8 @@ These tables describe **target adoption based on the current widget UI**, not co
 
 ## Organization
 
+**Configuration guidance (2026-10-23):** Unraid is the owner-selected edit-form pilot, with a [per-widget rollout proposal](../integration-setup-guidance-proposal.md) and screenshots in `docs/assets/widget-ui/unraid-setup/`. The shared setup panel and Unraid field help are accepted. The owner has authorized the full sequential setup-guide rollout with PR/AI review, administrator merge and verified release for each integration. Dashboard migration statuses are unchanged.
+
 See the [agreed directory structure and component boundaries](widget-consistency-plan.md#agreed-organization-and-naming). Each React component lives in `src/widgets/ui/<group>/<Component>/` with `<Component>.tsx`, `<Component>.test.tsx`, `<Component>.css` and `index.ts`. Component-specific helpers/types stay alongside it when needed; whole-widget browser tests stay in `e2e/`. The root `src/widgets/ui/index.ts` provides public imports through `@/widgets/ui`.
 
 `WidgetTokens` is the CSS foundation at `foundation/tokens.css`, not a React component. The table's group column records placement: `foundation` for tokens, `layout` for containers, `data-display` for content primitives and `feedback` for states/notices. Create component directories as selected work begins.

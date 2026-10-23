@@ -121,6 +121,7 @@ registerWidget<UnraidConfig, UnraidStats>({
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
     { label: "Legacy", columnSpan: 6, rowSpan: 4 },
   ],
+  footprintDescription: "Compact shows array state and storage; Wide adds disk errors. Detailed and Legacy show all six stats, including disk count and parity status.",
   serviceEditorPreset: {
     defaultName: "Unraid",
     defaultIconUrl: "https://cdn.simpleicons.org/unraid",
@@ -130,13 +131,56 @@ registerWidget<UnraidConfig, UnraidStats>({
   refreshInterval: 30_000,
   component: UnraidStatsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: {
+    title: "Connect Unraid",
+    summary: "Show array health, storage and parity status with a dedicated API key.",
+    requirement: "Unraid 7.2+ includes the API. On earlier versions, install the Unraid Connect plugin from Community Applications. Local API access does not require a Connect login.",
+    steps: [
+      {
+        title: "Open API Keys in Unraid",
+        description: "Sign in to your Unraid WebGUI. Go to Settings → Management Access → API Keys.",
+      },
+      {
+        title: "Create a read-only key",
+        description: "Create a key named Kokpit. Add the READ_ANY permission for ARRAY and VARS, which provide array health and parity data. No write permissions are needed.",
+      },
+      {
+        title: "Copy the key into this form",
+        description: "Copy the generated key before closing Unraid’s dialog. Paste it into API Key here, without a Bearer prefix. Enter your server’s base address in URL.",
+      },
+      {
+        title: "Test, then save",
+        description: "Click Test connection. Once Connection OK appears, save the form. If testing is unavailable, save and check the widget on your dashboard.",
+      },
+    ],
+    troubleshooting: [
+      {
+        title: "API Keys is missing",
+        description: "Check that the API is available under Settings → Management Access → API. On pre-7.2 servers, install or update the Unraid Connect plugin.",
+      },
+      {
+        title: "Unauthorized or permission denied",
+        description: "Check that the key has not been revoked and has READ_ANY access to both ARRAY and VARS. Paste a replacement key if needed.",
+      },
+      {
+        title: "Cannot reach the server",
+        description: "The address must work from the Kokpit container. localhost points to that container. Check the hostname, port and firewall; for HTTPS, use a certificate trusted by Kokpit.",
+      },
+      {
+        title: "404 or an HTML response",
+        description: "Use the server’s base URL, without /graphql. Check that your reverse proxy forwards /graphql to Unraid. The developer Sandbox is optional.",
+      },
+    ],
+    documentationUrl: "https://docs.unraid.net/API/how-to-use-the-api/",
+  },
   configFields: [
     {
       key: "url",
       label: "URL",
       type: "url",
       required: true,
-      placeholder: "http://192.168.1.x",
+      placeholder: "http://192.168.1.10",
+      description: "Unraid’s base address, including http:// or https:// and a port if needed. Kokpit adds /graphql automatically. Use an address reachable from the Kokpit container.",
     },
     {
       key: "api_key",
@@ -144,7 +188,7 @@ registerWidget<UnraidConfig, UnraidStats>({
       type: "password",
       required: true,
       description:
-        "Create an API key in Settings > Management Access > API Keys",
+        "The key created in Unraid, used to read array and parity data. Paste only the key. Leave a saved key unchanged to keep using it.",
     },
   ],
 });
