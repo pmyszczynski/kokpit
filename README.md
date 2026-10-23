@@ -1620,7 +1620,9 @@ Find available chart IDs at `<netdata-url>/api/v1/charts` — look for `disk_spa
 
 Displays array state, used/total storage, disk count, disk errors, and parity check status from an Unraid server.
 
-**Prerequisites:** An API key from Unraid → Settings → Management Access → API Keys. Unraid's GraphQL API must be reachable from the Kokpit container.
+**Prerequisites:** Unraid 7.2+ includes the API; earlier versions need the Unraid Connect plugin (no Connect login is needed for local API access). In **Settings → Management Access → API Keys**, create a key named **Kokpit** with `READ_ANY` permissions for `ARRAY` and `VARS`. Copy the key into the editor without a `Bearer` prefix. Unraid's GraphQL API must be reachable from the Kokpit container.
+
+The Add/Edit Service form includes a numbered setup guide, help under each connection field, and expandable troubleshooting. Enter the server's base URL, then use **Test connection** and save. The developer GraphQL Sandbox is optional. See the [setup guidance proposal](docs/integration-setup-guidance-proposal.md) for the pilot and per-widget rollout plan, and [Unraid's API documentation](https://docs.unraid.net/API/how-to-use-the-api/) for upstream settings.
 
 #### `unraid-stats`
 
@@ -1655,8 +1657,8 @@ service_tiles:
 
 | Field     | Required | Description                                              |
 | --------- | -------- | ---------------------------------------------------------- |
-| `url`     | Yes      | Base URL of your Unraid server                            |
-| `api_key` | Yes      | API key from Settings → Management Access → API Keys      |
+| `url`     | Yes      | Base URL reachable from Kokpit, including protocol and optional port; Kokpit appends `/graphql` |
+| `api_key` | Yes      | Dedicated key with read access to `ARRAY` and `VARS`; paste only the key |
 
 
 **Displayed stats:**

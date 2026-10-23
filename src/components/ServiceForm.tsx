@@ -33,6 +33,7 @@ import { useEditModeOptional } from "@/components/edit/EditModeProvider";
 import { canonicalJSONString } from "@/config/canonicalJson";
 import { useDraftRecovery, useUnsavedChanges, useUnsavedSource } from "./unsaved/UnsavedChangesProvider";
 import { WeatherLocationButton } from "@/integrations/weather/WeatherLocationButton";
+import { WidgetSetupGuide } from "./WidgetSetupGuide";
 
 interface ServiceFormProps {
   service: Service | null;
@@ -1280,9 +1281,10 @@ export default function ServiceForm({
 
   const orphanConfig = (orphanWidget?.config as Record<string, unknown>) ?? {};
   const iconPreviewUrl = resolveIconRef(icon).url;
+  const setupGuide = (legacyDirectConfig ? selectedWidgetDef : selectedIntegrationDef)?.setupGuide;
 
   return (
-    <dialog ref={dialogRef} className="service-form-dialog" aria-label={service ? "Edit Service" : "Add Service"} onClose={onClose}
+    <dialog ref={dialogRef} className={`service-form-dialog${setupGuide ? " service-form-dialog--guided" : ""}`} aria-label={service ? "Edit Service" : "Add Service"} onClose={onClose}
       onCancel={(event) => { event.preventDefault(); handleClose(); }}>
       <div className="service-form-dialog__header">
         <h2>{service ? "Edit Service" : "Add Service"}</h2>
@@ -1301,7 +1303,9 @@ export default function ServiceForm({
           ? "Settings are read-only because settings.yaml requires migration. Update the file to schema version 2, then reopen this form once settings can be edited."
           : "Settings changed or could not be verified. Close and reopen this form after reloading the configuration."}</p>}
         {!recovery.available && <p className="settings-hint" role="alert">This draft is too large for navigation recovery. Save before using browser Back or Forward.</p>}
-        <div className="service-form__body"><fieldset className="service-form__fields settings-fieldset" disabled={submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || syncBlocked}>
+        <div className={`service-form__body${setupGuide ? " service-form__body--guided" : ""}`}>
+        {setupGuide && <WidgetSetupGuide key={integrationType || activeWidgetType} guide={setupGuide} />}
+        <fieldset className="service-form__fields settings-fieldset" disabled={submitting || iconUploadStatus.state === "uploading" || unsaved?.saving || syncBlocked}>
         <div className="settings-form-row">
           <label htmlFor="sf-tile-type">Tile type</label>
           <select
@@ -1443,6 +1447,7 @@ export default function ServiceForm({
           <label htmlFor="sf-url">URL</label>
           <input
             id="sf-url"
+            aria-describedby={setupGuide ? "sf-url-hint" : undefined}
             type="url"
             className="settings-input"
             value={url}
@@ -1453,6 +1458,7 @@ export default function ServiceForm({
             }}
             placeholder="https://jellyfin.example.com"
           />
+          {setupGuide && <p id="sf-url-hint" className="settings-form-hint">Optional address opened when you click the tile. {legacyDirectConfig ? "Enter the API connection address in the Widget section below." : "Set the API connection address in the Integration section above."}</p>}
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>
@@ -1604,6 +1610,7 @@ export default function ServiceForm({
             <label htmlFor="sf-footprint">Footprint</label>
             <select
               id="sf-footprint"
+              aria-describedby={selectedWidgetDef?.footprintDescription ? "sf-footprint-hint" : undefined}
               className="settings-input"
               value={footprint ? `${footprint.columnSpan}x${footprint.rowSpan}` : ""}
               onChange={(e) => {
@@ -1630,6 +1637,9 @@ export default function ServiceForm({
                 </option>
               ))}
             </select>
+            {selectedWidgetDef?.footprintDescription && (
+              <p id="sf-footprint-hint" className="settings-form-hint">{selectedWidgetDef.footprintDescription}</p>
+            )}
           </div>
         ) : null}
 
@@ -1685,6 +1695,7 @@ export default function ServiceForm({
               <label htmlFor="sf-widget-refresh">Refresh interval (ms)</label>
               <input
                 id="sf-widget-refresh"
+                aria-describedby={setupGuide ? "sf-widget-refresh-hint" : undefined}
                 type="number"
                 className="settings-input"
                 value={
@@ -1714,6 +1725,7 @@ export default function ServiceForm({
                 min={5000}
                 step={1000}
               />
+              {setupGuide && <p id="sf-widget-refresh-hint" className="settings-form-hint">How often Kokpit requests fresh data. Leave empty for the default ({(selectedWidgetDef?.refreshInterval ?? 30000) / 1000} seconds). Minimum: 5,000 ms (5 seconds).</p>}
             </div>
 
             {selectedWidgetDef && showSavedConfigIssues && (

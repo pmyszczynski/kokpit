@@ -100,9 +100,9 @@
    Settings fieldsets, password notices and the empty dashboard also own their
    spacing in layers; exempt them so the unlayered reset cannot erase it.
    Keep the existing reset precedence for widgets that have not migrated. */
-*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *)),
-*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::before,
-*:not(:where(.widget-ui, .widget-ui *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::after {
+*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *)),
+*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::before,
+*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -1143,7 +1143,8 @@ button:not(:where(.widget-ui button)) {
 }
 
 .settings-input {
-  background: var(--color-surface-2);
+  /* Preserve the select baseline's chevron position and no-repeat setting. */
+  background-color: var(--color-surface-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   color: var(--color-text);
@@ -1345,7 +1346,7 @@ button:not(:where(.widget-ui button)) {
   margin: auto;
   max-height: min(90vh, 900px);
   max-height: min(90dvh, 900px);
-  max-width: 720px;
+  max-width: var(--service-form-max-width, 720px);
   min-height: min(70vh, 640px);
   min-height: min(70dvh, 640px);
   overflow: hidden;
@@ -1395,10 +1396,10 @@ button:not(:where(.widget-ui button)) {
 }
 
 .service-form__body {
-  display: flex;
+  display: var(--service-form-body-display, flex);
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--service-form-body-gap, 1rem);
   min-height: 0;
   overflow-y: auto;
 }

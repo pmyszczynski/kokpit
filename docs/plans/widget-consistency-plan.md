@@ -22,6 +22,8 @@
 
 ## Agreed direction
 
+**Configuration guidance pilot (2026-10-23):** the owner requested a complete per-widget instruction proposal and one implemented Unraid edit form for screenshot review. The [setup guidance proposal](../integration-setup-guidance-proposal.md) records the reusable editor panel, all widget rollout items and Unraid evidence. This is separate from dashboard component migrations; the Unraid setup design is accepted and the owner has authorized sequential implementation, PR/AI review, administrator merge and release of every integration, one at a time.
+
 All widgets should compose a shared UI library. Equivalent elements share their design and behavior; supported variants allow meaningful differences such as color, emphasis and density. Widgets continue to own their data and composition.
 
 Build the library incrementally from patterns in the selected widget. Use **one example widget first** for visual iteration, implementing the components it needs as a complete slice. After the owner accepts that example, migrate other widgets individually in the order they choose. The tables are a backlog and progress record, not authorization to work through everything automatically.
