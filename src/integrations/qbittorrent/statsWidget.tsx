@@ -5,6 +5,7 @@ import { fetchQbittorrentStats } from "./api";
 import { QbittorrentConfigSchema } from "./api";
 import type { QbittorrentConfig, QbittorrentStatsData } from "./api";
 import { formatSpeed, formatBytes } from "./formatters";
+import { qbittorrentConnectionFields, qbittorrentSetupGuide } from "./setupGuide";
 import "./statsWidget.css";
 
 export { formatSpeed, formatBytes } from "./formatters";
@@ -117,6 +118,8 @@ registerWidget<QbittorrentConfig, QbittorrentStatsData>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  footprintDescription: "Compact speeds (3×2) shows download/upload speeds. Wide (6×2) adds session download/upload totals in one four-column row. Detailed (3×4) uses two columns for those four values plus Active/Inactive torrent counts. Only Detailed requests the optional counts; unavailable counts show — while transfer values remain. There are no measurement-selection settings.",
+  setupGuide: qbittorrentSetupGuide,
   serviceEditorPreset: {
     defaultName: "qBittorrent",
     defaultIconUrl: "https://cdn.simpleicons.org/qbittorrent/2f67b2",
@@ -130,21 +133,5 @@ registerWidget<QbittorrentConfig, QbittorrentStatsData>({
   refreshInterval: 10_000,
   component: QbittorrentStatsWidget,
   credentialScopeFields: ["url", "username"],
-  configFields: [
-    {
-      key: "url",
-      label: "URL",
-      type: "url",
-      required: true,
-      placeholder: "http://192.168.1.x:8080",
-    },
-    {
-      key: "username",
-      label: "Username",
-      type: "text",
-      required: true,
-      placeholder: "admin",
-    },
-    { key: "password", label: "Password", type: "password", required: true },
-  ],
+  configFields: qbittorrentConnectionFields,
 });

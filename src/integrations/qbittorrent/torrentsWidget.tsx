@@ -4,6 +4,7 @@ import { fetchTorrents } from "./api";
 import { QbittorrentConfigSchema } from "./api";
 import type { QbittorrentConfig, Torrent } from "./api";
 import { formatSpeed } from "./formatters";
+import { qbittorrentConnectionFields, qbittorrentSetupGuide } from "./setupGuide";
 import {
   WidgetBody, WidgetList, WidgetListItem, WidgetBar, WidgetState, WidgetStaleNotice,
 } from "@/widgets/ui";
@@ -93,6 +94,8 @@ registerWidget<QbittorrentConfig, Torrent[]>({
     error: "qbt-torrents-widget__hint qbt-torrents-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "Default (3×4) has fixed Name, Progress, download-speed and upload-speed columns above a scrolling list. Kokpit requests all returned torrents without a filter or item limit and preserves the server’s order. Progress is rounded to a whole percent. There are no filter, sorting or limit controls.",
+  setupGuide: qbittorrentSetupGuide,
   minSize: "tall",
   serviceEditorPreset: {
     defaultName: "qBittorrent",
@@ -103,21 +106,5 @@ registerWidget<QbittorrentConfig, Torrent[]>({
   refreshInterval: 15_000,
   component: QbittorrentTorrentsWidget,
   credentialScopeFields: ["url", "username"],
-  configFields: [
-    {
-      key: "url",
-      label: "URL",
-      type: "url",
-      required: true,
-      placeholder: "http://192.168.1.x:8080",
-    },
-    {
-      key: "username",
-      label: "Username",
-      type: "text",
-      required: true,
-      placeholder: "admin",
-    },
-    { key: "password", label: "Password", type: "password", required: true },
-  ],
+  configFields: qbittorrentConnectionFields,
 });
