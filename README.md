@@ -1613,6 +1613,8 @@ Seven composable tiles read metrics from a local [Netdata Agent](https://www.net
 5. Enter **Netdata URL**, the applicable token and the desired tile options. Sparkline history defaults to ten minutes. Disk Space optionally selects a disk-space chart; Sensor requires an exact chart ID and optionally a label. Use chart discovery below for actual IDs on that host.
 6. **Test** when available, wait for **Connection OK**, then **Save**; otherwise save and check the dashboard. Newly issued native bearer tokens have a 24-hour lifetime, and a copied/reused token can have less time left. Kokpit stores a static value and cannot inherit browser renewal: repeat the protected-Agent steps and replace it after expiry or revocation. The [token implementation](https://github.com/netdata/netdata/blob/v2.12.2/src/web/api/http_auth.c#L208-L236) can reuse an unexpired token rather than issue a fresh full lifetime.
 
+The standard Netdata integration **Test connection** uses the CPU representative and requires `system.cpu`; it does not validate a selected Sensor/Disk Space chart or every other fixed metric. **Always verify the saved tile and its chart after Connection OK.** A missing `system.cpu` can make that test fail even when another chart is available. Legacy direct-widget forms instead test their selected widget.
+
 Kokpit sends `X-Netdata-Auth: Bearer <api_token>` when a token is present. It makes only GET requests, but the token can have broader permissions inherited from the Cloud account. A reverse proxy must forward that header; this form does not supply Basic credentials, SSO cookies or arbitrary headers. Check the Agent/proxy IP rules for Kokpit’s source address. Native missing authorization can return `412`, and insufficient permissions can return `403`; expired tokens need replacement. The local web server must be enabled. Credential-bearing requests follow at most five redirects within the configured scheme/host/port; use the final address for cross-origin moves.
 
 A blank saved token input retains its saved value for an unchanged normalized URL. Root URLs with and without `/` are equivalent; a changed path, scheme, host, port or query requires re-entry. Changing tile options preserves the connection. Use **Clear saved credential** to remove a saved token when moving to an already unauthenticated path.
@@ -1712,9 +1714,12 @@ service_tiles:
 
 **Find chart IDs:** query the Agent’s `allmetrics` JSON and copy a complete key under `charts`, not its `family` or a context name. For Disk Space, choose the intended `disk_space.*` mount. For Sensor, check units such as Celsius or RPM. Sensor IDs vary by host; the YAML example is illustrative. Netdata’s older `/api/v1/charts` catalog is deprecated.
 
-For example, with Bash, curl and jq installed, replace this example URL with your Agent’s root/prefix plus the shown API path. Enter the per-agent bearer privately at the prompt, or press Enter for an already unauthenticated private Agent. The header is passed through stdin so its value is not a curl command-line argument:
+For example, with Bash, curl and jq installed, replace this example URL with your Agent’s root/prefix plus the shown API path. Enter the per-agent bearer privately at the prompt, or press Enter for an already unauthenticated private Agent. The header is passed through stdin so its value is not a curl command-line argument. A subshell with pipeline failure propagation reports failed requests and clears the temporary token on exit:
 
 ```bash
+(
+set -euo pipefail
+trap 'unset NETDATA_AGENT_BEARER' EXIT
 read -r -s -p 'Agent bearer (empty if not required): ' NETDATA_AGENT_BEARER
 printf '\n'
 {
@@ -1724,7 +1729,7 @@ printf '\n'
 } | curl --fail --silent --show-error --header @- \
     'https://metrics.example.com/netdata/api/v1/allmetrics?format=json&help=no' \
   | jq '.charts | to_entries[] | {id: .key, family: .value.family, units: .value.units}'
-unset NETDATA_AGENT_BEARER
+)
 ```
 
 The [API reference](https://learn.netdata.cloud/api) and [query reference](https://learn.netdata.cloud/docs/developer-and-contributor-corner/rest-api/queries) document the legacy metrics endpoints and lookback/grouping behavior. This guide covers Kokpit’s current Agent integration; it does not migrate it to the Cloud or v3 API.

@@ -2,7 +2,7 @@ import type { WidgetSetupGuide } from "@/widgets";
 
 export const netdataUrlDescription = "Local Agent address reachable from Kokpit, usually http://192.168.1.10:19999. Keep a real proxy prefix, for example https://metrics.example.com/netdata/. Do not enter app.netdata.cloud, a dashboard page or an /api endpoint; Kokpit adds the API paths.";
 export const netdataTokenDescription = "Optional per-agent bearer, copied using the protected-Agent setup steps. Paste only its value, without Bearer. Cloud API/claim tokens, streaming keys and MCP keys do not fit this field. Leave empty for an already unauthenticated private Agent. A blank saved field keeps its token; use Clear saved credential to remove it.";
-export const netdataHistoryDescription = "Sparkline lookback in whole minutes: 1–60, default 10 when empty. Kokpit requests up to 60 grouped points; this is not the refresh interval. A short retention window, missing chart or failed history request can leave fewer points or no sparkline while the current value still works.";
+export const netdataHistoryDescription = "Sparkline lookback in whole minutes: 1–60, default 10 when empty. Kokpit requests up to 60 grouped points; this is not the refresh interval. A short retention window or failed history request can leave fewer points or no sparkline while the current value still works.";
 
 export const netdataSetupGuide: WidgetSetupGuide = {
   title: "Connect Netdata",
@@ -31,10 +31,14 @@ export const netdataSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "Test, save and plan token replacement",
-      description: "Test when available, wait for Connection OK, then save; otherwise save and check the tile. Native Agent tokens are time-limited: newly issued tokens last 24 hours, and a copied token may have less time left. Kokpit does not share the browser’s automatic renewal. Repeat the protected-Agent steps and replace the saved token when it expires.",
+      description: "Test when available, then save and verify the selected tile. The standard integration test checks CPU (system.cpu), not the chosen Sensor/Disk Space chart; Connection OK is not a complete tile check. Newly issued native tokens last 24 hours and copied tokens can expire sooner. Kokpit cannot renew them: repeat steps 3–4 to replace an expired token.",
     },
   ],
   troubleshooting: [
+    {
+      title: "Connection OK but another tile fails",
+      description: "The standard Netdata integration test uses the CPU representative and requires system.cpu. It does not validate the selected Sensor/Disk Space chart or every other fixed metric. Always verify the saved tile and its exact chart even after Connection OK. If system.cpu is missing, that test can fail while another available chart still works. Legacy direct-widget forms instead test their selected widget. Missing/invalid charts and authentication failures need different fixes; inspect the selected chart before replacing credentials.",
+    },
     {
       title: "No token or the wrong kind of key",
       description: "For an already unauthenticated private Agent, no token is needed. Native protected Agents use a Cloud-issued per-agent bearer sent by Kokpit as X-Netdata-Auth: Bearer <value>. A long-lived Cloud API token authenticates Cloud requests, not this field; claim tokens, streaming API keys and local MCP keys have other roles. netdata.conf enables protection but does not contain a permanent API token to copy. The Agent token follows your Cloud role and can grant more than metric reads, although Kokpit only makes GET requests.",
