@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const TILE_DATA = schemaV2Fixtures([{
   name: "Prowlarr",
@@ -221,11 +222,11 @@ test("Prowlarr refresh failure and recovery retain data and card positions", asy
   for (const theme of THEMES) {
     refreshFails = false;
     await configure(request, { theme });
-    await page.goto("/");
+    await withSettledConfigurationCheck(page, () => page.goto("/"));
     await expect(tile(page).locator(".widget-stat")).toHaveCount(6);
     const healthyBounds = await layoutBounds(page);
     refreshFails = true;
-    await page.clock.fastForward(60_000);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(60_000));
     const alert = tile(page).getByRole("alert");
     await expect(alert).toHaveText("Refresh failed · saved data");
     await expect(alert).toHaveAccessibleName(`Refresh failed; saved data is shown. ${error}`);
@@ -236,7 +237,7 @@ test("Prowlarr refresh failure and recovery retain data and card positions", asy
     await testInfo.attach(`Prowlarr-stale-${theme}`, { body: await tile(page).screenshot(), contentType: "image/png" });
     refreshFails = false;
     // Allow the documented capped backoff before checking recovery.
-    await page.clock.fastForward(300_001);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     await expect(alert).toHaveCount(0);
     expect(await layoutBounds(page)).toEqual(healthyBounds);
   }

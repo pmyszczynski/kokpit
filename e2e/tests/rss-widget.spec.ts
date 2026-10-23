@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import type { RssData } from "../../src/integrations/rss/api";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const FOOTPRINTS = [{ columnSpan: 3, rowSpan: 3 }, { columnSpan: 6, rowSpan: 3 }, { columnSpan: 6, rowSpan: 4 }];
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
@@ -91,24 +92,26 @@ test("RSS article links and service header navigate independently without nested
 test("RSS stale refresh keeps articles, scroll position and geometry, then recovers", async ({ page, request }) => {
   let fails = false;
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(fails ? { ok: false, error: "Feed unavailable" } : { ok: true, data: DATA }) }));
-  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request, [FOOTPRINTS[2]]); await page.goto("/");
+  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request, [FOOTPRINTS[2]]);
+  await withSettledConfigurationCheck(page, () => page.goto("/"));
   const list = tile(page).getByRole("list", { name: "Feed articles" }); await expect(list.getByRole("listitem")).toHaveCount(8);
   await list.focus(); await list.press("End"); await expect.poll(() => list.evaluate(element => element.scrollTop > 0 && Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop) < 1)).toBe(true);
   const bounds = await list.boundingBox(); const scroll = await list.evaluate(element => element.scrollTop);
-  fails = true; await page.clock.fastForward(600_000);
+  fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000));
   await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Feed unavailable");
   expect(await list.boundingBox()).toEqual(bounds); expect(await list.evaluate(element => element.scrollTop)).toBe(scroll);
-  fails = false; await page.clock.fastForward(600_000); await expect(tile(page).getByRole("alert")).toHaveCount(0);
+  fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000)); await expect(tile(page).getByRole("alert")).toHaveCount(0);
   expect(await list.boundingBox()).toEqual(bounds);
 });
 
 test("RSS refresh preserves the focused article when new entries are prepended", async ({ page, request }) => {
   let data = DATA;
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
-  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request); await page.goto("/");
+  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request);
+  await withSettledConfigurationCheck(page, () => page.goto("/"));
   const article = tile(page).getByRole("link", { name: HEADLINES[0], exact: true }); await article.focus();
   data = { ...DATA, articles: [{ ...DATA.articles[0], title: "A new headline", url: "https://example.com/new" }, ...DATA.articles] };
-  await page.clock.fastForward(600_000);
+  await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000));
   await expect(tile(page).getByRole("listitem")).toHaveCount(9);
   await expect(article).toBeFocused(); await expect(article).toHaveAttribute("href", DATA.articles[0].url!);
 });
@@ -117,10 +120,11 @@ for (const nativeId of [true, false]) test(`RSS same-URL prepends preserve focus
   const original = { ...DATA.articles[0], ...(nativeId ? { id: "article-original" } : {}) };
   let data: RssData = { ...DATA, articles: [original] };
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
-  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request); await page.goto("/");
+  await page.clock.install({ time: new Date("2026-10-16T12:00:00Z") }); await configure(request);
+  await withSettledConfigurationCheck(page, () => page.goto("/"));
   const article = tile(page).getByRole("link", { name: original.title, exact: true }); await article.focus();
   data = { ...DATA, articles: [{ ...original, title: "A different article sharing the URL", ...(nativeId ? { id: "article-new" } : {}) }, original] };
-  await page.clock.fastForward(600_000); await expect(tile(page).getByRole("listitem")).toHaveCount(2);
+  await withSettledConfigurationCheck(page, () => page.clock.fastForward(600_000)); await expect(tile(page).getByRole("listitem")).toHaveCount(2);
   await expect(article).toBeFocused(); await expect(article).toHaveText(original.title);
 });
 

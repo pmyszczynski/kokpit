@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext, type Locator } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const FOOTPRINTS = [{columnSpan:3,rowSpan:2},{columnSpan:6,rowSpan:2},{columnSpan:3,rowSpan:4}];
@@ -156,19 +157,19 @@ test("Seerr refresh failure and recovery preserve stats, list scroll and notice 
  });
  await page.clock.install();
  for(const theme of THEMES){
-  fails=false;await configure(request,{theme,footprint:FOOTPRINTS[2]});await page.goto("/");
+  fails=false;await configure(request,{theme,footprint:FOOTPRINTS[2]});await withSettledConfigurationCheck(page, () => page.goto("/"));
   const list=tile(page,"seerr-requests").getByRole("list");await expect(list.getByRole("listitem")).toHaveCount(15);
   await list.evaluate(node=>{node.scrollTop=120;});
   const bounds=()=>page.locator(".widget-stat,.widget-list__scroll,.widget-body__notice").evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};}));
   const healthy=await bounds();const scroll=await list.evaluate(node=>node.scrollTop);
-  fails=true;await page.clock.fastForward(60000);
+  fails=true;await withSettledConfigurationCheck(page, () => page.clock.fastForward(60000));
   for(const type of ["seerr-stats","seerr-requests"]){
    await expect(tile(page,type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Seerr rejected the API key");
   }
   expect(await bounds()).toEqual(healthy);expect(await list.evaluate(node=>node.scrollTop)).toBe(scroll);
   await statsFit(page,FOOTPRINTS[2]);await requestsFit(tile(page,"seerr-requests"));
   if(theme==="dark") await testInfo.attach("Seerr stale",{body:await page.locator(".dashboard-tile-grid").screenshot({path:process.env.KOKPIT_WIDGET_PREVIEW_DIR?`${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/seerr-stale-dark.png`:undefined}),contentType:"image/png"});
-  fails=false;await page.clock.fastForward(300_001);
+  fails=false;await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
   for(const type of ["seerr-stats","seerr-requests"]) await expect(tile(page,type).getByRole("alert")).toHaveCount(0);expect(await bounds()).toEqual(healthy);expect(await list.evaluate(node=>node.scrollTop)).toBe(scroll);
  }
 });
@@ -209,11 +210,11 @@ test("Seerr retains an empty saved request list through refresh failure",async({
   const id=new URL(route.request().url()).searchParams.get("tile_id");
   await route.fulfill({contentType:"application/json",body:JSON.stringify(fails?{ok:false,error:"Connection lost"}:{ok:true,data:id===FIXTURES.service_tiles[0].id?STATS:[]})});
  });
- await page.clock.install();await page.goto("/");
+ await page.clock.install();await withSettledConfigurationCheck(page, () => page.goto("/"));
  const widget=tile(page,"seerr-requests");await expect(widget.getByText("No requests")).toBeVisible();
  const bounds=()=>widget.locator(".widget-list__empty,.widget-body__notice").evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};}));
- const healthy=await bounds();fails=true;await page.clock.fastForward(60000);
+ const healthy=await bounds();fails=true;await withSettledConfigurationCheck(page, () => page.clock.fastForward(60000));
  await expect(widget.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Connection lost");
  await expect(widget.getByText("No requests")).toBeVisible();expect(await bounds()).toEqual(healthy);
- fails=false;await page.clock.fastForward(300_001);await expect(widget.getByRole("alert")).toHaveCount(0);expect(await bounds()).toEqual(healthy);
+ fails=false;await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));await expect(widget.getByRole("alert")).toHaveCount(0);expect(await bounds()).toEqual(healthy);
 });

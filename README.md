@@ -942,7 +942,11 @@ discovery retain their separate transport rules.
 
 Displays live playback and library statistics from a Plex Media Server.
 
-**Prerequisites:** You need your Plex authentication token (`X-Plex-Token`). Find it by signing in to Plex Web, opening any media item's "Get Info" page, clicking "View XML", and copying the `X-Plex-Token` value from the URL.
+**Prerequisites:** Sign in to Plex Web in a desktop browser as the **server owner**. Open an individual movie or episode already in that server's library, choose **… → Get Info**, then **View XML** at the bottom of the Media Info window. In the new tab's address bar, copy only the `X-Plex-Token` parameter value, stopping before any following `&`; do not paste the complete XML URL, `X-Plex-Token=`, quotes, a password or `PLEX_CLAIM` setup token. The XML link is owner-only, and the playback-sessions API requires administrator access.
+
+Enter the final Media Server address reachable from Kokpit, normally `http://plex:32400`, with any real reverse-proxy mount. Do not append `/web` or an XML endpoint. `app.plex.tv` is Plex Web, rather than the server's API address; direct IP/hostname addresses work. The optional service launch URL can open Plex Web separately, for example `http://plex:32400/web`. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. Add/Edit Service includes numbered steps, field and footprint help, troubleshooting, and the shared outdated-instructions/GitHub-issue notice.
+
+Plex calls the XML lookup's token temporary. Its newer JWT authentication uses seven-day tokens; Kokpit currently stores a pasted token and does not perform Plex sign-in or renewal. If a token expires or is revoked, repeat the lookup and replace it. A saved token is retained while Kokpit’s normalized connection URL is unchanged. Equivalent root URLs such as `http://plex:32400` and `http://plex:32400/` retain it; fragments are ignored for this comparison. Changes to the normalized scheme, host, port, path or query require re-entry. The token carries the owner's access, although Kokpit only makes GET requests. Keep it private and use HTTPS or a trusted private network. Requests include the token as a query parameter, so keep upstream proxy logs private too. See the official [token guide](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/), [item details and owner-only XML link](https://support.plex.tv/articles/202462186-viewing-item-details/), [media information guide](https://support.plex.tv/articles/201998867-investigate-media-information-and-formats/) and [Media Server API reference](https://developer.plex.tv/pms/).
 
 **YAML example:**
 
@@ -950,7 +954,7 @@ Displays live playback and library statistics from a Plex Media Server.
 services:
   - id: 10000000-0000-4000-8000-000000000020
     name: Plex
-    launch_url: http://192.168.1.10:32400
+    launch_url: http://192.168.1.10:32400/web
     icon: plex
     integration:
       type: plex
@@ -975,10 +979,10 @@ service_tiles:
 
 | Field    | Required | Description                                                 |
 | -------- | -------- | ----------------------------------------------------------- |
-| `url`    | Yes      | Base URL of your Plex Media Server                          |
-| `token`  | Yes      | `X-Plex-Token` for authentication                           |
-| `fields` | No       | Explicit non-empty list of stats; overrides size defaults |
-| `size_defaults` | No | Use 2/3/6/10 default stats by footprint; enabled for new editor tiles |
+| `url`    | Yes      | Final HTTP(S) Media Server root, normally port 32400; keep real proxy mounts and omit appended web/XML routes, queries and fragments                          |
+| `token`  | Yes      | Owner authentication token value; may expire and is not automatically renewed                           |
+| `fields` | No       | Custom nonempty measurement selection; overrides size defaults. Use the editor’s Use default fields action to restore defaults rather than an empty array |
+| `size_defaults` | No | Without custom fields, enable 2/3/6/10 defaults for Compact/Wide/Detailed/Expanded. Disabled or omitted retains Streaming/Transcoding at every size; enabled for new editor tiles |
 
 
 **Available display fields:**
@@ -986,24 +990,24 @@ service_tiles:
 
 | Value              | Label       | Description                                 |
 | ------------------ | ----------- | ------------------------------------------- |
-| `streams`          | Streaming   | Total active sessions                       |
-| `transcodes`       | Transcoding | Sessions currently being transcoded         |
-| `lan_streams`      | LAN         | Active sessions on the local network        |
-| `remote_streams`   | Remote      | Active sessions over the internet           |
-| `users`            | Users       | Number of distinct users currently watching |
-| `bandwidth`        | Bandwidth   | Total streaming bandwidth (Mbps, Gbps or Tbps)   |
-| `library_movies`   | Movies      | Total movies across all movie libraries     |
-| `library_shows`    | Shows       | Total shows across all TV libraries         |
-| `library_episodes` | Episodes    | Total episodes across all TV libraries      |
-| `library_music`    | Music       | Total albums across all music libraries     |
+| `streams`          | Streaming   | Returned playback sessions, including paused sessions                       |
+| `transcodes`       | Transcoding | Sessions containing a TranscodeSession, rather than CPU usage or only video encodes         |
+| `lan_streams`      | LAN         | Sessions marked `lan` by Plex        |
+| `remote_streams`   | Remote      | Sessions marked `wan` by Plex           |
+| `users`            | Users       | Distinct nonempty user names in returned sessions |
+| `bandwidth`        | Bandwidth   | Sum of reported session bitrates (Mbps, Gbps or Tbps), not a measured interface rate   |
+| `library_movies`   | Movies      | Movies across accessible movie libraries     |
+| `library_shows`    | Shows       | Shows across accessible TV libraries         |
+| `library_episodes` | Episodes    | Episodes across accessible TV libraries      |
+| `library_music`    | Music       | Albums across accessible music libraries, rather than artists or tracks     |
 
 
-The widget contacts `/status/sessions` for session measurements and the Detailed playing list, and `/library/sections` for selected library measurements.
+The widget contacts `/status/sessions` for session measurements and the Detailed playback list, and `/library/sections` for selected library measurements.
 
 Plex supports **Compact (3×2)**, **Wide (6×2)**, **Detailed (3×4)** and
 **Expanded (6×4)**. New editor tiles start compact with `size_defaults: true`:
 Compact shows Streaming / Transcoding; Wide adds Bandwidth; Detailed shows all
-six session measurements above a playing list using the same shared rows,
+six session measurements above a playback list using the same shared rows,
 playback badges and progress bars as Tautulli; Expanded adds Movies / Shows /
 Episodes / Music.
 Explicit `fields` always take priority, and selections too large for a smaller
@@ -1013,12 +1017,16 @@ retain the historical Streaming / Transcoding selection; older tiles without
 fixed geometry retain their wide canvas. Bandwidth promotes to Gbps/Tbps for
 large values.
 
+Only Detailed has a playback list; Expanded is a four-column measurements grid. The list can include paused items.
+
 Detailed uses the same `/status/sessions` response for its stats and session
 list. Each row shows the media title, user, media/transcode mode, playback state
 and progress; missing duration/offset is shown as unknown progress. All selected
 stats remain visible: custom selections with more than six measurements scroll
 with the sessions. Playback data is projected server-side; emails, device/IP
 identifiers and media file paths are not returned to the browser.
+
+Refresh defaults to 10 seconds; an editor override uses milliseconds with a 5-second minimum. Library counts use item totals, not storage usage; failed individual count requests can leave partial or zero totals. Detailed requests playback sessions even when only library fields are selected, so its list still needs administrator access.
 
 ---
 

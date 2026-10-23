@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Page, type Locator } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const TYPES = ["actualbudget-summary", "actualbudget-categories", "actualbudget-accounts", "actualbudget-schedules"] as const;
 type Type = typeof TYPES[number];
@@ -197,16 +198,16 @@ test("five-minute refresh failures retain Actual Budget data and layout, then re
   await configure(request); await page.clock.install();
   let fails = false;
   await mockWidgets(page, type => fails ? { ok: false, error: "Sidecar unavailable" } : { ok: true, data: DATA[type] });
-  await page.goto("/"); await expect(page.locator(".widget-stat")).toHaveCount(6);
+  await withSettledConfigurationCheck(page, () => page.goto("/")); await expect(page.locator(".widget-stat")).toHaveCount(6);
   await expect(page.locator(".widget-list__summary--footer")).toHaveCount(2);
   const bounds = () => page.locator(".widget-stat, .widget-list__scroll, .widget-list__summary--footer").evaluateAll(nodes => nodes.map(node => {
     const { x, y, width, height } = node.getBoundingClientRect(); return { x, y, width, height };
   }));
-  const before = await bounds(); fails = true; await page.clock.fastForward(300000);
+  const before = await bounds(); fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300000));
   await expect(page.locator(".service-tile").getByRole("alert")).toHaveCount(4);
   for (const type of TYPES) await expect(tile(page, type).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Sidecar unavailable");
   expect(await bounds()).toEqual(before);
-  fails = false; await page.clock.fastForward(300000); await expect(page.locator(".service-tile").getByRole("alert")).toHaveCount(0);
+  fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300000)); await expect(page.locator(".service-tile").getByRole("alert")).toHaveCount(0);
   expect(await bounds()).toEqual(before);
 });
 

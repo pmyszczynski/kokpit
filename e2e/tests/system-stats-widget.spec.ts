@@ -2,6 +2,7 @@ import { test, expect, type Page, type APIRequestContext } from "@playwright/tes
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
 import type { SystemStatsData } from "../../src/integrations/systemstats/api";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const THEMES = ["dark", "light", "oled", "high-contrast"] as const;
 const BASE_FIXTURES = schemaV2Fixtures([
@@ -234,19 +235,19 @@ for (const empty of [false, true]) test(`System Stats saved ${empty ? "empty" : 
   await page.route("**/api/widget*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(fails ? { ok: false, error: "Host unavailable" } : { ok: true, data }) }));
   await page.clock.install();
   for (const theme of THEMES) {
-    fails = false; await configure(request, theme); await page.goto("/"); const widget = tile(page, 1);
+    fails = false; await configure(request, theme); await withSettledConfigurationCheck(page, () => page.goto("/")); const widget = tile(page, 1);
     await expect(widget.locator(empty ? ".widget-state--empty" : ".widget-stat-row")).toHaveCount(empty ? 1 : 6);
     if (!empty) await widget.getByRole("region").evaluate(node => { node.scrollTop = 30; });
     const bounds = () => widget.locator(".widget-body__content,.widget-body__notice").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
     const scrolls = () => widget.locator(".widget-body__content").evaluateAll(nodes => nodes.map(node => node.scrollTop));
     const healthy = await bounds(), offsets = await scrolls();
-    fails = true; await page.clock.fastForward(10000);
+    fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(10000));
     await expect(widget.getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Host unavailable");
     expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
     if (empty) await expect(widget.getByRole("region")).toHaveCount(0);
     else { await expect(widget.getByText("Docker unavailable")).toHaveAttribute("title", "Socket unavailable"); await expect(widget.getByText("12%", { exact: true })).toBeVisible(); }
     if (!empty && theme === "dark") await testInfo.attach("System Stats stale", { body: await widget.screenshot({ path: process.env.KOKPIT_WIDGET_PREVIEW_DIR ? `${process.env.KOKPIT_WIDGET_PREVIEW_DIR}/stale-dark.png` : undefined }), contentType: "image/png" });
-    fails = false; await page.clock.fastForward(300_001); await expect(widget.getByRole("alert")).toHaveCount(0);
+    fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001)); await expect(widget.getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(healthy); expect(await scrolls()).toEqual(offsets);
   }
 });

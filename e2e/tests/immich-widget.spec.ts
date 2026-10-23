@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const IMMICH_TILE_DATA = schemaV2Fixtures([
   {
@@ -356,11 +357,11 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     expect(settingsResponse.ok(), `${footprint.label} settings update failed`).toBe(true);
 
     refreshFails = false;
-    await page.goto("/");
+    await withSettledConfigurationCheck(page, () => page.goto("/"));
     await expectStats(page);
     const healthyBounds = await immichLayoutBounds(page);
     refreshFails = true;
-    await page.clock.fastForward(60_000);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(60_000));
     const widget = immichWidget(page);
     const alert = widget.getByRole("alert");
     await expect(alert).toHaveText("Refresh failed · saved data");
@@ -373,7 +374,7 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     const previousAlert = await alert.elementHandle();
     error = "Immich timed out while refreshing the library";
     // Retries use bounded exponential backoff rather than the normal interval.
-    await page.clock.fastForward(300_001);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     await expect(alert).toHaveAttribute("title", error);
     await expect(alert).toHaveAccessibleName(`Refresh failed; saved data is shown. ${error}`);
     await expect(alert).toHaveAttribute("aria-atomic", "true");
@@ -384,7 +385,7 @@ test("Immich keeps stale stats and shows a separate alert after a refresh failur
     await assertFits(page);
 
     refreshFails = false;
-    await page.clock.fastForward(300_001);
+    await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     await expect(alert).toHaveCount(0);
     await expect(widget.locator(".immich-stats-widget__value")).toHaveText(EXPECTED_VALUES);
     expect(await immichLayoutBounds(page)).toEqual(healthyBounds);
