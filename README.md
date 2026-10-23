@@ -1505,7 +1505,9 @@ A request whose media has become fully available is shown with an **available** 
 
 Shows global Immich media and storage stats for your instance.
 
-**Prerequisites:** An API key from Immich user settings with permission to read server statistics.
+**Prerequisites:** A reachable Immich server and an **administrator’s** API key with **`server.statistics`** permission. Sign in as an administrator, open the profile icon → **Account Settings → API Keys**, click **New API Key**, name it Kokpit, select only `server.statistics`, and click **Create**. Click **Copy to Clipboard** before closing: the secret is shown only once. Paste the secret itself into Kokpit, without `Bearer` or quotation marks. This widget does not need `server.storage` or all permissions. Keep the key private and use private networking or HTTPS.
+
+Add/Edit Service includes numbered instructions, field help, troubleshooting and the shared outdated-instructions/GitHub-issue notice. Enter the server root or a single `/api` suffix, such as `http://immich.local:2283/api`. Kokpit normalizes the suffix and requests `GET /api/server/statistics` with the `X-Api-Key` header; omit the full statistics route and query parameters. Reachable direct IP or hostname URLs are valid. For reverse-proxy deployments, use a domain or subdomain root. Immich does **not** support an `/immich` subfolder. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See the official [user settings](https://docs.immich.app/features/user-settings/), [API documentation](https://api.immich.app/), [server statistics](https://docs.immich.app/administration/server-stats/) and [reverse-proxy guide](https://docs.immich.app/administration/reverse-proxy/).
 
 #### `immich-stats`
 
@@ -1532,16 +1534,17 @@ service_tiles:
 
 | Field     | Required | Description                                      |
 | --------- | -------- | ------------------------------------------------ |
-| `url`     | Yes      | Immich API base URL (usually ending with `/api`) |
-| `api_key` | Yes      | API key from Immich user settings                |
+| `url`     | Yes      | Reachable server root (direct IP/hostname or proxy domain/subdomain) or API base ending in a single `/api`, including protocol and published port (normally 2283); no subfolder or full statistics route |
+| `api_key` | Yes      | Administrator-owned API key with `server.statistics` permission; copy the one-time secret from Account Settings → API Keys |
 
 
 
 | Stat    | Description                          |
 | ------- | ------------------------------------ |
-| Storage | Total storage usage across all media |
-| Items   | Combined number of photos and videos |
+| Storage | Instance-wide media usage reported by the statistics endpoint, formatted in decimal B/KB/MB/GB/TB; not disk capacity or free space, and excludes external-library file usage |
+| Items   | Sum of the instance-wide photo and video counts returned by Immich; not just the key owner's library |
 
+The default refresh is 60 seconds; editor overrides use milliseconds with a 5-second minimum. There are no per-user or metric-selection options. Counts and usage follow the installed Immich version's server-statistics rules. A regular user's key cannot access this administrator-only endpoint. Rotating or deleting the upstream key invalidates it; update the saved Kokpit credential too. An untouched saved key is retained only while the connection URL stays unchanged; re-enter the key after changing that URL.
 
 ---
 
