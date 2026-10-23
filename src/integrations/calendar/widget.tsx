@@ -1,6 +1,7 @@
 import { registerIntegration, registerWidget, type WidgetProps, type WidgetConfigField } from "@/widgets";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { CalendarConfigSchema, CalendarConnectionSchema, fetchCalendar, eventUrl, type CalendarConfig, type CalendarData, type AgendaEvent } from "./api";
+import { calendarSetupGuide } from "./setupGuide";
 import "./widget.css";
 
 function dateLabel(event: AgendaEvent, timezone: string) {
@@ -36,20 +37,22 @@ export function CalendarWidget({ data, loading, error, footprint }: WidgetProps<
   </WidgetBody>;
 }
 const CONNECTION: WidgetConfigField[] = [
-  { key: "calendar", label: "Calendar", type: "text", required: true, placeholder: "https://cloud.example.com/remote.php/dav/calendars/me/personal/", description: "CalDAV calendar collection URL, or a public Google calendar ID (an email address)." },
-  { key: "username", label: "CalDAV username", type: "text", description: "Leave empty for an unauthenticated collection or Google Calendar." },
-  { key: "password", label: "CalDAV password", type: "password", description: "Use an app password where supported. Credentials stay on the server." },
-  { key: "api_key", label: "Google API key", type: "password", description: "For public Google calendars only. Enable Google Calendar API for this key; leave empty for CalDAV." },
+  { key: "calendar", label: "Calendar", type: "text", required: true, placeholder: "https://cloud.example.com/remote.php/dav/calendars/me/personal/", description: "HTTP(S) CalDAV collection URL, or a public Google Calendar ID such as example@group.calendar.google.com. Follow the matching setup path to obtain it; discovery/share/ICS links do not work. Use the final URL/path/slash because redirects are blocked. Changing this text requires re-entering saved secrets." },
+  { key: "username", label: "CalDAV username", type: "text", description: "CalDAV only: the provider’s login name, such as Login from Nextcloud’s app-password dialog. Enter both username and password, or leave both unconfigured only for an already anonymous collection. Clear this field for Google. A username cannot contain a colon. When changing accounts, also enter that account’s password." },
+  { key: "password", label: "CalDAV password", type: "password", description: "For authenticated CalDAV: the provider’s password, preferably an app password where supported; follow the guide for Nextcloud’s procedure. Enter it with username. For Google or an already anonymous collection, leave unconfigured and use Clear saved credential for an old value. Credentials stay server-side; provider permissions may include writes." },
+  { key: "api_key", label: "Google API key", type: "password", description: "Required for a public Google ID. Follow the Google setup path for API enablement, key creation and server-compatible restrictions. Paste the key string, not OAuth/service-account JSON. Leave unconfigured for CalDAV, using Clear saved credential for an old saved key. Saved-secret scope is described under Calendar above." },
 ];
 const OPTIONS: Exclude<WidgetConfigField, { type: "password" }>[] = [
-  { key: "days_ahead", label: "Days ahead", type: "number", defaultValue: 7, description: "Upcoming window, 1–30 days; includes events already in progress." },
-  { key: "max_items", label: "Event limit", type: "number", defaultValue: 10, description: "Show 1–50 events in start-time order, in either size." },
-  { key: "timezone", label: "Time zone", type: "text", defaultValue: "UTC", placeholder: "Europe/Warsaw", description: "IANA time zone for event times; all-day dates keep their calendar day." },
+  { key: "days_ahead", label: "Days ahead", type: "number", defaultValue: 7, description: "Rolling upcoming window, 1–30 days; default 7. Starts at the last fetch and extends by that many 24-hour periods. Includes events already in progress; events that ended earlier today are excluded. This does not select a calendar month or start at midnight." },
+  { key: "max_items", label: "Event limit", type: "number", defaultValue: 10, description: "Maximum displayed events, 1–50; default 10, in either footprint. Events are ordered by local day, with all-day entries before timed entries on that day. The header count is capped by this limit. Detailed adds information, not more rows; the list scrolls." },
+  { key: "timezone", label: "Time zone", type: "text", defaultValue: "UTC", placeholder: "Europe/Warsaw", description: "Valid IANA time zone, e.g. UTC, Europe/Warsaw or America/New_York; default UTC. Controls timed-event display and day boundaries. Floating CalDAV times use X-WR-TIMEZONE when provided, otherwise this setting. All-day dates keep their calendar day. Invalid names are rejected rather than silently replaced." },
 ];
 registerIntegration({ id: "calendar", connectionSchema: CalendarConnectionSchema, connectionFields: CONNECTION, credentialScopeFields: ["calendar"] });
 registerWidget<CalendarConfig, CalendarData>({ id: "calendar", name: "Calendar", integrationType: "calendar", configSchema: CalendarConfigSchema,
   fetchData: fetchCalendar, component: CalendarWidget, refreshInterval: 300_000, fetchTimeoutMs: 15_000, compactHeader: true, sharedUI: true, hasLinks: true,
   preferredSize: "tall", supportedFootprints: [{ label: "Agenda", columnSpan: 3, rowSpan: 4 }, { label: "Detailed", columnSpan: 6, rowSpan: 4 }],
+  setupGuide: calendarSetupGuide,
+  footprintDescription: "Agenda (3×4) and Detailed (6×4) use the same window, event limit and scrolling agenda. Both show date, title, time or all-day range, and Tentative/In progress labels when applicable. Detailed adds location, descriptions and wrapped secondary text. All-day entries come before timed entries on a local day; times then run earliest first. The visible time-zone label comes from the tile’s setting. There is no second calendar or measurement selector.",
   configFields: [...CONNECTION, ...OPTIONS], optionFields: OPTIONS, credentialScopeFields: ["calendar"],
   serviceEditorPreset: { defaultName: "Calendar", defaultIconUrl: "/icons/calendar.svg" },
 });
