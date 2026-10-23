@@ -11,6 +11,7 @@ import {
   LIBRARY_FIELDS,
 } from "./api";
 import type { PlexField, PlexData } from "./api";
+import { plexSetupGuide } from "./setupGuide";
 
 const PLEX_FIELDS = [
   "streams",
@@ -143,9 +144,9 @@ export function PlexWidget({ data, loading, error, footprint }: WidgetProps<Plex
 
 const PLEX_OPTION_FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [
   { key: "size_defaults", label: "Choose default fields by tile size", type: "boolean",
-    description: "Default fields use 2/3/6/10 stats by tile size. Turn off for the historical Streaming/Transcoding defaults. Custom Display selections take priority." },
+    description: "Used only when Display has no custom selection. On: Compact shows Streaming/Transcoding; Wide adds Bandwidth; Detailed uses all six playback measurements; Expanded adds all four library totals (2/3/6/10 fields). Off: defaults to Streaming/Transcoding at every size. New editor tiles enable this; saved values stay as configured. Custom Display selections always take priority." },
   { key: "fields", label: "Display", type: "multiselect", resetLabel: "Use default fields",
-    description: "Choose at least one custom field, or restore the default selection.",
+    description: "Select at least one custom measurement, or click Use default fields to let the checkbox above choose the defaults. Streaming/Transcoding, LAN/Remote, Users and Bandwidth describe playback sessions. Movies/Shows/Episodes are library item totals; Music counts albums. Custom selections override size defaults. Detailed still includes its playback list, and large selections remain scrollable.",
     options: PLEX_FIELDS.map(value => ({ value, label: FIELD_LABELS[value] })) },
 ];
 
@@ -163,6 +164,8 @@ registerWidget<PlexWidgetConfig, PlexData>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Expanded", columnSpan: 6, rowSpan: 4 },
   ],
+  footprintDescription: "Compact (3×2) uses two measurement columns; Wide (6×2) uses three. Detailed (3×4) adds a scrolling playback list beneath up to six fixed measurements; larger custom selections scroll with it. Expanded (6×4) uses four columns and has no playback list. Size-based default field counts apply only without a custom Display selection.",
+  setupGuide: plexSetupGuide,
   serviceEditorPreset: {
     defaultConfig: { size_defaults: true },
     defaultName: "Plex",
@@ -193,6 +196,7 @@ registerWidget<PlexWidgetConfig, PlexData>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.10:32400",
+      description: "Final HTTP(S) Media Server address reachable from Kokpit, normally port 32400. Direct IP/hostname URLs work; retain a real proxy prefix, with or without a final slash. Do not append /web or XML routes, and omit credentials, query strings and fragments. Use your server rather than app.plex.tv. The optional service URL opens Plex Web separately.",
     },
     {
       key: "token",
@@ -200,7 +204,7 @@ registerWidget<PlexWidgetConfig, PlexData>({
       type: "password",
       required: true,
       placeholder: "X-Plex-Token",
-      description: "Find your token in Plex Web > Account > XML page",
+      description: "As the server owner, open a local item in Plex Web → … → Get Info → View XML, then copy only X-Plex-Token’s value from the address bar. This is not a password or PLEX_CLAIM token. It may expire; Kokpit does not renew it. A saved token is retained only while the server URL stays unchanged; re-enter it after a URL edit.",
     },
     ...PLEX_OPTION_FIELDS,
   ],

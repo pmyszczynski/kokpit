@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
+import { withSettledConfigurationCheck } from "../helpers/configuration-check";
 
 const FIXTURE = schemaV2Fixtures([{ name: "Unraid", description: "Array health and storage", widget: {
   type: "unraid-stats", config: { url: "http://unraid.local", api_key: "dummy" },
@@ -159,17 +160,18 @@ test("Unraid retains saved measurements and geometry through 30-second refresh r
     body: JSON.stringify(fails ? { ok: false, error: "Unraid API key rejected" } : RESPONSE) }));
   await page.clock.install();
   for (const footprint of FOOTPRINTS) for (const theme of ["dark", "light"] as const) {
-    fails = false; await configure(request, { footprint, theme }); await page.goto("/");
+    fails = false; await configure(request, { footprint, theme });
+    await withSettledConfigurationCheck(page, () => page.goto("/"));
     await expect(tile(page).locator(".widget-stat")).toHaveCount(fields(footprint).length);
     const bounds = () => tile(page).locator(".widget-stat").evaluateAll(nodes => nodes.map(node => {
       const { x,y,width,height } = node.getBoundingClientRect(); return { x,y,width,height };
     }));
     const before = await bounds();
-    fails = true; await page.clock.fastForward(30000);
+    fails = true; await withSettledConfigurationCheck(page, () => page.clock.fastForward(30000));
     await expect(tile(page).getByRole("alert")).toHaveAccessibleName("Refresh failed; saved data is shown. Unraid API key rejected");
     expect(await bounds()).toEqual(before);
     await assertFits(page, footprint);
-    fails = false; await page.clock.fastForward(300_001);
+    fails = false; await withSettledConfigurationCheck(page, () => page.clock.fastForward(300_001));
     await expect(tile(page).getByRole("alert")).toHaveCount(0);
     expect(await bounds()).toEqual(before);
   }
