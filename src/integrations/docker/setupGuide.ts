@@ -45,7 +45,7 @@ export const dockerSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "API, version or filtered-proxy errors",
-      description: "Kokpit negotiates an API version through GET /_ping and its Api-Version response header, then requests the versioned /containers/json?all=1 endpoint. A filtered socket service must permit both reads and preserve that header. Without a usable version header, Kokpit falls back to API 1.44, which the Engine must support. Each socket request has a three-second timeout. A daemon upgrade/downgrade can cause one list request to fail before the next refresh renegotiates. A TCP socket proxy needs an appropriately restricted private Unix bridge; its :2375 address cannot be pasted into Socket path.",
+      description: "Kokpit negotiates an API version through GET /_ping and its Api-Version response header, then requests the versioned /containers/json?all=1 endpoint. A filtered socket service must permit both reads and preserve that header. Without a usable version header, Kokpit falls back to API 1.44, which the Engine must support. Each socket request has a three-second idle timeout, rather than a total-duration limit. A daemon upgrade/downgrade can cause one list request to fail before the next refresh renegotiates. A TCP socket proxy needs an appropriately restricted private Unix bridge; its :2375 address cannot be pasted into Socket path.",
     },
     {
       title: "Counts differ from rows or containers are missing",
