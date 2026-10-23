@@ -2,7 +2,7 @@ import type { WidgetSetupGuide } from "@/widgets";
 
 export const tautulliSetupGuide: WidgetSetupGuide = {
   title: "Connect Tautulli",
-  summary: "Show Plex stream totals and current playback sessions.",
+  summary: "Choose Plex stream totals, current playback sessions, or both.",
   requirement: "Connect Tautulli to Plex first. Keep the API key private: it also allows changes. Use private networking, or HTTPS with Tautulli authentication for remote access.",
   steps: [
     {

@@ -1066,11 +1066,10 @@ service_tiles:
 
 Usernames are intentionally displayed. Email, IP, machine/device IDs, file paths, player/platform details, and artwork are discarded server-side.
 
-Tautulli supports **Default (3×4)** and **Expanded (6×4)**. With both `sections` selected, both sizes retain all five
-summary measurements and every returned session. Summary-only and sessions-only
-selections remain supported. Expanded arranges the summary
-in one row to leave more space for session details. The summary stays fixed
-while the session list scrolls by mouse or keyboard. Playing uses green,
+Tautulli supports **Default (3×4)** and **Expanded (6×4)**. Both show only the selected sections.
+With Summary selected, Default uses three columns and Expanded puts all five measurements in one row.
+With Active sessions selected, every returned session appears in a list that scrolls by mouse or keyboard.
+When both are selected, Summary stays fixed above the session list. Playing uses green,
 buffering amber, failures red, and paused/unknown states neutral shared tones.
 The default refresh is 10 seconds. Editor overrides use milliseconds with a 5-second minimum. This is current activity, not watch history; an empty session list is normal when nobody is streaming.
 

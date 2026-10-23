@@ -90,7 +90,7 @@ registerWidget<TautulliConfig, TautulliActivityData>({
   refreshInterval: 10_000,
   preferredSize: "tall",
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }, { label: "Expanded", columnSpan: 6, rowSpan: 4 }],
-  footprintDescription: "Both sizes retain your selected sections and every returned session. Default (3×4) uses three summary columns; Expanded (6×4) puts all five summary measurements in one row and gives sessions more width. The session list scrolls below the fixed summary.",
+  footprintDescription: "Only your selected sections appear. With Summary enabled, Default (3×4) uses three columns and Expanded (6×4) puts all five measurements in one row. With Active sessions enabled, all returned sessions scroll; when both are enabled, Summary stays fixed above them.",
   minSize: "tall",
   component: TautulliActivityWidget,
   compactHeader: true,
