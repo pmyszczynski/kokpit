@@ -1413,7 +1413,9 @@ The default refresh interval is 10 seconds; an editor override is in millisecond
 
 Two widgets are available for Seerr. Both are also compatible with Jellyseerr and Overseerr, which share the same API.
 
-**Prerequisites:** An API key from Settings → General → API Key.
+**Prerequisites:** Complete the application's initial setup, then sign in as an administrator and open **Settings → General → API Key**. Use the copy button beside the existing key and paste only its value into Kokpit. This key grants administrator access, although Kokpit only reads requests; keep it private and use a trusted network or HTTPS. Regenerating the key affects other connected apps. It is not a Plex/Jellyfin token or a Sonarr/Radarr key.
+
+Both widgets include the numbered setup guide, field help, troubleshooting and the shared outdated-instructions/GitHub-issue notice in Add/Edit Service. Enter the instance's base address, usually port 5055, without `/api/v1`; Kokpit appends the API path and sends `X-Api-Key`. Prefer the root address or a reverse-proxy subdomain: Seerr does not officially support subfolder base URLs. Use **Test connection** when enabled, then save; otherwise save and check the dashboard. See the official [General settings](https://docs.seerr.dev/using-seerr/settings/general/), [API authentication](https://docs.seerr.dev/api/seerr-api/) and [reverse-proxy guide](https://docs.seerr.dev/extending-seerr/reverse-proxy/).
 
 #### `seerr-stats`
 
@@ -1448,8 +1450,8 @@ service_tiles:
 
 | Field     | Required | Description                     |
 | --------- | -------- | ------------------------------- |
-| `url`     | Yes      | Base URL of your Seerr instance |
-| `api_key` | Yes      | API key from Settings → General |
+| `url`     | Yes      | Seerr/Jellyseerr/Overseerr root address or proxy subdomain, including protocol and port (usually 5055), reachable from Kokpit; omit `/api/v1` |
+| `api_key` | Yes      | Administrator API Key from Settings → General; leave a saved value unchanged to retain it |
 
 
 **Displayed stats:**
@@ -1458,14 +1460,14 @@ service_tiles:
 | Stat      | Description                                        |
 | --------- | -------------------------------------------------- |
 | Pending   | Requests awaiting approval                         |
-| Approved  | Requests approved but not yet available            |
-| Available | Requests where the media has been fully downloaded |
+| Approved  | Count returned by the application's `approved` request filter |
+| Available | Count returned by its `available` request filter    |
 | Total     | All requests regardless of status                  |
 
 
 #### `seerr-requests`
 
-Shows the 15 most recently submitted requests in a shared, keyboard-scrollable list at 3×4. Each row displays a status badge, a media type badge (movie / tv), the title with requested seasons, the requester's name, and a relative timestamp. Long titles and requester names retain their complete text for assistive technology and in tooltips.
+Shows up to 15 most recently submitted requests in a shared, keyboard-scrollable list at 3×4. The request uses `take=15`, `sort=added` and `filter=all`; the limit, newest-first order and all-status filter are fixed. Each row displays a status badge, a media type badge (movie / tv), the title with requested seasons, the requester's name, and a relative timestamp. Long titles and requester names retain their complete text for assistive technology and in tooltips. If an older API response omits a title, Kokpit fetches the movie/TV details; a failed lookup falls back to `(Movie)` or `(Show)`.
 
 Status colors match the shared library: pending amber, approved blue, available green, failed red, declined neutral. Both media categories use informational blue. A reserved warning row preserves the list's position and scroll offset on refresh failure, including when the last saved result contains no requests. Both Seerr widgets refresh every 60 seconds.
 
@@ -1488,8 +1490,8 @@ service_tiles:
 
 | Field     | Required | Description                     |
 | --------- | -------- | ------------------------------- |
-| `url`     | Yes      | Base URL of your Seerr instance |
-| `api_key` | Yes      | API key from Settings → General |
+| `url`     | Yes      | Seerr/Jellyseerr/Overseerr root address or proxy subdomain, including protocol and port (usually 5055), reachable from Kokpit; omit `/api/v1` |
+| `api_key` | Yes      | Administrator API Key from Settings → General; leave a saved value unchanged to retain it |
 
 
 A request whose media has become fully available is shown with an **available** badge regardless of its underlying request status.

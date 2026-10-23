@@ -4,6 +4,7 @@ import { WidgetBody, WidgetList, WidgetListItem, WidgetBadge, WidgetState, Widge
 import type { WidgetBadgeTone } from "@/widgets/ui";
 import { fetchRequests, SeerrConfigSchema } from "./api";
 import type { SeerrConfig, SeerrRequest } from "./api";
+import { seerrSetupGuide } from "./setupGuide";
 
 type EffectiveStatus = "pending" | "approved" | "available" | "declined" | "failed";
 
@@ -102,12 +103,14 @@ registerWidget<SeerrConfig, SeerrRequest[]>({
     error: "seerr-requests-widget__hint seerr-requests-widget__hint--error",
   },
   supportedFootprints: [{ label: "Default", columnSpan: 3, rowSpan: 4 }],
+  footprintDescription: "Default (3×4) shows a scrolling list of up to 15 newest requests, with title/seasons, requester, status, media type and age. The all-status filter, newest-first order and 15-item limit are fixed.",
   minSize: "tall",
   configSchema: SeerrConfigSchema,
   fetchData: fetchRequests,
   refreshInterval: 60_000,
   component: SeerrRequestsWidget,
   credentialScopeFields: ["url"],
+  setupGuide: seerrSetupGuide,
   configFields: [
     {
       key: "url",
@@ -115,9 +118,15 @@ registerWidget<SeerrConfig, SeerrRequest[]>({
       type: "url",
       required: true,
       placeholder: "http://192.168.1.x:5055",
-      description: "Works with Seerr, Jellyseerr, and Overseerr",
+      description: "The base address of Seerr, Jellyseerr or Overseerr, including http:// or https:// and its port (usually 5055). Use the root address or a proxy subdomain reachable from Kokpit; do not append /api/v1. Seerr does not officially support subfolder base URLs.",
     },
-    { key: "api_key", label: "API Key", type: "password", required: true },
+    {
+      key: "api_key",
+      label: "API Key",
+      type: "password",
+      required: true,
+      description: "The application’s API Key from Settings → General. It grants administrator access, although Kokpit only reads data. Paste only the key; leave a saved key unchanged to keep using it.",
+    },
   ],
   serviceEditorPreset: {
     defaultName: "Seerr",
