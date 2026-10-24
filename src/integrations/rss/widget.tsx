@@ -1,6 +1,7 @@
 import { registerWidget, type WidgetProps, type WidgetConfigField } from "@/widgets";
 import { WidgetBody, WidgetList, WidgetListItem, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 import { fetchRss, RssConfigSchema, articleUrl, type RssConfig, type RssData } from "./api";
+import { rssSetupGuide } from "./setupGuide";
 import "./widget.css";
 
 function publicationDate(value: string | null) {
@@ -28,12 +29,14 @@ export function RssWidget({ data, loading, error, footprint }: WidgetProps<RssDa
   </WidgetBody>;
 }
 const FIELDS: WidgetConfigField[] = [
-  { key: "feed_url", label: "Feed URL", type: "url", required: true, placeholder: "https://example.com/feed.xml", description: "Public HTTP(S) RSS or Atom feed. Private networks and URLs with embedded credentials are blocked." },
-  { key: "max_items", label: "Article limit", type: "number", defaultValue: 10, description: "Show 1–50 articles, in the order supplied by the feed." },
+  { key: "feed_url", label: "Feed URL", type: "url", required: true, placeholder: "https://example.com/feed.xml", description: "Required public HTTP(S) RSS/Atom XML feed, up to 2,048 characters, not a normal page or article. Copy the publisher’s feed link; one feed per tile. Kokpit connects directly from the server; HTTP_PROXY/HTTPS_PROXY are not used. Loopback/private destinations and URLs with username/password are blocked. No login/cookie/header fields are available." },
+  { key: "max_items", label: "Article limit", type: "number", defaultValue: 10, description: "Whole numbers 1–50; default 10. Keep the first entries in publisher order, with scrolling at every size. This is a maximum, not archive pagination or a newest-first sort. The full feed is still downloaded and must fit its document limits." },
 ];
 registerWidget<RssConfig, RssData>({ id: "rss", name: "RSS / Atom", integrationType: null, configSchema: RssConfigSchema,
   fetchData: fetchRss, component: RssWidget, refreshInterval: 600_000, compactHeader: true, sharedUI: true, hasLinks: true,
   preferredSize: "normal", supportedFootprints: [{ label: "Compact", columnSpan: 3, rowSpan: 3 }, { label: "Wide", columnSpan: 6, rowSpan: 3 }, { label: "Detailed", columnSpan: 6, rowSpan: 4 }],
   configFields: FIELDS, optionFields: FIELDS,
+  setupGuide: rssSetupGuide,
+  footprintDescription: "Compact 3×3 and Wide 6×3 show headlines and UTC publication dates. Detailed 6×4 adds available plain-text summaries. Every size retains all articles selected by Article limit in a scrolling list; feed title and retained count stay fixed. Headline links open in a new tab.",
   serviceEditorPreset: { defaultName: "News feed", defaultIconUrl: "/icons/rss.svg" },
 });
