@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 2 — Integrations & Widgets
-**Current task:** Deliver documentation-backed setup guides for every integration, one integration at a time, as authorized on 2026-10-23. Start with the accepted Unraid editor design. For each integration, verify official documentation, complete the full local gate, open a PR, address CI and AI review findings, use the authorized administrator merge, and release with verified Docker publication before starting the next integration. The [setup guidance proposal and delivery record](docs/integration-setup-guidance-proposal.md) tracks scope and evidence. The selected 2026-10-20 improvements are implemented through v0.31.4; the Weather location fix shipped in v0.31.5. Preserve existing widgets and Search's saved and implicit Wide geometry; Netdata dashboard UI migration remains deferred.
+**Current task:** The documentation-backed setup-guidance rollout is complete: all 20 integration families (33 widgets) are released in v0.32.0–v0.32.19, with primary-source references, editor help/screenshots, PR/AI review evidence, green test/security CI and verified Docker publication. The [completed setup guidance proposal and delivery record](docs/integration-setup-guidance-proposal.md) records scope, validation and reviewer availability. The selected 2026-10-20 improvements are implemented through v0.31.4; the Weather location fix shipped in v0.31.5. Preserve existing widgets and Search's saved and implicit Wide geometry; Netdata dashboard UI migration remains deferred.
 
 ---
 
