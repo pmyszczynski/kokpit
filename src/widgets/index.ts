@@ -117,6 +117,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   ) => Promise<TData>;
   /** Refresh interval in milliseconds. Defaults to 30_000. */
   refreshInterval?: number;
+  /** Editor help for widgets whose refresh resolves options rather than external data. */
+  refreshDescription?: string;
   /** Local-only widgets can omit the editor's upstream connection-test action. */
   supportsConnectionTest?: boolean;
   component: React.ComponentType<WidgetProps<TData>>;
@@ -139,6 +141,8 @@ export interface WidgetDefinition<TConfig = Record<string, unknown>, TData = unk
   };
   /** Describes the config fields for in-app UI rendering. */
   configFields?: WidgetConfigField[];
+  /** Editor introduction when this widget's configuration has usable defaults. */
+  configurationDescription?: string;
   /** Connection instructions shared by every tile using this integration. */
   setupGuide?: WidgetSetupGuide;
   /** Schema-supported non-secret fields kept on save but not shown in the editor. */
