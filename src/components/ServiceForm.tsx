@@ -1654,8 +1654,7 @@ export default function ServiceForm({
 
             {tileType !== "" && (
               <p className="settings-form-hint">
-                Optional — leave these fields empty to add a plain link tile.
-                You can configure the widget later.
+                {selectedWidgetDef?.configurationDescription ?? "Optional — leave these fields empty to add a plain link tile. You can configure the widget later."}
               </p>
             )}
 
@@ -1728,7 +1727,7 @@ export default function ServiceForm({
                 min={5000}
                 step={1000}
               />
-              {setupGuide && <p id="sf-widget-refresh-hint" className="settings-form-hint">How often Kokpit requests fresh data. Leave empty for the default ({(selectedWidgetDef?.refreshInterval ?? 30000) / 1000} seconds). Minimum: 5,000 ms (5 seconds).</p>}
+              {setupGuide && <p id="sf-widget-refresh-hint" className="settings-form-hint">{selectedWidgetDef?.refreshDescription ?? `How often Kokpit requests fresh data. Leave empty for the default (${(selectedWidgetDef?.refreshInterval ?? 30000) / 1000} seconds). Minimum: 5,000 ms (5 seconds).`}</p>}
             </div>
 
             {selectedWidgetDef && showSavedConfigIssues && (

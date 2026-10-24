@@ -53,6 +53,29 @@ const SAVED_TAUTULLI_SECRET = {
 };
 
 describe("ServiceForm – rendering", () => {
+  it.each([true, false])("keeps Search options, refresh override and Wide geometry when the saved footprint is explicit: %s", (explicit) => {
+    const onSave = vi.fn();
+    const config = { search_url: "http://search.lan:8888/search?language=en", query_parameter: "q", engine_name: "Home search", new_tab: false };
+    const refresh = explicit ? 12_000 : undefined;
+    render(<ServiceForm service={{
+      id: "10000000-0000-4000-8000-000000000001",
+      tileId: "20000000-0000-4000-8000-000000000001",
+      name: "Search",
+      footprint: explicit ? { columnSpan: 6, rowSpan: 2 } : undefined,
+      widget: { type: "search", config, refresh_interval_ms: refresh },
+    }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+
+    expect(screen.getByLabelText(getWidget("search")!.setupGuide!.title)).toBeInTheDocument();
+    expect(screen.getByLabelText("Footprint")).toHaveValue("6x2");
+    expect(screen.getByLabelText("Refresh interval (ms)")).toHaveValue(refresh ?? null);
+    expect(screen.queryByRole("button", { name: "Test connection" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      footprint: { columnSpan: 6, rowSpan: 2 },
+      widget: expect.objectContaining({ type: "search", config, refresh_interval_ms: refresh }),
+    }));
+  });
+
   it("shows guidance for an informational v2 tile without changing its options or Wide footprint", () => {
     const onSave = vi.fn();
     const config = { proc_path: "/host/proc", size_defaults: true, fields: ["cpu", "memory"] };
