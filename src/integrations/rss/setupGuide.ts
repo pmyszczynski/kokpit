@@ -3,7 +3,7 @@ import type { WidgetSetupGuide } from "@/widgets";
 export const rssSetupGuide: WidgetSetupGuide = {
   title: "Set up RSS / Atom",
   summary: "Read headlines from one public RSS or Atom feed. No API key, account or reusable service connection is needed.",
-  requirement: "Use a publisher-provided HTTP(S) XML feed reachable from Kokpit’s server. Feed requests cannot use private/LAN/VPN addresses or URLs containing a username/password. There are no per-feed login, cookie or custom-header settings.",
+  requirement: "Kokpit’s server must resolve a publisher’s feed to public addresses and connect directly over HTTP(S). RSS does not use HTTP_PROXY/HTTPS_PROXY settings. Loopback/private destinations and URL usernames/passwords are blocked. No per-feed login, cookie, header or proxy settings are available.",
   steps: [
     {
       title: "Find the publisher’s feed link",
@@ -33,7 +33,7 @@ export const rssSetupGuide: WidgetSetupGuide = {
     },
     {
       title: "It opens in my browser but Kokpit cannot fetch it",
-      description: "The server/container must reach the feed and every redirect target through public addresses. Localhost, private networks, metadata endpoints and mixed public/private DNS answers are blocked for feeds. A browser’s login session/cookies are not copied to Kokpit, and embedded URL usernames/passwords are rejected. Check public DNS, outbound HTTP(S), proxy and trusted certificates. Feed URL is ordinary configuration, not a masked secret field; use a public publisher feed rather than a URL containing private credentials.",
+      description: "The server/container must resolve feed/redirect hosts to public addresses and connect to them directly over HTTP(S). RSS fetches do not use inherited HTTP(S) forward-proxy settings, including HTTP_PROXY/HTTPS_PROXY. There is no per-feed proxy option; a deployment requiring a forward proxy cannot use that route for this fetcher. Localhost, private networks, metadata endpoints and mixed public/private DNS answers are blocked for feeds. A browser’s login session/cookies are not copied to Kokpit, and embedded URL usernames/passwords are rejected. Check DNS resolution, permitted direct outbound HTTP(S) and trusted certificates. Feed URL is ordinary configuration, not a masked secret field; use a public publisher feed rather than a URL containing private credentials.",
     },
     {
       title: "Fewer articles, unexpected order or old content",

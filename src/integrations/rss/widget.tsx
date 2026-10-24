@@ -29,7 +29,7 @@ export function RssWidget({ data, loading, error, footprint }: WidgetProps<RssDa
   </WidgetBody>;
 }
 const FIELDS: WidgetConfigField[] = [
-  { key: "feed_url", label: "Feed URL", type: "url", required: true, placeholder: "https://example.com/feed.xml", description: "Required public HTTP(S) RSS/Atom XML feed, up to 2,048 characters, not a normal page or article. Copy the publisher’s feed link; one feed per tile. Kokpit fetches it server-side. Private/LAN/VPN destinations and URLs with username/password are blocked. No login/cookie/header fields are available." },
+  { key: "feed_url", label: "Feed URL", type: "url", required: true, placeholder: "https://example.com/feed.xml", description: "Required public HTTP(S) RSS/Atom XML feed, up to 2,048 characters, not a normal page or article. Copy the publisher’s feed link; one feed per tile. Kokpit connects directly from the server; HTTP_PROXY/HTTPS_PROXY are not used. Loopback/private destinations and URLs with username/password are blocked. No login/cookie/header fields are available." },
   { key: "max_items", label: "Article limit", type: "number", defaultValue: 10, description: "Whole numbers 1–50; default 10. Keep the first entries in publisher order, with scrolling at every size. This is a maximum, not archive pagination or a newest-first sort. The full feed is still downloaded and must fit its document limits." },
 ];
 registerWidget<RssConfig, RssData>({ id: "rss", name: "RSS / Atom", integrationType: null, configSchema: RssConfigSchema,
