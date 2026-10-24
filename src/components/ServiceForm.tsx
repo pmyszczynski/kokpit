@@ -1281,7 +1281,10 @@ export default function ServiceForm({
 
   const orphanConfig = (orphanWidget?.config as Record<string, unknown>) ?? {};
   const iconPreviewUrl = resolveIconRef(icon).url;
-  const setupGuide = (legacyDirectConfig ? selectedWidgetDef : selectedIntegrationDef)?.setupGuide;
+  const setupGuide = (legacyDirectConfig
+    ? selectedWidgetDef
+    : selectedIntegrationDef ?? (selectedWidgetRequiresIntegration ? undefined : selectedWidgetDef)
+  )?.setupGuide;
 
   return (
     <dialog ref={dialogRef} className={`service-form-dialog${setupGuide ? " service-form-dialog--guided" : ""}`} aria-label={service ? "Edit Service" : "Add Service"} onClose={onClose}
@@ -1458,7 +1461,7 @@ export default function ServiceForm({
             }}
             placeholder="https://jellyfin.example.com"
           />
-          {setupGuide && <p id="sf-url-hint" className="settings-form-hint">Optional address opened when you click the tile. {legacyDirectConfig ? "Enter the API connection address in the Widget section below." : "Set the API connection address in the Integration section above."}</p>}
+          {setupGuide && <p id="sf-url-hint" className="settings-form-hint">Optional address opened when you click the tile. {!selectedWidgetRequiresIntegration && !selectedIntegrationDef ? "Configure this widget in the Widget section below." : legacyDirectConfig ? "Enter the API connection address in the Widget section below." : "Set the API connection address in the Integration section above."}</p>}
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-icon">Icon URL</label>

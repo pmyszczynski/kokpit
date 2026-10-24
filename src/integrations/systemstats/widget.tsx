@@ -1,6 +1,7 @@
 import { registerWidget } from "@/widgets";
 import type { WidgetProps } from "@/widgets";
 import { SystemStatsConfigSchema, fetchSystemStats } from "./api";
+import { systemStatsSetupGuide } from "./setupGuide";
 import type { SystemStatsConfig, SystemStatsData } from "./api";
 import { WidgetBody, WidgetStat, WidgetStatGrid, WidgetStatRow, WidgetBar, WidgetState, WidgetStaleNotice } from "@/widgets/ui";
 
@@ -146,11 +147,13 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
     { label: "Detailed", columnSpan: 3, rowSpan: 4 },
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
   ],
+  footprintDescription: "With size defaults and no custom Fields: Compact (3×2) shows CPU/Memory percentages; Wide (6×2) adds Disk; Detailed (3×4) adds Network, Load and optional Docker counts. Memory/disk details appear on hover or focus in the summary cards. Custom/historical selections remain complete and may scroll. Refresh defaults to 10 seconds.",
+  setupGuide: systemStatsSetupGuide,
   minSize: "normal",
   configSchema: SystemStatsConfigSchema,
   fetchData: fetchSystemStats,
   refreshInterval: 10_000,
-  // Docker's ping/list requests can each take 3s, plus the 250ms host sample.
+  // Overall deadline covers host sampling and optional Docker socket work.
   fetchTimeoutMs: 8_000,
   component: SystemStatsWidget,
   configFields: [
@@ -160,14 +163,14 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
       type: "text",
       placeholder: "/proc",
       description:
-        "Path to procfs. When running in Docker, bind-mount the host's /proc and point here.",
+        "Procfs root visible inside Kokpit. Empty uses KOKPIT_PROC_PATH, then /proc. Used for selected CPU/Memory/Network/Load fields. A host /proc bind does not change network namespaces; see the setup guide. This is a local path, not an API URL.",
     },
     {
       key: "disk_path",
       label: "Disk path",
       type: "text",
       placeholder: "/",
-      description: "Filesystem mount to report disk usage for.",
+      description: "Path on the filesystem whose capacity to measure; default / inside Kokpit. Used only when Disk is selected. For another host filesystem, bind an existing directory and enter its container target. Reports filesystem used/total, not that directory’s file sizes.",
     },
     {
       key: "interface",
@@ -175,7 +178,7 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
       type: "text",
       placeholder: "eth0",
       description:
-        "Interface to measure. Leave empty to sum all non-loopback interfaces.",
+        "Optional exact interface name from the selected Proc path’s net/dev as seen inside Kokpit. Empty sums all non-loopback interfaces; lo is always excluded. An unknown name yields zero. Virtual/bridge/tunnel traffic can be counted on multiple interfaces; choose one when needed.",
     },
     {
       key: "docker_socket_path",
@@ -183,19 +186,19 @@ registerWidget<SystemStatsConfig, SystemStatsData>({
       type: "text",
       placeholder: "/var/run/docker.sock",
       description:
-        "Docker socket for the container overview (used only when Docker is in Fields).",
+        "Optional Unix socket path inside Kokpit. Empty uses KOKPIT_DOCKER_SOCKET, then /var/run/docker.sock. Read only when Docker is selected, including Detailed defaults. No API key or URI prefix. Custom destinations also need matching startup environment/mount setup; see the guide.",
     },
     {
       key: "size_defaults",
       label: "Choose default fields by tile size",
       type: "boolean",
-      description: "With default fields, show 2/3/6 stats by tile size. Turn off to use the historical CPU, Memory, Disk and Network defaults. Custom Fields selections take priority.",
+      description: "When Fields has no explicit override: on selects CPU/Memory for Compact, adds Disk for Wide, and all six for Detailed. Off or an omitted saved value uses historical CPU/Memory/Disk/Network at every size. New editor presets turn this on. Custom Fields always take priority.",
     },
     {
       key: "fields",
       label: "Fields",
       type: "multiselect",
-      description: "Choose fields to override the defaults, or use default fields to restore them. Clearing every selected field saves an empty widget.",
+      description: "Select every wanted reading to replace the defaults. A custom list overrides the size-default checkbox; clearing every selected box saves an intentionally empty widget. Use default fields removes the list and restores the applicable default set. Docker is optional and needs socket access.",
       resetLabel: "Use default fields",
       options: [
         { value: "cpu", label: "CPU" },
