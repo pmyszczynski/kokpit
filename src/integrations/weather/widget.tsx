@@ -3,6 +3,7 @@ import { WidgetBody, WidgetStatGrid, WidgetStat, WidgetList, WidgetListItem, Wid
 import { fetchWeather, WeatherConfigSchema, type WeatherConfig, type WeatherData } from "./api";
 import type { WidgetStatTone } from "@/widgets/ui";
 import { weatherCondition, weatherTone } from "./conditions";
+import { weatherSetupGuide } from "./setupGuide";
 import "./widget.css";
 
 function temperature(value: number | null, imperial: boolean) {
@@ -54,9 +55,9 @@ export function WeatherWidget({ data, loading, error, footprint }: WidgetProps<W
 }
 
 const FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [
-  { key: "latitude", label: "Latitude", type: "number", required: true, placeholder: "51.5074", description: "Location latitude from −90 to 90. Use the tile name for your location label." },
-  { key: "longitude", label: "Longitude", type: "number", required: true, placeholder: "-0.1278", description: "Location longitude from −180 to 180." },
-  { key: "imperial", label: "Use imperial units", type: "boolean", defaultValue: false, description: "Fahrenheit and mph; otherwise Celsius and km/h." },
+  { key: "latitude", label: "Latitude", type: "number", required: true, placeholder: "51.5074", description: "Required decimal degrees, −90 to 90; south is negative and 0 is valid. Enter only latitude here, or use Use my location. The Name labels the tile without looking up a city. Testing or fetching weather sends the coordinates to Open-Meteo." },
+  { key: "longitude", label: "Longitude", type: "number", required: true, placeholder: "-0.1278", description: "Required decimal degrees, −180 to 180; west is negative and 0 is valid. For London use -0.1278 with latitude 51.5074. No compass letters or coordinate pair. All viewers use this tile’s saved location." },
+  { key: "imperial", label: "Use imperial units", type: "boolean", defaultValue: false, description: "Off/empty defaults to Celsius and km/h. On uses Fahrenheit (including forecast temperatures) and mph. Humidity and precipitation probability remain percentages." },
 ];
 
 registerWidget<WeatherConfig, WeatherData>({
@@ -69,5 +70,7 @@ registerWidget<WeatherConfig, WeatherData>({
     { label: "Detailed", columnSpan: 6, rowSpan: 4 },
   ],
   configFields: FIELDS, optionFields: FIELDS,
+  setupGuide: weatherSetupGuide,
+  footprintDescription: "Compact 3×2 shows temperature and conditions. Wide 6×2 adds Feels like. Detailed 6×4 adds humidity, wind, dated precipitation probability and a scrolling five-day forecast with daily low/high, conditions and precipitation probability. Every size fetches the same weather data.",
   serviceEditorPreset: { defaultName: "Weather", defaultIconUrl: "mdi-weather-partly-cloudy" },
 });

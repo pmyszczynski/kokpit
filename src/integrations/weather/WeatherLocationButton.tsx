@@ -83,7 +83,7 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
       {current?.pending ? "Cancel location detection" : "Use my location"}
     </button>
     <p id="sf-weather-location-hint" className="settings-form-hint">
-      Uses this device’s location once, with your permission. Approximate coordinates are saved for this tile and shared with Open-Meteo for weather after saving; all viewers see the same location.
+      Uses this device’s location once, with your permission. Review the approximate coordinates before saving this tile. Testing sends draft coordinates to Open-Meteo; saving enables later weather fetches. All viewers see the same saved location.
     </p>
     <div role="status" aria-atomic="true">
       {current && !current.error && <p className="settings-form-hint">{current.message}</p>}
