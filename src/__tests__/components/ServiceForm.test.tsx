@@ -53,6 +53,38 @@ const SAVED_TAUTULLI_SECRET = {
 };
 
 describe("ServiceForm – rendering", () => {
+  it("shows guidance for an informational v2 tile without changing its options or Wide footprint", () => {
+    const onSave = vi.fn();
+    const config = { proc_path: "/host/proc", size_defaults: true, fields: ["cpu", "memory"] };
+    render(<ServiceForm service={{
+      id: "10000000-0000-4000-8000-000000000001",
+      tileId: "20000000-0000-4000-8000-000000000001",
+      name: "Host",
+      footprint: { columnSpan: 6, rowSpan: 2 },
+      widget: { type: "system-stats", config },
+    }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+
+    expect(screen.getByLabelText(getWidget("system-stats")!.setupGuide!.title)).toBeInTheDocument();
+    expect(screen.getByLabelText("URL")).toHaveAccessibleDescription(/Widget section below/);
+    expect(screen.getByLabelText("Footprint")).toHaveValue("6x2");
+    fireEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      footprint: { columnSpan: 6, rowSpan: 2 },
+      widget: expect.objectContaining({ type: "system-stats", config }),
+    }));
+  });
+
+  it("removes widget-only guidance and its URL description when switching to a generic tile", () => {
+    render(<ServiceForm service={null} initialPreset="system-stats" existingGroups={[]} onSave={noop} onClose={noop} />);
+    const guideTitle = getWidget("system-stats")!.setupGuide!.title;
+    expect(screen.getByLabelText(guideTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText("URL")).toHaveAccessibleDescription(/Widget section below/);
+
+    fireEvent.change(screen.getByLabelText("Tile type"), { target: { value: "" } });
+    expect(screen.queryByLabelText(guideTitle)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("URL")).not.toHaveAttribute("aria-describedby");
+  });
+
   it("disables connection testing with an explanatory hint when the server disallows it", () => {
     render(
       <EditModeProvider canEdit connectionTestingEnabled={false}>

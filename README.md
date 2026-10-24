@@ -2147,24 +2147,75 @@ Kokpit does not directly support TCP, TLS, SSH, Docker CLI contexts or Windows n
 
 ### System Stats
 
-Shows live host metrics — CPU usage, RAM, disk usage, and network I/O — read directly from the machine Kokpit runs on via `/proc` (and `statfs` for disk), plus an optional Docker container running/total summary. Unlike the Netdata widget, it needs no external monitoring service.
+Reads CPU, Memory, Disk, Network, Load and optional Docker counts from the paths visible to the Kokpit process. **No monitoring agent, API key or external account is needed.** CPU/Memory/Network/Load require readable Linux procfs files. Disk uses `statfs`; Docker uses a Unix socket only when selected. This widget reads kernel/filesystem views rather than Docker cgroup CPU/RAM limits or another machine’s URL.
 
-**Sizes:** New tiles created in the editor show CPU/Memory in Compact (3x2), add Disk in Wide (6x2), and show all six fields in Detailed (3x4). Compact cards show usage percentages; focus or hover a memory/disk value for used/total and available capacity; Escape closes the details. Long details scroll with the mouse or Arrow/Page/Home/End keys while the value is focused. Existing tiles retain their saved fields and historical four-field defaults. Saved supported footprints remain as configured, including short canvases with historical or custom fields, which use keyboard-accessible scrolling. An explicit `fields` list overrides the size defaults, including an empty list. In the editor, **Use default fields** removes a custom selection; **Choose default fields by tile size** switches between size-based and historical defaults.
+Add/Edit Service includes a numbered local setup guide, field and footprint help, troubleshooting, and the shared outdated-instructions/GitHub-issue notice. Informational widgets now display their own guide when no API integration is selected; an existing selected integration keeps its connection guide.
 
-**Prerequisites:** By default, it reads the `/proc` of the environment Kokpit runs in. When running Kokpit in Docker and you want host-wide CPU/RAM/network figures, bind-mount the host's `/proc` read-only and point the widget at it with `KOKPIT_PROC_PATH` (or the `proc_path` config field). For host disk usage, mount the host path you want to measure and set `disk_path`. For the Docker container summary, mount the Docker socket as described in the Docker widget section above (note its security caveats). Example compose volumes/env:
+**Setup:**
+
+1. Choose **System Stats** and the desired footprint/readings. New editor presets enable **Choose default fields by tile size**: Compact uses CPU/Memory, Wide adds Disk, and Detailed adds Network/Load/Docker. To override defaults, select **every** wanted field. An explicit list replaces the defaults; clearing every selected checkbox saves an intentionally empty widget. **Use default fields** removes that list.
+2. Choose the procfs view. Empty **Proc path** uses `KOKPIT_PROC_PATH`, otherwise `/proc`. For an explicit host procfs bind on a **Linux Docker host**, bind `/proc` read-only to `/host/proc` and set the field or environment to `/host/proc`. Keep existing data/config mounts. This does not change the process’s network namespace.
+3. For **Disk**, use an existing path on the intended filesystem **inside Kokpit**. Default `/` is Kokpit’s root filesystem view. To measure a different filesystem, bind an existing directory from it, such as `/mnt/storage` to `/host/storage`, and set **Disk path** to `/host/storage`. This measures filesystem capacity, not recursive directory size. Mount only the host content you need.
+4. For **Network**, inspect the selected procfs root’s `net/dev` file from inside Kokpit and use one exact interface name, or leave **Network interface** empty to sum all non-loopback interfaces. The reading follows Kokpit’s network namespace; a host `/proc` bind alone does not expose host interfaces. See the separate host-networking instructions below if that is the intended scope.
+5. Mount a Docker socket only if **Docker containers** is selected, including through Detailed size defaults. Follow the [Docker guide](#docker) for its socket mount, owning-group permissions and host-control implications. Empty **Docker socket** uses `KOKPIT_DOCKER_SOCKET`, otherwise `/var/run/docker.sock`. For a custom target, the published image also needs the same environment path for startup group setup. A `:ro` socket bind does not enforce read-only Engine API methods.
+6. Apply mount/environment changes from the Compose project with `docker compose up -d kokpit`, using the actual service name and usual project file/profile options. A plain restart does not add mounts. **Test connection** when enabled, then **Save** and inspect each selected reading; otherwise save and check the tile. The test uses the current footprint/fields and does not validate unused paths. Optional Docker failures can still produce **Connection OK** while the tile says **Docker unavailable**.
+
+For example, merge these optional binds into an existing Linux-host Compose service, retain its other configuration, and replace the storage source with an existing directory on the filesystem you want. `create_host_path: false` rejects a missing source instead of creating an unintended directory. The storage bind is unnecessary when Disk is not selected; a host procfs bind is unnecessary when the default procfs view is already suitable.
 
 ```yaml
 services:
   kokpit:
+    # Keep the rest of your existing Kokpit service configuration.
     volumes:
       - ./data:/data
-      - /proc:/host/proc:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - type: bind
+        source: /proc
+        target: /host/proc
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /mnt/storage
+        target: /host/storage
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       KOKPIT_PROC_PATH: /host/proc
 ```
 
-**YAML example:**
+The Docker socket is deliberately separate: add its mount only when required, following the [Docker setup](#docker). Docker’s [bind documentation](https://docs.docker.com/engine/storage/bind-mounts/), [Compose syntax](https://docs.docker.com/reference/compose-file/services/#volumes) and [recreation behavior](https://docs.docker.com/reference/cli/docker/compose/up/) support this deployment procedure.
+
+**Host network interfaces on rootful Linux Docker Engine:** if you deliberately want Kokpit to share the host network namespace, set `network_mode: host` on that Compose service, remove its `ports` mappings and recreate it. Host networking removes network isolation and published-port mappings do not apply; Kokpit listens directly on its configured `PORT` (default 3000), which must be available and reachable only as intended. Recheck the visible interface names. See Docker’s [host-network driver documentation](https://docs.docker.com/engine/network/drivers/host/). Rootless networking depends on Engine/RootlessKit versions: follow Docker’s [rootless networking guidance](https://docs.docker.com/engine/security/rootless/troubleshoot/) and verify the visible interfaces. Older implementations kept host mode inside RootlessKit. On Docker Desktop, Linux procfs still describes its Linux environment/VM, not native macOS or Windows metrics. Keep the normal container network if that is the desired scope.
+
+The [Linux network documentation](https://man7.org/linux/man-pages/man5/proc_pid_net.5.html) explains why: `/proc/net` links through `/proc/self/net`, whose data belongs to the reading process’s network namespace. The fetcher reads `<proc_path>/net/dev`; it does not enter a host namespace. CPU/memory procfs figures can describe the shared kernel rather than a container’s resource limits. This is a scope clarification, not a change to collection behavior. For a remote machine, use an Agent integration such as Netdata rather than entering a remote URL here.
+
+**Fields and defaults:** all paths are local to Kokpit’s runtime. An empty form field omits the override; use a valid nonempty environment path or unset the corresponding variable for its default.
+
+| Field | Meaning |
+| --- | --- |
+| `proc_path` | Procfs root: explicit field → `KOKPIT_PROC_PATH` → `/proc`. CPU reads `stat`; Memory reads `meminfo`; Network reads `net/dev`; Load reads `loadavg` and `stat`. It does not select the disk filesystem or change network namespaces. |
+| `disk_path` | Existing path on the filesystem to measure, default `/`. Enter a container bind target when measuring another host filesystem. Used only for Disk. |
+| `interface` | One exact, case-sensitive visible interface name. Empty sums non-loopback interfaces present in both samples. `lo` is always excluded; an absent/unknown name gives zero rates. Bridges, virtual devices and tunnels can count the same traffic on several interfaces. |
+| `docker_socket_path` | Optional container-side Unix socket path: explicit field → `KOKPIT_DOCKER_SOCKET` → `/var/run/docker.sock`. Used only when Docker is selected. Explicit widget configuration does not initialize the published image’s startup permissions; use the same custom target in the mount/environment. No API key, URI prefix, TCP/HTTP/SSH endpoint or Windows named pipe. |
+| `size_defaults` | With no custom `fields`, `true` chooses 2/3/6 readings by footprint. New editor presets set `true`; an omitted saved value or `false` keeps historical CPU/Memory/Disk/Network defaults at every size. |
+| `fields` | Explicit list of `cpu`, `memory`, `disk`, `network`, `load`, `docker`; it always overrides `size_defaults`. Check every wanted field. `[]` deliberately shows **No stats to show**. **Use default fields** removes this list and lets the size-default checkbox choose the defaults. |
+
+**Footprints:** Compact **3×2** shows CPU/Memory percentages with size defaults; Wide **6×2** adds Disk; Detailed **3×4** shows all six rows, with Docker best effort. Summary Memory/Disk values expose used/total and available capacity on hover or keyboard focus; Escape closes those details. Existing valid footprints and custom/historical field lists remain unchanged. Short canvases scroll when the full selection needs more room. There are no graphs, history-window settings or per-core selectors.
+
+**Readings and troubleshooting:**
+
+- CPU uses differences in the aggregate `cpu` counters, counting idle + iowait as idle, rather than one process’s CPU use. It is displayed on a 0–100% scale across the visible CPUs.
+- Memory used is `MemTotal − MemAvailable`. If `MemAvailable` is absent, available falls back to `MemFree + Buffers + Cached`. The kernel’s available estimate accounts for reclaimable memory and differs from “everything except free”; this can differ from Netdata RAM or Docker’s memory accounting.
+- Disk total is `blocks × bsize`; used is `(blocks − bfree) × bsize`; available is `bavail × bsize`. Available is for an unprivileged user, so reserved free space can make used + available less than total. The percentage is used/total, which can differ from tools using another denominator. A wrong/missing bind or a path on a different filesystem explains many capacity mismatches.
+- Network shows received/transmitted bytes per second. Rates use two short samples per refresh, separated by a 250 ms pause plus collection overhead; the fetcher uses actual elapsed time for network rates. They are not averages over the whole refresh interval. Counter resets are clamped per interface, and an unknown interface or genuinely idle connection can show zero.
+- Load shows the raw first three `loadavg` values: 1/5/15-minute averages, without division by CPU core count. These are not percentages.
+- Selected procfs files must be readable by the runtime user. There is no non-Linux fallback for those fields. Unselected fields do not read their paths. Missing required reads can fail the refresh; optional Docker failures normally show **Docker unavailable** while other readings remain. The widget has an eight-second overall fetch budget.
+- Default refresh is **10,000 ms (10 seconds)**; the editor minimum is **5,000 ms**. A failed refresh retains previous values with a warning. More frequent refreshes do not add history. The optional service URL opens a browser link and does not choose a remote machine to monitor.
+
+The [kernel procfs guide](https://docs.kernel.org/filesystems/proc.html), Linux manuals for [CPU counters](https://man7.org/linux/man-pages/man5/proc_stat.5.html), [memory](https://man7.org/linux/man-pages/man5/proc_meminfo.5.html), [network namespaces/counters](https://man7.org/linux/man-pages/man5/proc_pid_net.5.html), [load averages](https://man7.org/linux/man-pages/man5/proc_loadavg.5.html) and [filesystem statistics](https://man7.org/linux/man-pages/man2/statfs.2.html) back these explanations. The widget’s own parser/fetcher determines its field selection, fallbacks and display calculations.
+
+**YAML example:** local options belong to the tile, without a service API integration. These explicit paths require the matching binds described above; remove unneeded paths/fields for your deployment.
 
 ```yaml
 services:
@@ -2174,38 +2225,16 @@ services:
 service_tiles:
   - id: 20000000-0000-4000-8000-000000000051
     service_id: 10000000-0000-4000-8000-000000000051
+    footprint:
+      columnSpan: 6
+      rowSpan: 2
     widget:
       type: system-stats
       config:
-        proc_path: /host/proc   # optional; defaults to /proc (or KOKPIT_PROC_PATH)
-        disk_path: /             # optional; filesystem to report disk usage for
-        fields:
-          - cpu
-          - memory
-          - disk
-          - network
-          - load
-          - docker
-        docker_socket_path: /var/run/docker.sock   # only used when "docker" is in fields
+        proc_path: /host/proc
+        disk_path: /host/storage
+        size_defaults: true
 ```
-
-**Config fields:**
-
-
-| Field                | Required | Description                                                                                                              |
-| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `proc_path`          | No       | Path to procfs. Defaults to the `KOKPIT_PROC_PATH` env var, then `/proc`. Bind-mount the host's `/proc` and set this for host-wide metrics in Docker. |
-| `disk_path`          | No       | Filesystem mount to report disk usage for (default `/`).                                                                |
-| `interface`          | No       | Network interface to measure. Leave empty to sum all non-loopback interfaces.                                           |
-| `docker_socket_path` | No       | Docker socket for the container overview. Defaults to `KOKPIT_DOCKER_SOCKET`, then `/var/run/docker.sock`. Only used when Docker is selected explicitly or by the Detailed size default. |
-| `fields`             | No       | Explicit stats to display: any of `cpu`, `memory`, `disk`, `network`, `load`, `docker`. Overrides size defaults. Without `size_defaults`, the default remains `cpu, memory, disk, network`. |
-| `size_defaults`      | No       | Use 2/3/6 default fields according to the tile footprint when `fields` is absent. New editor tiles set this to `true`; omitted or `false` preserves historical defaults. |
-
-
-CPU and network rates come from two `/proc` samples taken a fraction of a second apart per refresh. If the Docker socket is unavailable, the container line is quietly omitted (as "Docker unavailable") without affecting the other stats.
-
-**Security note:** The `/proc` and `statfs` reads are local and read-only, full stop. The Docker field is different: Kokpit itself only ever *issues* read-only API calls (`GET /_ping`, `GET /containers/json`), but access to the socket is effectively root-equivalent on the host — the `:ro` mount flag only makes the socket file node read-only, it does not restrict what the Docker Engine API will do for anyone who can reach it. See the hardening guidance (filtered socket proxy) in the Docker widget section above if that matters for your threat model. `proc_path`, `disk_path`, and `docker_socket_path` come from trusted admin config in `settings.yaml`, not from end users. No network requests are made to read the system metrics, so the widget stays fully air-gappable.
-
 ---
 
 ## Contributing
