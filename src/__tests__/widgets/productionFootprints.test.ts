@@ -6,7 +6,7 @@ import "@/integrations";
 describe("production widget footprints", () => {
   it("declares at least one valid supported footprint for every production widget", () => {
     const widgets = getAllWidgets();
-    expect(widgets).toHaveLength(33);
+    expect(widgets).toHaveLength(34);
 
     for (const widget of widgets) {
       expect(widget.supportedFootprints, widget.id).toBeDefined();

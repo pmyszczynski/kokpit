@@ -12,6 +12,7 @@ import {
 import { resolveIconRef } from "@/config/iconRef";
 import "@/integrations";
 import {
+  getIntegration,
   getWidget,
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
@@ -789,7 +790,7 @@ export default function ServiceForm({
   const cleanedIntegrationConfig = cleanWidgetConfig(integrationConfig);
   const integrationConfigIssues = selectedIntegrationDef
     ? widgetConfigIssues(
-      selectedIntegrationDef,
+      { ...selectedIntegrationDef, configSchema: getIntegration(integrationType)?.connectionSchema ?? selectedIntegrationDef.configSchema },
       opaqueConfigHidden
         ? configForOpaqueConnectionValidation(selectedIntegrationDef, cleanedIntegrationConfig)
         : widgetConfigForValidation(
@@ -801,6 +802,7 @@ export default function ServiceForm({
   const integrationConfigValid = selectedIntegrationDef
     ? integrationConfigIssues.length === 0
     : true;
+  const integrationTestNeedsTile = !selectedWidgetDef && selectedIntegrationDef?.optionFields?.some(field => field.required);
   const activeCleanedConfig = cleanWidgetConfig(
     activeRawConfig, activeWidgetType
   );
@@ -997,7 +999,7 @@ export default function ServiceForm({
     // Keep testing a newly picked tile available before its Service
     // integration is explicitly selected. Persistence still uses only the
     // editorIntegration command above.
-    const testDefinition = legacyDirectConfig
+    const testDefinition = legacyDirectConfig || (selectedWidgetDef && selectedIntegrationType === requestedIntegrationType)
       ? selectedWidgetDef
       : selectedIntegrationDef ?? selectedWidgetDef;
     if (
@@ -1022,7 +1024,7 @@ export default function ServiceForm({
           config: selectedIntegrationDef && !legacyDirectConfig && opaqueConfigHidden
             ? service!.integration!.config
             : selectedIntegrationDef && !legacyDirectConfig
-              ? cleanedIntegrationConfig
+              ? { ...cleanedIntegrationConfig, ...(selectedIntegrationType === requestedIntegrationType ? activeCleanedConfig : {}) }
               : selectedWidgetRequiresIntegration
                 ? { ...cleanedIntegrationConfig, ...activeCleanedConfig }
                 : activeCleanedConfig,
@@ -1375,6 +1377,7 @@ export default function ServiceForm({
                 disabled={
                   testStatus.state === "testing" ||
                   !integrationConfigValid ||
+                  integrationTestNeedsTile ||
                   widgetConfigValid === false ||
                   savedCredentialsStale ||
                   integrationConflict ||
@@ -1383,6 +1386,7 @@ export default function ServiceForm({
               >
                 {testStatus.state === "testing" ? "Testing…" : "Test connection"}
               </button>
+              {integrationTestNeedsTile && <p className="settings-form-hint">Choose a tile type and configure its required widget options before testing this connection.</p>}
               {testStatus.state === "success" && (
                 <span className="service-form__test-result service-form__test-result--success" role="status">
                   Connection OK
@@ -1658,8 +1662,10 @@ export default function ServiceForm({
               </p>
             )}
 
-            {activeWidgetType === "weather" && (
+            {(activeWidgetType === "weather" || activeWidgetType === "openweathermap") && (
               <WeatherLocationButton
+                key={`weather-location:${activeWidgetType}`}
+                providerName={activeWidgetType === "openweathermap" ? "OpenWeatherMap" : "Open-Meteo"}
                 latitude={activeRawConfig.latitude}
                 longitude={activeRawConfig.longitude}
                 onDetect={({ latitude, longitude }) => {

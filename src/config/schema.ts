@@ -71,7 +71,7 @@ export function widgetIntegrationRequirement(type: string): string | null {
     "sonarr-calendar": "sonarr", "sonarr-queue": "sonarr",
     "tautulli-activity": "tautulli", "tdarr-stats": "tdarr",
     "unraid-stats": "unraid", "calendar": "calendar",
-    "hermes-overview": "hermes",
+    "hermes-overview": "hermes", "openweathermap": "openweathermap",
   };
   return known[type] ?? null;
 }

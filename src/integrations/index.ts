@@ -29,6 +29,7 @@ import "./actualbudget/categoriesWidget";
 import "./actualbudget/accountsWidget";
 import "./actualbudget/schedulesWidget";
 import "./weather/widget";
+import "./openweathermap/widget";
 import "./rss/widget";
 import "./calendar/widget";
 import "./hermes/widget";

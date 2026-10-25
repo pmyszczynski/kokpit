@@ -928,7 +928,41 @@ service_tiles:
 
 Latitude is required (−90…90), as is longitude (−180…180); `imperial` is optional. The server makes one HTTPS request to the fixed Open-Meteo endpoint per fetch and refreshes every ten minutes by default. Each open tile polls independently; any configured shorter refresh override increases requests. A refresh failure preserves previously loaded data with an accessible notice. Setting coordinates opts that tile into the external weather service and sends those coordinates to Open-Meteo for forecasts.
 
-Weather data: [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://open-meteo.com/en/licence). Its [free API terms](https://open-meteo.com/en/terms) apply, including non-commercial use and request limits. OpenWeatherMap is a separate future provider, not implemented by this widget.
+Weather data: [Open-Meteo](https://open-meteo.com/), [CC BY 4.0](https://open-meteo.com/en/licence). Its [free API terms](https://open-meteo.com/en/terms) apply, including non-commercial use and request limits. For API-key access, choose the separate Weather (OpenWeatherMap) tile described below.
+
+### Weather (OpenWeatherMap)
+
+Add a **Weather (OpenWeatherMap)** tile for current conditions and up to five forecast dates. Existing **Weather** tiles continue to use Open-Meteo without an account. The two providers share Compact **3×2**, Wide **6×2**, and Detailed **6×4** layouts, browser location detection, metric/imperial units, custom CSS and stale-data feedback.
+
+1. Sign in to [OpenWeather](https://home.openweathermap.org/api_keys), create an API key, and allow time for activation. Your plan must include [Current Weather](https://openweathermap.org/current) and [5 Day / 3 Hour Forecast](https://openweathermap.org/forecast5). Check current plan terms and quotas; Kokpit does not use One Call or create a subscription.
+2. Choose the tile type, enter `https://api.openweathermap.org` in **API base URL**, and paste the key into **API key**. A compatible proxy can use its own base URL/prefix. Do not append `/data/2.5` or endpoint paths. Redirects are blocked; changing the base URL requires re-entering the saved key.
+3. Enter separate **Latitude** and **Longitude**, or use **Use my location** over HTTPS/localhost and review the result. Zero is valid. All viewers use the saved coordinates. Enable **Use imperial units** for Fahrenheit/mph; the default is Celsius/km/h.
+4. **Test connection** when enabled, save the form, then complete the dashboard save flow. Testing sends the draft key and coordinates to the configured server. The key belongs to the reusable service connection; location and units belong to each tile. Browser settings responses contain an opaque key reference. The actual key persists in `settings.yaml`, so keep that file private.
+
+The server calls `/data/2.5/weather` and `/data/2.5/forecast` once each per fetch, with a ten-minute default refresh. Every layout makes both calls; more viewers, tiles, tests or shorter intervals consume more requests. A 401/403 can mean an invalid, inactive or unauthorized key; 429 indicates rate limits. Check access to both APIs and the server/container’s outbound DNS/HTTPS, proxy and trusted certificates. Failed refreshes retain previous data with an accessible warning.
+
+Forecast rows summarize the available **three-hour samples** by the location’s returned UTC offset: low/high are the minimum/maximum sample temperatures, precipitation is the maximum sample probability (not rainfall amount), and conditions come from the sample nearest local noon. Past dates are excluded and at most five dates are shown. First/last dates may be partial; these are not full-day daily forecasts. The returned fixed offset does not model future daylight-saving changes. Hover the OpenWeatherMap attribution for current observation time and offset. Missing readings show “—”; unknown condition IDs show “Unknown”. Data attribution links to [OpenWeatherMap](https://openweathermap.org/); its [terms](https://openweathermap.org/terms) apply.
+
+```yaml
+services:
+  - id: 10000000-0000-4000-8000-000000000002
+    name: London OpenWeatherMap
+    integration:
+      type: openweathermap
+      config:
+        url: https://api.openweathermap.org
+        api_key: YOUR_OPENWEATHERMAP_KEY
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000002
+    service_id: 10000000-0000-4000-8000-000000000002
+    footprint: { columnSpan: 6, rowSpan: 4 }
+    widget:
+      type: openweathermap
+      config:
+        latitude: 51.5074
+        longitude: -0.1278
+        imperial: false
+```
 
 ### Configuring service-backed widgets
 
