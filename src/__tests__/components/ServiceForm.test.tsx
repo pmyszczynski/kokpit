@@ -1763,6 +1763,19 @@ describe("ServiceForm – Tautulli defaults", () => {
 });
 
 describe("ServiceForm – test connection", () => {
+  it.each([false, true])("tests a catalog-only Tautulli connection with default display sections (saved key: %s)", async savedKey => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const config = { url: "http://tautulli.local:8181", api_key: savedKey ? SAVED_TAUTULLI_SECRET : "key" };
+    render(<ServiceForm service={{ name: "Tautulli account", editorCatalogOnly: true,
+      integration: { type: "tautulli", config },
+    }} existingGroups={[]} onSave={noop} onClose={noop} />);
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    expect(screen.queryByText(/configure its required widget options/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() => expect(screen.getByText("Connection OK")).toBeInTheDocument());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ type: "tautulli-activity", config });
+  });
   it("requires a tile location before testing an OpenWeatherMap catalog connection", () => {
     render(<ServiceForm service={{ name: "Weather account", editorCatalogOnly: true, integration: {
       type: "openweathermap", config: { url: "https://api.openweathermap.org", api_key: "key" },

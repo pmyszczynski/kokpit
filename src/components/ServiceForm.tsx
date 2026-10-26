@@ -788,21 +788,26 @@ export default function ServiceForm({
     (field) => !widgetOptionKeys(selectedIntegrationDef.id).has(field.key)
   ) ?? [];
   const cleanedIntegrationConfig = cleanWidgetConfig(integrationConfig);
+  const integrationValidationConfig = selectedIntegrationDef
+    ? opaqueConfigHidden
+      ? configForOpaqueConnectionValidation(selectedIntegrationDef, cleanedIntegrationConfig)
+      : widgetConfigForValidation(selectedIntegrationDef.configFields, cleanedIntegrationConfig)
+    : cleanedIntegrationConfig;
   const integrationConfigIssues = selectedIntegrationDef
     ? widgetConfigIssues(
       { ...selectedIntegrationDef, configSchema: getIntegration(integrationType)?.connectionSchema ?? selectedIntegrationDef.configSchema },
-      opaqueConfigHidden
-        ? configForOpaqueConnectionValidation(selectedIntegrationDef, cleanedIntegrationConfig)
-        : widgetConfigForValidation(
-            selectedIntegrationDef.configFields,
-            cleanedIntegrationConfig
-          )
+      integrationValidationConfig
     )
     : [];
   const integrationConfigValid = selectedIntegrationDef
     ? integrationConfigIssues.length === 0
     : true;
-  const integrationTestNeedsTile = !selectedWidgetDef && selectedIntegrationDef?.optionFields?.some(field => field.required);
+  // Editor-required display fields may have schema defaults. Only missing
+  // options that actually fail fetch validation need a tile before testing.
+  const integrationTestNeedsTile = !selectedWidgetDef && selectedIntegrationDef &&
+    widgetConfigIssues(selectedIntegrationDef, integrationValidationConfig).some(issue =>
+      widgetOptionKeys(selectedIntegrationDef.id).has(issue.path.split(".")[0])
+    );
   const activeCleanedConfig = cleanWidgetConfig(
     activeRawConfig, activeWidgetType
   );

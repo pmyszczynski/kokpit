@@ -26,6 +26,7 @@ const Sample = z.object({
 });
 const Forecast = z.object({ city: z.object({ timezone: Offset }), list: z.array(Sample).max(40) });
 
+/** Expose stable diagnostics without provider bodies or credential-bearing URLs. */
 function failure(code: ConstructorParameters<typeof WidgetFetchError>[0], stage: string, status?: number) {
   return new WidgetFetchError(code, { integration: "openweathermap", stage, upstreamStatus: status,
     retryable: code === "widget_upstream_unreachable" || status === 429 || (status !== undefined && status >= 500) });
@@ -92,9 +93,11 @@ export function conditionCode(id: number | null | undefined): number | null {
   return codes[id] ?? 1000; // Unknown, never accidentally interpret an OWM ID as WMO.
 }
 
+/** Apply the returned UTC offset before extracting the location's date/time. */
 function localTime(timestamp: number, offset: number) {
   return new Date((timestamp + offset) * 1000).toISOString().slice(0, 16);
 }
+/** Label a fixed provider offset without implying an IANA time zone. */
 function offsetLabel(offset: number) {
   const absolute = Math.abs(offset);
   return `UTC${offset < 0 ? "−" : "+"}${String(Math.floor(absolute / 3600)).padStart(2, "0")}:${String(Math.floor(absolute % 3600 / 60)).padStart(2, "0")}`;
