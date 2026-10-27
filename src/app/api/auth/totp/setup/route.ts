@@ -12,6 +12,7 @@ import {
   verifySessionPassword,
 } from "@/auth";
 import { isTrustedMutation } from "@/auth/requestGuard";
+import { reserveTotpAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
 
 async function getSessionToken() {
   const cookieStore = await cookies();
@@ -99,7 +100,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { code?: unknown };
+  let body: { code?: unknown; password?: unknown };
   try {
     body = await readJsonObject(req, AUTH_JSON_BODY_BYTES);
   } catch (error) {
@@ -107,7 +108,7 @@ export async function DELETE(req: Request) {
       { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const { code } = body;
+  const { code, password } = body;
   if (typeof code !== "string" || !code) {
     return NextResponse.json({ error: "code is required" }, { status: 400 });
   }
@@ -115,8 +116,16 @@ export async function DELETE(req: Request) {
   // cannot change 2FA state through a stale authenticated request.
   const auth = await getAuthSession(token);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { user, session } = auth;
-  if (!user.totpSecret || !verifyTotpCode(code, user.totpSecret)) {
+  const admission = reserveTotpAttempt(auth.user.id);
+  if (!admission.allowed) {
+    return NextResponse.json({ error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(admission.retryAfterSeconds) } });
+  }
+  const verified = await verifySessionPassword(token, password);
+  if (!("auth" in verified)) return NextResponse.json({ error: verified.error }, { status: verified.status });
+  const { user, session } = verified.auth;
+  // Reject malformed codes before otplib, which can throw on invalid input.
+  if (!user.totpSecret || code.length !== 6 || /[^0-9]/.test(code) || !verifyTotpCode(code, user.totpSecret)) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
@@ -133,5 +142,6 @@ export async function DELETE(req: Request) {
   if (result === "conflict") {
     return NextResponse.json({ error: "2FA settings changed; reload and try again" }, { status: 409 });
   }
+  releaseSuccessfulLoginAttempt(admission.attempt);
   return NextResponse.json({ ok: true });
 }

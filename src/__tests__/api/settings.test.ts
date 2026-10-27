@@ -109,6 +109,25 @@ const TILE_SECRET_YAML = SECRET_YAML.replace(
   "config: { client_secret: tile-secret-value, sections: [summary] }"
 );
 
+const TILE_CONNECTION_SECRET_YAML = `
+schema_version: 2
+auth: { enabled: false }
+appearance: { theme: dark }
+layout: {}
+services:
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Plex
+    integration: { type: plex, config: { url: http://plex.local:32400 } }
+  - id: 10000000-0000-4000-8000-000000000002
+    name: Other Plex
+    integration: { type: plex, config: { url: https://attacker.invalid } }
+service_tiles:
+  - id: 20000000-0000-4000-8000-000000000001
+    service_id: 10000000-0000-4000-8000-000000000001
+    footprint: { columnSpan: 3, rowSpan: 2 }
+    widget: { type: plex, config: { token: tile-connection-secret, fields: [streams] } }
+`.trim();
+
 const UNKNOWN_WIDGET_SECRET_YAML = `
 schema_version: 2
 auth: { enabled: false, session_ttl_hours: 24 }
@@ -430,6 +449,130 @@ describe("PATCH /api/settings – opaque tile widget config", () => {
     expect(vi.mocked(writeFileSync).mock.calls[0][1]).toContain("tile-secret-value");
     expect(vi.mocked(writeFileSync).mock.calls[0][1]).not.toContain("__kokpit_widget_config_reference__");
     expect(responseText).not.toContain("tile-secret-value");
+  });
+});
+
+describe("PATCH /api/settings – destination-bound opaque tile credentials", () => {
+  let fs: ReturnType<typeof createSettingsFsSimulation>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    fs = createSettingsFsSimulation(TILE_CONNECTION_SECRET_YAML);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each(["tile URL override", "parent Service URL", "tile parent"])(
+    "rejects %s retargeting after loading and redacting a tile-held credential",
+    async (change) => {
+      if (change === "tile URL override") {
+        fs.yaml = TILE_CONNECTION_SECRET_YAML
+          .replace("config: { url: http://plex.local:32400 }", "config: {}")
+          .replace("config: { token: tile-connection-secret", "config: { url: http://plex.local:32400, token: tile-connection-secret");
+      }
+      const originalYaml = fs.yaml;
+      const { GET, PATCH } = await initializedSettingsRoute();
+      const response = await GET();
+      const redacted = await response.json();
+      expect(JSON.stringify(redacted)).not.toContain("tile-connection-secret");
+      if (change === "tile URL override") {
+        redacted.service_tiles[0].widget.config.url = "https://attacker.invalid";
+      } else if (change === "parent Service URL") {
+        redacted.services[0].integration.config.url = "https://attacker.invalid";
+      } else {
+        redacted.service_tiles[0].service_id = redacted.services[1].id;
+      }
+      vi.mocked(writeFileSync).mockClear();
+      const result = await PATCH(patch(change === "parent Service URL"
+        ? { services: redacted.services } : { service_tiles: redacted.service_tiles },
+      { "If-Match": response.headers.get("X-Config-Revision")! }));
+
+      expect(result.status).toBe(400);
+      expect((await result.json()).code).toBe("widget_secret_scope_changed");
+      expect(writeFileSync).not.toHaveBeenCalled();
+      expect(fs.yaml).toBe(originalYaml);
+
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ MediaContainer: { size: 0 } })));
+      vi.stubGlobal("fetch", fetchMock);
+      const widgetRoute = await import("@/app/api/widget/route");
+      const widgetResponse = await widgetRoute.GET(new Request(
+        "http://localhost/api/widget?tile_id=20000000-0000-4000-8000-000000000001"
+      ));
+      expect(widgetResponse.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        "http://plex.local:32400/status/sessions?X-Plex-Token=tile-connection-secret"
+      );
+    }
+  );
+
+  it("saves a display option beside an opaque marker and fetches from the original destination", async () => {
+    const { GET, PATCH } = await initializedSettingsRoute();
+    const response = await GET();
+    const redacted = await response.json();
+    redacted.service_tiles[0].widget.config.fields = ["transcodes"];
+
+    const result = await PATCH(patch({ service_tiles: redacted.service_tiles },
+      { "If-Match": response.headers.get("X-Config-Revision")! }));
+    expect(result.status).toBe(200);
+    expect(await result.text()).not.toContain("tile-connection-secret");
+    expect(fs.yaml).toContain("tile-connection-secret");
+    expect(fs.yaml).not.toContain("__kokpit_widget_config_reference__");
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ MediaContainer: { size: 0 } })));
+    vi.stubGlobal("fetch", fetchMock);
+    const widgetRoute = await import("@/app/api/widget/route");
+    const widgetResponse = await widgetRoute.GET(new Request(
+      "http://localhost/api/widget?tile_id=20000000-0000-4000-8000-000000000001"
+    ));
+    expect(await widgetResponse.json()).toEqual({ ok: true, data: { transcodes: 0 } });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "http://plex.local:32400/status/sessions?X-Plex-Token=tile-connection-secret"
+    );
+  });
+
+  it.each(["existing tile", "new tile"])(
+    "rejects moving a Service-held secret to a new destination supplied by an %s",
+    async (target) => {
+      fs.yaml = TILE_CONNECTION_SECRET_YAML
+        .replace("config: { url: http://plex.local:32400 }", "config: { token: tile-connection-secret }")
+        .replace("config: { token: tile-connection-secret, fields", "config: { url: http://plex.local:32400, fields");
+      const originalYaml = fs.yaml;
+      const { GET, PATCH } = await initializedSettingsRoute();
+      const response = await GET();
+      const redacted = await response.json();
+      const modified = {
+        ...redacted.service_tiles[0],
+        ...(target === "new tile" ? { id: "20000000-0000-4000-8000-000000000002" } : {}),
+        widget: { type: "plex", config: { url: "https://attacker.invalid", fields: ["streams"] } },
+      };
+      const tiles = target === "new tile" ? [...redacted.service_tiles, modified] : [modified];
+      vi.mocked(writeFileSync).mockClear();
+
+      const result = await PATCH(patch({ service_tiles: tiles },
+        { "If-Match": response.headers.get("X-Config-Revision")! }));
+      expect(result.status).toBe(400);
+      expect((await result.json()).code).toBe("widget_secret_scope_changed");
+      expect(writeFileSync).not.toHaveBeenCalled();
+      expect(fs.yaml).toBe(originalYaml);
+    }
+  );
+
+  it("permits deliberate plaintext credential re-entry for a changed destination", async () => {
+    fs.yaml = TILE_CONNECTION_SECRET_YAML
+      .replace("config: { url: http://plex.local:32400 }", "config: { token: tile-connection-secret }")
+      .replace("config: { token: tile-connection-secret, fields", "config: { url: http://plex.local:32400, fields");
+    const { GET, PATCH } = await initializedSettingsRoute();
+    const response = await GET();
+    const redacted = await response.json();
+    redacted.services[0].integration.config.token = "tile-connection-secret";
+    redacted.service_tiles[0].widget.config = { url: "https://replacement.example", fields: ["streams"] };
+
+    const result = await PATCH(patch({ services: redacted.services, service_tiles: redacted.service_tiles },
+      { "If-Match": response.headers.get("X-Config-Revision")! }));
+    expect(result.status).toBe(200);
+    expect(await result.text()).not.toContain("tile-connection-secret");
+    expect(fs.yaml).toContain("https://replacement.example");
+    expect(fs.yaml).toContain("tile-connection-secret");
   });
 });
 

@@ -222,12 +222,82 @@ describe("POST /api/auth/totp/setup", () => {
 describe("DELETE /api/auth/totp/setup", () => {
   beforeEach(() => vi.resetModules());
 
+  it("requires the current password even with a valid authenticator code", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("totp-password-proof", await auth.hashPassword("pass"));
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    mockCookieGet.mockReturnValue({ value: auth.createSession(user.id).token });
+    const { DELETE } = await import("../../app/api/auth/totp/setup/route");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const code = generateSync({ secret });
+      const missing = await DELETE(trustedRequest("http://localhost", {
+        method: "DELETE", body: JSON.stringify({ code }),
+      }));
+      expect(missing.status).toBe(400);
+      const wrong = await DELETE(trustedRequest("http://localhost", {
+        method: "DELETE", body: JSON.stringify({ code, password: "wrong-password" }),
+      }));
+      expect(wrong.status).toBe(401);
+      expect(auth.getUserById(user.id)?.totpSecret).toBe(secret);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shares a durable guess budget across the account's sessions before checking the password", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("totp-account-budget", await auth.hashPassword("pass"));
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    const first = auth.createSession(user.id).token;
+    const second = auth.createSession(user.id).token;
+    const { DELETE } = await import("../../app/api/auth/totp/setup/route");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const validCode = generateSync({ secret });
+      const invalidCode = String((Number(validCode) + 1) % 1_000_000).padStart(6, "0");
+      for (let index = 0; index < 10; index++) {
+        mockCookieGet.mockReturnValue({ value: index % 2 ? first : second });
+        const response = await DELETE(trustedRequest("http://localhost", {
+          method: "DELETE", body: JSON.stringify({ code: invalidCode, password: "pass" }),
+        }));
+        expect(response.status).toBe(400);
+      }
+      const limited = await DELETE(trustedRequest("http://localhost", {
+        method: "DELETE", body: JSON.stringify({ code: validCode, password: "pass" }),
+      }));
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get("Retry-After")).toBe("900");
+      expect(auth.getUserById(user.id)?.totpSecret).toBe(secret);
+      expect(auth.getDb().prepare("SELECT attempts FROM login_rate_limits WHERE key LIKE 'totp:%'").get())
+        .toEqual({ attempts: 10 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects malformed authenticator codes without throwing", async () => {
+    const auth = await import("@/auth");
+    const user = await auth.createUser("totp-malformed", await auth.hashPassword("pass"));
+    const secret = auth.generateTotpSecret();
+    auth.setTotpSecret(user.id, secret);
+    mockCookieGet.mockReturnValue({ value: auth.createSession(user.id).token });
+    const { DELETE } = await import("../../app/api/auth/totp/setup/route");
+    const response = await DELETE(trustedRequest("http://localhost", {
+      method: "DELETE", body: JSON.stringify({ code: "abcdef", password: "pass" }),
+    }));
+    expect(response.status).toBe(400);
+    expect(auth.getUserById(user.id)?.totpSecret).toBe(secret);
+  });
+
   it("returns 401 when not authenticated", async () => {
     mockCookieGet.mockReturnValue(undefined);
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
     const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
-      body: JSON.stringify({ code: "123456" }),
+      body: JSON.stringify({ code: "123456", password: "pass" }),
     }));
     expect(res.status).toBe(401);
   });
@@ -259,7 +329,7 @@ describe("DELETE /api/auth/totp/setup", () => {
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
     const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
-      body: JSON.stringify({ code: "000000" }),
+      body: JSON.stringify({ code: "000000", password: "pass" }),
     }));
     expect(res.status).toBe(400);
   });
@@ -273,14 +343,14 @@ describe("DELETE /api/auth/totp/setup", () => {
     const token = await makeSessionCookie(user.id);
     mockCookieGet.mockReturnValue({ value: token });
 
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
     const code = generateSync({ secret });
 
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
     const res = await DELETE(trustedRequest("http://localhost", {
       method: "DELETE",
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, password: "pass" }),
     }));
     vi.useRealTimers();
     expect(res.status).toBe(200);
@@ -307,7 +377,7 @@ describe("DELETE /api/auth/totp/setup", () => {
     const { DELETE } = await import("../../app/api/auth/totp/setup/route");
 
     await expect(DELETE(trustedRequest("http://localhost", {
-      method: "DELETE", body: JSON.stringify({ code }),
+      method: "DELETE", body: JSON.stringify({ code, password: "pass" }),
     }))).rejects.toThrow("session delete failed");
     const userAfter = getUserById(user.id)!;
     expect(userAfter.totpSecret).toBe(secret);

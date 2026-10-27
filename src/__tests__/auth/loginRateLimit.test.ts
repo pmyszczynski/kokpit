@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeDb, getDb } from "@/auth/db";
-import { reserveLoginAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
+import { reserveLoginAttempt, reserveRecoveryAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
 
 beforeEach(() => {
   vi.stubEnv("KOKPIT_DB_PATH", ":memory:");
@@ -91,6 +91,60 @@ describe("login throttling", () => {
       closeDb();
       expect(reserveLoginAttempt("admin").allowed).toBe(false);
       expect(reserveLoginAttempt("new-account")).toEqual({ allowed: false, retryAfterSeconds: 60 });
+    } finally {
+      closeDb();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("recovery throttling", () => {
+  it("shares case variants and keeps the ten-attempt account limit for one hour", () => {
+    for (let i = 0; i < 10; i++) expect(reserveRecoveryAttempt("Admin").allowed).toBe(true);
+    expect(reserveRecoveryAttempt("admin")).toEqual({ allowed: false, retryAfterSeconds: 3600 });
+    vi.setSystemTime(Date.now() + 15 * 60_000);
+    expect(reserveRecoveryAttempt("ADMIN")).toEqual({ allowed: false, retryAfterSeconds: 2700 });
+    vi.setSystemTime(Date.now() + 45 * 60_000);
+    expect(reserveRecoveryAttempt("admin").allowed).toBe(true);
+  });
+
+  it("bounds recovery username rotation with the shared login budget and stores only digests", () => {
+    for (let i = 0; i < 50; i++) expect(reserveLoginAttempt(`login-${i}`).allowed).toBe(true);
+    const privateName = "private-recovery-name-".repeat(500);
+    for (let i = 0; i < 50; i++) expect(reserveRecoveryAttempt(`${privateName}${i}`).allowed).toBe(true);
+    for (let i = 0; i < 100; i++) {
+      expect(reserveRecoveryAttempt(`new-unknown-${i}`)).toEqual({ allowed: false, retryAfterSeconds: 60 });
+    }
+    const rows = getDb().prepare("SELECT key FROM login_rate_limits").all() as { key: string }[];
+    expect(rows).toHaveLength(100);
+    const recoveryRows = rows.filter(row => row.key.startsWith("recovery:"));
+    expect(recoveryRows).toHaveLength(50);
+    for (const row of recoveryRows) expect(row.key).toMatch(/^recovery:[a-f0-9]{64}$/);
+    expect(getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 100 });
+    vi.setSystemTime(Date.now() + 60_000);
+    expect(reserveRecoveryAttempt("new-unknown").allowed).toBe(true);
+  });
+
+  it("preserves recovery failures when a successful request releases its own reservation", () => {
+    for (let i = 0; i < 9; i++) reserveRecoveryAttempt("admin");
+    const success = reserveRecoveryAttempt("admin");
+    expect(success.allowed).toBe(true);
+    if (success.allowed) releaseSuccessfulLoginAttempt(success.attempt);
+    expect(getDb().prepare("SELECT attempts FROM login_rate_limits").get()).toEqual({ attempts: 9 });
+    expect(getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 10 });
+    expect(reserveRecoveryAttempt("admin").allowed).toBe(true);
+    expect(reserveRecoveryAttempt("admin").allowed).toBe(false);
+  });
+
+  it("preserves recovery and shared throttling after the database is reopened", () => {
+    const directory = mkdtempSync(join(tmpdir(), "kokpit-recovery-limit-"));
+    try {
+      vi.stubEnv("KOKPIT_DB_PATH", join(directory, "users.db"));
+      for (let i = 0; i < 10; i++) reserveRecoveryAttempt("admin");
+      for (let i = 0; i < 90; i++) reserveRecoveryAttempt(`other-${i}`);
+      closeDb();
+      expect(reserveRecoveryAttempt("ADMIN")).toEqual({ allowed: false, retryAfterSeconds: 3600 });
+      expect(reserveRecoveryAttempt("new-account")).toEqual({ allowed: false, retryAfterSeconds: 60 });
     } finally {
       closeDb();
       rmSync(directory, { recursive: true, force: true });

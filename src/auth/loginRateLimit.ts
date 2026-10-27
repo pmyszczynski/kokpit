@@ -6,6 +6,7 @@ const ACCOUNT_LIMIT = 10;
 const ACCOUNT_WINDOW_MS = 15 * 60 * 1000;
 const GLOBAL_LIMIT = 100;
 const GLOBAL_WINDOW_MS = 60 * 1000;
+const RECOVERY_WINDOW_MS = 60 * 60 * 1000;
 
 type Counter = { attempts: number; expires_at: number };
 type LoginAttempt = { key: string; expiresAt: number };
@@ -22,12 +23,21 @@ export function reserveLoginAttempt(username: string): Decision {
   return reserveAttempt(`account:${createHash("sha256").update(username.toLowerCase()).digest("hex")}`);
 }
 
-/** Fresh challenge tokens share the same account's TOTP failure allowance. */
+/** Login challenges and 2FA removal share the same account's TOTP allowance. */
 export function reserveTotpAttempt(userId: string, db: Database.Database = getDb()): Decision {
   return reserveAttempt(`totp:${createHash("sha256").update(userId).digest("hex")}`, db);
 }
 
-function reserveAttempt(key: string, db: Database.Database = getDb()): Decision {
+/** Recovery shares the global budget and never retains raw submitted usernames. */
+export function reserveRecoveryAttempt(username: string): Decision {
+  return reserveAttempt(
+    `recovery:${createHash("sha256").update(username.toLowerCase()).digest("hex")}`,
+    getDb(),
+    RECOVERY_WINDOW_MS
+  );
+}
+
+function reserveAttempt(key: string, db: Database.Database = getDb(), accountWindowMs = ACCOUNT_WINDOW_MS): Decision {
   // better-sqlite3 uses a savepoint when the challenge transaction already
   // owns this connection. Its limiter writes then commit/roll back together.
   return db.transaction((): Decision => {
@@ -45,7 +55,7 @@ function reserveAttempt(key: string, db: Database.Database = getDb()): Decision 
     if (blockedUntil > now) {
       return { allowed: false, retryAfterSeconds: Math.ceil((blockedUntil - now) / 1000) };
     }
-    const expiresAt = account?.expires_at ?? now + ACCOUNT_WINDOW_MS;
+    const expiresAt = account?.expires_at ?? now + accountWindowMs;
     const increment = db.prepare(`
       INSERT INTO login_rate_limits (key, attempts, expires_at) VALUES (?, 1, ?)
       ON CONFLICT(key) DO UPDATE SET attempts = attempts + 1

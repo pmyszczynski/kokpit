@@ -17,6 +17,7 @@ import {
   resolveServiceIntegrationSecrets,
   resolveIntegrationConfigSecrets,
   resolveServiceTileWidgetConfigs,
+  assertRetainedWidgetCredentialScopes,
   UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
@@ -771,6 +772,54 @@ describe("opaque tile widget config redaction", () => {
       .toEqual({ api_key: "tile-secret", sections: ["sessions"] });
   });
 
+  it.each([
+    { url: "https://attacker.example" },
+    { api_key: "replacement" },
+    { future_option: "unregistered" },
+    { sections: [{ api_key: "nested-secret" }] },
+  ])("rejects unsafe overrides beside an opaque tile marker: %j", (override) => {
+    const safe = toClientSafeSettings(config);
+    expect(() => resolveServiceTileWidgetConfigs([{
+      ...safe.service_tiles[0],
+      widget: { ...safe.service_tiles[0].widget!, config: {
+        ...safe.service_tiles[0].widget!.config, ...override,
+      } },
+    }], saved)).toThrowError(expect.objectContaining({ code: "widget_secret_scope_changed" }));
+  });
+
+  it("rejects moving an opaque tile to a different Service", () => {
+    const safe = toClientSafeSettings(config);
+    expect(() => resolveServiceTileWidgetConfigs([{
+      ...safe.service_tiles[0], service_id: "10000000-0000-4000-8000-000000000002",
+    }], saved)).toThrowError(expect.objectContaining({ code: "widget_secret_scope_changed" }));
+  });
+
+  it("allows declared preserved non-secret options beside an opaque marker", () => {
+    const accountTiles = [{ ...saved[0], widget: {
+      type: "actualbudget-accounts", config: { client_secret: "hidden", timezone: "UTC" },
+    } }];
+    const safe = toClientSafeSettings({ ...config, service_tiles: accountTiles });
+    expect(resolveServiceTileWidgetConfigs([{
+      ...safe.service_tiles[0], widget: { ...safe.service_tiles[0].widget!, config: {
+        ...safe.service_tiles[0].widget!.config, timezone: "Europe/Warsaw",
+      } },
+    }], accountTiles)[0].widget?.config).toEqual({ client_secret: "hidden", timezone: "Europe/Warsaw" });
+  });
+
+  it("preserves or removes an unknown opaque config without permitting mixed overrides", () => {
+    const unknownTiles = [{ ...saved[0], widget: {
+      type: "removed-widget", config: { endpoint: "https://saved.example", access_key: "secret" },
+    } }];
+    const safe = toClientSafeSettings({ ...config, service_tiles: unknownTiles });
+    expect(resolveServiceTileWidgetConfigs(safe.service_tiles, unknownTiles)).toEqual(unknownTiles);
+    expect(resolveServiceTileWidgetConfigs([{ ...safe.service_tiles[0], widget: undefined }], unknownTiles)[0].widget).toBeUndefined();
+    expect(() => resolveServiceTileWidgetConfigs([{
+      ...safe.service_tiles[0], widget: { ...safe.service_tiles[0].widget!, config: {
+        ...safe.service_tiles[0].widget!.config, endpoint: "https://attacker.example",
+      } },
+    }], unknownTiles)).toThrowError(expect.objectContaining({ code: "widget_secret_scope_changed" }));
+  });
+
   it("rejects malformed or wrong-bound tile references", () => {
     for (const marker of ["invalid", createWidgetConfigReference(tileId, "plex")]) {
       expect(() => resolveServiceTileWidgetConfigs([{
@@ -778,5 +827,55 @@ describe("opaque tile widget config redaction", () => {
         widget: { ...saved[0].widget!, config: { [UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY]: marker } },
       }], saved)).toThrowError(expect.objectContaining({ code: "widget_secret_reference_invalid" }));
     }
+  });
+});
+
+describe("retained tile credential destinations", () => {
+  const serviceId = "10000000-0000-4000-8000-000000000001";
+  const saved = {
+    services: [{ id: serviceId, name: "Plex", integration: {
+      type: "plex", config: { url: "http://plex.local:32400" },
+    } }],
+    service_tiles: [{
+      id: "20000000-0000-4000-8000-000000000001", service_id: serviceId,
+      widget: { type: "plex", config: { token: "tile-secret", fields: ["streams"] } },
+    }],
+  } satisfies Pick<KokpitConfig, "services" | "service_tiles">;
+
+  it("rejects a services-only destination change for a password retained in a tile", () => {
+    expect(() => assertRetainedWidgetCredentialScopes(saved, {
+      ...saved, services: [{ ...saved.services[0], integration: {
+        ...saved.services[0].integration, config: { url: "https://attacker.example" },
+      } }],
+    })).toThrowError(expect.objectContaining({ code: "widget_secret_scope_changed" }));
+  });
+
+  it("allows normalized equivalent destinations and safe tile option changes", () => {
+    expect(() => assertRetainedWidgetCredentialScopes(saved, {
+      services: [{ ...saved.services[0], integration: {
+        ...saved.services[0].integration, config: { url: "HTTP://PLEX.LOCAL:32400/#ignored" },
+      } }],
+      service_tiles: [{ ...saved.service_tiles[0], widget: {
+        ...saved.service_tiles[0].widget, config: { token: "tile-secret", fields: ["transcodes"] },
+      } }],
+    })).not.toThrow();
+  });
+
+  it("allows removing or replacing the saved password while changing its destination", () => {
+    for (const config of [{ fields: ["streams"] }, { token: "new-secret", fields: ["streams"] }]) {
+      expect(() => assertRetainedWidgetCredentialScopes(saved, {
+        services: [{ ...saved.services[0], integration: {
+          ...saved.services[0].integration, config: { url: "https://replacement.example" },
+        } }],
+        service_tiles: [{ ...saved.service_tiles[0], widget: { ...saved.service_tiles[0].widget, config } }],
+      })).not.toThrow();
+    }
+  });
+
+  it("preserves an invalid destination until it is changed or filled in", () => {
+    const missingUrl = { ...saved, services: [{ ...saved.services[0], integration: { type: "plex", config: {} } }] };
+    expect(() => assertRetainedWidgetCredentialScopes(missingUrl, missingUrl)).not.toThrow();
+    expect(() => assertRetainedWidgetCredentialScopes(missingUrl, saved))
+      .toThrowError(expect.objectContaining({ code: "widget_secret_scope_changed" }));
   });
 });

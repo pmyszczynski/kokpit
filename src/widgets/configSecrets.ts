@@ -1,4 +1,5 @@
 import "@/integrations";
+import { isDeepStrictEqual } from "node:util";
 import {
   type KokpitConfig,
   type Service,
@@ -10,6 +11,7 @@ import type {
 } from "./clientSafeSettings";
 import { getAllWidgets, getIntegration, getWidget } from "@/widgets";
 import { integrationCredentialScopesMatch, widgetCredentialScopesMatch } from "./credentialScope";
+import { widgetOptionKeys } from "./configBoundary";
 import {
   isWidgetSecretReference,
   WIDGET_CONFIG_REFERENCE_KEY,
@@ -539,16 +541,83 @@ export function resolveServiceTileWidgetConfigs(
     if (!reference || !source?.widget?.config) {
       throw new WidgetSecretResolutionError("widget_secret_reference_invalid");
     }
+    if (source.service_id !== tile.service_id) {
+      throw new WidgetSecretResolutionError("widget_secret_scope_changed");
+    }
     if (Object.keys(config).length === 1) {
       return { ...tile, widget: { ...tile.widget!, config: source.widget.config } };
     }
     const resolved = { ...config };
     delete resolved[UNKNOWN_WIDGET_CONFIG_REFERENCE_KEY];
+    // An opaque tile may contain misplaced connection credentials from YAML.
+    // Only declared, non-secret display options may accompany its marker;
+    // merging a URL or account field would silently retarget those secrets.
+    const definition = getWidget(tile.widget!.type);
+    const fields = new Map([
+      ...(definition?.optionFields ?? definition?.configFields ?? []),
+      ...(definition?.preservedConfigFields ?? []),
+    ].map((field) => [field.key, field] as const));
+    const optionKeys = definition?.optionFields === undefined &&
+      widgetIntegrationRequirement(tile.widget!.type) === null
+      ? new Set(fields.keys()) : widgetOptionKeys(tile.widget!.type);
+    for (const [key, value] of Object.entries(resolved)) {
+      const field = fields.get(key);
+      if (!optionKeys.has(key) || !field || field.type === "password" ||
+        definition?.credentialScopeFields?.includes(key) ||
+        !isSafeConfigValue(field.type, value) || hasSecretLikeKey(value)) {
+        throw new WidgetSecretResolutionError("widget_secret_scope_changed");
+      }
+    }
     return {
       ...tile,
       widget: { ...tile.widget!, config: { ...source.widget.config, ...resolved } },
     };
   });
+}
+
+/**
+ * Existing YAML can split passwords and their destinations across Service
+ * and tile configs. Check the effective scope after resolving references,
+ * including Services-only writes and new tiles using a saved connection.
+ */
+export function assertRetainedWidgetCredentialScopes(
+  saved: Pick<KokpitConfig, "services" | "service_tiles">,
+  submitted: Pick<KokpitConfig, "services" | "service_tiles">,
+  input: Partial<Pick<KokpitConfig, "services" | "service_tiles">> = {}
+): void {
+  for (const tile of submitted.service_tiles) {
+    if (!tile.widget) continue;
+    const widgetType = tile.widget.type;
+    const sourceTile = saved.service_tiles.find((candidate) => candidate.id === tile.id &&
+      candidate.widget?.type === widgetType);
+    const destinationService = submitted.services.find((service) => service.id === tile.service_id);
+    const destinationConfig = { ...destinationService?.integration?.config, ...tile.widget.config };
+    const inputTile = input.service_tiles?.find((candidate) => candidate.id === tile.id);
+    const inputService = input.services?.find((service) => service.id === tile.service_id);
+    for (const key of credentialFieldKeys(widgetType)) {
+      const tileOwnsPassword = Object.prototype.hasOwnProperty.call(tile.widget.config ?? {}, key);
+      const sourceService = saved.services.find((service) => service.id ===
+        (tileOwnsPassword ? sourceTile?.service_id : tile.service_id));
+      const sourceConfig = {
+        ...sourceService?.integration?.config,
+        ...(sourceTile && sourceTile.service_id === sourceService?.id ? sourceTile.widget?.config : {}),
+      };
+      const inputValue = tileOwnsPassword ? inputTile?.widget?.config?.[key] : inputService?.integration?.config[key];
+      const savedValue = tileOwnsPassword ? sourceTile?.widget?.config?.[key] : sourceService?.integration?.config[key];
+      // Plaintext supplied for this credential is deliberate re-entry; signed
+      // markers and omitted sections continue to use the protected saved value.
+      if (typeof inputValue === "string" || typeof savedValue !== "string" || savedValue === "" ||
+        destinationConfig[key] !== savedValue) continue;
+      const scopeFields = getWidget(widgetType)?.credentialScopeFields ?? [];
+      // Preserve invalid YAML when its scope is untouched. Filling in a
+      // missing destination still requires valid, matching saved scopes.
+      const unchangedScope = scopeFields.length > 0 && scopeFields.every((field) =>
+        isDeepStrictEqual(sourceConfig[field], destinationConfig[field]));
+      if (!unchangedScope && !widgetCredentialScopesMatch(widgetType, sourceConfig, destinationConfig)) {
+        throw new WidgetSecretResolutionError("widget_secret_scope_changed");
+      }
+    }
+  }
 }
 
 function resolveOpaqueIntegrationConfigReference(

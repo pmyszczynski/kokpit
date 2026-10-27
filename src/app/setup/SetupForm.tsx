@@ -35,7 +35,7 @@ export default function SetupForm() {
 
     const res = await fetch("/api/setup", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
       body: JSON.stringify({ username: data.get("username"), password }),
     });
 

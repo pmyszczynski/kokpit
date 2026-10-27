@@ -137,6 +137,7 @@ export default function SettingsPanel({
   const [totpMessage, setTotpMessage] = useState<string | null>(null);
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [totpDisableCode, setTotpDisableCode] = useState("");
+  const [totpDisablePassword, setTotpDisablePassword] = useState("");
   const [showRecoveryConfirm, setShowRecoveryConfirm] = useState(false);
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [newRecoveryCode, setNewRecoveryCode] = useState<string | null>(null);
@@ -237,6 +238,7 @@ export default function SettingsPanel({
     totpCode,
     totpPassword,
     totpDisableCode,
+    totpDisablePassword,
     recoveryPassword,
     newRecoveryCode,
   ].some(Boolean);
@@ -374,7 +376,7 @@ export default function SettingsPanel({
   }, [recovery.conflict]);
 
   function resetSecrets() {
-    setAuthPassword(""); setTotpCode(""); setTotpPassword(""); setTotpDisableCode(""); setRecoveryPassword(""); setNewRecoveryCode(null);
+    setAuthPassword(""); setTotpCode(""); setTotpPassword(""); setTotpDisableCode(""); setTotpDisablePassword(""); setRecoveryPassword(""); setNewRecoveryCode(null);
     setTotp({ status: "loading" }); setShowDisableConfirm(false); setShowRecoveryConfirm(false);
     totpFetchedRef.current = false; setTotpResetVersion((version) => version + 1);
   }
@@ -451,8 +453,8 @@ export default function SettingsPanel({
   useUnsavedSource("settings:credentials", {
     label: "Account security fields", dirty: accountFieldsDirty, saving: recoveryPending || totpPending, scope: "settings",
     writeRevision: revisionRef.current,
-    version: [authPassword, totpCode, totpPassword, totpDisableCode, recoveryPassword].join("\0"), discard: resetSecrets,
-    save: authPassword && !totpCode && !totpPassword && !totpDisableCode && !recoveryPassword && !newRecoveryCode && !conflict
+    version: [authPassword, totpCode, totpPassword, totpDisableCode, totpDisablePassword, recoveryPassword].join("\0"), discard: resetSecrets,
+    save: authPassword && !totpCode && !totpPassword && !totpDisableCode && !totpDisablePassword && !recoveryPassword && !newRecoveryCode && !conflict
       ? async () => Boolean((await handleSaveAuth()).ok) : undefined,
   });
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
@@ -517,10 +519,11 @@ export default function SettingsPanel({
       const res = await fetch("/api/auth/totp/setup", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
-        body: JSON.stringify({ code: totpDisableCode }),
+        body: JSON.stringify({ code: totpDisableCode, password: totpDisablePassword }),
       });
       if (res.ok) {
         setTotpDisableCode("");
+        setTotpDisablePassword("");
         setShowDisableConfirm(false);
         await fetchTotpStatus();
         setTotpMessage("2FA disabled.");
@@ -1337,7 +1340,11 @@ export default function SettingsPanel({
                   </button>
                 ) : (
                   <div className="settings-form-row settings-form-row--column">
-                    <p className="settings-hint">Enter your authenticator code to confirm:</p>
+                    <p className="settings-hint">Enter your current password and authenticator code to confirm:</p>
+                    <div className="settings-form-row">
+                      <label htmlFor="totp-disable-password">Current password</label>
+                      <input id="totp-disable-password" type="password" value={totpDisablePassword} onChange={(event) => setTotpDisablePassword(event.target.value)} className="settings-input" autoComplete="current-password" />
+                    </div>
                     <div className="settings-form-row">
                       <label htmlFor="totp-disable-code">Authenticator code</label>
                       <input
@@ -1357,13 +1364,13 @@ export default function SettingsPanel({
                       <button
                         className="settings-btn settings-btn--danger"
                         onClick={handleTotpDisable}
-                        disabled={totpDisableCode.length !== 6}
+                        disabled={totpDisableCode.length !== 6 || !totpDisablePassword}
                       >
                         Confirm Disable
                       </button>
                       <button
                         className="settings-btn"
-                        onClick={() => { setShowDisableConfirm(false); setTotpDisableCode(""); setTotpMessage(null); }}
+                        onClick={() => { setShowDisableConfirm(false); setTotpDisableCode(""); setTotpDisablePassword(""); setTotpMessage(null); }}
                       >
                         Cancel
                       </button>

@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { parse, stringify } from "yaml";
+import { generateSync } from "otplib";
 import { schemaV2Fixtures } from "../helpers/schema-v2";
 import { DEFAULT_MOCK_STATE } from "../helpers/mock-plex-server";
 import { chunkedRequest } from "../helpers/chunked-request";
@@ -59,6 +60,15 @@ test.describe.serial("authentication flow", () => {
   });
 
   // ── Setup form ────────────────────────────────────────────────────────────────
+
+  test("setup rejects cross-site submissions before creating an account", async ({ request }) => {
+    const response = await request.post("/api/setup", {
+      headers: { "Content-Type": "text/plain", Origin: "https://untrusted.example", "Sec-Fetch-Site": "cross-site" },
+      data: JSON.stringify({ username: "untrusted-setup", password: "untrusted-setup-password" }),
+    });
+    expect(response.status()).toBe(403);
+    expect(await (await request.get("/api/setup")).json()).toEqual({ setupRequired: true });
+  });
 
   test("setup form creates admin, shows the recovery code, and redirects to /login", async ({ page }) => {
     await goto(page, "/setup");
@@ -382,6 +392,36 @@ test.describe.serial("authentication flow", () => {
       expect((await page.request.post("/api/auth/logout", { headers })).status()).toBe(200);
       expect((await page.request.post("/api/auth/session/refresh", { headers })).status()).toBe(401);
     } finally { await other.close(); }
+  });
+
+  test("removing 2FA requires the current password and authenticator code", async ({ page }) => {
+    const headers = { "X-Kokpit-Request": "1" };
+    expect((await page.request.post("/api/auth/login", { headers, data: ADMIN })).status()).toBe(200);
+    const setup = await (await page.request.get("/api/auth/totp/setup")).json();
+    expect(setup.enabled).toBe(false);
+    expect((await page.request.post("/api/auth/totp/setup", {
+      headers, data: { secret: setup.secret, code: generateSync({ secret: setup.secret }), password: ADMIN.password },
+    })).status()).toBe(200);
+
+    expect((await page.request.delete("/api/auth/totp/setup", {
+      headers, data: { code: generateSync({ secret: setup.secret }) },
+    })).status()).toBe(400);
+    expect((await page.request.delete("/api/auth/totp/setup", {
+      headers, data: { code: generateSync({ secret: setup.secret }), password: "incorrect-password" },
+    })).status()).toBe(401);
+    expect(await (await page.request.get("/api/auth/totp/setup")).json()).toEqual({ enabled: true });
+
+    await goto(page, "/settings");
+    await selectSettingsTab(page, "Auth", "Authentication");
+    await page.getByRole("button", { name: "Disable 2FA", exact: true }).click();
+    await page.getByLabel("Authenticator code", { exact: true }).fill(generateSync({ secret: setup.secret }));
+    await expect(page.getByRole("button", { name: "Confirm Disable", exact: true })).toBeDisabled();
+    await page.locator("#totp-disable-password").fill(ADMIN.password);
+    const removal = page.waitForResponse(response => response.url().endsWith("/api/auth/totp/setup") && response.request().method() === "DELETE");
+    await page.getByRole("button", { name: "Confirm Disable", exact: true }).click();
+    expect((await removal).status()).toBe(200);
+    await expect(page.getByText("2FA disabled.", { exact: true })).toBeVisible();
+    expect((await (await page.request.get("/api/auth/totp/setup")).json()).enabled).toBe(false);
   });
 
   test("password recovery revokes every device and old cookies cannot be renewed", async ({ page, browser }) => {

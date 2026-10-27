@@ -10,43 +10,16 @@ import {
 import { isTrustedMutation } from "@/auth/requestGuard";
 import { passwordExceedsBcryptLimit } from "@/auth/passwords";
 import { NEW_PASSWORD_BYTE_LIMIT_MESSAGE } from "@/auth/passwordPolicy";
+import { reserveRecoveryAttempt, releaseSuccessfulLoginAttempt } from "@/auth/loginRateLimit";
 
 // Dummy hash so verifyRecoveryCode always does the same amount of work,
 // preventing username enumeration via response-time timing attacks.
 const DUMMY_HASH = createHash("sha256").update("dummy").digest("hex");
 
-const MAX_ATTEMPTS = 10;
-const WINDOW_MS = 60 * 60 * 1000; // 1 hour
-
-interface AttemptEntry { count: number; expiresAt: number }
-const attempts = new Map<string, AttemptEntry>();
-
-function pruneExpired() {
-  const now = Date.now();
-  for (const [key, entry] of attempts) {
-    if (now > entry.expiresAt) attempts.delete(key);
-  }
-}
-
-function isRateLimited(key: string): boolean {
-  const entry = attempts.get(key);
-  return !!entry && entry.count >= MAX_ATTEMPTS;
-}
-
-function recordFailure(key: string) {
-  const entry = attempts.get(key);
-  if (entry) {
-    entry.count += 1;
-  } else {
-    attempts.set(key, { count: 1, expiresAt: Date.now() + WINDOW_MS });
-  }
-}
-
 export async function POST(req: Request) {
   if (!isTrustedMutation(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  pruneExpired();
 
   let body: Record<string, unknown>;
   try {
@@ -87,11 +60,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const rateLimitKey = username.toLowerCase();
-  if (isRateLimited(rateLimitKey)) {
+  const admission = reserveRecoveryAttempt(username);
+  if (!admission.allowed) {
     return NextResponse.json(
       { error: "Too many attempts. Try again later." },
-      { status: 429 }
+      { status: 429, headers: { "Retry-After": String(admission.retryAfterSeconds) } }
     );
   }
 
@@ -100,7 +73,6 @@ export async function POST(req: Request) {
   const codeOk = verifyRecoveryCode(recoveryCode, candidateHash);
 
   if (!user || !user.recoveryCodeHash || !codeOk) {
-    recordFailure(rateLimitKey);
     return NextResponse.json(
       { error: "Invalid username or recovery code" },
       { status: 401 }
@@ -111,13 +83,12 @@ export async function POST(req: Request) {
   // Recheck and consume the exact recovery-code hash in the same transaction
   // as credential/session replacement. A concurrent reset can win only once.
   if (!updatePasswordWithRecoveryCode(user.id, candidateHash, passwordHash)) {
-    recordFailure(rateLimitKey);
     return NextResponse.json(
       { error: "Invalid username or recovery code" },
       { status: 401 }
     );
   }
-  attempts.delete(rateLimitKey);
+  releaseSuccessfulLoginAttempt(admission.attempt);
 
   return NextResponse.json({
     ok: true,

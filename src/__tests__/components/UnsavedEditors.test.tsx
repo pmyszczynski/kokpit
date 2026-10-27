@@ -426,11 +426,13 @@ describe("settings draft baselines and memory recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: "Auth" }));
     fireEvent.click(await screen.findByRole("button", { name: "Disable 2FA" }));
     fireEvent.change(screen.getByLabelText("Authenticator code"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#totp-disable-password" }), { target: { value: "not-retained" } });
     fireEvent.click(screen.getByRole("button", { name: "Discard local settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Discard and continue" }));
     expect(await screen.findByRole("button", { name: "Disable 2FA" })).toBeInTheDocument();
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Authenticator code")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Current password", { selector: "#totp-disable-password" })).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
