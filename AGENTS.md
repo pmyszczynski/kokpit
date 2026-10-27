@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 3 — Personalization
-**Current task:** Phase 3 status indicator upgrades: per-service dot/badge presentation and batched saved-service observations with shared server scheduling/cache and browser polling. Preserve reachability/HTTP/checker distinctions, protected tooltips, lifecycle/auth boundaries, and legacy `/api/ping` compatibility. Theme schema documentation is deferred to P2. OpenWeatherMap shipped in v0.33.0; preserve existing widgets and Search's saved and implicit Wide geometry. Netdata dashboard UI migration remains deferred.
+**Current task:** Phase 3 status indicator upgrades are complete for v0.34.0: per-service dot/badge presentation and batched saved-service observations with shared server scheduling/cache and browser polling. Next roadmap item: P2 empty states & onboarding — ghost "+" tiles in empty groups while editing and first-edit coach marks; the empty-dashboard welcome card is already complete. Theme schema documentation remains P2. Preserve reachability/HTTP/checker distinctions, protected tooltips, lifecycle/auth boundaries, legacy `/api/ping` compatibility, existing widgets, and Search's saved and implicit Wide geometry. Netdata dashboard UI migration remains deferred.
 
 ---
 
