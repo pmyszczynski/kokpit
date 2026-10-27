@@ -200,8 +200,8 @@ are reassessed separately and are not part of this work.
   - [x] **IMP-15 — Distinguish service reachability, HTTP failures, and probe errors**; show HTTP status and response time without treating login-required services as offline. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-15)
     - Implemented for v0.31.2: Saved-service HEAD observations distinguish HTTP health, transport failures and checker unavailability, with measured latency and accessible protected tooltips.
   - [x] Hover tooltip with response time + HTTP status (v0.31.2)
-  - [x] Optional `statusStyle: dot | badge`, shared per service and editable in UI/YAML
-  - [x] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
+  - [x] Optional `statusStyle: dot | badge`, shared per service and editable in UI/YAML (v0.34.0)
+  - [x] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab (v0.34.0)
     - One browser poller batches up to 20 saved service IDs per request; process-local shared checks have bounded concurrency, a 30-second success cache, and independent failure backoff up to five minutes. Legacy `POST /api/ping` remains compatible.
 
 - [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
