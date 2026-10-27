@@ -37,6 +37,7 @@ export interface ForecastDay {
   date: string; code: number | null; high: number | null; low: number | null; precipitation: number | null;
 }
 export interface WeatherData {
+  provider?: "openweathermap";
   temperature: number | null; feelsLike: number | null; humidity: number | null;
   wind: number | null; code: number | null; isDay: boolean | null;
   observedAt: string; timezone: string; imperial: boolean; forecast: ForecastDay[];

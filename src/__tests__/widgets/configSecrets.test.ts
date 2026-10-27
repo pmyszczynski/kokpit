@@ -73,6 +73,7 @@ describe("widget credential scope registry invariant", () => {
       "netdata-net": ["url"],
       "netdata-ram": ["url"],
       "netdata-sensor": ["url"],
+      openweathermap: ["url"],
       plex: ["url"],
       "prowlarr-stats": ["url"],
       "qbittorrent-stats": ["url", "username"],

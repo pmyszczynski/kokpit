@@ -1763,6 +1763,42 @@ describe("ServiceForm – Tautulli defaults", () => {
 });
 
 describe("ServiceForm – test connection", () => {
+  it.each([false, true])("tests a catalog-only Tautulli connection with default display sections (saved key: %s)", async savedKey => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const config = { url: "http://tautulli.local:8181", api_key: savedKey ? SAVED_TAUTULLI_SECRET : "key" };
+    render(<ServiceForm service={{ name: "Tautulli account", editorCatalogOnly: true,
+      integration: { type: "tautulli", config },
+    }} existingGroups={[]} onSave={noop} onClose={noop} />);
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    expect(screen.queryByText(/configure its required widget options/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() => expect(screen.getByText("Connection OK")).toBeInTheDocument());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ type: "tautulli-activity", config });
+  });
+  it("requires a tile location before testing an OpenWeatherMap catalog connection", () => {
+    render(<ServiceForm service={{ name: "Weather account", editorCatalogOnly: true, integration: {
+      type: "openweathermap", config: { url: "https://api.openweathermap.org", api_key: "key" },
+    } }} existingGroups={[]} onSave={noop} onClose={noop} />);
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    expect(screen.getByText(/configure its required widget options/)).toBeInTheDocument();
+  });
+  it("tests OpenWeatherMap with draft tile coordinates and the protected connection", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ServiceForm service={null} initialPreset="openweathermap" existingGroups={[]} onSave={noop} onClose={noop} />);
+    fireEvent.change(screen.getByLabelText("API base URL *"), { target: { value: "https://api.openweathermap.org" } });
+    fireEvent.change(screen.getByLabelText("API key *"), { target: { value: "draft-key" } });
+    expect(screen.getByText("Test connection")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Latitude *"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Longitude *"), { target: { value: "-0.1278" } });
+    expect(screen.getByText("Test connection")).toBeEnabled();
+    fireEvent.click(screen.getByText("Test connection"));
+    await waitFor(() => expect(screen.getByText("Connection OK")).toBeInTheDocument());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ type: "openweathermap", config: {
+      url: "https://api.openweathermap.org", api_key: "draft-key", latitude: 0, longitude: -0.1278,
+    } });
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -1812,7 +1848,7 @@ describe("ServiceForm – test connection", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body).toEqual({
       type: "plex",
-      config: { url: "http://plex.local:32400", token: "secret" },
+      config: { url: "http://plex.local:32400", token: "secret", size_defaults: true },
       footprint: { columnSpan: 3, rowSpan: 2 },
     });
   });
@@ -1892,6 +1928,7 @@ describe("ServiceForm – test connection", () => {
       config: {
         url: "http://tautulli.local:8181",
         api_key: SAVED_TAUTULLI_SECRET,
+        sections: ["summary"],
       },
     });
   });

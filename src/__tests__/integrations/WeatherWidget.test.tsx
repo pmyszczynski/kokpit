@@ -9,6 +9,11 @@ const data: WeatherData = { temperature: -3.2, feelsLike: -5.8, humidity: 0, win
 const props = { data, loading: false, error: null, refresh: () => {} };
 
 describe("WeatherWidget", () => {
+  it("credits OpenWeatherMap for its provider data", () => {
+    render(<WeatherWidget {...props} data={{ ...data, provider: "openweathermap" }} />);
+    expect(screen.getByRole("link", { name: "Weather by OpenWeatherMap" })).toHaveAttribute("href", "https://openweathermap.org/");
+    expect(screen.queryByRole("link", { name: "Weather by Open-Meteo" })).not.toBeInTheDocument();
+  });
   it.each([[3, 2, 2], [6, 2, 3], [6, 4, 6]])("uses %s×%s with %s stats", (columnSpan, rowSpan, count) => {
     const { container } = render(<WeatherWidget {...props} footprint={{ columnSpan, rowSpan }} />);
     expect(container.querySelectorAll(".widget-stat")).toHaveLength(count);

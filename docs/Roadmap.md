@@ -152,9 +152,9 @@ are reassessed separately and are not part of this work.
   - Docker container count / status overview
   - Data via local `/proc` + `statfs`, with an optional Docker socket for the container overview
 
-- [ ] `P1` **Useful API widgets**
+- [x] `P1` **Useful API widgets**
   - [x] Weather: Open-Meteo (no API key), current conditions / five-day forecast, per-tile coordinates and metric/imperial units, shared UI
-  - [ ] Additional weather provider: OpenWeatherMap (API key)
+  - [x] Additional weather provider: OpenWeatherMap (API key), protected reusable connection and shared Weather layouts; Current Weather plus daily summaries of the 5 Day / 3 Hour Forecast
   - [x] RSS / Atom feed reader: per-tile feed URL and article limit, shared scrolling headlines/dates/links, Detailed summaries
   - [x] Calendar widget: read-only CalDAV collections and public Google Calendar via API key, shared Agenda 3×4 / Detailed 6×4, per-tile time zone and event window
   - [x] Hermes AI agent: read-only health, API-run count, scheduled jobs and recent sessions; Default 3x4 / Wide 6x3

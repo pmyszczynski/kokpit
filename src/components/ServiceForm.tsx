@@ -12,6 +12,7 @@ import {
 import { resolveIconRef } from "@/config/iconRef";
 import "@/integrations";
 import {
+  getIntegration,
   getWidget,
   getWidgetsWithServiceEditorPreset,
 } from "@/widgets";
@@ -787,20 +788,26 @@ export default function ServiceForm({
     (field) => !widgetOptionKeys(selectedIntegrationDef.id).has(field.key)
   ) ?? [];
   const cleanedIntegrationConfig = cleanWidgetConfig(integrationConfig);
+  const integrationValidationConfig = selectedIntegrationDef
+    ? opaqueConfigHidden
+      ? configForOpaqueConnectionValidation(selectedIntegrationDef, cleanedIntegrationConfig)
+      : widgetConfigForValidation(selectedIntegrationDef.configFields, cleanedIntegrationConfig)
+    : cleanedIntegrationConfig;
   const integrationConfigIssues = selectedIntegrationDef
     ? widgetConfigIssues(
-      selectedIntegrationDef,
-      opaqueConfigHidden
-        ? configForOpaqueConnectionValidation(selectedIntegrationDef, cleanedIntegrationConfig)
-        : widgetConfigForValidation(
-            selectedIntegrationDef.configFields,
-            cleanedIntegrationConfig
-          )
+      { ...selectedIntegrationDef, configSchema: getIntegration(integrationType)?.connectionSchema ?? selectedIntegrationDef.configSchema },
+      integrationValidationConfig
     )
     : [];
   const integrationConfigValid = selectedIntegrationDef
     ? integrationConfigIssues.length === 0
     : true;
+  // Editor-required display fields may have schema defaults. Only missing
+  // options that actually fail fetch validation need a tile before testing.
+  const integrationTestNeedsTile = !selectedWidgetDef && selectedIntegrationDef &&
+    widgetConfigIssues(selectedIntegrationDef, integrationValidationConfig).some(issue =>
+      widgetOptionKeys(selectedIntegrationDef.id).has(issue.path.split(".")[0])
+    );
   const activeCleanedConfig = cleanWidgetConfig(
     activeRawConfig, activeWidgetType
   );
@@ -997,7 +1004,7 @@ export default function ServiceForm({
     // Keep testing a newly picked tile available before its Service
     // integration is explicitly selected. Persistence still uses only the
     // editorIntegration command above.
-    const testDefinition = legacyDirectConfig
+    const testDefinition = legacyDirectConfig || (selectedWidgetDef && selectedIntegrationType === requestedIntegrationType)
       ? selectedWidgetDef
       : selectedIntegrationDef ?? selectedWidgetDef;
     if (
@@ -1022,7 +1029,7 @@ export default function ServiceForm({
           config: selectedIntegrationDef && !legacyDirectConfig && opaqueConfigHidden
             ? service!.integration!.config
             : selectedIntegrationDef && !legacyDirectConfig
-              ? cleanedIntegrationConfig
+              ? { ...cleanedIntegrationConfig, ...(selectedIntegrationType === requestedIntegrationType ? activeCleanedConfig : {}) }
               : selectedWidgetRequiresIntegration
                 ? { ...cleanedIntegrationConfig, ...activeCleanedConfig }
                 : activeCleanedConfig,
@@ -1375,6 +1382,7 @@ export default function ServiceForm({
                 disabled={
                   testStatus.state === "testing" ||
                   !integrationConfigValid ||
+                  integrationTestNeedsTile ||
                   widgetConfigValid === false ||
                   savedCredentialsStale ||
                   integrationConflict ||
@@ -1383,6 +1391,7 @@ export default function ServiceForm({
               >
                 {testStatus.state === "testing" ? "Testing…" : "Test connection"}
               </button>
+              {integrationTestNeedsTile && <p className="settings-form-hint">Choose a tile type and configure its required widget options before testing this connection.</p>}
               {testStatus.state === "success" && (
                 <span className="service-form__test-result service-form__test-result--success" role="status">
                   Connection OK
@@ -1658,8 +1667,10 @@ export default function ServiceForm({
               </p>
             )}
 
-            {activeWidgetType === "weather" && (
+            {(activeWidgetType === "weather" || activeWidgetType === "openweathermap") && (
               <WeatherLocationButton
+                key={`weather-location:${activeWidgetType}`}
+                providerName={activeWidgetType === "openweathermap" ? "OpenWeatherMap" : "Open-Meteo"}
                 latitude={activeRawConfig.latitude}
                 longitude={activeRawConfig.longitude}
                 onDetect={({ latitude, longitude }) => {

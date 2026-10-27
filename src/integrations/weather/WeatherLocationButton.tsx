@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 interface Coordinates { latitude: number; longitude: number }
 interface Props {
+  providerName?: string;
   latitude: unknown;
   longitude: unknown;
   onDetect: (coordinates: Coordinates) => void;
 }
 
 /** One explicit browser lookup; only the reviewed coordinates enter tile config. */
-export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) {
+export function WeatherLocationButton({ latitude, longitude, onDetect, providerName = "Open-Meteo" }: Props) {
   const request = useRef(0);
   const [result, setResult] = useState<{
     latitude: unknown; longitude: unknown; pending: boolean; error: boolean; message: string;
@@ -83,7 +84,7 @@ export function WeatherLocationButton({ latitude, longitude, onDetect }: Props) 
       {current?.pending ? "Cancel location detection" : "Use my location"}
     </button>
     <p id="sf-weather-location-hint" className="settings-form-hint">
-      Uses this device’s location once, with your permission. Review the approximate coordinates before saving this tile. Testing sends draft coordinates to Open-Meteo; saving enables later weather fetches. All viewers see the same saved location.
+      Uses this device’s location once, with your permission. Review the approximate coordinates before saving this tile. Testing sends draft coordinates to {providerName}; saving enables later weather fetches. All viewers see the same saved location.
     </p>
     <div role="status" aria-atomic="true">
       {current && !current.error && <p className="settings-form-hint">{current.message}</p>}

@@ -6,15 +6,18 @@ import { weatherCondition, weatherTone } from "./conditions";
 import { weatherSetupGuide } from "./setupGuide";
 import "./widget.css";
 
+/** Format provider-unit temperatures without converting them a second time. */
 function temperature(value: number | null, imperial: boolean) {
   return value == null ? "—" : `${Math.round(value)}°${imperial ? "F" : "C"}`;
 }
 
+/** Keep date-only forecasts on their saved day regardless of browser time zone. */
 function forecastDate(date: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
     .format(new Date(`${date}T12:00:00Z`));
 }
 
+/** Shared Compact, Wide and Detailed presentation for both weather providers. */
 export function WeatherWidget({ data, loading, error, footprint }: WidgetProps<WeatherData>) {
   if (!data) return <WidgetBody centered className="weather-widget">
     <WidgetState state={loading ? "loading" : error ? "error" : "empty"}>{!loading ? error ?? "Weather unavailable" : undefined}</WidgetState>
@@ -39,8 +42,8 @@ export function WeatherWidget({ data, loading, error, footprint }: WidgetProps<W
   </WidgetStatGrid>;
   return <WidgetBody className="weather-widget" reserveNotice noticeClassName="weather-widget__notice" notice={<>
     <WidgetStaleNotice error={error} />
-    <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer"
-      title={`Updated ${data.observedAt.replace("T", " ")} (${data.timezone})`}>Weather by Open-Meteo</a>
+    <a href={data.provider === "openweathermap" ? "https://openweathermap.org/" : "https://open-meteo.com/"} target="_blank" rel="noopener noreferrer"
+      title={`Updated ${data.observedAt.replace("T", " ")} (${data.timezone})`}>Weather by {data.provider === "openweathermap" ? "OpenWeatherMap" : "Open-Meteo"}</a>
   </>}>
     {detailed ? <WidgetList label="Five-day weather forecast" header={grid} className="weather-widget__forecast"
       empty={data.forecast.length === 0 ? <WidgetState state="empty">Forecast unavailable</WidgetState> : undefined}>
@@ -54,8 +57,8 @@ export function WeatherWidget({ data, loading, error, footprint }: WidgetProps<W
   </WidgetBody>;
 }
 
-const FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [
-  { key: "latitude", label: "Latitude", type: "number", required: true, placeholder: "51.5074", description: "Required decimal degrees, −90 to 90; south is negative and 0 is valid. Enter only latitude here, or use Use my location. The Name labels the tile without looking up a city. Testing or fetching weather sends the coordinates to Open-Meteo." },
+export const WEATHER_FIELDS: Exclude<WidgetConfigField, { type: "password" }>[] = [
+  { key: "latitude", label: "Latitude", type: "number", required: true, placeholder: "51.5074", description: "Required decimal degrees, −90 to 90; south is negative and 0 is valid. Enter only latitude here, or use Use my location. The Name labels the tile without looking up a city. Testing or fetching weather sends the coordinates to the selected provider." },
   { key: "longitude", label: "Longitude", type: "number", required: true, placeholder: "-0.1278", description: "Required decimal degrees, −180 to 180; west is negative and 0 is valid. For London use -0.1278 with latitude 51.5074. No compass letters or coordinate pair. All viewers use this tile’s saved location." },
   { key: "imperial", label: "Use imperial units", type: "boolean", defaultValue: false, description: "Off/empty defaults to Celsius and km/h. On uses Fahrenheit (including forecast temperatures) and mph. Humidity and precipitation probability remain percentages." },
 ];
@@ -69,7 +72,7 @@ registerWidget<WeatherConfig, WeatherData>({
     { label: "Wide", columnSpan: 6, rowSpan: 2 },
     { label: "Detailed", columnSpan: 6, rowSpan: 4 },
   ],
-  configFields: FIELDS, optionFields: FIELDS,
+  configFields: WEATHER_FIELDS, optionFields: WEATHER_FIELDS,
   setupGuide: weatherSetupGuide,
   footprintDescription: "Compact 3×2 shows temperature and conditions. Wide 6×2 adds Feels like. Detailed 6×4 adds humidity, wind, dated precipitation probability and a scrolling five-day forecast with daily low/high, conditions and precipitation probability. Every size fetches the same weather data.",
   serviceEditorPreset: { defaultName: "Weather", defaultIconUrl: "mdi-weather-partly-cloudy" },
