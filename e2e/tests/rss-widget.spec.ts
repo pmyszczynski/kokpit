@@ -1,3 +1,4 @@
+import { serviceStatusBatch } from "../helpers/service-status";
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import type { RssData } from "../../src/integrations/rss/api";
 import { withSettledConfigurationCheck } from "../helpers/configuration-check";
@@ -16,7 +17,7 @@ async function configure(request: APIRequestContext, footprints = [FOOTPRINTS[0]
 const tile = (page: Page) => page.locator('.service-tile').filter({ has: page.locator('[data-widget-type="rss"]') });
 async function mock(page: Page, data: RssData | null = DATA) {
   await page.route("**/api/widget?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, data }) }));
-  await page.route("**/api/ping", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, status: 200 }) }));
+  await page.route("**/api/status?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(serviceStatusBatch(route.request().url(), { ok: true, status: 200 })) }));
 }
 test.use({ locale: "en-US", timezoneId: "Pacific/Kiritimati" });
 

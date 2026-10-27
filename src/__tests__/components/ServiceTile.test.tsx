@@ -8,11 +8,18 @@ import { createBrowserPollingLifecycle } from "@/lib/clientPolling";
 import { PollingLifecycleProvider } from "@/components/PollingLifecycle";
 import { ConfigurationSyncProvider } from "@/components/ConfigurationSyncProvider";
 
+const TEST_SERVICE_ID = "10000000-0000-4000-8000-000000000001";
+function probeBatch(value: unknown) {
+  if (value && typeof value === "object" && "revision" in value) return value;
+  return { statuses: Object.fromEntries([TEST_SERVICE_ID, "saved-service", "old-service", "new-service"].map(id => [id, value])) };
+}
+function probeJson(value: unknown, options?: ResponseInit) { return Response.json(probeBatch(value), options); }
+
 const navigation = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
 function serviceReachabilityResponse(reachable: boolean, status = 200) {
-  return Response.json(reachable
+  return probeJson(reachable
     ? { ok: true, reachable: true, status: 200, checkedAt: 0, responseTimeMs: 2 }
     : { ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 2 },
   { status });
@@ -37,7 +44,7 @@ describe("ServiceTile", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ok: true, status: 200 }),
+        json: () => Promise.resolve(probeBatch({ ok: true, status: 200 })),
       } as Response)
     );
     editModeOptional.current = null;
@@ -147,7 +154,7 @@ describe("ServiceTile", () => {
     let resolveOld!: (response: Response) => void;
     let resolveNew!: (response: Response) => void;
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ ok: true, status: 200 }))
+      .mockResolvedValueOnce(probeJson({ ok: true, status: 200 }))
       .mockReturnValueOnce(new Promise<Response>(resolve => { resolveOld = resolve; }))
       .mockReturnValueOnce(new Promise<Response>(resolve => { resolveNew = resolve; }));
     vi.stubGlobal("fetch", fetchMock);
@@ -161,11 +168,11 @@ describe("ServiceTile", () => {
     expect(oldSignal.aborted).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(screen.getByRole("img", { name: "Checking service reachability" })).toBeInTheDocument();
-    await act(async () => resolveNew(Response.json({ ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 1 })));
-    await act(async () => resolveOld(Response.json({ ok: true, status: 200 })));
+    await act(async () => resolveNew(probeJson({ ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 1 })));
+    await act(async () => resolveOld(probeJson({ ok: true, status: 200 })));
     expect(screen.getByRole("img", { name: /^Unreachable from Kokpit/ })).toBeInTheDocument();
     expect(screen.getByRole("link")).toHaveAttribute("href", "http://new.local");
-    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string)).toEqual({ serviceId });
+    expect(new URL(fetchMock.mock.calls[2][0] as string, "http://localhost").searchParams.get("ids")).toBe(serviceId);
   });
 
   it("links to the correct URL in a new tab", async () => {
@@ -487,7 +494,7 @@ describe("ServiceTile", () => {
 
   it("status dot shows ok after ping resolves", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true, status: 200 }),
+      json: () => Promise.resolve(probeBatch({ ok: true, status: 200 })),
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
     await act(async () => {
@@ -495,11 +502,8 @@ describe("ServiceTile", () => {
     });
     // act() flushes effects and the initial fetch promise
     expect(screen.getByTitle(/^Reachable; HTTP 200/)).toHaveClass("status-dot--ok");
-    expect(fetchMock).toHaveBeenCalledWith("/api/ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serviceId: "10000000-0000-4000-8000-000000000001" }),
-      signal: expect.any(AbortSignal),
+    expect(fetchMock).toHaveBeenCalledWith(`/api/status?ids=${TEST_SERVICE_ID}`, {
+      cache: "no-store", signal: expect.any(AbortSignal),
     });
   });
 
@@ -509,7 +513,7 @@ describe("ServiceTile", () => {
     let probes = 0;
     let resolveNew!: (response: Response) => void;
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      if (url !== "/api/ping") return Response.json({ revision, editable: true });
+      if (!url.startsWith("/api/status?")) return probeJson({ revision, editable: true });
       if (++probes === 1) return serviceReachabilityResponse(wasOnline);
       return new Promise<Response>((resolve) => { resolveNew = resolve; });
     }));
@@ -536,7 +540,7 @@ describe("ServiceTile", () => {
     let revision = "one";
     let probes = 0;
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      if (url !== "/api/ping") return Response.json({ revision, editable: true });
+      if (!url.startsWith("/api/status?")) return probeJson({ revision, editable: true });
       probes++;
       return serviceReachabilityResponse(true);
     }));
@@ -562,7 +566,7 @@ describe("ServiceTile", () => {
     let resolveNew!: (response: Response) => void;
     const signals: AbortSignal[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
-      if (url !== "/api/ping") return Response.json({ revision, editable: true });
+      if (!url.startsWith("/api/status?")) return probeJson({ revision, editable: true });
       signals.push(options!.signal as AbortSignal);
       if (++probes === 1) return serviceReachabilityResponse(true);
       return new Promise<Response>((resolve) => { if (probes === 2) resolveOld = resolve; else resolveNew = resolve; });
@@ -603,7 +607,7 @@ describe("ServiceTile", () => {
     const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     const source = createBrowserPollingLifecycle();
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ ok: true, status: 200 }))
+      .mockResolvedValueOnce(probeJson({ ok: true, status: 200 }))
       .mockReturnValue(new Promise(() => {}));
     vi.stubGlobal("fetch", fetchMock);
     await act(async () => {
@@ -627,7 +631,7 @@ describe("ServiceTile", () => {
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     const source = createBrowserPollingLifecycle();
     source.setBeforeResume(() => source.setAccessAllowed(false));
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true, status: 200 }));
+    const fetchMock = vi.fn().mockResolvedValue(probeJson({ ok: true, status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     render(<PollingLifecycleProvider value={source}>
       <ServiceTile serviceId="10000000-0000-4000-8000-000000000001" name="Jellyfin" url="http://jellyfin.local" />
@@ -648,7 +652,7 @@ describe("ServiceTile", () => {
     const reconcile = vi.fn();
     source.setReconciliationHandler(reconcile);
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ ok: true, status: 200 }))
+      .mockResolvedValueOnce(probeJson({ ok: true, status: 200 }))
       .mockResolvedValue(new Response("unavailable", { status }));
     vi.stubGlobal("fetch", fetchMock);
     await act(async () => {
@@ -668,7 +672,7 @@ describe("ServiceTile", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 10 }),
+        json: () => Promise.resolve(probeBatch({ ok: false, reachable: false, assessment: "unreachable", reason: "connection-failed", checkedAt: 0, responseTimeMs: 10 })),
       } as Response)
     );
 
@@ -720,7 +724,7 @@ describe("ServiceTile", () => {
 
   it("preview mode suppresses status ping polling", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true, status: 200 }),
+      json: () => Promise.resolve(probeBatch({ ok: true, status: 200 })),
     } as Response);
     vi.stubGlobal("fetch", mockFetch);
 
@@ -742,7 +746,7 @@ describe("ServiceTile", () => {
 
   it("preview mode renders a static widget placeholder instead of polling the widget", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true, status: 200 }),
+      json: () => Promise.resolve(probeBatch({ ok: true, status: 200 })),
     } as Response);
     vi.stubGlobal("fetch", mockFetch);
 
@@ -769,7 +773,7 @@ describe("ServiceTile", () => {
 
   it("polls ping again after 30 seconds", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ ok: true, status: 200 }),
+      json: () => Promise.resolve(probeBatch({ ok: true, status: 200 })),
     } as Response);
     vi.stubGlobal("fetch", mockFetch);
 
@@ -797,7 +801,7 @@ describe("ServiceTile broken-widget badge", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ok: true, status: 200 }),
+        json: () => Promise.resolve(probeBatch({ ok: true, status: 200 })),
       } as Response)
     );
     editModeOptional.current = null;

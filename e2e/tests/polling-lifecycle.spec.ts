@@ -1,3 +1,4 @@
+import { serviceStatusBatch } from "../helpers/service-status";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 async function configure(request: APIRequestContext, interval?: number) {
@@ -37,7 +38,7 @@ test("hidden and offline dashboards retain data, pause requests and recover once
     widgetRequests++;
     return route.fulfill({ json: { ok: true, data: { action: "https://duckduckgo.com/", queryParameter: "q", parameters: [], engineName: `Engine ${widgetRequests}`, newTab: true } } });
   });
-  await page.route("**/api/ping", route => { pingRequests++; return route.fulfill({ json: { ok: true, status: 200 } }); });
+  await page.route("**/api/status?*", route => { pingRequests++; return route.fulfill({ json: serviceStatusBatch(route.request().url(), { ok: true, status: 200 }) }); });
   await page.goto("/");
   const tile = page.locator(".service-tile").filter({ hasText: "Polling lifecycle" });
   await expect(tile.getByRole("searchbox")).toBeVisible();
@@ -81,7 +82,7 @@ test("interval-zero widgets do not start background polling after reconnect or f
     widgetRequests++;
     return route.fulfill({ json: { ok: true, data: { action: "https://duckduckgo.com/", queryParameter: "q", parameters: [], engineName: "Saved engine", newTab: true } } });
   });
-  await page.route("**/api/ping", route => route.fulfill({ json: { ok: true, status: 200 } }));
+  await page.route("**/api/status?*", route => route.fulfill({ json: serviceStatusBatch(route.request().url(), { ok: true, status: 200 }) }));
   await page.goto("/");
   await expect(page.getByRole("searchbox")).toBeVisible();
   const initial = widgetRequests;

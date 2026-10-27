@@ -47,6 +47,7 @@ function renderServiceTile({ service, tile }: { service: Service; tile: import("
       serviceId={service.id}
       name={service.name}
       url={service.launch_url}
+      statusStyle={service.statusStyle}
       icon={service.icon}
       description={service.description}
       widget={resolveTileWidget(tile.widget, service.integration?.config)}

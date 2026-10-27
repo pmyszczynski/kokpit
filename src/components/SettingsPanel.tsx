@@ -295,7 +295,7 @@ export default function SettingsPanel({
       }) };
     }) : undefined,
     // Connection/widget configs are deliberately excluded, including opaque references.
-    services: dirtySections.services ? services.map(({ id, tileId, name, url, icon, description, group, footprint, widget, editorCatalogOnly }) => {
+    services: dirtySections.services ? services.map(({ id, tileId, name, url, icon, description, group, footprint, widget, editorCatalogOnly, statusStyle }) => {
       const original = confirmedServices.find((service) => service.id === id && service.tileId === tileId);
       const nameChanged = name !== original?.name;
       const descriptionChanged = description !== original?.description;
@@ -304,7 +304,7 @@ export default function SettingsPanel({
       const iconChanged = icon !== original?.icon;
       return { id, tileId, nameChanged, descriptionChanged, groupChanged,
         name: nameChanged ? name : undefined, description: descriptionChanged ? description : undefined,
-        group: groupChanged ? group : undefined, footprint, editorCatalogOnly,
+        group: groupChanged ? group : undefined, footprint, editorCatalogOnly, statusStyle,
         urlChanged, iconChanged, url: urlChanged ? url : undefined, icon: iconChanged ? icon : undefined,
         widget: widget ? { type: widget.type, fields: widget.fields, refresh_interval_ms: widget.refresh_interval_ms } : undefined };
     }) : undefined,

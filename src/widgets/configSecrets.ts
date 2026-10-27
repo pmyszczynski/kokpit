@@ -199,7 +199,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
         const legacy = service as Service;
         if (!legacy.widget?.config) return {
           id: service.id!, name: service.name, launch_url: service.launch_url,
-          icon: service.icon, description: service.description, category: service.category,
+          icon: service.icon, description: service.description, category: service.category, ...(service.statusStyle ? { statusStyle: service.statusStyle } : {}),
         };
         const raw = legacy.widget.config;
         const definition = getWidget(legacy.widget.type);
@@ -216,7 +216,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
         }
         return {
           id: legacy.id!, name: legacy.name, launch_url: legacy.launch_url,
-          icon: legacy.icon, description: legacy.description, category: legacy.category,
+          icon: legacy.icon, description: legacy.description, category: legacy.category, ...(legacy.statusStyle ? { statusStyle: legacy.statusStyle } : {}),
           widget: { type: legacy.widget.type, fields: legacy.widget.fields, refresh_interval_ms: legacy.widget.refresh_interval_ms, config: safeConfig },
         } as ClientSafeService;
       }
@@ -241,7 +241,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
       if (hideWholeConfig) {
         return {
           id: service.id, name: service.name, launch_url: service.launch_url,
-          icon: service.icon, description: service.description, category: service.category,
+          icon: service.icon, description: service.description, category: service.category, ...(service.statusStyle ? { statusStyle: service.statusStyle } : {}),
           integration: {
             ...service.integration,
             config: {
@@ -264,7 +264,7 @@ export function toClientSafeSettings(config: KokpitConfig): ClientSafeSettings {
       }
       return {
         id: service.id, name: service.name, launch_url: service.launch_url,
-        icon: service.icon, description: service.description, category: service.category,
+        icon: service.icon, description: service.description, category: service.category, ...(service.statusStyle ? { statusStyle: service.statusStyle } : {}),
         integration: { ...service.integration, config: safeConfig },
       };
     }),

@@ -1,5 +1,7 @@
+import { serviceStatusBatch } from "../helpers/service-status";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
 
 const CHECKED_AT = Date.UTC(2026, 9, 20, 12);
 const statuses = [200, 302, 401, 403, 404, 405, 500, 501, "timeout", "capacity"] as const;
@@ -14,14 +16,15 @@ async function configure(request: APIRequestContext, theme = "dark", custom_css 
 }
 
 async function mock(page: Page) {
-  await page.route("**/api/ping", route => {
-    const serviceId = route.request().postDataJSON().serviceId;
+  await page.route("**/api/status?*", route => {
+    return route.fulfill({ json: serviceStatusBatch(route.request().url(), serviceId => {
     const status = statuses[Number(serviceId.slice(-12)) - 1];
     const metadata = { checkedAt: CHECKED_AT - 5000, responseTimeMs: 42.5 };
     const result = status === "timeout" ? { ok: false, reachable: false, assessment: "unreachable", reason: "timeout", ...metadata }
       : status === "capacity" ? { ok: false, reachable: null, assessment: "unavailable", reason: "capacity", checkedAt: CHECKED_AT, responseTimeMs: null }
         : { ok: true, reachable: true, status, ...metadata };
-    return route.fulfill({ json: result });
+    return result;
+    }) });
   });
 }
 
@@ -83,6 +86,37 @@ test("custom CSS overrides indicator colors and tooltip text", async ({ page, re
   await expect(page.getByRole("tooltip")).toHaveCSS("color", "rgb(4, 5, 6)");
 });
 
+test("custom CSS controls badge width and header clearance in view and edit modes", async ({ page, request }) => {
+  await mock(page);
+  await configure(request, "dark", '.status-dot--badge { width: 96px; } .service-tile__header[data-corner-slot="status-badge"] { --tile-corner-reach: 130px; }');
+  const settings = await (await request.get("/api/settings")).json();
+  expect((await request.patch("/api/settings", { data: { services: settings.services.map((service: Record<string, unknown>) => ({ ...service, statusStyle: "badge" })) } })).ok()).toBe(true);
+  await page.goto("/");
+  const header = page.locator('.service-tile__header[data-corner-slot="status-badge"]').first();
+  await expect(page.locator(".status-dot--badge").first()).toHaveCSS("width", "96px");
+  await expect(header).toHaveCSS("--tile-corner-reach", "130px");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await expect(header).toHaveCSS("--tile-corner-reach", "130px");
+});
+
+test("non-HTTP launch links stay outside the shared status batch", async ({ page, request }) => {
+  const requests: string[][] = [];
+  await page.route("**/api/status?*", route => {
+    const url = route.request().url();
+    requests.push(new URL(url).searchParams.get("ids")!.split(","));
+    return route.fulfill({ json: serviceStatusBatch(url, { ok: true, reachable: true, status: 200, checkedAt: CHECKED_AT, responseTimeMs: 2 }) });
+  });
+  expect((await request.patch("/api/settings", { data: {
+    services: ["https://example.com", "steam://rungameid/123", "ssh://server.local"].map((launch_url, index) => ({ id: id("1", index), name: `Launch ${index}`, launch_url, statusStyle: "badge" })),
+    service_tiles: [0, 1, 2].map(index => ({ id: id("2", index), service_id: id("1", index) })), groups: [], bookmarks: [],
+  } })).ok()).toBe(true);
+  await page.goto("/");
+  await expect(page.locator(".status-dot--badge")).toHaveText("Reachable");
+  expect(requests).toEqual([[id("1", 0)]]);
+  await expect(page.getByRole("link", { name: "Launch 1", exact: true })).toHaveAttribute("href", "steam://rungameid/123");
+  await expect(page.locator('.service-tile__header[data-corner-slot="status-badge"]')).toHaveCount(1);
+});
+
 test("tiles in separate browser tabs share one guarded HEAD observation for a protected service", async ({ page, context, request }) => {
   let calls = 0;
   const methods: string[] = [];
@@ -113,9 +147,9 @@ test("tiles in separate browser tabs share one guarded HEAD observation for a pr
     // Warm the server-rendered route without mounting any client data pollers.
     expect((await request.get("/")).ok()).toBe(true);
     for (const [index, tab] of [page, second].entries()) tab.on("request", incoming => {
-      if (!incoming.url().endsWith("/api/ping")) return;
+      if (!incoming.url().includes("/api/status?")) return;
       seen[index]++;
-      if (seen.every(count => count >= 2)) { clientsReady = true; release?.(); }
+      if (seen.every(count => count >= 1)) { clientsReady = true; release?.(); }
     });
     await Promise.all([page.goto("/"), second.goto("/")]);
     for (const tab of [page, second]) {
@@ -124,14 +158,63 @@ test("tiles in separate browser tabs share one guarded HEAD observation for a pr
       await expect(tab.locator(".status-dot").last()).toHaveAttribute("aria-label", /^Reachable; authentication required; HTTP 401/);
     }
     expect(calls).toBe(1);
+    expect(seen).toEqual([1, 1]);
     expect(methods).toEqual(["HEAD"]);
     expect(authorization).toEqual([undefined]);
     const timestamps = await Promise.all([page, second].map(tab => tab.locator(".status-dot").evaluateAll(elements => elements.map(element => element.getAttribute("aria-label")?.match(/checked ([^ ]+) /)?.[1]))));
     expect(new Set(timestamps.flat()).size).toBe(1);
+    // Staggered tabs must reuse the observation beyond the legacy 3s cooldown.
+    await new Promise(resolve => setTimeout(resolve, 3200));
+    const cached = await request.get(`/api/status?ids=${id("1", 0)}`);
+    expect(cached.ok()).toBe(true);
+    expect(calls).toBe(1);
   } finally {
     release?.();
     await second.close();
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+test("status badge preference persists through the editor and YAML", async ({ page, request }) => {
+  await mock(page); await configure(request); await page.goto("/");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await page.getByRole("button", { name: "Probe 200 options", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+  await page.getByLabel("Status indicator").selectOption("badge");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const saved = page.waitForResponse(r => r.url().endsWith("/api/settings") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: /Save & exit/ }).click(); expect((await saved).ok()).toBe(true);
+  await page.reload();
+  await expect(page.locator(".status-dot--badge")).toHaveText("Reachable");
+  const settings = await (await request.get("/api/settings")).json();
+  expect(settings.services[0].statusStyle).toBe("badge");
+  expect(await readFile(process.env.KOKPIT_E2E_RUNTIME_CONFIG_PATH!, "utf8")).toContain("statusStyle: badge");
+});
+
+test("badges are readable and stay clear of long names in all themes and on mobile", async ({ page, request }, testInfo) => {
+  await mock(page);
+  for (const theme of ["dark", "light", "oled", "high-contrast"]) {
+    await configure(request, theme);
+    const settings = await (await request.get("/api/settings")).json();
+    expect((await request.patch("/api/settings", { data: { services: settings.services.map((service: Record<string, unknown>) => ({ ...service, statusStyle: "badge" })) } })).ok()).toBe(true);
+    for (const width of [1108, 390]) {
+      await page.setViewportSize({ width, height: 800 }); await page.goto("/");
+      const badges = page.locator(".status-dot--badge");
+      await expect(badges).toHaveCount(statuses.length);
+      await expect(badges.first()).toHaveText("Reachable");
+      const contrasts = await badges.evaluateAll(elements => elements.map(element => {
+        const style = getComputedStyle(element);
+        const luminance = (color: string) => {
+          const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(value => Number(value) / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+          return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+        };
+        const foreground = luminance(style.color); const background = luminance(style.backgroundColor);
+        const name = element.closest(".service-tile")!.querySelector(".service-tile__name")!.getBoundingClientRect();
+        return { ratio: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05), overlap: name.right > element.getBoundingClientRect().left };
+      }));
+      expect(contrasts.every(value => value.ratio >= 4.5 && !value.overlap)).toBe(true);
+      if (width === 1108) await testInfo.attach(`Status-badges-${theme}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    }
   }
 });

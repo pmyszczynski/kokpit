@@ -491,28 +491,38 @@ button:not(:where(.widget-ui button)) {
 /* View mode: the shared slot holds either the dot (right: 10px + 8px wide) or
    the badge (right: 6px + 20px wide). Keep these in sync with .status-dot and
    .tile-widget-badge below. */
-.service-tile__header[data-corner-slot="dot"] {
-  --tile-corner-reach: 18px;
-}
+@layer widget-ui {
+  .service-tile__header[data-corner-slot="dot"] {
+    --tile-corner-reach: 18px;
+  }
 
-.service-tile__header[data-corner-slot="badge"] {
-  --tile-corner-reach: 26px;
-}
+  .service-tile__header[data-corner-slot="badge"] {
+    --tile-corner-reach: 26px;
+  }
 
-/* Edit mode: .tile-kebab takes the corner (right: 6px + 20px wide) and pushes
-   the dot/badge out to right: 30px — see the `.service-tile--editable
-   .status-dot` shift in the B3 section. Ordered after the view-mode rules so
-   the kebab-only case wins on equal specificity. */
-.service-tile--editable .service-tile__header {
-  --tile-corner-reach: 26px;
-}
+  /* Edit mode: .tile-kebab takes the corner (right: 6px + 20px wide) and pushes
+     the dot/badge out to right: 30px — see the `.service-tile--editable
+     .status-dot` shift in the B3 section. Ordered after the view-mode rules so
+     the kebab-only case wins on equal specificity. */
+  .service-tile--editable .service-tile__header {
+    --tile-corner-reach: 26px;
+  }
 
-.service-tile--editable .service-tile__header[data-corner-slot="dot"] {
-  --tile-corner-reach: 38px;
-}
+  .service-tile--editable .service-tile__header[data-corner-slot="dot"] {
+    --tile-corner-reach: 38px;
+  }
 
-.service-tile--editable .service-tile__header[data-corner-slot="badge"] {
-  --tile-corner-reach: 50px;
+  .service-tile--editable .service-tile__header[data-corner-slot="badge"] {
+    --tile-corner-reach: 50px;
+  }
+
+  .service-tile__header[data-corner-slot="status-badge"] {
+    --tile-corner-reach: 94px;
+  }
+
+  .service-tile--editable .service-tile__header[data-corner-slot="status-badge"] {
+    --tile-corner-reach: 114px;
+  }
 }
 
 .service-tile__letter-fallback {
@@ -660,6 +670,28 @@ button:not(:where(.widget-ui button)) {
     background: var(--color-text-muted);
   }
 
+  .status-dot--badge {
+    width: 84px;
+    height: 20px;
+    top: 6px;
+    padding: 1px 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transform: none;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-text-muted);
+    white-space: nowrap;
+  }
+  .status-dot--badge.status-dot--ok { border-color: var(--color-success); }
+  .status-dot--badge.status-dot--error { border-color: var(--color-error); }
+  .status-dot--badge.status-dot--warning,
+  .status-dot--badge.status-dot--degraded { border-color: var(--color-warning); }
   .service-status-tooltip {
     box-sizing: border-box;
     position: fixed;

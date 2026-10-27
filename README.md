@@ -603,10 +603,15 @@ This walks you through setting a new password, and optionally clearing 2FA and/o
 
 ## Service reachability
 
-Service dots check the service's saved launch URL from the Kokpit server. Hover the
-dot or focus its tile/link to read the observed HTTP status, server-to-service
+Service indicators check the service's saved launch URL from the Kokpit server.
+Dot is the default; choose **Status indicator → Badge** in Add/Edit Service for a
+short text label. The setting is shared by every tile of that service and persists
+as `services[].statusStyle: dot | badge` in `settings.yaml`. Hover the indicator
+or focus its tile/link to read the observed HTTP status, server-to-service
 latency, and when the check completed. Escape dismisses the tooltip. For tiles
-whose widget contains separate links, the dot has its own keyboard stop.
+whose widget contains separate links, the indicator has its own keyboard stop.
+Non-HTTP(S) launch links (such as `steam:` or `ssh:`) remain launchable and do not
+participate in reachability checks.
 
 - **Reachable:** a 2xx response arrived.
 - **Reachable, qualified:** a redirect, authentication requirement (401/403),
@@ -623,10 +628,50 @@ whose widget contains separate links, the dot has its own keyboard stop.
 Checks use `HEAD` only, never follow redirects, and never inject integration
 credentials. A 405/501 does not trigger an automatic GET fallback. Configured LAN
 destinations remain supported within the existing SSRF restrictions. Results are
-shared briefly across tiles/tabs handled by the same Kokpit server process;
+shared across tiles/tabs handled by the same Kokpit server process;
 cached results retain their original timestamp and latency. Latency stops when response headers arrive and measures neither page
 load time nor the browser's connection. This indicator does not check application
 dependencies or authenticated functionality.
+
+The dashboard uses one shared browser polling owner per protected surface, sending
+`GET /api/status?ids=<UUID>,<UUID>` batches of at most 20 unique service IDs.
+Duplicate tiles join the same subscription. Hidden/offline, edit-preview and
+access-gated surfaces do not poll; late responses cannot update a replacement
+service destination. Visible polling retains the existing session-activity policy.
+
+The server queues at most 100 pending checks and runs at most eight guarded HEAD
+requests concurrently. Each check has a five-second hard timeout. A request-driven,
+process-local cache holds at most 500 entries: successful HTTP observations are
+reused for 30 seconds, while transport/checker failures back off per service from
+30 seconds to five minutes and reset after recovery. No recurring upstream checks
+run without dashboard requests. Different server processes maintain separate
+caches. Large dashboards use sequential batches, so a slow or queued service can
+delay its batch; browser polling never overlaps itself. Closing one browser does
+not cancel work another browser may be sharing.
+
+The batch response is `{ "statuses": { "<UUID>": <probe envelope> } }`. IDs resolve
+only to saved HTTP(S) launch URLs. Authentication and confirmed configuration are
+checked before admission and again after awaiting observations; queued checks
+validate their configuration generation before starting. Unknown IDs or invalid
+URLs reject the entire batch before any outbound work. Responses use
+`Cache-Control: private, no-store` and `Vary: Cookie`; URLs, credentials and private
+upstream error text are excluded. Configuration changes invalidate earlier work.
+HTTP 400 means invalid/missing IDs (1–20) or launch URL; 401 means unauthorized;
+404 means unknown saved service; 409 means configuration changed or is unavailable.
+
+For example:
+
+```yaml
+services:
+  - id: 10000000-0000-4000-8000-000000000001
+    name: Example
+    launch_url: https://example.com
+    statusStyle: badge
+```
+
+The legacy single-service endpoint remains available for existing API clients.
+Its existing three-second cache and request contract are retained independently
+of the dashboard's batched scheduler.
 
 `POST /api/ping` accepts `{ "serviceId": "<saved service UUID>" }`, rather than a
 caller-supplied URL. HTTP 200 probe envelopes retain `ok` and, for received HTTP

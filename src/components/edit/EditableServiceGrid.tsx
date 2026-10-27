@@ -100,6 +100,7 @@ function serviceTileProps(service: Service) {
     tileId: service.tileId,
     name: service.name,
     url: service.url,
+    statusStyle: service.statusStyle,
     icon: service.icon,
     description: service.description,
     widget: resolveTileWidget(service.widget, service.integration?.config, {

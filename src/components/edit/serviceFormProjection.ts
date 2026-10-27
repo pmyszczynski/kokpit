@@ -146,6 +146,7 @@ function hasPresentationChange(
     (input.url ?? input.launch_url) !== previous.launch_url ||
     input.icon !== previous.icon ||
     input.description !== previous.description ||
+    (Object.prototype.hasOwnProperty.call(input, "statusStyle") && input.statusStyle !== previous.statusStyle) ||
     (Object.prototype.hasOwnProperty.call(input, "category") && input.category !== previous.category);
 }
 
@@ -353,9 +354,11 @@ export function persistLegacyServices(
       const category = Object.prototype.hasOwnProperty.call(canonical, "category")
         ? canonical.category
         : previous?.category;
+      const statusStyle = Object.prototype.hasOwnProperty.call(canonical, "statusStyle") ? canonical.statusStyle : previous?.statusStyle;
       servicesById.set(id, {
       id,
       name: canonical.name,
+      ...(statusStyle ? { statusStyle } : {}),
       ...(canonical.url ?? canonical.launch_url ? { launch_url: canonical.url ?? canonical.launch_url } : {}),
       ...(canonical.icon ? { icon: canonical.icon } : {}),
       ...(canonical.description ? { description: canonical.description } : {}),

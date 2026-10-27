@@ -576,6 +576,7 @@ export default function ServiceForm({
     initial.icon || presetEditor?.defaultIconUrl || ""
   );
   const [changedFields, setChangedFields] = useState({ name: false, url: false, icon: false, description: false, group: false });
+  const [statusStyle, setStatusStyle] = useState<"dot" | "badge" | undefined>(service?.statusStyle);
   const [description, setDescription] = useState(initial.description);
   const [group, setGroup] = useState(initial.group || initialGroup || "");
   const [footprint, setFootprint] = useState(() => {
@@ -648,7 +649,7 @@ export default function ServiceForm({
   const sourceId = `${draftScope}:service-form:${service?.tileId ?? service?.id ?? `new:${initialGroup ?? ""}:${initialPreset ?? ""}`}`;
   const values = {
     name: name.trim(), url: url.trim(), icon: icon.trim(), description: description.trim(), group: group.trim(),
-    footprint, tileType, orphanWidget, widgetConfig: cleanWidgetConfig(widgetConfig, tileType),
+    statusStyle, footprint, tileType, orphanWidget, widgetConfig: cleanWidgetConfig(widgetConfig, tileType),
     refreshInterval: refreshInterval === "" ? undefined : Number(refreshInterval),
     integrationType, integrationConfig: cleanWidgetConfig(integrationConfig),
   };
@@ -658,7 +659,7 @@ export default function ServiceForm({
   const recovery = useDraftRecovery(sourceId, baselineRevision ?? editMode?.baseRevision ?? null,
     { name: changedFields.name ? name : undefined, url: changedFields.url ? url : undefined,
       icon: changedFields.icon ? icon : undefined, description: changedFields.description ? description : undefined,
-      group: changedFields.group ? group : undefined, changedFields, footprint, tileType, refreshInterval, integrationType }, dirty,
+      group: changedFields.group ? group : undefined, changedFields, statusStyle, footprint, tileType, refreshInterval, integrationType }, dirty,
     (saved, changedRevision) => {
       // Untouched fields come from the authorized baseline, never its
       // redacted recovery copy. URL-shaped prose is sanitized too.
@@ -668,6 +669,7 @@ export default function ServiceForm({
       setDescription(saved.changedFields.description ? saved.description ?? "" : initialFields.description);
       setGroup(saved.changedFields.group ? saved.group ?? "" : initialFields.group);
       setChangedFields(saved.changedFields);
+      setStatusStyle(saved.statusStyle);
       setFootprint(saved.footprint); setTileType(saved.tileType); setRefreshInterval(saved.refreshInterval);
       if (saved.tileType !== tileType) {
         setWidgetConfig(saved.tileType ? { ...getWidget(saved.tileType)?.serviceEditorPreset?.defaultConfig } : {});
@@ -1252,6 +1254,7 @@ export default function ServiceForm({
       ...(service?.editorCatalogOnly ? { editorCatalogOnly: true } : {}),
       ...(editorIntegration ? { editorIntegration } : {}),
       name: trimmedName,
+      ...(statusStyle ? { statusStyle } : {}),
       url: url.trim() || undefined,
       icon: icon.trim() || undefined,
       description: description.trim() || undefined,
@@ -1597,6 +1600,14 @@ export default function ServiceForm({
               {iconDetectStatus.message}
             </p>
           )}
+        </div>
+        <div className="settings-form-row">
+          <label htmlFor="sf-status-style">Status indicator</label>
+          <select id="sf-status-style" className="settings-input" value={statusStyle ?? "dot"}
+            onChange={event => setStatusStyle(event.target.value as "dot" | "badge")} aria-describedby="sf-status-style-hint">
+            <option value="dot">Dot</option><option value="badge">Badge</option>
+          </select>
+          <p id="sf-status-style-hint" className="settings-form-hint">Dot is the default. Badge also shows a short text label. All tiles for this service share this setting.</p>
         </div>
         <div className="settings-form-row">
           <label htmlFor="sf-description">Description</label>
