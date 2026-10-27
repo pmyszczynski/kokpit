@@ -97,12 +97,12 @@
 }
 
 /* Shared widget UI opts into a layered reset so custom CSS can override it.
-   Settings fieldsets, password notices and the empty dashboard also own their
-   spacing in layers; exempt them so the unlayered reset cannot erase it.
+   Settings fieldsets, password notices, empty states and add controls also own
+   their spacing in layers; exempt them so the unlayered reset cannot erase it.
    Keep the existing reset precedence for widgets that have not migrated. */
-*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *)),
-*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::before,
-*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *))::after {
+*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *, .dashboard-add-tile, .dashboard-add-tile *, .dashboard-tile-grid--add-row)),
+*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *, .dashboard-add-tile, .dashboard-add-tile *, .dashboard-tile-grid--add-row))::before,
+*:not(:where(.widget-ui, .widget-ui *, .widget-setup-guide, .widget-setup-guide *, .settings-fieldset, .password-replacement-notice, .password-replacement-notice *, .empty-dashboard, .empty-dashboard *, .status-dot, .status-dot *, .service-status-tooltip, .service-status-tooltip *, .dashboard-add-tile, .dashboard-add-tile *, .dashboard-tile-grid--add-row))::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -2605,48 +2605,87 @@ button:not(:where(.widget-ui button)) {
   cursor: not-allowed;
 }
 
-/* Ghost "+ Add tile" affordance — a grid citizen that opens the add picker. */
-.dashboard-add-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 0;
-  height: 100%;
-  padding: 0.25rem;
-  color: var(--color-text-muted);
-  background: none;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: color 150ms ease, border-color 150ms ease;
-}
+@layer widget-ui {
+  /* Ghost "+ Add tile" affordance — a grid citizen that opens the add picker. */
+  .dashboard-add-tile {
+    box-sizing: border-box;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 0;
+    height: 100%;
+    padding: 0.25rem;
+    color: var(--color-text-muted);
+    background: none;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
 
-.dashboard-add-tile:hover,
-.dashboard-add-tile:focus-visible {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-  outline: none;
-}
+  .dashboard-add-tile:hover,
+  .dashboard-add-tile:focus-visible {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    outline: none;
+  }
 
-.dashboard-add-tile__plus {
-  font-size: 1.5rem;
-  line-height: 1;
-}
+  .dashboard-add-tile__plus {
+    font-size: 1.5rem;
+    line-height: 1;
+  }
 
-.dashboard-add-tile__label {
-  font-size: 0.8rem;
-}
+  .dashboard-add-tile__label {
+    font-size: 0.8rem;
+  }
 
-.dashboard-tile-grid--add-row {
-  margin-top: var(--gap);
-}
+  .dashboard-tile-grid--add-row {
+    margin-top: var(--gap);
+  }
 
-.dashboard-add-tile--standalone {
-  min-height: 0;
-  padding: 0.75rem 1rem;
-  flex-direction: row;
+  .dashboard-add-tile--standalone {
+    min-height: 0;
+    padding: 0.75rem 1rem;
+    flex-direction: row;
+  }
+
+  .dashboard-add-tile__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .dashboard-add-tile--empty {
+    grid-column: span 3;
+    flex-direction: row;
+    gap: 12px;
+    padding: 8px 12px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border-color: var(--color-text-muted);
+  }
+
+  .dashboard-add-tile--empty:hover,
+  .dashboard-add-tile--empty:focus-visible {
+    color: var(--color-text);
+  }
+
+  .dashboard-add-tile--empty:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -4px;
+  }
+
+  .dashboard-add-tile--empty .dashboard-add-tile__label {
+    font-weight: 600;
+  }
+
+  .dashboard-add-tile__hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
 }
 
 /* Add-tile picker dialog (reuses the shared dialog chrome). */
