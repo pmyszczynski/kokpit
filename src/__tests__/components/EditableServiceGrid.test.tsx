@@ -103,6 +103,27 @@ describe("edit-mode drag handles", () => {
   });
 });
 
+describe("empty group add tiles", () => {
+  it("treats saved catalog services without placed tiles as an empty group", () => {
+    const config = cfg({ bookmarks: [] });
+    config.service_tiles = [];
+    render(<EditableServiceGrid config={config} />);
+    const add = screen.getByRole("button", { name: "Add tile to Media" });
+    expect(add).toHaveClass("dashboard-add-tile--empty");
+    expect(add).toHaveAccessibleDescription("This group is empty");
+  });
+
+  it("does not show an empty state for a group containing only bookmarks", () => {
+    render(<EditableServiceGrid config={cfg({
+      services: [],
+      bookmarks: [{ name: "Links", placement: { group: "Media" }, links: [{ name: "Docs", url: "https://example.com" }] }],
+    })} />);
+    const add = screen.getByRole("button", { name: "Add tile to Media" });
+    expect(add).not.toHaveClass("dashboard-add-tile--empty");
+    expect(add).not.toHaveAttribute("aria-describedby");
+  });
+});
+
 // jsdom doesn't implement <dialog>'s showModal/close at all (neither method
 // exists on the prototype), so there's nothing for vi.spyOn to wrap until a
 // base implementation is installed once, here. Each test then spies on top

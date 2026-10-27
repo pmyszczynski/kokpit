@@ -19,7 +19,7 @@ PR #132 / v0.27.1. All 18 selected items are implemented through the final
 v0.31.4 integration; entries below record their implementation versions. The
 [implementation index](plans/2026-10-20-improvement-plan.md) contains the complete
 selection, historical delivery order, compatibility decisions, and validation gate.
-IMP-15 and IMP-16 are tracked in the existing Phase 3 status/onboarding entries
+IMP-15 and IMP-16 are tracked in the existing Phase 3 status/empty-state entries
 below to avoid duplicate completion state. Unselected items 9 and 12
 are reassessed separately and are not part of this work.
 
@@ -204,10 +204,10 @@ are reassessed separately and are not part of this work.
   - [x] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab (v0.34.0)
     - One browser poller batches up to 20 saved service IDs per request; process-local shared checks have bounded concurrency, a 30-second success cache, and independent failure backoff up to five minutes. Legacy `POST /api/ping` remains compatible.
 
-- [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
+- [x] `P2` **Empty states** *(part of UX redesign Phase C)*
   - [x] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)
     - Implemented for v0.31.3: Authorized empty dashboards offer the existing staged tile/service flow, preserve saved catalog records and retain unsaved-navigation guards.
-  - Ghost "+" tile in empty groups while editing; first-edit coach marks
+  - [x] Ghost "+" tile in empty groups while editing, with group-targeted add flows, keyboard access, and the existing staged save/discard behavior
 
 - [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
   - Warning badge on tiles whose widget config fails validation, instead of today's silent downgrade to a plain link
@@ -231,6 +231,9 @@ are reassessed separately and are not part of this work.
     (own order/sizes) remains open; legacy grid overrides are migrated away
   - [x] Web app manifest for home screen installation
   - [ ] Offline support / service worker
+
+- [ ] `P2` **Onboarding** *(deferred; part of UX redesign Phase C)*
+  - [ ] First-edit coach marks
 
 ---
 

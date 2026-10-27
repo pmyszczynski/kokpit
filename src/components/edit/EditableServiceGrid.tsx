@@ -19,7 +19,7 @@
 //  - Sensors: PointerSensor with an 8px activation distance (taps/scrolls on
 //    touch never start a drag) + KeyboardSensor (full keyboard DnD for free).
 import "@/integrations";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -257,6 +257,33 @@ function DroppableTileGrid({
         {children}
       </div>
     </SortableContext>
+  );
+}
+
+function AddTileButton({
+  group,
+  empty,
+  onClick,
+}: {
+  group: string | null;
+  empty: boolean;
+  onClick: () => void;
+}) {
+  const descriptionId = useId();
+  return (
+    <button
+      type="button"
+      className={`dashboard-add-tile${empty ? " dashboard-add-tile--empty" : ""}`}
+      aria-label={group ? `Add tile to ${group}` : "Add tile"}
+      aria-describedby={empty ? descriptionId : undefined}
+      onClick={onClick}
+    >
+      <span className="dashboard-add-tile__plus" aria-hidden="true">+</span>
+      <span className="dashboard-add-tile__copy">
+        <span className="dashboard-add-tile__label">Add tile</span>
+        {empty && <span id={descriptionId} className="dashboard-add-tile__hint">This group is empty</span>}
+      </span>
+    </button>
   );
 }
 
@@ -807,17 +834,11 @@ export default function EditableServiceGrid({
           kebab={bookmarkKebab(bookmark)}
         />
       ))}
-      <button
-        type="button"
-        className="dashboard-add-tile"
-        aria-label={addTarget ? `Add tile to ${addTarget}` : "Add tile"}
+      <AddTileButton
+        group={addTarget}
+        empty={addTarget !== null && sectionServices.length === 0 && sectionBookmarks.length === 0}
         onClick={() => setDialog({ kind: "add-picker", group: addTarget })}
-      >
-        <span className="dashboard-add-tile__plus" aria-hidden="true">
-          +
-        </span>
-        <span className="dashboard-add-tile__label">Add tile</span>
-      </button>
+      />
     </>
   );
 
