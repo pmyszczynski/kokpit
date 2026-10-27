@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 3 — Personalization
-**Current task:** Phase 3 empty states: empty named groups show accessible, tile-sized ghost "+" controls while editing, using the existing group-targeted picker and staged save/discard flow; the empty-dashboard welcome card is already complete. Onboarding (first-edit coach marks) remains a separate, deferred P2 item at the end of Phase 3. Theme schema documentation remains P2. Status indicator upgrades shipped in v0.34.0; preserve reachability/HTTP/checker distinctions, protected tooltips, lifecycle/auth boundaries, legacy `/api/ping` compatibility, existing widgets, and Search's saved and implicit Wide geometry. Netdata dashboard UI migration remains deferred.
+**Current task:** Phase 3 empty-group ghost tiles are complete for v0.35.0, with accessible group-targeted add controls and the existing staged save/discard flow; the empty-dashboard welcome card was already complete. Multiple dashboard pages/tabs is the next feature. Onboarding (first-edit coach marks) and theme schema documentation remain deferred P2 items. Status indicator upgrades shipped in v0.34.0; preserve reachability/HTTP/checker distinctions, protected tooltips, lifecycle/auth boundaries, legacy `/api/ping` compatibility, existing widgets, and Search's saved and implicit Wide geometry. Netdata dashboard UI migration remains deferred.
 
 ---
 

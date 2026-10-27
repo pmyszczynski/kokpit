@@ -207,7 +207,7 @@ are reassessed separately and are not part of this work.
 - [x] `P2` **Empty states** *(part of UX redesign Phase C)*
   - [x] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)
     - Implemented for v0.31.3: Authorized empty dashboards offer the existing staged tile/service flow, preserve saved catalog records and retain unsaved-navigation guards.
-  - [x] Ghost "+" tile in empty groups while editing, with group-targeted add flows, keyboard access, and the existing staged save/discard behavior
+  - [x] Ghost "+" tile in empty groups while editing, with group-targeted add flows, keyboard access, and the existing staged save/discard behavior (v0.35.0)
 
 - [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
   - Warning badge on tiles whose widget config fails validation, instead of today's silent downgrade to a plain link
