@@ -610,6 +610,8 @@ as `services[].statusStyle: dot | badge` in `settings.yaml`. Hover the indicator
 or focus its tile/link to read the observed HTTP status, server-to-service
 latency, and when the check completed. Escape dismisses the tooltip. For tiles
 whose widget contains separate links, the indicator has its own keyboard stop.
+Non-HTTP(S) launch links (such as `steam:` or `ssh:`) remain launchable and do not
+participate in reachability checks.
 
 - **Reachable:** a 2xx response arrived.
 - **Reachable, qualified:** a redirect, authentication requirement (401/403),

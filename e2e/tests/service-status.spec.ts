@@ -86,6 +86,37 @@ test("custom CSS overrides indicator colors and tooltip text", async ({ page, re
   await expect(page.getByRole("tooltip")).toHaveCSS("color", "rgb(4, 5, 6)");
 });
 
+test("custom CSS controls badge width and header clearance in view and edit modes", async ({ page, request }) => {
+  await mock(page);
+  await configure(request, "dark", '.status-dot--badge { width: 96px; } .service-tile__header[data-corner-slot="status-badge"] { --tile-corner-reach: 130px; }');
+  const settings = await (await request.get("/api/settings")).json();
+  expect((await request.patch("/api/settings", { data: { services: settings.services.map((service: Record<string, unknown>) => ({ ...service, statusStyle: "badge" })) } })).ok()).toBe(true);
+  await page.goto("/");
+  const header = page.locator('.service-tile__header[data-corner-slot="status-badge"]').first();
+  await expect(page.locator(".status-dot--badge").first()).toHaveCSS("width", "96px");
+  await expect(header).toHaveCSS("--tile-corner-reach", "130px");
+  await page.getByRole("button", { name: "Edit dashboard" }).click();
+  await expect(header).toHaveCSS("--tile-corner-reach", "130px");
+});
+
+test("non-HTTP launch links stay outside the shared status batch", async ({ page, request }) => {
+  const requests: string[][] = [];
+  await page.route("**/api/status?*", route => {
+    const url = route.request().url();
+    requests.push(new URL(url).searchParams.get("ids")!.split(","));
+    return route.fulfill({ json: serviceStatusBatch(url, { ok: true, reachable: true, status: 200, checkedAt: CHECKED_AT, responseTimeMs: 2 }) });
+  });
+  expect((await request.patch("/api/settings", { data: {
+    services: ["https://example.com", "steam://rungameid/123", "ssh://server.local"].map((launch_url, index) => ({ id: id("1", index), name: `Launch ${index}`, launch_url, statusStyle: "badge" })),
+    service_tiles: [0, 1, 2].map(index => ({ id: id("2", index), service_id: id("1", index) })), groups: [], bookmarks: [],
+  } })).ok()).toBe(true);
+  await page.goto("/");
+  await expect(page.locator(".status-dot--badge")).toHaveText("Reachable");
+  expect(requests).toEqual([[id("1", 0)]]);
+  await expect(page.getByRole("link", { name: "Launch 1", exact: true })).toHaveAttribute("href", "steam://rungameid/123");
+  await expect(page.locator('.service-tile__header[data-corner-slot="status-badge"]')).toHaveCount(1);
+});
+
 test("tiles in separate browser tabs share one guarded HEAD observation for a protected service", async ({ page, context, request }) => {
   let calls = 0;
   const methods: string[] = [];

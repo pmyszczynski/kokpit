@@ -263,7 +263,13 @@ function resolveWidgetFootprint(
   return fallback;
 }
 
+function isHttpUrl(value?: string): value is string {
+  try { return ["http:", "https:"].includes(new URL(value ?? "").protocol); }
+  catch { return false; }
+}
+
 export default function ServiceTile({ tileId, serviceId, statusStyle, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
+  const statusUrl = isHttpUrl(url) ? url : undefined;
   const definition = widget ? getWidget(widget.type) : undefined;
   const linkHeaderOnly = definition?.hasLinks === true;
   const Header = url && linkHeaderOnly ? "a" : "div";
@@ -324,7 +330,7 @@ export default function ServiceTile({ tileId, serviceId, statusStyle, name, url,
       {invalidIssues ? (
         <WidgetConfigBadge name={name} serviceId={serviceId} tileId={tileId} issues={invalidIssues} />
       ) : (
-        serviceId && url && <StatusDot key={url} serviceId={serviceId} destination={url} statusStyle={statusStyle} preview={preview} insideLink={!linkHeaderOnly} />
+        serviceId && statusUrl && <StatusDot key={statusUrl} serviceId={serviceId} destination={statusUrl} statusStyle={statusStyle} preview={preview} insideLink={!linkHeaderOnly} />
       )}
       {/*
        * The name shares the header row with the icon, and that row runs the
@@ -342,7 +348,7 @@ export default function ServiceTile({ tileId, serviceId, statusStyle, name, url,
         target={url && linkHeaderOnly ? "_blank" : undefined}
         rel={url && linkHeaderOnly ? "noopener noreferrer" : undefined}
         aria-label={url && linkHeaderOnly ? name : undefined}
-          data-corner-slot={invalidIssues ? "badge" : serviceId && url ? statusStyle === "badge" ? "status-badge" : "dot" : undefined}
+          data-corner-slot={invalidIssues ? "badge" : serviceId && statusUrl ? statusStyle === "badge" ? "status-badge" : "dot" : undefined}
       >
         <ServiceIcon icon={icon} url={url} name={name} />
         {compactHeader ? (
