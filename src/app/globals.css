@@ -660,6 +660,28 @@ button:not(:where(.widget-ui button)) {
     background: var(--color-text-muted);
   }
 
+  .status-dot--badge {
+    width: 84px;
+    height: 20px;
+    top: 6px;
+    padding: 1px 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transform: none;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-text-muted);
+    white-space: nowrap;
+  }
+  .status-dot--badge.status-dot--ok { border-color: var(--color-success); }
+  .status-dot--badge.status-dot--error { border-color: var(--color-error); }
+  .status-dot--badge.status-dot--warning,
+  .status-dot--badge.status-dot--degraded { border-color: var(--color-warning); }
   .service-status-tooltip {
     box-sizing: border-box;
     position: fixed;
@@ -2689,3 +2711,6 @@ button:not(:where(.widget-ui button)) {
 .protected-surface, .protected-portals { display: contents; }
 .protected-surface[hidden] { display: none; }
 .config-recovery { margin: auto; padding: 2rem; text-align: center; }
+
+.service-tile__header[data-corner-slot="status-badge"] { --tile-corner-reach: 94px; }
+.service-tile--editable .service-tile__header[data-corner-slot="status-badge"] { --tile-corner-reach: 114px; }

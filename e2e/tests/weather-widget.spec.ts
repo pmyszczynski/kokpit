@@ -1,3 +1,4 @@
+import { serviceStatusBatch } from "../helpers/service-status";
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { expectWidgetStatLayout, expectWidgetStatContrast } from "../helpers/widget-stat";
 import { withSettledConfigurationCheck } from "../helpers/configuration-check";
@@ -245,7 +246,7 @@ test("Weather attribution remains a valid independent link when the service has 
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   expect((await request.patch("/api/settings", { data: { ...data, services: data.services.map(service => ({ ...service, launch_url: "https://example.com/weather-site" })), groups: [], bookmarks: [], appearance: { theme: "dark" } } })).ok()).toBe(true);
-  await page.route("**/api/status*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, status: 200 }) }));
+  await page.route("**/api/status*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(serviceStatusBatch(route.request().url(), { ok: true, status: 200 })) }));
   await page.route("**/favicon.ico", route => route.fulfill({ status: 404, body: "" }));
   await context.route("https://open-meteo.com/", route => route.fulfill({ contentType: "text/html", body: "Weather attribution destination" }));
   await mock(page); await page.goto("/");

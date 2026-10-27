@@ -53,6 +53,14 @@ const SAVED_TAUTULLI_SECRET = {
 };
 
 describe("ServiceForm – rendering", () => {
+  it("loads and saves a service's status badge preference", async () => {
+    const onSave = vi.fn();
+    render(<ServiceForm service={{ name: "Example", statusStyle: "badge" }} existingGroups={[]} onSave={onSave} onClose={noop} />);
+    expect(screen.getByLabelText("Status indicator")).toHaveValue("badge");
+    fireEvent.change(screen.getByLabelText("Status indicator"), { target: { value: "dot" } });
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ statusStyle: "dot" })));
+  });
   it.each([true, false])("keeps Search options, refresh override and Wide geometry when the saved footprint is explicit: %s", (explicit) => {
     const onSave = vi.fn();
     const config = { search_url: "http://search.lan:8888/search?language=en", query_parameter: "q", engine_name: "Home search", new_tab: false };

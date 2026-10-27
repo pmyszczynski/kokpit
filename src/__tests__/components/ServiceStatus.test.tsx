@@ -5,6 +5,13 @@ import { PollingLifecycleProvider } from "@/components/PollingLifecycle";
 import { createBrowserPollingLifecycle } from "@/lib/clientPolling";
 import { ConfigurationSyncProvider } from "@/components/ConfigurationSyncProvider";
 
+const TEST_SERVICE_ID = "10000000-0000-4000-8000-000000000001";
+function probeBatch(value: unknown) {
+  if (value && typeof value === "object" && "revision" in value) return value;
+  return { statuses: Object.fromEntries([TEST_SERVICE_ID, "saved-service", "old-service", "new-service"].map(id => [id, value])) };
+}
+function probeJson(value: unknown, options?: ResponseInit) { return Response.json(probeBatch(value), options); }
+
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
@@ -18,6 +25,15 @@ function mount() {
 }
 
 describe("service reachability feedback", () => {
+  it("renders a readable badge with the same qualified assessment and tooltip", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(probeJson(observed(401))));
+    await act(async () => { render(<ServiceStatus serviceId="saved-service" statusStyle="badge" />); });
+    expect(screen.getByRole("img")).toHaveClass("status-dot--badge", "status-dot--warning");
+    expect(screen.getByText("HTTP 401")).toBeInTheDocument();
+    expect(screen.getByRole("img")).toHaveAccessibleName(/^Reachable; authentication required; HTTP 401/);
+    fireEvent.focus(screen.getByRole("img"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("HTTP 401; 42.5 ms to headers");
+  });
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); vi.spyOn(Math, "random").mockReturnValue(0); });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
@@ -32,7 +48,7 @@ describe("service reachability feedback", () => {
     [501, "warning", "Reachable; HEAD unsupported; application health unknown; HTTP 501"],
     [503, "degraded", "Reachable; degraded (HTTP server error); HTTP 503"],
   ])("explains HTTP %i with a textual assessment and %s styling", async (status, tone, assessment) => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(observed(status as number))));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(probeJson(observed(status as number))));
     await act(async () => { mount(); });
     const indicator = screen.getByRole("img");
     expect(indicator).toHaveClass(`status-dot--${tone}`);
@@ -44,8 +60,8 @@ describe("service reachability feedback", () => {
 
   it("distinguishes a confirmed unreachable probe from ambiguous legacy/checker failures", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ ok: false, reachable: false, assessment: "unreachable", reason: "timeout", checkedAt: NOW, responseTimeMs: 5000 }))
-      .mockResolvedValueOnce(Response.json({ ok: false }));
+      .mockResolvedValueOnce(probeJson({ ok: false, reachable: false, assessment: "unreachable", reason: "timeout", checkedAt: NOW, responseTimeMs: 5000 }))
+      .mockResolvedValueOnce(probeJson({ ok: false }));
     vi.stubGlobal("fetch", fetchMock);
     await act(async () => { mount(); });
     expect(screen.getByRole("img")).toHaveClass("status-dot--error");
@@ -57,7 +73,7 @@ describe("service reachability feedback", () => {
 
   it.each([400, 401, 403, 404])("shows unavailable for Kokpit HTTP %i, preserving the last service observation", async status => {
     vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(Response.json(observed(200)))
+      .mockResolvedValueOnce(probeJson(observed(200)))
       .mockResolvedValueOnce(new Response("private backend details", { status })));
     let lifecycle!: ReturnType<typeof createBrowserPollingLifecycle>;
     const reconcile = vi.fn();
@@ -73,9 +89,9 @@ describe("service reachability feedback", () => {
 
   it.each([false, true])("automatically retries a temporary configuration conflict without a generation change (prior observation: %s)", async (hasObservation) => {
     const fetchMock = vi.fn();
-    if (hasObservation) fetchMock.mockResolvedValueOnce(Response.json(observed(200)));
+    if (hasObservation) fetchMock.mockResolvedValueOnce(probeJson(observed(200)));
     fetchMock.mockResolvedValueOnce(new Response("Configuration is being updated", { status: 409 }))
-      .mockResolvedValue(Response.json(observed(200)));
+      .mockResolvedValue(probeJson(observed(200)));
     vi.stubGlobal("fetch", fetchMock);
     let lifecycle!: ReturnType<typeof createBrowserPollingLifecycle>;
     const reconcile = vi.fn();
@@ -99,9 +115,9 @@ describe("service reachability feedback", () => {
 
   it.each([false, true])("resumes after the polling gate closes and reopens with unchanged inputs (prior observation: %s)", async (hasObservation) => {
     const fetchMock = vi.fn();
-    if (hasObservation) fetchMock.mockResolvedValueOnce(Response.json(observed(200)));
+    if (hasObservation) fetchMock.mockResolvedValueOnce(probeJson(observed(200)));
     fetchMock.mockResolvedValueOnce(new Response("Configuration is being updated", { status: 409 }))
-      .mockResolvedValue(Response.json(observed(200)));
+      .mockResolvedValue(probeJson(observed(200)));
     vi.stubGlobal("fetch", fetchMock);
     let lifecycle!: ReturnType<typeof createBrowserPollingLifecycle>;
     const reconcile = vi.fn();
@@ -146,8 +162,8 @@ describe("service reachability feedback", () => {
   });
 
   it.each([
-    Response.json({ ok: false, reachable: null, assessment: "unavailable", reason: "capacity", checkedAt: NOW, responseTimeMs: null }),
-    Response.json({ ok: false, reachable: null, assessment: "unavailable", reason: "probe-blocked", checkedAt: NOW, responseTimeMs: null }),
+    probeJson({ ok: false, reachable: null, assessment: "unavailable", reason: "capacity", checkedAt: NOW, responseTimeMs: null }),
+    probeJson({ ok: false, reachable: null, assessment: "unavailable", reason: "probe-blocked", checkedAt: NOW, responseTimeMs: null }),
     new Response("temporary checker error", { status: 503 }),
     new Response("invalid JSON", { status: 200 }),
   ])("keeps checker/capacity/invalid-response failures neutral %#", async response => {
@@ -159,7 +175,7 @@ describe("service reachability feedback", () => {
   });
 
   it("opens a keyboard-readable tooltip, updates observation age, and dismisses with Escape", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(observed(401))));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(probeJson(observed(401))));
     let unmount!: () => void;
     await act(async () => { ({ unmount } = mount()); });
     fireEvent.focus(screen.getByRole("img"));
@@ -175,7 +191,7 @@ describe("service reachability feedback", () => {
   });
 
   it("reuses a surrounding launch link's keyboard stop instead of nesting tabindex", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(observed(200))));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(probeJson(observed(200))));
     await act(async () => render(<a href="https://example.com">Launch service <ServiceStatus serviceId="saved-service" insideLink /></a>));
     expect(screen.getByRole("img")).not.toHaveAttribute("tabindex");
     fireEvent.focus(screen.getByRole("link"));
@@ -183,7 +199,7 @@ describe("service reachability feedback", () => {
   });
 
   it("describes a launch link that received focus before its indicator mounted", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(observed(401))));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(probeJson(observed(401))));
     const view = render(<a href="https://example.com" aria-label="Focused service">Launch service</a>);
     const link = screen.getByRole("link", { name: "Focused service" });
     act(() => link.focus());
@@ -196,7 +212,7 @@ describe("service reachability feedback", () => {
   });
 
   it("describes an aria-labeled compact launch link and preserves other descriptions", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(observed(401))));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(probeJson(observed(401))));
     await act(async () => render(<>
       <span id="launch-help">Opens a new tab</span>
       <a href="https://example.com" aria-label="Compact service" aria-describedby="launch-help">
@@ -219,10 +235,10 @@ describe("service reachability feedback", () => {
 
   it("keeps status tooltips inside the access gate and clears them after authorization loss", async () => {
     let revisionStatus = 200;
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/api/ping"
-      ? Response.json(observed(200))
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.startsWith("/api/status?")
+      ? probeJson(observed(200))
       : revisionStatus === 200
-        ? Response.json({ revision: "one", editable: true, dataRevision: "data-one" })
+        ? probeJson({ revision: "one", editable: true, dataRevision: "data-one" })
         : new Response("{}", { status: revisionStatus })));
     await act(async () => render(<ConfigurationSyncProvider initialRevision="one" initialEditable
       initialAppearance={{ theme: "dark", customCss: undefined, bgStyle: {} }} initialDataRevision="data-one">
@@ -249,7 +265,7 @@ describe("service reachability feedback", () => {
     lifecycle.setReconciliationHandler(reconcile);
     let resolveOld!: (response: Response) => void;
     vi.stubGlobal("fetch", vi.fn().mockReturnValueOnce(new Promise<Response>(resolve => { resolveOld = resolve; }))
-      .mockResolvedValueOnce(Response.json(observed(200))));
+      .mockResolvedValueOnce(probeJson(observed(200))));
     const view = render(<PollingLifecycleProvider value={lifecycle}><ServiceStatus serviceId="old-service" /></PollingLifecycleProvider>);
     await act(async () => view.rerender(<PollingLifecycleProvider value={lifecycle}><ServiceStatus serviceId="new-service" /></PollingLifecycleProvider>));
     await act(async () => resolveOld(new Response("stale unauthorized response", { status: 401 })));

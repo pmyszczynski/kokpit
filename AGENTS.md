@@ -46,7 +46,7 @@ A self-hosted personal dashboard / homepage — a modern alternative to Homepage
 > Manually update this as you move through phases.
 
 **Active phase:** Phase 3 — Personalization
-**Current task:** OpenWeatherMap completes the Phase 2 API widgets with protected reusable connections, shared Weather layouts and summaries of the 5 Day / 3 Hour Forecast. Existing Open-Meteo tiles remain compatible. The documentation-backed setup-guidance rollout is complete: all 20 integration families (33 widgets) are released in v0.32.0–v0.32.19, with primary-source references, editor help/screenshots, PR/AI review evidence, green test/security CI and verified Docker publication. The [completed setup guidance proposal and delivery record](docs/integration-setup-guidance-proposal.md) records scope, validation and reviewer availability. The selected 2026-10-20 improvements are implemented through v0.31.4; the Weather location fix shipped in v0.31.5. Preserve existing widgets and Search's saved and implicit Wide geometry; Netdata dashboard UI migration remains deferred.
+**Current task:** Phase 3 status indicator upgrades: per-service dot/badge presentation and batched saved-service observations with shared server scheduling/cache and browser polling. Preserve reachability/HTTP/checker distinctions, protected tooltips, lifecycle/auth boundaries, and legacy `/api/ping` compatibility. Theme schema documentation is deferred to P2. OpenWeatherMap shipped in v0.33.0; preserve existing widgets and Search's saved and implicit Wide geometry. Netdata dashboard UI migration remains deferred.
 
 ---
 

@@ -312,6 +312,13 @@ test.describe.serial("authentication flow", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("GET /api/status requires authentication", async ({ page }) => {
+    const res = await page.request.get("/api/status?ids=10000000-0000-4000-8000-000000000001");
+    expect(res.status()).toBe(401);
+    expect(res.headers()["cache-control"]).toBe("private, no-store");
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
   // ── Post-logout state ─────────────────────────────────────────────────────────
 
   test("visiting / after logout redirects to /login", async ({ page }) => {

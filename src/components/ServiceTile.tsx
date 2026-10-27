@@ -156,6 +156,7 @@ function WidgetConfigBadge({
 interface ServiceTileProps {
   tileId?: string;
   serviceId?: string;
+  statusStyle?: "dot" | "badge";
   name: string;
   url?: string;
   icon?: string;
@@ -262,7 +263,7 @@ function resolveWidgetFootprint(
   return fallback;
 }
 
-export default function ServiceTile({ tileId, serviceId, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
+export default function ServiceTile({ tileId, serviceId, statusStyle, name, url, icon, description, widget, size = "normal", footprint, preview = false, drag, kebab }: ServiceTileProps) {
   const definition = widget ? getWidget(widget.type) : undefined;
   const linkHeaderOnly = definition?.hasLinks === true;
   const Header = url && linkHeaderOnly ? "a" : "div";
@@ -323,7 +324,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
       {invalidIssues ? (
         <WidgetConfigBadge name={name} serviceId={serviceId} tileId={tileId} issues={invalidIssues} />
       ) : (
-        serviceId && url && <StatusDot key={url} serviceId={serviceId} preview={preview} insideLink={!linkHeaderOnly} />
+        serviceId && url && <StatusDot key={url} serviceId={serviceId} destination={url} statusStyle={statusStyle} preview={preview} insideLink={!linkHeaderOnly} />
       )}
       {/*
        * The name shares the header row with the icon, and that row runs the
@@ -341,7 +342,7 @@ export default function ServiceTile({ tileId, serviceId, name, url, icon, descri
         target={url && linkHeaderOnly ? "_blank" : undefined}
         rel={url && linkHeaderOnly ? "noopener noreferrer" : undefined}
         aria-label={url && linkHeaderOnly ? name : undefined}
-          data-corner-slot={invalidIssues ? "badge" : serviceId && url ? "dot" : undefined}
+          data-corner-slot={invalidIssues ? "badge" : serviceId && url ? statusStyle === "badge" ? "status-badge" : "dot" : undefined}
       >
         <ServiceIcon icon={icon} url={url} name={name} />
         {compactHeader ? (

@@ -176,12 +176,6 @@ are reassessed separately and are not part of this work.
 
 > Goal: Let users make the dashboard their own without touching code.
 
-- [ ] `P0` **Theme engine**
-  - [x] Built-in themes: dark, light, OLED, high-contrast (minimum)
-  - [x] Theme picker in UI settings
-  - [x] All colors as CSS variables, overridable via `appearance.custom_css`
-  - [ ] Theme schema documented so community themes are possible
-
 - [x] `P0` **Drag-and-drop layout editor** *(UX redesign Phase B — see `docs/plans/2026-07-20-dashboard-ux-redesign.md` §6.3–6.4)*
   - [x] Non-drag foundation: tile size presets (normal/wide/tall/large) and group/service/bookmark ordering via settings-panel up/down controls *(shipped v0.5.0)*
   - [x] Edit mode: navbar pencil toggle + `Mod+E`, staged changes, atomic save/discard, revision conflict check against external YAML edits (409 + reload banner)
@@ -202,12 +196,13 @@ are reassessed separately and are not part of this work.
   - [x] Blur-behind effect + opt-in frosted-glass card blur (`appearance.card_blur`; cards stay opaque unless set)
   - [x] Brightness + opacity overlay (configurable in UI and YAML)
 
-- [ ] `P1` **Status indicator upgrades** *(part of UX redesign Phase C)*
+- [x] `P1` **Status indicator upgrades** *(part of UX redesign Phase C)*
   - [x] **IMP-15 — Distinguish service reachability, HTTP failures, and probe errors**; show HTTP status and response time without treating login-required services as offline. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-15)
     - Implemented for v0.31.2: Saved-service HEAD observations distinguish HTTP health, transport failures and checker unavailability, with measured latency and accessible protected tooltips.
   - [x] Hover tooltip with response time + HTTP status (v0.31.2)
-  - [ ] Optional `statusStyle: dot | badge`
-  - [ ] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
+  - [x] Optional `statusStyle: dot | badge`, shared per service and editable in UI/YAML
+  - [x] Batched `GET /api/status` with a shared server-side ping scheduler/cache, replacing per-tile `/api/ping` polling from every open tab
+    - One browser poller batches up to 20 saved service IDs per request; process-local shared checks have bounded concurrency, a 30-second success cache, and independent failure backoff up to five minutes. Legacy `POST /api/ping` remains compatible.
 
 - [ ] `P2` **Empty states & onboarding** *(part of UX redesign Phase C)*
   - [x] **IMP-16 — Welcome card with "Add your first service"** when the dashboard is empty (today: blank page), using the existing add-tile flow. [Implementation plan](plans/2026-10-20-dashboard-reliability-plan.md#imp-16)
@@ -217,6 +212,12 @@ are reassessed separately and are not part of this work.
 - [x] `P2` **Broken-widget feedback** *(part of UX redesign Phase C)*
   - Warning badge on tiles whose widget config fails validation, instead of today's silent downgrade to a plain link
   - Badge links to the edit dialog with the validation error shown
+
+- [ ] `P2` **Theme engine**
+  - [x] Built-in themes: dark, light, OLED, high-contrast (minimum)
+  - [x] Theme picker in UI settings
+  - [x] All colors as CSS variables, overridable via `appearance.custom_css`
+  - [ ] Theme schema documented so community themes are possible
 
 - [ ] `P2` **Multiple dashboard pages / tabs**
   - Named pages (e.g. Home, Media, Monitoring, Network)

@@ -37,6 +37,7 @@ export const ServiceSchema = z.object({
   id: z.uuid(),
   name: z.string().trim().min(1),
   launch_url: z.url().optional(),
+  statusStyle: z.enum(["dot", "badge"]).optional(),
   icon: z.string().optional(),
   description: z.string().optional(),
   category: z.string().optional(),

@@ -13,6 +13,7 @@ import {
 } from "@/widgets/configSecrets";
 import { createWidgetConfigReference } from "@/widgets/secretReference.server";
 import { duplicateService } from "@/config/duplicate";
+import { KokpitConfigSchema } from "@/config/schema";
 import "@/integrations";
 
 const serviceId = "10000000-0000-4000-8000-000000000001";
@@ -20,6 +21,17 @@ const tileId = "20000000-0000-4000-8000-000000000001";
 const extraTileId = "20000000-0000-4000-8000-000000000002";
 
 describe("serviceFormProjection", () => {
+  it("preserves status style through redaction, projected edits and legacy callers", () => {
+    const services = [{ id: serviceId, name: "Example", launch_url: "https://example.com", statusStyle: "badge" as const }];
+    const tiles = [{ id: tileId, service_id: serviceId }];
+    const safe = toClientSafeSettings(KokpitConfigSchema.parse({ schema_version: 2, services, service_tiles: tiles }));
+    const projected = projectLegacyServices(safe.services, safe.service_tiles);
+    expect(projected[0].statusStyle).toBe("badge");
+    expect(persistLegacyServices([{ ...projected[0], name: "Changed" }], services, tiles).services[0].statusStyle).toBe("badge");
+    expect(persistLegacyServices([{ ...projected[0], statusStyle: "dot" }], services, tiles).services[0].statusStyle).toBe("dot");
+    const { statusStyle: _style, ...legacy } = projected[0];
+    expect(persistLegacyServices([legacy], services, tiles).services[0].statusStyle).toBe("badge");
+  });
   it("projects a catalog-only integration as an editor-only representative without creating a tile", () => {
     const services = [{
       id: serviceId,

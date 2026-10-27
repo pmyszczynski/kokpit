@@ -4,12 +4,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePollingLifecycle } from "./PollingLifecycle";
 import { useProtectedPortalHost } from "./ConfigurationSyncProvider";
-import { retryAfterMilliseconds, startPolling } from "@/lib/clientPolling";
-import { parseServiceProbe, type ServiceProbeResult, type UnavailableReason } from "@/lib/serviceStatus";
+import { subscribeServiceStatus, type StatusState } from "@/lib/clientServiceStatus";
+import { type ServiceProbeResult } from "@/lib/serviceStatus";
 
 type Observation = Exclude<ServiceProbeResult, { reachable: null }>;
-type CheckFailure = UnavailableReason | "authorization" | "invalid-response";
-interface StatusState { observation: Observation | null; unavailable: CheckFailure | null }
 
 const ASSESSMENT = {
   reachable: "Reachable",
@@ -41,7 +39,7 @@ function observationLabel(observation: Observation, now: number): string {
 }
 
 /** Reachability indicator; the dashboard request's own failure is never an outage. */
-export function ServiceStatus({ serviceId, preview, insideLink = false }: { serviceId: string; preview?: boolean; insideLink?: boolean }) {
+export function ServiceStatus({ serviceId, destination = "", preview, insideLink = false, statusStyle = "dot" }: { serviceId: string; destination?: string; preview?: boolean; insideLink?: boolean; statusStyle?: "dot" | "badge" }) {
   const [state, setState] = useState<StatusState>({ observation: null, unavailable: null });
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -58,60 +56,11 @@ export function ServiceStatus({ serviceId, preview, insideLink = false }: { serv
   useEffect(() => {
     if (preview) return;
     setState({ observation: null, unavailable: null });
-    const unavailable = (reason: CheckFailure) => {
+    return subscribeServiceStatus(serviceId, destination, lifecycle, next => {
       setTooltipNow(Date.now());
-      setState(previous => ({ ...previous, unavailable: reason }));
-    };
-    const subscription = startPolling({
-      interval: 30_000,
-      lifecycle,
-      async attempt(signal) {
-        let retryAfterMs: number | undefined;
-        try {
-          const response = await fetch("/api/ping", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ serviceId }), signal,
-          });
-          if (signal.aborted) return { kind: "success" };
-          retryAfterMs = retryAfterMilliseconds(response.headers?.get("Retry-After"));
-          // Temporary configuration conflicts can recover without a new identity.
-          // Keep the last observation and retry; this is not a service outage.
-          if (response.status === 409) {
-            unavailable("configuration-changed");
-            return { kind: "failure", retryAfterMs };
-          }
-          if ([401, 403, 400, 404].includes(response.status)) {
-            const authorization = response.status === 401 || response.status === 403;
-            unavailable(authorization ? "authorization" : "configuration-changed");
-            return { kind: "reconcile", reason: { kind: authorization ? "authorization" : "identity", status: response.status } };
-          }
-          if (response.ok === false) {
-            unavailable(response.status === 429 || response.status === 503 ? "capacity" : "checker-failed");
-            return { kind: "failure", retryAfterMs };
-          }
-          const result = parseServiceProbe(await response.json());
-          if (signal.aborted) return { kind: "success" };
-          if (!result) {
-            unavailable("invalid-response");
-            return { kind: "failure", retryAfterMs };
-          }
-          if (result.reachable === null) {
-            unavailable(result.reason);
-            return { kind: "failure", retryAfterMs };
-          }
-          setTooltipNow(Date.now());
-          setState({ observation: result, unavailable: null });
-          // A service HTTP error is still a completed observation. Only probe
-          // transport failures back off; application health is a separate fact.
-          return result.reachable ? { kind: "success" } : { kind: "failure", retryAfterMs };
-        } catch {
-          if (!signal.aborted) unavailable("checker-failed");
-          return { kind: "failure", retryAfterMs };
-        }
-      },
+      setState(next);
     });
-    return () => subscription.dispose();
-  }, [serviceId, preview, lifecycle]);
+  }, [serviceId, destination, preview, lifecycle]);
 
   useEffect(() => {
     if (!tooltipOpen) return;
@@ -178,10 +127,10 @@ export function ServiceStatus({ serviceId, preview, insideLink = false }: { serv
     : assessment === "degraded" ? "degraded" : assessment === "reachable" ? "ok" : "warning";
 
   return <>
-    <div ref={anchor} className={`status-dot status-dot--${tone}`} role="img" tabIndex={insideLink ? undefined : 0}
+    <div ref={anchor} className={`status-dot status-dot--${tone}${statusStyle === "badge" ? " status-dot--badge" : ""}`} role="img" tabIndex={insideLink ? undefined : 0}
       title={hovered || focused ? undefined : label} aria-label={label} aria-describedby={!insideLink && tooltipOpen && position && portalHost ? tooltipId : undefined} data-status-assessment={state.unavailable ? "unavailable" : assessment ?? "pending"}
       onMouseEnter={show} onMouseLeave={hide}
-      onFocus={() => { setFocused(true); setDismissed(false); }} onBlur={() => setFocused(false)} />
+      onFocus={() => { setFocused(true); setDismissed(false); }} onBlur={() => setFocused(false)}>{statusStyle === "badge" && <span aria-hidden="true">{state.unavailable ? "Unavailable" : !assessment ? "Checking" : assessment === "unreachable" ? "Unreachable" : assessment === "reachable" ? "Reachable" : assessment === "degraded" ? "Degraded" : state.observation?.reachable ? `HTTP ${state.observation.status}` : "Unavailable"}</span>}</div>
     {tooltipOpen && position && portalHost && createPortal(
       <div id={tooltipId} role="tooltip" className="service-status-tooltip" style={position} onMouseEnter={show} onMouseLeave={hide}>
         {label}
