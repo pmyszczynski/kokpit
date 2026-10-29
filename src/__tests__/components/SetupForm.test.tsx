@@ -76,6 +76,7 @@ describe("SetupForm", () => {
       "/api/setup",
       expect.objectContaining({
         method: "POST",
+        headers: { "Content-Type": "application/json", "X-Kokpit-Request": "1" },
         body: JSON.stringify({ username: "admin", password: "password1" }),
       })
     );

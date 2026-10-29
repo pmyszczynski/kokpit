@@ -2,6 +2,7 @@ import { AUTH_JSON_BODY_BYTES, readJsonObject, RequestBodyError } from "@/lib/re
 import { NextResponse } from "next/server";
 import { passwordExceedsBcryptLimit } from "@/auth/passwords";
 import { NEW_PASSWORD_BYTE_LIMIT_MESSAGE } from "@/auth/passwordPolicy";
+import { isTrustedMutation } from "@/auth/requestGuard";
 import {
   countUsers,
   createUser,
@@ -16,6 +17,14 @@ export async function GET(_req: Request) {
 }
 
 export async function POST(req: Request) {
+  if (!isTrustedMutation(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const contentType = req.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (contentType !== "application/json") {
+    return NextResponse.json({ error: "Unsupported content type" }, { status: 415 });
+  }
+
   if (countUsers() > 0) {
     return NextResponse.json(
       { error: "Setup already complete" },

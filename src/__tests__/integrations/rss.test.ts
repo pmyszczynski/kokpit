@@ -1,23 +1,14 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchRss, RssConfigSchema } from "@/integrations/rss/api";
-import { parseFeed, fetchFeed } from "@/integrations/rss/server";
+import { fetchFeed, parseFeedIsolated } from "@/integrations/rss/server";
+import { parseFeed } from "@/integrations/rss/parser.cjs";
 import { ssrfSafeFetch } from "@/lib/ssrfGuard";
 import { getWidget } from "@/widgets";
 import { splitWidgetConfig } from "@/widgets/configBoundary";
 import "@/integrations/rss/widget";
 
 vi.mock("@/lib/ssrfGuard", () => ({ ssrfSafeFetch: vi.fn() }));
-const { xmlDocumentCreated } = vi.hoisted(() => ({ xmlDocumentCreated: vi.fn() }));
-vi.mock("jsdom", async () => {
-  const actual = await vi.importActual<typeof import("jsdom")>("jsdom");
-  return { ...actual, JSDOM: class extends actual.JSDOM {
-    constructor(...args: ConstructorParameters<typeof actual.JSDOM>) {
-      if (args[1]?.contentType === "text/xml") xmlDocumentCreated();
-      super(...args);
-    }
-  } };
-});
 afterEach(() => vi.resetAllMocks());
 const config = { feed_url: "https://example.com/feed.xml" };
 const RSS = `<rss version="2.0"><channel><title>Homelab &amp; News</title><item><title><![CDATA[Storage &amp; backups]]></title><link>/posts/storage</link><pubDate>Fri, 16 Oct 2026 10:30:00 GMT</pubDate><description><![CDATA[<p>Keep <b>three</b> copies.</p><script>evil()</script>]]></description></item><item><title>Next</title></item></channel></rss>`;
@@ -48,11 +39,21 @@ describe("RSS and Atom parsing", () => {
   it.each([
     `<rss><channel>${"<nested>".repeat(5000)}text${"</nested>".repeat(5000)}</channel></rss>`,
     '<rss><channel><title>&notARealEntity;</title></channel></rss>',
-  ])("rejects excessive depth or unknown entities before XML DOM construction", xml => {
+  ])("rejects excessive depth or unknown entities during bounded XML validation", xml => {
     expect(() => parseFeed(xml, config.feed_url, 10)).toThrow(expect.objectContaining({ code: "widget_invalid_response" }));
-    expect(xmlDocumentCreated).not.toHaveBeenCalled();
-    parseFeed(RSS, config.feed_url, 10);
-    expect(xmlDocumentCreated).toHaveBeenCalledTimes(1);
+    expect(parseFeed(RSS, config.feed_url, 10).articles).toHaveLength(2);
+  });
+  it.each([
+    `<rss><channel>${"<extension/>".repeat(20_000)}</channel></rss>`,
+    `<rss><channel>${"<!-- ignored -->".repeat(10_000)}</channel></rss>`,
+    `<rss><channel><extension ${Array.from({ length: 101 }, (_, i) => `a${i}="value"`).join(" ")} /></channel></rss>`,
+    `<rss><channel>${(`<extension ${Array.from({ length: 100 }, (_, i) => `a${i}="value"`).join(" ")}/>`).repeat(201)}</channel></rss>`,
+  ])("rejects excessive sibling, node and attribute counts even when the article limit is one", xml => {
+    expect(() => parseFeed(xml, config.feed_url, 1)).toThrow(expect.objectContaining({ diagnostic: { integration: "rss", stage: "xml", retryable: false } }));
+  });
+  it("traverses a wide document within budget while retaining the selected article", () => {
+    const xml = `<rss><channel><title>Feed</title>${"<extension/>".repeat(9_000)}<item><title>Article</title></item></channel></rss>`;
+    expect(parseFeed(xml, config.feed_url, 1).articles).toEqual([{ title: "Article", url: null, publishedAt: null, summary: "" }]);
   });
   it("selects prefixed Atom fields by namespace URI and ignores same-name extensions", () => {
     const xml = '<a:feed xmlns:a="http://www.w3.org/2005/Atom" xmlns:extra="https://example.com/ext"><extra:title>Wrong feed</extra:title><a:title>Atom feed</a:title><a:entry><extra:title>Wrong article</extra:title><a:title>Article</a:title><extra:id>Wrong ID</extra:id><a:id>urn:article:one</a:id><extra:content>Wrong body</extra:content><a:content type="text/html">&lt;p&gt;Real body&lt;/p&gt;</a:content><extra:link href="https://wrong.example.com/"/><a:link href="/article"/></a:entry></a:feed>';
@@ -205,6 +206,20 @@ describe("RSS and Atom parsing", () => {
   });
 });
 describe("RSS fetching and registration", () => {
+  it("parses the actual worker result while the request event loop remains available", async () => {
+    let timerRan = false;
+    const timer = setTimeout(() => { timerRan = true; }, 0);
+    try {
+      expect(await parseFeedIsolated(RSS, config.feed_url, 1)).toMatchObject({ title: "Homelab & News", articles: [{ title: "Storage & backups" }] });
+      expect(timerRan).toBe(true);
+    } finally { clearTimeout(timer); }
+  });
+  it("rejects a wide upstream feed inside its worker and can parse the next feed", async () => {
+    respond(`<rss><channel>${"<extension/>".repeat(20_000)}</channel></rss>`);
+    await expect(fetchFeed(config)).rejects.toMatchObject({ code: "widget_invalid_response", diagnostic: { stage: "xml" } });
+    respond();
+    expect((await fetchFeed(config)).articles).toHaveLength(2);
+  });
   it("negotiates RSS 1.0 endpoints that require the RDF media type", async () => {
     vi.mocked(ssrfSafeFetch).mockImplementation(async (_url, options) => {
       const acceptsRdf = options.headers?.Accept.includes("application/rdf+xml");

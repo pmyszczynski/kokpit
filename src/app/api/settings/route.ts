@@ -21,6 +21,7 @@ import {
   ServiceSchema,
   ServiceTileSchema,
   KokpitConfigSchema,
+  type KokpitConfig,
 } from "@/config/schema";
 import { CONFIG_REVISION_HEADER, configRevision } from "@/config/revision";
 import { pruneOrphanedUploads } from "@/lib/uploadGc";
@@ -29,6 +30,7 @@ import {
   toClientSafeSettings,
   resolveServiceIntegrationSecrets,
   resolveServiceTileWidgetConfigs,
+  assertRetainedWidgetCredentialScopes,
   WidgetSecretResolutionError,
 } from "@/widgets/configSecrets";
 
@@ -125,7 +127,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: result.error.message }, { status: 400 });
   }
 
-  const updates: Record<string, unknown> = {};
+  const updates: Partial<KokpitConfig> = {};
   if (result.data.appearance !== undefined)
     updates.appearance = result.data.appearance;
   if (result.data.layout !== undefined) updates.layout = result.data.layout;
@@ -185,6 +187,12 @@ export async function PATCH(request: NextRequest) {
       }
       if (result.data.service_tiles !== undefined) {
         updates.service_tiles = resolveServiceTileWidgetConfigs(result.data.service_tiles, current.service_tiles);
+      }
+      if (result.data.services !== undefined || result.data.service_tiles !== undefined) {
+        assertRetainedWidgetCredentialScopes(current, {
+          services: updates.services ?? current.services,
+          service_tiles: updates.service_tiles ?? current.service_tiles,
+        }, result.data);
       }
     } catch (error) {
       if (error instanceof WidgetSecretResolutionError) {

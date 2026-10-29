@@ -1,5 +1,8 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.KOKPIT_DB_PATH = ":memory:";
 process.env.KOKPIT_SESSION_SECRET = "test-secret-32-chars-minimum-length-xx";
@@ -8,6 +11,14 @@ vi.mock("@/auth/requestGuard", () => ({ isTrustedMutation: vi.fn().mockReturnVal
 
 describe("POST /api/auth/reset-password", () => {
   beforeEach(() => vi.resetModules());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  function resetRequest(username: string, recoveryCode = "invalid") {
+    return new Request("http://localhost/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ username, recoveryCode, newPassword: "newpassword123" }),
+    });
+  }
 
   async function setupUserWithRecoveryCode(username: string) {
     const { createUser, hashPassword, generateRecoveryCode, hashRecoveryCode, setRecoveryCodeHash } =
@@ -201,5 +212,56 @@ describe("POST /api/auth/reset-password", () => {
     }
     const res = await makeRequest();
     expect(res.status).toBe(429);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(3500);
+  });
+
+  it("stops rotating long unknown usernames without retaining them or creating more counters", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { POST } = await import("../../app/api/auth/reset-password/route");
+    const { getDb } = await import("@/auth/db");
+    const privateName = "private-username-".repeat(750);
+    for (let i = 0; i < 100; i++) expect((await POST(resetRequest(`${privateName}${i}`))).status).toBe(401);
+    for (let i = 100; i < 110; i++) {
+      const response = await POST(resetRequest(`${privateName}${i}`));
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+    }
+    const rows = getDb().prepare("SELECT key FROM login_rate_limits").all() as { key: string }[];
+    expect(rows).toHaveLength(100);
+    for (const row of rows) expect(row.key).toMatch(/^recovery:[a-f0-9]{64}$/);
+    expect(getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 100 });
+  });
+
+  it("keeps throttling after route reload and database reopen", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const directory = mkdtempSync(join(tmpdir(), "kokpit-recovery-route-"));
+    vi.stubEnv("KOKPIT_DB_PATH", join(directory, "users.db"));
+    try {
+      const { POST } = await import("../../app/api/auth/reset-password/route");
+      const { closeDb } = await import("@/auth/db");
+      for (let i = 0; i < 10; i++) expect((await POST(resetRequest("Admin"))).status).toBe(401);
+      closeDb();
+      vi.resetModules();
+      const reloaded = await import("../../app/api/auth/reset-password/route");
+      const response = await reloaded.POST(resetRequest("ADMIN"));
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("3600");
+    } finally {
+      const { closeDb } = await import("@/auth/db");
+      closeDb();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not erase earlier recovery failures after a successful password reset", async () => {
+    const { recoveryCode } = await setupUserWithRecoveryCode("failed-then-successful");
+    const { POST } = await import("../../app/api/auth/reset-password/route");
+    const { getDb } = await import("@/auth/db");
+    for (let i = 0; i < 9; i++) expect((await POST(resetRequest("failed-then-successful"))).status).toBe(401);
+    expect((await POST(resetRequest("failed-then-successful", recoveryCode))).status).toBe(200);
+    expect(getDb().prepare("SELECT attempts FROM login_rate_limits").get()).toEqual({ attempts: 9 });
+    expect(getDb().prepare("SELECT COUNT(*) AS count FROM login_request_times").get()).toEqual({ count: 10 });
+    expect((await POST(resetRequest("failed-then-successful"))).status).toBe(401);
+    expect((await POST(resetRequest("failed-then-successful"))).status).toBe(429);
   });
 });

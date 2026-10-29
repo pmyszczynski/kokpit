@@ -42,8 +42,9 @@ const nextConfig: NextConfig = {
   env: { KOKPIT_BUILD_VERSION: appVersion },
   output: "standalone",
   outputFileTracingIncludes: {
-    // Keep aligned with the static Worker path in calendar/server.ts.
-    "/api/*": [...runtimePackageFiles("form-data"), ...runtimePackageFiles("node-ical"), "./src/integrations/calendar/parser.cjs"],
+    // Keep aligned with the static Worker paths in Calendar and RSS. The RSS
+    // worker requires its own full jsdom dependency tree at runtime.
+    "/api/*": [...runtimePackageFiles("jsdom"), ...runtimePackageFiles("node-ical"), "./src/integrations/calendar/parser.cjs", "./src/integrations/rss/parser.cjs"],
     // Operational CLI entry points are not imported by app routes. Keep the
     // emergency reset command available in standalone and Docker deployments.
     "/api/auth/login": ["./scripts/reset-password.js", "./node_modules/bcryptjs/**/*"],

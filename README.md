@@ -420,12 +420,16 @@ blocked. Redirect responses count as reachable, but Kokpit does not follow them.
 ## Login sessions
 
 Password login and TOTP verification each allow at most ten failed or pending
-attempts per account in a fifteen-minute window. A successful login releases its
+attempts per account in a fifteen-minute window. Disabling 2FA shares the account's
+TOTP allowance and requires your current password plus an authenticator code.
+Password recovery has a separate allowance of ten failed or pending attempts per
+username per hour. A successful login or recovery releases its
 own attempt; issuing a TOTP challenge releases only the password-step attempt.
 Earlier failures remain until the window ends, and fresh challenges do not reset
 the account's TOTP allowance. A shared rolling budget also permits at most 100
-password/TOTP checks in any sixty seconds across all accounts, including successful
-checks and requests for unknown usernames. Limits persist in SQLite across
+login, TOTP and recovery checks in any sixty seconds across all accounts, including
+successful checks and requests for unknown usernames. Counter keys contain hashes
+rather than raw usernames, and the shared budget bounds stored counters. Limits persist in SQLite across
 restarts and do not trust forwarded IP headers. A blocked request
 returns HTTP 429 with `Retry-After` in seconds.
 
@@ -453,8 +457,8 @@ in `data/users.db`; only a hash of its random cookie token is stored. Preserve t
 In **Settings → Authentication**, you can view signed-in browsers and last-used
 times, sign out one browser, or sign out all other devices/all devices. Controlling
 other sessions and changing authentication settings require your current password.
-Enabling 2FA requires your password plus an authenticator code; disabling it requires
-a current authenticator code. Either change signs out other devices. Password
+Enabling or disabling 2FA requires your password plus a current authenticator code.
+Either change signs out other devices. Password
 recovery and the emergency reset command sign out every device and invalidate
 pending 2FA login challenges.
 
@@ -933,9 +937,9 @@ service_tiles:
         max_items: 10
 ```
 
-Every redirect destination is DNS-validated and pinned. Responses are limited to 2 MiB of UTF-8 XML; DTD/entity declarations are rejected, and nesting beyond 40 elements is rejected before DOM allocation. Common HTML named entities are supported in ordinary XML text while literal sections stay intact. Markup is parsed into inert text nodes, preserving escaped comparison signs and separating paragraphs; scripts/styles are omitted and feed HTML never executes in the dashboard. Text extraction processes at most 65,536 UTF-16 code units from each field, with 200-character feed titles and 500-character article titles/summaries. Empty or invalid summary/date fields try later alternatives. Safe RSS permalink GUIDs provide article links when a link is absent. Images, podcast media and linked full articles are not fetched or rendered. Missing dates show **Date unavailable**, missing article titles **Untitled article**, and missing usable HTTP(S) links leave plain headlines. Refresh errors preserve previously loaded articles and scroll position with the shared notice. No request is made until a feed is configured.
+Every redirect destination is DNS-validated and pinned. Responses are limited to 2 MiB of UTF-8 XML; DTD/entity declarations are rejected, and nesting beyond 40 elements is rejected before DOM allocation. Documents are also limited to 10,000 XML nodes, 100 attributes per element and 20,000 attributes overall. Parsing runs in a separate worker with a two-second time budget and bounded heap; at most four parsers run concurrently. These limits apply before the article limit, so reducing Article limit does not make an oversized feed acceptable. Common HTML named entities are supported in ordinary XML text while literal sections stay intact. Markup is parsed into inert text nodes, preserving escaped comparison signs and separating paragraphs; scripts/styles are omitted and feed HTML never executes in the dashboard. Text extraction processes at most 65,536 UTF-16 code units from each field, with 200-character feed titles and 500-character article titles/summaries. Empty or invalid summary/date fields try later alternatives. Safe RSS permalink GUIDs provide article links when a link is absent. Images, podcast media and linked full articles are not fetched or rendered. Missing dates show **Date unavailable**, missing article titles **Untitled article**, and missing usable HTTP(S) links leave plain headlines. Refresh errors preserve previously loaded articles and scroll position with the shared notice. No request is made until a feed is configured.
 
-The feed client passes its own pinned Undici dispatcher. Undici’s [Agent](https://github.com/nodejs/undici/blob/v8.9.0/docs/docs/api/Agent.md) and [EnvHttpProxyAgent](https://github.com/nodejs/undici/blob/v8.9.0/docs/docs/api/EnvHttpProxyAgent.md) documentation distinguish that direct agent from explicitly configured proxy routing; environment variables alone do not reconfigure this path.
+The feed client passes its own pinned Undici dispatcher. Undici’s [Agent](https://github.com/nodejs/undici/blob/v8.12.3/docs/docs/api/Agent.md) and [EnvHttpProxyAgent](https://github.com/nodejs/undici/blob/v8.12.3/docs/docs/api/EnvHttpProxyAgent.md) documentation distinguish that direct agent from explicitly configured proxy routing; environment variables alone do not reconfigure this path.
 
 ### Weather (Open-Meteo)
 

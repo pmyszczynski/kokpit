@@ -91,11 +91,14 @@ removes the production secure-cookie flag for local HTTP testing.
 There are no roles yet. A signed-in user can edit configuration; when
 authentication is disabled, visitors can do the same.
 
-Authentication defaults to enabled even for partial `auth` configuration. Password
-login and TOTP verification reserve account and shared rolling request budgets in
-SQLite before checking credentials. The transaction prevents concurrent attempts
-or process restarts from bypassing
-the limits. Throttled requests return HTTP 429 with `Retry-After`. See the README
+Authentication defaults to enabled even for partial `auth` configuration. Initial
+account creation requires the same-origin mutation header and JSON content type.
+Password login, TOTP verification/removal and password recovery reserve account
+and shared rolling request budgets in SQLite before checking credentials. Recovery
+counter keys hash usernames rather than retaining submitted names. The transaction
+prevents concurrent attempts or process restarts from bypassing the limits.
+Removing TOTP also requires the current password. Throttled requests return HTTP
+429 with `Retry-After`. See the README
 Login sessions section for the limits and expiry behavior.
 
 ## Widgets and integrations
@@ -113,7 +116,15 @@ the connection credentials.
 `/api/settings` returns a client-safe settings projection. Registry-declared
 credential fields are represented by signed references so the editor can retain
 an existing credential without reading it. The server verifies those references
-when a settings update is saved.
+when a settings update is saved. Opaque tile configurations accept only declared
+non-secret option overrides. Credentials split across service and tile configs
+remain bound to their effective connection destination, including when services
+change independently or a new tile reuses a saved connection.
+
+RSS parsing runs in a terminable worker with time, heap and concurrency limits.
+XML node, attribute and depth budgets bound DOM allocation, and sibling traversal
+does not materialize live collections. The standalone build includes the parser
+and its runtime dependencies.
 
 To add an integration, create its API client and widget renderer under
 `src/integrations/<name>/`, register its definitions, import it from

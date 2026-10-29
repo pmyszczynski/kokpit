@@ -415,7 +415,7 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     expect(screen.getByText(/2FA is/)).toBeInTheDocument();
   });
 
-  it("disables 2FA after confirming with a code", async () => {
+  it("disables 2FA after confirming the current password and code", async () => {
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce(jsonResponse({ enabled: true }));
     fetchMock.mockResolvedValueOnce(jsonResponse({}));
@@ -431,6 +431,10 @@ describe("SettingsPanel - auth tab / TOTP", () => {
     fireEvent.change(screen.getByLabelText("Authenticator code"), {
       target: { value: "654321" },
     });
+    expect(screen.getByRole("button", { name: "Confirm Disable" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#totp-disable-password" }), {
+      target: { value: "mypassword" },
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Confirm Disable" }));
@@ -441,10 +445,26 @@ describe("SettingsPanel - auth tab / TOTP", () => {
       "/api/auth/totp/setup",
       expect.objectContaining({
         method: "DELETE",
-        body: JSON.stringify({ code: "654321" }),
+        body: JSON.stringify({ code: "654321", password: "mypassword" }),
       })
     );
     expect(screen.getByText("2FA disabled.")).toBeInTheDocument();
+  });
+
+  it("clears the password and authenticator code when disabling 2FA is cancelled", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ enabled: true })));
+    render(<SettingsPanel config={makeConfig()} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Auth" })); });
+    fireEvent.click(screen.getByRole("button", { name: "Disable 2FA" }));
+    fireEvent.change(screen.getByLabelText("Authenticator code"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("Current password", { selector: "#totp-disable-password" }), {
+      target: { value: "do-not-retain" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disable 2FA" }));
+    expect(screen.getByLabelText("Authenticator code")).toHaveValue("");
+    expect(screen.getByLabelText("Current password", { selector: "#totp-disable-password" })).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Confirm Disable" })).toBeDisabled();
   });
 });
 
