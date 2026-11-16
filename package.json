@@ -28,12 +28,12 @@
     "@testing-library/dom": "^10.4.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
-    "dompurify": "^3.4.13",
+    "dompurify": "^3.4.17",
     "entities": "^6.0.1",
     "ipaddr.js": "^2.4.0",
     "jose": "^6.1.3",
     "jsdom": "^25.0.1",
-    "next": "^16.3.4",
+    "next": "^16.4.5",
     "node-ical": "^0.27.3",
     "otplib": "^13.3.0",
     "proper-lockfile": "^4.1.2",
@@ -43,7 +43,7 @@
     "saxes": "^6.0.0",
     "undici": "^8.12.3",
     "yaml": "^2.8.3",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -64,6 +64,6 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.11"
   }
 }
